@@ -1,0 +1,187 @@
+{
+  "name": "tiinex-vscode",
+  "displayName": "Tiinex",
+  "description": "Thin native VS Code operator bridge for qualified Tiinex validation, artifact-first Handoff authoring, package construction, Workspace landing, and Git workflow.",
+  "version": "0.1.7",
+  "publisher": "tiinex",
+  "license": "SEE LICENSE IN LICENSE",
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:tiinex.landHandoffPackage",
+    "onCommand:tiinex.generateCommitMessage",
+    "onCommand:tiinex.stageCommitPush",
+    "onCommand:tiinex.selectHandoffInbox",
+    "workspaceContains:.topics",
+    "onCommand:tiinex.createHandoff",
+    "onCommand:tiinex.buildHandoffPackage",
+    "onStartupFinished",
+    "onLanguage:markdown",
+    "onCommand:tiinex.openOperator",
+    "onCommand:tiinex.refreshDiagnostics",
+    "onCommand:tiinex.showProblems",
+    "onCommand:tiinex.createHandoffFromArtifact",
+    "onView:tiinex.operator"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "tiinex.landHandoffPackage",
+        "title": "Tiinex: Land Handoff Package"
+      },
+      {
+        "command": "tiinex.generateCommitMessage",
+        "title": "Tiinex: Generate Tiinex Commit Message"
+      },
+      {
+        "command": "tiinex.stageCommitPush",
+        "title": "Tiinex: Stage, Commit & Push with Tiinex"
+      },
+      {
+        "command": "tiinex.selectHandoffInbox",
+        "title": "Tiinex: Select Handoff Inbox"
+      },
+      {
+        "command": "tiinex.createHandoff",
+        "title": "Tiinex: Create Handoff"
+      },
+      {
+        "command": "tiinex.buildHandoffPackage",
+        "title": "Tiinex: Build Handoff Package"
+      },
+      {
+        "command": "tiinex.openOperator",
+        "title": "Tiinex: Open Operator View"
+      },
+      {
+        "command": "tiinex.refreshDiagnostics",
+        "title": "Tiinex: Refresh Validation"
+      },
+      {
+        "command": "tiinex.showProblems",
+        "title": "Tiinex: Show Validation Problems"
+      },
+      {
+        "command": "tiinex.createHandoffFromArtifact",
+        "title": "Tiinex: Create Handoff from This Artifact",
+        "enablement": "tiinex.activeArtifactCanCreateHandoff"
+      }
+    ],
+    "configuration": {
+      "title": "Tiinex",
+      "properties": {
+        "tiinex.handoffInbox.path": {
+          "type": "string",
+          "default": "",
+          "description": "Explicit Tiinex Handoff inbox directory. Blank uses ~/Downloads/Tiinex Inbox."
+        },
+        "tiinex.nodePath": {
+          "type": "string",
+          "default": "",
+          "description": "Optional Node executable used for package-declared Tiinex bootstrap and repository commit-message helpers. Blank uses the VS Code/Electron executable in Node mode."
+        },
+        "tiinex.handoff.discovery": {
+          "type": "string",
+          "enum": [
+            "manual",
+            "auto"
+          ],
+          "default": "manual",
+          "description": "Handoff package discovery mode. Manual never watches the inbox; Auto watches only stable completed .handoff-package.zip files."
+        },
+        "tiinex.landing.commit": {
+          "type": "string",
+          "enum": [
+            "no",
+            "ask",
+            "yes"
+          ],
+          "default": "no",
+          "description": "After a successful qualified landing, create a commit in each affected repository. Default is no."
+        },
+        "tiinex.landing.push": {
+          "type": "string",
+          "enum": [
+            "no",
+            "ask",
+            "yes"
+          ],
+          "default": "no",
+          "description": "After a landing-created commit, push exactly that commit only when the current configured upstream remains unchanged. Default is no."
+        },
+        "tiinex.landing.openHandoff": {
+          "type": "string",
+          "enum": [
+            "no",
+            "ask",
+            "yes"
+          ],
+          "default": "no",
+          "description": "After landing, open the exact selected Handoff route. Pointerless Workspace carriers have no Handoff target. Default is no."
+        }
+      }
+    },
+    "views": {
+      "tiinex": [
+        {
+          "id": "tiinex.operator",
+          "name": "Tiinex Operator",
+          "type": "webview",
+          "visibility": "visible"
+        }
+      ]
+    },
+    "menus": {
+      "editor/context": [
+        {
+          "command": "tiinex.createHandoffFromArtifact",
+          "when": "tiinex.activeArtifactCanCreateHandoff && editorLangId == markdown",
+          "group": "navigation@70"
+        }
+      ],
+      "editor/title/context": [
+        {
+          "command": "tiinex.createHandoffFromArtifact",
+          "when": "tiinex.activeArtifactCanCreateHandoff && editorLangId == markdown",
+          "group": "navigation@70"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "tiinex.refreshDiagnostics",
+          "when": "view == tiinex.operator",
+          "group": "navigation@10"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "tiinex",
+          "title": "Tiinex",
+          "icon": "media/tiinex.svg"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "clean": "node scripts/clean.mjs",
+    "build": "npm run clean && tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && node test/run.mjs",
+    "vsix": "npm run build && node scripts/package-vsix.mjs",
+    "validate": "npm run typecheck && npm test && npm run vsix",
+    "sync:shared-core": "node scripts/sync-shared-core.mjs"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "22.10.2",
+    "@types/vscode": "1.95.0",
+    "typescript": "5.7.2"
+  }
+}

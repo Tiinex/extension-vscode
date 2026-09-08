@@ -1,0 +1,2432 @@
+{
+  "boundary": "Portable Tooling bootstrap transport authority only. Transport orientation bootstrap and canonical schema-material authority remain separate concerns.",
+  "canonicalSchemaMaterial": {
+    "boundary": "Carried as runtime data required by the portable schema provider; canonical schema authority remains the declared external Tiinex/docs binding inside that material, not this bootstrap manifest."
+  },
+  "delivery": "embedded",
+  "entrypoint": "runtime/tools/tiinex-portable.mjs",
+  "qualification": {
+    "authority": "manifest-declared-exact-runtime-bytes-only",
+    "filenameOrColocationAuthority": false,
+    "ordinaryWorkspaceBytesAreBootstrapAuthority": false
+  },
+  "runtime": {
+    "bytes": 5174273,
+    "entries": [
+      {
+        "bytes": 3204,
+        "path": "runtime/package.json",
+        "sha256": "86557ab9d918fe49f1d048690a3577189448a23c1a59e5dfcb75fcf0342cd61d"
+      },
+      {
+        "bytes": 12720,
+        "path": "runtime/src/actions/record.actions.js",
+        "sha256": "4779bef8e897a252bf5385044dff8dbd351076cd0af9f380b009be9ccb47fa12"
+      },
+      {
+        "bytes": 5606,
+        "path": "runtime/src/adapters/adapter.contracts.js",
+        "sha256": "07d657484bb7fab8616b2ab59e9ba3d05a15e38b271d2393c618f763f2e49f03"
+      },
+      {
+        "bytes": 23892,
+        "path": "runtime/src/adapters/archive/archive.adapter.js",
+        "sha256": "8cf2599ef3636f4474f85c9eae7603d234a749971cc415f8fc8d4ad6ee924bc6"
+      },
+      {
+        "bytes": 7606,
+        "path": "runtime/src/adapters/archive/archive.portableChangeset.js",
+        "sha256": "866b8f8f43014dce994124dfc9eaccd9594bec4a23db46b2ecc20d3881f45fc3"
+      },
+      {
+        "bytes": 6153,
+        "path": "runtime/src/adapters/archive/archive.transport.js",
+        "sha256": "1d6e123664c5696b99f5ac93b163bf319e6d25acac4fc540d589e0639b0a53ca"
+      },
+      {
+        "bytes": 1629,
+        "path": "runtime/src/artifacts/artifact.localDraft.js",
+        "sha256": "06d3525a15568cb85f8f534b2f660c2576cff9f298a71ffb408fa8a8307e5588"
+      },
+      {
+        "bytes": 1442,
+        "path": "runtime/src/artifacts/artifact.normalize.js",
+        "sha256": "af9ae17e8b501a9c3bae89023969954b2fab69edb4d416e5e91ed90aed9a9464"
+      },
+      {
+        "bytes": 8813,
+        "path": "runtime/src/artifacts/artifact.parse.js",
+        "sha256": "35dbe2c6bff41e5cfc627b948f1e42bcac1e97fe52c54db8535848162bc2881f"
+      },
+      {
+        "bytes": 3722,
+        "path": "runtime/src/artifacts/artifact.record.js",
+        "sha256": "071fa2aafc47bde68a0f1ebe6b303f2bc75e4508fb01436256849d3ec043d105"
+      },
+      {
+        "bytes": 5325,
+        "path": "runtime/src/audit/audit.run.js",
+        "sha256": "6aa06dbbfa182c1fa8eb52e8c1967919337407741643e8ec625f1c466b4264f2"
+      },
+      {
+        "bytes": 259,
+        "path": "runtime/src/audit/audit.summary.js",
+        "sha256": "7306537e5eaf09fba9ceefd5f97210629c7eaf7051bb18f208d4e1518d8daaa1"
+      },
+      {
+        "bytes": 6021,
+        "path": "runtime/src/diagnostics/sourceBoundary.report.js",
+        "sha256": "e64edee1b17f93776e22b9c0545d24947edf173d15f91309253d8e605b8272cc"
+      },
+      {
+        "bytes": 18949,
+        "path": "runtime/src/export/package.apply.js",
+        "sha256": "f650f33ed12d3adbf83c6abbe620d097e60258eb967e4d86bd296576a4106440"
+      },
+      {
+        "bytes": 21872,
+        "path": "runtime/src/export/package.builder.js",
+        "sha256": "0faf22a0ae3c06ffdc56e98d4326707f79850e093227b5787ea2c4efa0dfe545"
+      },
+      {
+        "bytes": 8076,
+        "path": "runtime/src/export/package.bytes.js",
+        "sha256": "473771963a37357f954e481130c3aeb4bf5335c5fbe6eff8b952a1745789939d"
+      },
+      {
+        "bytes": 3819,
+        "path": "runtime/src/export/package.controlIntegrity.js",
+        "sha256": "95e2c65b57e4691e14af4408d166b2831691d7ce1ea5f95337fe0702106502ac"
+      },
+      {
+        "bytes": 5025,
+        "path": "runtime/src/export/package.controlTopology.js",
+        "sha256": "9357c7d93d3ab33b8a739dc78b8fbec6c8b499bfd4f3c915f91d30167ed016cf"
+      },
+      {
+        "bytes": 9887,
+        "path": "runtime/src/export/package.fileMap.js",
+        "sha256": "56fc39ae7b95cac87acd6b084521bed8bf2799b0393429f0085012c994ebe4c9"
+      },
+      {
+        "bytes": 20635,
+        "path": "runtime/src/export/package.manifest.js",
+        "sha256": "6e91d50923c2c75732b46b19ca1c729ffb7434decba0f71c59efa4d546989f77"
+      },
+      {
+        "bytes": 12809,
+        "path": "runtime/src/export/package.preflight.js",
+        "sha256": "70c49868bd131d4f475ec7d8ed2939a600ceccefbd12bb9dc611704b5388e878"
+      },
+      {
+        "bytes": 4192,
+        "path": "runtime/src/export/package.sourceReference.js",
+        "sha256": "2c60a09128c0df690510f0b53aaadc29d0563d4dfca8c1944f71e7438fd3eb04"
+      },
+      {
+        "bytes": 7550,
+        "path": "runtime/src/export/package.workspaceContext.js",
+        "sha256": "5d35a224989abdaa9650aafec19dba3fbb3cc6048254fa17aab347c4d5b107a9"
+      },
+      {
+        "bytes": 4804,
+        "path": "runtime/src/export/package.zip.js",
+        "sha256": "02ed0e55e396a5851f4162d89160f5fddf4a33933abae5bbc2d4941d6cd43c88"
+      },
+      {
+        "bytes": 13819,
+        "path": "runtime/src/export/tree.bundle.js",
+        "sha256": "29ac0f90edc02429484fe7307483cac60eafd50d6185cf458fd11adf6e0d9954"
+      },
+      {
+        "bytes": 11003,
+        "path": "runtime/src/governance/governance.boundary.js",
+        "sha256": "c512f3e7c52397015318f9137095bd34898d20fa987e1b75d4f40a13f61ca4be"
+      },
+      {
+        "bytes": 8682,
+        "path": "runtime/src/integrity/integrity.c14nV2.js",
+        "sha256": "f6d10c58bdcbb963b463431c366cd7b393159bb3c74f986591b8b5e678d7b7d7"
+      },
+      {
+        "bytes": 4861,
+        "path": "runtime/src/integrity/integrity.methodReference.js",
+        "sha256": "57bdd19ac1bed78be90143f47e858b4fd68dbeac6b5a49358c423a0aaa2c8822"
+      },
+      {
+        "bytes": 3562,
+        "path": "runtime/src/integrity/integrity.validate.js",
+        "sha256": "c9652028677129e1b97abfaf937d58ffdb2d3cddd70f243c881d2e5452acb9ce"
+      },
+      {
+        "bytes": 2986,
+        "path": "runtime/src/lineage/lineage.candidateResolution.js",
+        "sha256": "76d7d2818c52fe49f1ce79acbceae2414ed03afcfca292e09794db48fd1801d5"
+      },
+      {
+        "bytes": 5480,
+        "path": "runtime/src/lineage/lineage.githubIssueComment.js",
+        "sha256": "7a8831784c0b43be39bd4d021ff3a773557f33818d94012d350632649d8df22e"
+      },
+      {
+        "bytes": 9197,
+        "path": "runtime/src/lineage/lineage.githubIssueLocal.js",
+        "sha256": "99b036fccc7622583f2c37fa2f41929d4043fbd6dd2f73c683971547bd96974c"
+      },
+      {
+        "bytes": 3696,
+        "path": "runtime/src/lineage/lineage.githubIssueTarget.js",
+        "sha256": "c08a85b55424ac69222ae54f3a3da8293131933d7a95d5bd0fe36e29fae56176"
+      },
+      {
+        "bytes": 5522,
+        "path": "runtime/src/lineage/lineage.integrity.js",
+        "sha256": "92d2a4427257df6c78553de953aecda51fbefb16574c3baee7adff868add7fce"
+      },
+      {
+        "bytes": 1276,
+        "path": "runtime/src/lineage/lineage.materialPreference.js",
+        "sha256": "cff7affd145494f9d8f0a3d046ec21ad2729c42e6c3e5c61d9cccc7483297777"
+      },
+      {
+        "bytes": 1822,
+        "path": "runtime/src/lineage/lineage.model.js",
+        "sha256": "208095da8fe9b950d7f6b2892bb0804234609c19e563d331aae879cb8da4815e"
+      },
+      {
+        "bytes": 299,
+        "path": "runtime/src/lineage/lineage.parentAuthority.js",
+        "sha256": "d3c76f6a446e252ded182f2864f22b041bb10780440003a9ef46fad7e935fc85"
+      },
+      {
+        "bytes": 4579,
+        "path": "runtime/src/lineage/lineage.parentBinding.js",
+        "sha256": "42cf2739f835b1b8b7200e21685034636447e7a58d1208545de924e1cc6c5652"
+      },
+      {
+        "bytes": 2071,
+        "path": "runtime/src/lineage/lineage.pathBasis.js",
+        "sha256": "6091245477ed939cdf4a2501e1f913f40695b18ff276158cd4f842b275a3c71f"
+      },
+      {
+        "bytes": 23990,
+        "path": "runtime/src/lineage/lineage.resolve.js",
+        "sha256": "2ad625f4465e14649f30a84cc29a464bb286e006715e56134ae79b062e0f6fde"
+      },
+      {
+        "bytes": 3508,
+        "path": "runtime/src/lineage/lineage.sourceScope.js",
+        "sha256": "40b9c9dacdc329b103334d1d9fe79549f9546486ca0dd98991621209f90b874e"
+      },
+      {
+        "bytes": 3236,
+        "path": "runtime/src/lineage/lineage.targetKeys.js",
+        "sha256": "b647019f7442204d1987ee96e08fe68df3564f353a98f08a7e411dbcb5c20bb2"
+      },
+      {
+        "bytes": 5467,
+        "path": "runtime/src/lineage/lineage.traverse.js",
+        "sha256": "ff060fd3bff949ef7a84d280ce216b8aa704457283b560784e2bba52ef6e83ff"
+      },
+      {
+        "bytes": 12131,
+        "path": "runtime/src/publication/publication.contract.js",
+        "sha256": "30dde1f205e44a0b32c301a81870521a26b2a23f4d502e9acbb5233b4cafe6d7"
+      },
+      {
+        "bytes": 9058,
+        "path": "runtime/src/publication/publication.preflight.js",
+        "sha256": "b8f46063feabc14fc3165117147499a3599d9fd1fc376d724b8162cfe41c399c"
+      },
+      {
+        "bytes": 17109,
+        "path": "runtime/src/publication/publication.targetContract.js",
+        "sha256": "8077088a19b138d1c95930d40c70a7d4256bd7e5d193e98ad3e3e18f6593ae48"
+      },
+      {
+        "bytes": 9236,
+        "path": "runtime/src/reingest/reingest.plan.js",
+        "sha256": "6e886a4bc454deabccc1b0602fd1845ef9f62181daaa0ddddf1a6ee1b522c239"
+      },
+      {
+        "bytes": 13279,
+        "path": "runtime/src/schemas/capability.registry.js",
+        "sha256": "069d13655487a87f4ff76f9db28a71a01f410a05ac66dfdf4ebee51c380d5bb0"
+      },
+      {
+        "bytes": 11332,
+        "path": "runtime/src/schemas/companion.js",
+        "sha256": "374d59c4a1d6e10bf3ba1fe667ef0f0007cea8c955debd174d9d4650cff36d49"
+      },
+      {
+        "bytes": 282,
+        "path": "runtime/src/schemas/contracts.js",
+        "sha256": "750ce9b818056cb5f640a354eb5e2f777d6af82db60f15999a8e87a4450309f7"
+      },
+      {
+        "bytes": 558,
+        "path": "runtime/src/schemas/coordination/handoff/tiinex.handoff.v1.schema.js",
+        "sha256": "2f8aa4e594b775241548712c442b3fc4aa3208a962b903f18e79cff510dbe2cf"
+      },
+      {
+        "bytes": 1211,
+        "path": "runtime/src/schemas/coordination/handoff/tiinex.handoff.v1.schema.json",
+        "sha256": "e7c686a147cb602d62823984f83770c281279f299c3a2f68245acea5de301314"
+      },
+      {
+        "bytes": 174328,
+        "path": "runtime/src/schemas/coordination/handoff/tiinex.handoff.v1.schema.runtime.json",
+        "sha256": "4bec108a870f6d6b2c25ea8c7e8d92df8e81360c8fac396f83b4411265297707"
+      },
+      {
+        "bytes": 525,
+        "path": "runtime/src/schemas/coordination/handoff/tiinex.handoff.v1.schema.source.js",
+        "sha256": "f2087f69a8fe50cd51c6c190d2bfcc2768b1d2ba7bbdff048583f20c8de12087"
+      },
+      {
+        "bytes": 1276,
+        "path": "runtime/src/schemas/coordination/project/tiinex.project.v1.schema.js",
+        "sha256": "5be9c3bbb544b98da1d2cb580eb2781ef1a2269d835cf08162c5a3dc22fdf272"
+      },
+      {
+        "bytes": 1213,
+        "path": "runtime/src/schemas/coordination/project/tiinex.project.v1.schema.json",
+        "sha256": "d31f933171735dbac099df08424bca88544c3a2d93609cd09a0b588207304cc5"
+      },
+      {
+        "bytes": 86017,
+        "path": "runtime/src/schemas/coordination/project/tiinex.project.v1.schema.runtime.json",
+        "sha256": "ed4c9853d9224de379bffec8c3a20ec11938fb028166f3d73f0ac897f89ec79a"
+      },
+      {
+        "bytes": 525,
+        "path": "runtime/src/schemas/coordination/project/tiinex.project.v1.schema.source.js",
+        "sha256": "3f7c4a8b259ffad18c7f9c3c3cd3a5d561a455758c4e28c14eee0dd3bc5e2b59"
+      },
+      {
+        "bytes": 531,
+        "path": "runtime/src/schemas/core/decision/tiinex.decision.v1.schema.js",
+        "sha256": "ced45af0b2aba167897c16049e9d4f554256d243e783793dac365aa6c6129b4e"
+      },
+      {
+        "bytes": 1289,
+        "path": "runtime/src/schemas/core/decision/tiinex.decision.v1.schema.json",
+        "sha256": "3a8df90620dce3b1c89736e5982cac36b473a47b86d4ed6a407c82703de0acfc"
+      },
+      {
+        "bytes": 77381,
+        "path": "runtime/src/schemas/core/decision/tiinex.decision.v1.schema.runtime.json",
+        "sha256": "e90d73c6593d5765e05e82525ce2530b84d2f06b29903e486d620d38f79d8f40"
+      },
+      {
+        "bytes": 522,
+        "path": "runtime/src/schemas/core/decision/tiinex.decision.v1.schema.source.js",
+        "sha256": "be78818111c419b352ee3fd51519379d5846a44552ebcbde09cfcd6481525c1b"
+      },
+      {
+        "bytes": 260,
+        "path": "runtime/src/schemas/core/evidence/tiinex.evidence.v1.capabilities.js",
+        "sha256": "040b6019ab41dea939c5410c8e598b4c761e054c9afbc1c6e7eb957805e4bcfd"
+      },
+      {
+        "bytes": 312,
+        "path": "runtime/src/schemas/core/evidence/tiinex.evidence.v1.en.i18n.json",
+        "sha256": "3327b3237b8740d82fe3f4a92ea2c7b6cdf5c8b402d73f304133bb09b8bdd9fd"
+      },
+      {
+        "bytes": 433,
+        "path": "runtime/src/schemas/core/evidence/tiinex.evidence.v1.findings.js",
+        "sha256": "669c8bd17d8211885a8b7a3826f920d7075dab82f8b76039b90dd8fdc55a7894"
+      },
+      {
+        "bytes": 328,
+        "path": "runtime/src/schemas/core/evidence/tiinex.evidence.v1.presenter.js",
+        "sha256": "6b2b8e57e99625c47485832d828690cd382989005f668b25f06a5b9b80479a03"
+      },
+      {
+        "bytes": 2044,
+        "path": "runtime/src/schemas/core/evidence/tiinex.evidence.v1.schema.js",
+        "sha256": "ccbb0fc2a56071a28ce302e3eec1e2ac61e10a0551f4be5f0c105f59257a22cc"
+      },
+      {
+        "bytes": 1285,
+        "path": "runtime/src/schemas/core/evidence/tiinex.evidence.v1.schema.json",
+        "sha256": "f8859f75f2c3d4a1ee3161916fa66de83f847bb3359e0ea0cd9d5d065f556d91"
+      },
+      {
+        "bytes": 94573,
+        "path": "runtime/src/schemas/core/evidence/tiinex.evidence.v1.schema.runtime.json",
+        "sha256": "c9430e3259b3a7c6beec89ca695ddc0c4f122a2af688bfe03da0048d07fcf984"
+      },
+      {
+        "bytes": 522,
+        "path": "runtime/src/schemas/core/evidence/tiinex.evidence.v1.schema.source.js",
+        "sha256": "1a9ff22b951145a47639871dbb95ff4615796123cf9a1e90a746e0a1777b9846"
+      },
+      {
+        "bytes": 312,
+        "path": "runtime/src/schemas/core/evidence/tiinex.evidence.v1.sv.i18n.json",
+        "sha256": "3327b3237b8740d82fe3f4a92ea2c7b6cdf5c8b402d73f304133bb09b8bdd9fd"
+      },
+      {
+        "bytes": 109,
+        "path": "runtime/src/schemas/core/evidence/tiinex.evidence.v1.transitions.js",
+        "sha256": "41046f8ee2e11ecd657f2303156f907546ee0a86eb6d3ee7546ef1b209152be8"
+      },
+      {
+        "bytes": 869,
+        "path": "runtime/src/schemas/core/evidence/tiinex.evidence.v1.validate.js",
+        "sha256": "7a087853f07d379653de1dd45c7f9039f96034fb11ca4ca99dad6093e9ee4cb7"
+      },
+      {
+        "bytes": 535,
+        "path": "runtime/src/schemas/core/feedback/tiinex.feedback.v1.schema.js",
+        "sha256": "6c03da385ad72b6914e24f50acac7ecbd3cc6c9b147503caa7562f082bf9315f"
+      },
+      {
+        "bytes": 1191,
+        "path": "runtime/src/schemas/core/feedback/tiinex.feedback.v1.schema.json",
+        "sha256": "ea4859a93fe0257bb232f4c175dbfd926f4e0a150c2901fc8ccb0102bdbebf34"
+      },
+      {
+        "bytes": 79307,
+        "path": "runtime/src/schemas/core/feedback/tiinex.feedback.v1.schema.runtime.json",
+        "sha256": "63f6e52921ce00ab90f414bed76ea24b51b5393927c61bb26cd0d09396ed893c"
+      },
+      {
+        "bytes": 522,
+        "path": "runtime/src/schemas/core/feedback/tiinex.feedback.v1.schema.source.js",
+        "sha256": "f1f43c03316f61d2ed660f6866a5c428bacfc7201f3c1b4a8faa0a3851dac2bd"
+      },
+      {
+        "bytes": 403,
+        "path": "runtime/src/schemas/core/interpretation/tiinex.interpretation.v1.capabilities.js",
+        "sha256": "f77154d232856235eeae459bb319dd25977d8221bca62e4d679787afb44e07fd"
+      },
+      {
+        "bytes": 1562,
+        "path": "runtime/src/schemas/core/interpretation/tiinex.interpretation.v1.contract.js",
+        "sha256": "c828c6dd4ee5cfb419ae08fc07d3d7c04e55d520599182bd9e09e5b7ea421f60"
+      },
+      {
+        "bytes": 608,
+        "path": "runtime/src/schemas/core/interpretation/tiinex.interpretation.v1.en.i18n.json",
+        "sha256": "7e6667834ed320b673d6ef45d734d0f7cfa0a0006648653d2cf82a5a9b5b285c"
+      },
+      {
+        "bytes": 589,
+        "path": "runtime/src/schemas/core/interpretation/tiinex.interpretation.v1.findings.js",
+        "sha256": "d939d58950c1caff1f39bd42bdd922b09a1c07c3db2546bde0aae4d9597164a4"
+      },
+      {
+        "bytes": 6159,
+        "path": "runtime/src/schemas/core/interpretation/tiinex.interpretation.v1.localMaterialization.js",
+        "sha256": "72e74abcaba54cfade45592543ea733229ca0c41fd79ad582bf84d4f9e4fe30f"
+      },
+      {
+        "bytes": 346,
+        "path": "runtime/src/schemas/core/interpretation/tiinex.interpretation.v1.presenter.js",
+        "sha256": "6ef30fdf738b9e783fa3fc7a34a5519e203e7a9e4ea72fb56e588120e4ec07d5"
+      },
+      {
+        "bytes": 2059,
+        "path": "runtime/src/schemas/core/interpretation/tiinex.interpretation.v1.schema.js",
+        "sha256": "574005dbfcfa735a0824f8218658ba57b1c4e3c658409dcc1e12b452f168db68"
+      },
+      {
+        "bytes": 1259,
+        "path": "runtime/src/schemas/core/interpretation/tiinex.interpretation.v1.schema.json",
+        "sha256": "5bf5c4d1891738252237d85a7daeb6cc0cf6d067dd35bbea0183f76e8047d07a"
+      },
+      {
+        "bytes": 87757,
+        "path": "runtime/src/schemas/core/interpretation/tiinex.interpretation.v1.schema.runtime.json",
+        "sha256": "6ebb897b888537e8fdb7d29ca505798c38ec27a33e75c22e6d33441aaf0ff11d"
+      },
+      {
+        "bytes": 552,
+        "path": "runtime/src/schemas/core/interpretation/tiinex.interpretation.v1.schema.source.js",
+        "sha256": "7e72715a8f45e4d94d9768d93e21225e93617d687029378c0ecae36f85146b8f"
+      },
+      {
+        "bytes": 608,
+        "path": "runtime/src/schemas/core/interpretation/tiinex.interpretation.v1.sv.i18n.json",
+        "sha256": "7e6667834ed320b673d6ef45d734d0f7cfa0a0006648653d2cf82a5a9b5b285c"
+      },
+      {
+        "bytes": 115,
+        "path": "runtime/src/schemas/core/interpretation/tiinex.interpretation.v1.transitions.js",
+        "sha256": "b70934e13f76de388f5b2e669c21108eabc4b9c20b1bd8cb102a8900bb1691bb"
+      },
+      {
+        "bytes": 1806,
+        "path": "runtime/src/schemas/core/interpretation/tiinex.interpretation.v1.validate.js",
+        "sha256": "9f936e18eb0fba53c9633f987d570221d97ce6161d7ba01cbd861dcdb050ed66"
+      },
+      {
+        "bytes": 264,
+        "path": "runtime/src/schemas/core/preservation/tiinex.preservation.v1.capabilities.js",
+        "sha256": "c84471a4a75b7da6a186f85484f805fac4875190c6b422d65cdc0117f3b7af30"
+      },
+      {
+        "bytes": 281,
+        "path": "runtime/src/schemas/core/preservation/tiinex.preservation.v1.en.i18n.json",
+        "sha256": "0e5717c56cd1e6c68e7f9be2411d7da925b4d7875f99f5af7921a975cbd8cb22"
+      },
+      {
+        "bytes": 457,
+        "path": "runtime/src/schemas/core/preservation/tiinex.preservation.v1.findings.js",
+        "sha256": "4a4e5c8d62b22c2f0d17792be313ba6e00441b5a704d50c3d6656a5e1e734f7b"
+      },
+      {
+        "bytes": 318,
+        "path": "runtime/src/schemas/core/preservation/tiinex.preservation.v1.presenter.js",
+        "sha256": "74457c90b485ca45f329d8b5a846735bf71d7f2489df0e16d5ec06c30fdbe54a"
+      },
+      {
+        "bytes": 1838,
+        "path": "runtime/src/schemas/core/preservation/tiinex.preservation.v1.schema.js",
+        "sha256": "9ba7c19543b6de2150830f1f626b5e26b0a89f983128de834eba331dde8561fd"
+      },
+      {
+        "bytes": 1235,
+        "path": "runtime/src/schemas/core/preservation/tiinex.preservation.v1.schema.json",
+        "sha256": "192b48477f6dfaeb64e9491fd92cb56125c2db717ed9c2306540b60113efbf77"
+      },
+      {
+        "bytes": 87699,
+        "path": "runtime/src/schemas/core/preservation/tiinex.preservation.v1.schema.runtime.json",
+        "sha256": "3e5a77efe07f3bf1d0e3728180098dc7c780b1e9e3cb7f57ad64c32e1e6e3a81"
+      },
+      {
+        "bytes": 542,
+        "path": "runtime/src/schemas/core/preservation/tiinex.preservation.v1.schema.source.js",
+        "sha256": "75a57b0a28c186331d67607d55111b917057a1fbd9d2fe8f8a73662f9e747280"
+      },
+      {
+        "bytes": 281,
+        "path": "runtime/src/schemas/core/preservation/tiinex.preservation.v1.sv.i18n.json",
+        "sha256": "0e5717c56cd1e6c68e7f9be2411d7da925b4d7875f99f5af7921a975cbd8cb22"
+      },
+      {
+        "bytes": 113,
+        "path": "runtime/src/schemas/core/preservation/tiinex.preservation.v1.transitions.js",
+        "sha256": "0401244c1fa23cda9a614a32a135b791cfb876679fcb3990bbe4f128ce9e4aca"
+      },
+      {
+        "bytes": 889,
+        "path": "runtime/src/schemas/core/preservation/tiinex.preservation.v1.validate.js",
+        "sha256": "1cac05a41184aae33b33214ff27a31f69e64a8c98a16e0ccaf5693c5cde18bde"
+      },
+      {
+        "bytes": 369,
+        "path": "runtime/src/schemas/core/relation/tiinex.relation.v1.capabilities.js",
+        "sha256": "82aa37565cb54b9814b423980a657580cad69e6ff850a19bc5ffba38c1e136ef"
+      },
+      {
+        "bytes": 409,
+        "path": "runtime/src/schemas/core/relation/tiinex.relation.v1.contract.js",
+        "sha256": "6fb1f474910dfb87711046845ae9f86acbd25ea3f222bd3604250d8420cf31d2"
+      },
+      {
+        "bytes": 83,
+        "path": "runtime/src/schemas/core/relation/tiinex.relation.v1.en.i18n.json",
+        "sha256": "c49b750362679e30e7645c2c57437a3fa851bf44fef396b703c1829c5fc41b99"
+      },
+      {
+        "bytes": 591,
+        "path": "runtime/src/schemas/core/relation/tiinex.relation.v1.findings.js",
+        "sha256": "39cd4cd2cbe0741b0956de5e252138db2e401cf6958f32a65fa4a59bcb6ac9d0"
+      },
+      {
+        "bytes": 10340,
+        "path": "runtime/src/schemas/core/relation/tiinex.relation.v1.localMaterialization.js",
+        "sha256": "8410504cf3fe867a1e4acd24043bc7f42505aa4ddb85f80139aa71dc57abb1d9"
+      },
+      {
+        "bytes": 273,
+        "path": "runtime/src/schemas/core/relation/tiinex.relation.v1.presenter.js",
+        "sha256": "b51f67537a2d50faf70b00511782004f5257c89fc4cc75146e28d7c324df5f18"
+      },
+      {
+        "bytes": 1634,
+        "path": "runtime/src/schemas/core/relation/tiinex.relation.v1.schema.js",
+        "sha256": "38ede2cd32045a4d4875567cc5eb811d621cb9fe96b52a4297923bf8dec49d6f"
+      },
+      {
+        "bytes": 1167,
+        "path": "runtime/src/schemas/core/relation/tiinex.relation.v1.schema.json",
+        "sha256": "e7530c5eb36f6dd04c2c29c255f408dbe7f56e6ac84913ed415d0f90ea846a45"
+      },
+      {
+        "bytes": 76461,
+        "path": "runtime/src/schemas/core/relation/tiinex.relation.v1.schema.runtime.json",
+        "sha256": "1629bb5eaec473ae310bb6ab0da214747211342f55c0cdcd443615e025a0040d"
+      },
+      {
+        "bytes": 522,
+        "path": "runtime/src/schemas/core/relation/tiinex.relation.v1.schema.source.js",
+        "sha256": "8bfb1845e9ca24e5020de8c1c9cffa9533483e74148d5a8922975e7adbfe65c9"
+      },
+      {
+        "bytes": 87,
+        "path": "runtime/src/schemas/core/relation/tiinex.relation.v1.sv.i18n.json",
+        "sha256": "dc839a1861cb92b28c96db14a66ff44410e48967a078accfaaa7adf513035594"
+      },
+      {
+        "bytes": 109,
+        "path": "runtime/src/schemas/core/relation/tiinex.relation.v1.transitions.js",
+        "sha256": "809396783d794bcdc76f8b66925fe644da17930bd21292119e12a3581182dc5f"
+      },
+      {
+        "bytes": 2324,
+        "path": "runtime/src/schemas/core/relation/tiinex.relation.v1.validate.js",
+        "sha256": "87139c9d3149de9b4d5e71c23e152bc4f9d33ddb78ce3465801ee9c7fcc4e8e6"
+      },
+      {
+        "bytes": 577,
+        "path": "runtime/src/schemas/core/relation/workspace/representation/tiinex.workspace.representation.v1.capabilities.js",
+        "sha256": "62898dcab33c24f2a4eaa32585a9ab9c30d0d1d10f10edae4878233aa687a783"
+      },
+      {
+        "bytes": 3252,
+        "path": "runtime/src/schemas/core/relation/workspace/representation/tiinex.workspace.representation.v1.contract.js",
+        "sha256": "6a4fd6018c3d04f1800626389215cf49a84439a7069565e847f9c188855afb75"
+      },
+      {
+        "bytes": 158,
+        "path": "runtime/src/schemas/core/relation/workspace/representation/tiinex.workspace.representation.v1.en.i18n.json",
+        "sha256": "4ee9f01f5272a2f456ae5c3608b903aea7aeeeb442df5299077ed67a0f1bac58"
+      },
+      {
+        "bytes": 1046,
+        "path": "runtime/src/schemas/core/relation/workspace/representation/tiinex.workspace.representation.v1.findings.js",
+        "sha256": "e4e9b4d03d248453d9574bcfb0b712d9c43370b87d77f32b133925a9abd0ad37"
+      },
+      {
+        "bytes": 339,
+        "path": "runtime/src/schemas/core/relation/workspace/representation/tiinex.workspace.representation.v1.presenter.js",
+        "sha256": "265a88b7fad7b6cb84411a4cb8e264a893848a8d4f8c2e8bd5358dca082aa893"
+      },
+      {
+        "bytes": 2081,
+        "path": "runtime/src/schemas/core/relation/workspace/representation/tiinex.workspace.representation.v1.schema.js",
+        "sha256": "25fc2bb1f627496639912c77c93554a5e6bee3be68284748694d3a0b7dcbbff1"
+      },
+      {
+        "bytes": 1492,
+        "path": "runtime/src/schemas/core/relation/workspace/representation/tiinex.workspace.representation.v1.schema.json",
+        "sha256": "2f950184baaffd089a20080313612a8550f7b4e7d20a974b71f3fe9e25096235"
+      },
+      {
+        "bytes": 135842,
+        "path": "runtime/src/schemas/core/relation/workspace/representation/tiinex.workspace.representation.v1.schema.runtime.json",
+        "sha256": "d1542657da37b6a06611d50cdcb88152e507a4b7829f599a4eabb7f337fa3fdc"
+      },
+      {
+        "bytes": 660,
+        "path": "runtime/src/schemas/core/relation/workspace/representation/tiinex.workspace.representation.v1.schema.source.js",
+        "sha256": "0ab6b0d245a981e931177a04e79d299d11d72aa22a0e597fd7f59b3bdcd082db"
+      },
+      {
+        "bytes": 163,
+        "path": "runtime/src/schemas/core/relation/workspace/representation/tiinex.workspace.representation.v1.sv.i18n.json",
+        "sha256": "fbdd54ccfe3cd26ac54df1d55f26bfe687432adaa4f724866364e624ecced7f3"
+      },
+      {
+        "bytes": 124,
+        "path": "runtime/src/schemas/core/relation/workspace/representation/tiinex.workspace.representation.v1.transitions.js",
+        "sha256": "a5ef6c7dde939399e98d1521903226f2b4ef0d9fc293df7ddbf24f9480eea7a8"
+      },
+      {
+        "bytes": 5685,
+        "path": "runtime/src/schemas/core/relation/workspace/representation/tiinex.workspace.representation.v1.validate.js",
+        "sha256": "9a30aace85d94931caeb34a6d6241493d74cb49b01deba5ebf1a4b558baafec5"
+      },
+      {
+        "bytes": 514,
+        "path": "runtime/src/schemas/core/signal/tiinex.signal.v1.schema.js",
+        "sha256": "b086c4d79fd659d69fe1c588563f0af3f7d22a521ad058a7e9ecaf8c0303230e"
+      },
+      {
+        "bytes": 1163,
+        "path": "runtime/src/schemas/core/signal/tiinex.signal.v1.schema.json",
+        "sha256": "5679adb78c482a62e77236356938df11e5d1e20991d27c25ef7c4196a50d2f33"
+      },
+      {
+        "bytes": 77967,
+        "path": "runtime/src/schemas/core/signal/tiinex.signal.v1.schema.runtime.json",
+        "sha256": "c0186c5b289394771f92f72c9e3cd9b094a90221d431bf8b2f867566e7fa687b"
+      },
+      {
+        "bytes": 512,
+        "path": "runtime/src/schemas/core/signal/tiinex.signal.v1.schema.source.js",
+        "sha256": "380c1494e3402bac73a0574bcbbda36495f56d0c0e77f9e972e923b42d8cc719"
+      },
+      {
+        "bytes": 350,
+        "path": "runtime/src/schemas/core/task/tiinex.task.v1.capabilities.js",
+        "sha256": "5d9799e12362c45807e71736d54063ac453b1bf4078eda090d6b23a6653d313b"
+      },
+      {
+        "bytes": 345,
+        "path": "runtime/src/schemas/core/task/tiinex.task.v1.contract.js",
+        "sha256": "87748e94bb9d216a8c4d8e7a8315ba80d38489e6351b278597f4528dc42ca26f"
+      },
+      {
+        "bytes": 1230,
+        "path": "runtime/src/schemas/core/task/tiinex.task.v1.en.i18n.json",
+        "sha256": "65c6d2d0917c6b6c3577a35f3b5dd0c1f6877a1e7d4e74d2aeee5397af813fe6"
+      },
+      {
+        "bytes": 1162,
+        "path": "runtime/src/schemas/core/task/tiinex.task.v1.findings.js",
+        "sha256": "ac0c83ada0a4dee4c7a7b692379a6cf84aa20c15da6cd42c3e0fa36b82469fe5"
+      },
+      {
+        "bytes": 7972,
+        "path": "runtime/src/schemas/core/task/tiinex.task.v1.localMaterialization.js",
+        "sha256": "8707ffbc972cc46217cf31878bc80e09e194373cf127d76b5de808bc89c23952"
+      },
+      {
+        "bytes": 273,
+        "path": "runtime/src/schemas/core/task/tiinex.task.v1.presenter.js",
+        "sha256": "a2aef216d254d11e9bb4fa534e7287205e6a64f31f2bee3af626def2a6519b53"
+      },
+      {
+        "bytes": 1953,
+        "path": "runtime/src/schemas/core/task/tiinex.task.v1.schema.js",
+        "sha256": "7817a96c3be10784b598b088181bc59de377b356cdb4532c608ceed79a69db19"
+      },
+      {
+        "bytes": 1139,
+        "path": "runtime/src/schemas/core/task/tiinex.task.v1.schema.json",
+        "sha256": "c684f3f33d93ad2148ed7a9e066ca1f4c712a7e330323d0bf119528e8448a0b2"
+      },
+      {
+        "bytes": 77330,
+        "path": "runtime/src/schemas/core/task/tiinex.task.v1.schema.runtime.json",
+        "sha256": "38ab808fbeb332c20cc4e0a57877e34a9fc6c0ac98a896fe1f13b8f93c95fd19"
+      },
+      {
+        "bytes": 502,
+        "path": "runtime/src/schemas/core/task/tiinex.task.v1.schema.source.js",
+        "sha256": "ab17f6a32889f4f4dffd204690c2a6490e580c13cbd407c21583c7f1a76aecde"
+      },
+      {
+        "bytes": 1230,
+        "path": "runtime/src/schemas/core/task/tiinex.task.v1.sv.i18n.json",
+        "sha256": "65c6d2d0917c6b6c3577a35f3b5dd0c1f6877a1e7d4e74d2aeee5397af813fe6"
+      },
+      {
+        "bytes": 109,
+        "path": "runtime/src/schemas/core/task/tiinex.task.v1.transitions.js",
+        "sha256": "da88844b2089d6c63edaaecdda93f973d2c464fe73e1c0c4cffb9f205ad6ea6c"
+      },
+      {
+        "bytes": 4246,
+        "path": "runtime/src/schemas/core/task/tiinex.task.v1.validate.js",
+        "sha256": "a3a5da71cf079c599f3305264c2970bdcf07dd4620e603b913266aefc0a66968"
+      },
+      {
+        "bytes": 257,
+        "path": "runtime/src/schemas/core/topic/tiinex.topic.v1.capabilities.js",
+        "sha256": "5c21c8571b4a62331b91abd7b31b313e800c4b51ccf96fac224f5159eb1a5822"
+      },
+      {
+        "bytes": 3684,
+        "path": "runtime/src/schemas/core/topic/tiinex.topic.v1.creation.js",
+        "sha256": "9a496c2934583603ecb2b688663d158d23cc8fdfb671b97f84bc283eae2c0dac"
+      },
+      {
+        "bytes": 475,
+        "path": "runtime/src/schemas/core/topic/tiinex.topic.v1.en.i18n.json",
+        "sha256": "d1c71bab28b389ab45404b8814acc908ce144b8fbdb1218da37886e4e2404b49"
+      },
+      {
+        "bytes": 557,
+        "path": "runtime/src/schemas/core/topic/tiinex.topic.v1.findings.js",
+        "sha256": "08031741ce98b5394c5d06bbb0c72f8d565a54dc5f30c3e7ea4d94a73d053d0c"
+      },
+      {
+        "bytes": 8457,
+        "path": "runtime/src/schemas/core/topic/tiinex.topic.v1.localMaterialization.js",
+        "sha256": "5521677883c65b149cd1b4483bb7a105af58836e115ba0d6b2052348fc7cbb0f"
+      },
+      {
+        "bytes": 316,
+        "path": "runtime/src/schemas/core/topic/tiinex.topic.v1.presenter.js",
+        "sha256": "38b1399adf75bc8d83fe560dcecbea7dd3c78da8eeee61ddb9fd36b47eec7929"
+      },
+      {
+        "bytes": 2053,
+        "path": "runtime/src/schemas/core/topic/tiinex.topic.v1.schema.js",
+        "sha256": "4b07f7eb917c3e8088f67162010494b386a6bf2741ff9e02dc7649424c0d98c7"
+      },
+      {
+        "bytes": 1151,
+        "path": "runtime/src/schemas/core/topic/tiinex.topic.v1.schema.json",
+        "sha256": "ed4e615202558c4c04c583aa634c2b4d81065073e99143d75984b38bec107936"
+      },
+      {
+        "bytes": 77237,
+        "path": "runtime/src/schemas/core/topic/tiinex.topic.v1.schema.runtime.json",
+        "sha256": "83dc6685cc07581b0264405a15a7ac7e141b1b4ed1e7693f98a224e7aee68900"
+      },
+      {
+        "bytes": 507,
+        "path": "runtime/src/schemas/core/topic/tiinex.topic.v1.schema.source.js",
+        "sha256": "b80b387559a4cab554bc20744da70a78ec75889d3ee9d3b3a14cf67c7a67323a"
+      },
+      {
+        "bytes": 475,
+        "path": "runtime/src/schemas/core/topic/tiinex.topic.v1.sv.i18n.json",
+        "sha256": "d1c71bab28b389ab45404b8814acc908ce144b8fbdb1218da37886e4e2404b49"
+      },
+      {
+        "bytes": 895,
+        "path": "runtime/src/schemas/core/topic/tiinex.topic.v1.transitions.js",
+        "sha256": "a07e81e37b770fa022a0a29504c899aeeb397d6627f292e816489f69b9f96e5d"
+      },
+      {
+        "bytes": 1176,
+        "path": "runtime/src/schemas/core/topic/tiinex.topic.v1.validate.js",
+        "sha256": "55272209cfa71f284fdd3bb3e48532a422b541cb1403bb4f24f5062bd252aba6"
+      },
+      {
+        "bytes": 23260,
+        "path": "runtime/src/schemas/creation.capability.js",
+        "sha256": "f6d1ed472036390f66f7f1efe10cbdc48754f6352f35f60d9cf6279a5c5f3c46"
+      },
+      {
+        "bytes": 23977,
+        "path": "runtime/src/schemas/creation.contracts.js",
+        "sha256": "0400c1ca8d4e9002ff6141618d9dca928b958d06114a305296351c469fac1c3d"
+      },
+      {
+        "bytes": 4374,
+        "path": "runtime/src/schemas/creation.executionSnapshot.js",
+        "sha256": "3455b8d438d29d823d8ac48af195911f46cb3d348c395835fe3b8d8bd9d3b495"
+      },
+      {
+        "bytes": 5643,
+        "path": "runtime/src/schemas/creation.factoryQualification.js",
+        "sha256": "f4b746fb8d15bd90fc8ab8a756361663581089f4a6e44bd826799bc392f1fb8d"
+      },
+      {
+        "bytes": 16178,
+        "path": "runtime/src/schemas/creation.renderer.js",
+        "sha256": "6c710aaa9283d1ce6f143992de40af8e9b64052f93eabeadf2c6413d98204e8c"
+      },
+      {
+        "bytes": 17363,
+        "path": "runtime/src/schemas/creation.representation.js",
+        "sha256": "9688efc654803ea50d5fc64643bdb98ca6d8008a9ea7780f9281c6dac717caee"
+      },
+      {
+        "bytes": 407,
+        "path": "runtime/src/schemas/creation.rootMetadata.js",
+        "sha256": "2e114a61c527cb5870cc544dbe7083ad378dcb9739a924a986d9f18382e99c37"
+      },
+      {
+        "bytes": 4396,
+        "path": "runtime/src/schemas/creation.schemaReferences.js",
+        "sha256": "efdffb40949ad2b6ca7aa0ba516eec7dd2e790e673c0ae842ba9649db9a0164b"
+      },
+      {
+        "bytes": 599,
+        "path": "runtime/src/schemas/discovery/finding/tiinex.discovery.finding.v1.schema.js",
+        "sha256": "d58cf3ab0e47c5e62e14d43d124423329d86f73c46897637d607db7dd17a1236"
+      },
+      {
+        "bytes": 1279,
+        "path": "runtime/src/schemas/discovery/finding/tiinex.discovery.finding.v1.schema.json",
+        "sha256": "f1a6f2ff1968083bad6786c8ba122cfb57731a00046f2b4530be3a6c1c072f30"
+      },
+      {
+        "bytes": 82432,
+        "path": "runtime/src/schemas/discovery/finding/tiinex.discovery.finding.v1.schema.runtime.json",
+        "sha256": "643ca2d5e874229ce80d1cfbcaf1ebe4d9dc5909ea0765bec40231f2d176ecab"
+      },
+      {
+        "bytes": 562,
+        "path": "runtime/src/schemas/discovery/finding/tiinex.discovery.finding.v1.schema.source.js",
+        "sha256": "238e49ebb0f805f39436d8eb359ad6ff69152c6214304c53629e7a4391597783"
+      },
+      {
+        "bytes": 547,
+        "path": "runtime/src/schemas/discovery/tiinex.discovery.v1.schema.js",
+        "sha256": "4ef541c6796581ec9a08dd9ce45b7c58cc883b293dd47a2f9d92282bcd9a369b"
+      },
+      {
+        "bytes": 1183,
+        "path": "runtime/src/schemas/discovery/tiinex.discovery.v1.schema.json",
+        "sha256": "2d754b07525109ea64552f7a7df97e59a3e5077f87fad87326c8e84de53bd405"
+      },
+      {
+        "bytes": 81472,
+        "path": "runtime/src/schemas/discovery/tiinex.discovery.v1.schema.runtime.json",
+        "sha256": "d8351f2c51379e1e9a4f15dc1c7c746cec14ad735cafba1c6e53a1a18a1cbf2a"
+      },
+      {
+        "bytes": 519,
+        "path": "runtime/src/schemas/discovery/tiinex.discovery.v1.schema.source.js",
+        "sha256": "fe10f00f27467f415777f7251ff87105c0a03f0db3c0858c7584de0791dcfc6c"
+      },
+      {
+        "bytes": 1459,
+        "path": "runtime/src/schemas/generic.artifact.module.js",
+        "sha256": "1ba6937698ad088cb2acf03063f4208ddf23dbde048f2ea65b21c0bcec0b8c4d"
+      },
+      {
+        "bytes": 1293,
+        "path": "runtime/src/schemas/party/organization/tiinex.party.organization.v1.schema.js",
+        "sha256": "c327ff50730cd195d698b19a24a369e9f14c36564dd6ae6e6f30ca70a71c1cc1"
+      },
+      {
+        "bytes": 1280,
+        "path": "runtime/src/schemas/party/organization/tiinex.party.organization.v1.schema.json",
+        "sha256": "c129e6601f42d5d1412f4c2af0d6bef246f1a7e86f32422e03c639ebe6d952c4"
+      },
+      {
+        "bytes": 94840,
+        "path": "runtime/src/schemas/party/organization/tiinex.party.organization.v1.schema.runtime.json",
+        "sha256": "8ec51a030f88060e486a5d3765439d970be4e4061ebb3aa758049d0c4cb20d0e"
+      },
+      {
+        "bytes": 567,
+        "path": "runtime/src/schemas/party/organization/tiinex.party.organization.v1.schema.source.js",
+        "sha256": "f08ab4906e749963f161a17eedc53ade482ba2789940e65ad0aa11cbc7e859fd"
+      },
+      {
+        "bytes": 1205,
+        "path": "runtime/src/schemas/party/role/tiinex.party.role.v1.schema.js",
+        "sha256": "3d9afe413c24ceec55eaf49598d8a24b2d88a025adfc0f0c45ca4f086937814b"
+      },
+      {
+        "bytes": 1284,
+        "path": "runtime/src/schemas/party/role/tiinex.party.role.v1.schema.json",
+        "sha256": "5fc421dec7554817f1eed3dccc8f67a3249b3e66c7d8f9c3eb79e8a69752fea7"
+      },
+      {
+        "bytes": 91333,
+        "path": "runtime/src/schemas/party/role/tiinex.party.role.v1.schema.runtime.json",
+        "sha256": "b85c1e9705974085d100133ff36b5bf23bd0e7eeb646326e7cd12d8d7e045125"
+      },
+      {
+        "bytes": 527,
+        "path": "runtime/src/schemas/party/role/tiinex.party.role.v1.schema.source.js",
+        "sha256": "cee709af35c27199512bfbd5f3e94fb28a9a2d12964d435536950ded34f79750"
+      },
+      {
+        "bytes": 259,
+        "path": "runtime/src/schemas/presentation/surface/tiinex.presentation.surface.v1.capabilities.js",
+        "sha256": "726718ec1385e5f36ce7681b5231d188f20d76ed4b30eaafe5b44b6528696cbb"
+      },
+      {
+        "bytes": 122,
+        "path": "runtime/src/schemas/presentation/surface/tiinex.presentation.surface.v1.en.i18n.json",
+        "sha256": "72dce601c636a4ebe054828f997633e5ec533574027755cc2f3c13479e38cf8a"
+      },
+      {
+        "bytes": 120,
+        "path": "runtime/src/schemas/presentation/surface/tiinex.presentation.surface.v1.findings.js",
+        "sha256": "f0e348fb4a5ef0df9e3777464723498488c717c6e14a75ac3dc2fb11632c29d7"
+      },
+      {
+        "bytes": 331,
+        "path": "runtime/src/schemas/presentation/surface/tiinex.presentation.surface.v1.presenter.js",
+        "sha256": "58a6650ec92eabad01abfda0db313a99b8244923b35261d4fed1ab13fe6a7d07"
+      },
+      {
+        "bytes": 1658,
+        "path": "runtime/src/schemas/presentation/surface/tiinex.presentation.surface.v1.schema.js",
+        "sha256": "21e44ef82547079c36c0a2cd9c58a2fc62b0afe50ad5da405ec1f7f1e514c242"
+      },
+      {
+        "bytes": 1234,
+        "path": "runtime/src/schemas/presentation/surface/tiinex.presentation.surface.v1.schema.json",
+        "sha256": "14be21b32989635a9831e100a0160da94341c623052260c0895a671f97e4c0be"
+      },
+      {
+        "bytes": 92297,
+        "path": "runtime/src/schemas/presentation/surface/tiinex.presentation.surface.v1.schema.runtime.json",
+        "sha256": "d09e646fc77dbc7337e93810b0cdaa404b14b1b4c5b77958ab740650cd4bff58"
+      },
+      {
+        "bytes": 577,
+        "path": "runtime/src/schemas/presentation/surface/tiinex.presentation.surface.v1.schema.source.js",
+        "sha256": "60566b9fd95170ae533b8b1991fd074646fc4012b7d25bc9c54b23e234e5e3d1"
+      },
+      {
+        "bytes": 122,
+        "path": "runtime/src/schemas/presentation/surface/tiinex.presentation.surface.v1.sv.i18n.json",
+        "sha256": "72dce601c636a4ebe054828f997633e5ec533574027755cc2f3c13479e38cf8a"
+      },
+      {
+        "bytes": 108,
+        "path": "runtime/src/schemas/presentation/surface/tiinex.presentation.surface.v1.transitions.js",
+        "sha256": "9db70b44d512ced9456cb857ee7c15b7584783e36ffecd9fd21f01fe97762890"
+      },
+      {
+        "bytes": 228,
+        "path": "runtime/src/schemas/presentation/surface/tiinex.presentation.surface.v1.validate.js",
+        "sha256": "7563af7d0ebd12fb5bde321b0fc1b7197ab4a669ef3077183965f0d21d0a275c"
+      },
+      {
+        "bytes": 1099,
+        "path": "runtime/src/schemas/reduction/tiinex.reduction.v1.schema.js",
+        "sha256": "7c54c2f484d1bba80e29c1decddef55b3c3e04a37c19635967837f450fce9ddb"
+      },
+      {
+        "bytes": 1172,
+        "path": "runtime/src/schemas/reduction/tiinex.reduction.v1.schema.json",
+        "sha256": "ef9f33b1788fe83fe2d69b03f10b951e8b7fb781811c4d2f4a62082d7eb406ec"
+      },
+      {
+        "bytes": 78237,
+        "path": "runtime/src/schemas/reduction/tiinex.reduction.v1.schema.runtime.json",
+        "sha256": "63e7841bbe3c992a793eb83a79db0be28866cd0bf623aef815c69a2a87ddf8f7"
+      },
+      {
+        "bytes": 519,
+        "path": "runtime/src/schemas/reduction/tiinex.reduction.v1.schema.source.js",
+        "sha256": "53988681419ee6ccf8efa613259703d136997d0de5535d48b6b486a9793b866a"
+      },
+      {
+        "bytes": 1336,
+        "path": "runtime/src/schemas/reference.shapes.js",
+        "sha256": "b256207f63f3a6fe8f65d47e82f8a94727922ef62e117afcd1860ad4c7f98348"
+      },
+      {
+        "bytes": 3319,
+        "path": "runtime/src/schemas/registry.js",
+        "sha256": "013b705c1e0e2633f9335e8e1a8e90f5c574971fda5172066d68378c2a7bd437"
+      },
+      {
+        "bytes": 638,
+        "path": "runtime/src/schemas/resolver.js",
+        "sha256": "50d415fd83114e2e14f5e08a83a8edb54bd5bedcc4cbd29d2532eda6e436af58"
+      },
+      {
+        "bytes": 6772,
+        "path": "runtime/src/schemas/schema.factory.descriptor.js",
+        "sha256": "d9af6318943334d28497859c679c63ab4fcf7c5c22aa1167a7f144a168c8bd94"
+      },
+      {
+        "bytes": 6386,
+        "path": "runtime/src/schemas/schema.githubSourceTarget.js",
+        "sha256": "0233fb2d9c32096e9911263c6671ee1355092d899e93ddda74d2d216f3914c0a"
+      },
+      {
+        "bytes": 531,
+        "path": "runtime/src/schemas/schema.identity.js",
+        "sha256": "721fdc94292cac82e11e4a197da4196af089c7709228aeecdac43ba9157250b7"
+      },
+      {
+        "bytes": 9655,
+        "path": "runtime/src/schemas/schema.reference.js",
+        "sha256": "28be21c7eef72a07670dae9bec318a8ea8de8c10205cf21e85bfba65ccb24fb0"
+      },
+      {
+        "bytes": 13167,
+        "path": "runtime/src/schemas/schema.source.js",
+        "sha256": "1f071d63ecb971b6e5e856fc490da07c7c808feffbdae9df718c4cab34d98238"
+      },
+      {
+        "bytes": 258,
+        "path": "runtime/src/schemas/schema/module/tiinex.schema.module.v1.capabilities.js",
+        "sha256": "89b48b8ff0c5fec8d91805c54ffeccf4517bb3d8c84649e8fac7300048305c43"
+      },
+      {
+        "bytes": 146,
+        "path": "runtime/src/schemas/schema/module/tiinex.schema.module.v1.en.i18n.json",
+        "sha256": "ad8454900608480f5d1c32fe5e97f6320f44c7a6166eb548c1ab9b69fb299c60"
+      },
+      {
+        "bytes": 112,
+        "path": "runtime/src/schemas/schema/module/tiinex.schema.module.v1.findings.js",
+        "sha256": "db7401ce4eb1b60253592642e03f8093367f56ed1b151a13ecaca18579578763"
+      },
+      {
+        "bytes": 347,
+        "path": "runtime/src/schemas/schema/module/tiinex.schema.module.v1.presenter.js",
+        "sha256": "474ca487b2107607789f9bb068788ca5ee19efe9e8da6d6041c9fc199cc578d4"
+      },
+      {
+        "bytes": 1606,
+        "path": "runtime/src/schemas/schema/module/tiinex.schema.module.v1.schema.js",
+        "sha256": "9ac3138a1125e3a5a4012b6ea922fa2097ca5bf1780f57e04704abca46385f09"
+      },
+      {
+        "bytes": 1150,
+        "path": "runtime/src/schemas/schema/module/tiinex.schema.module.v1.schema.json",
+        "sha256": "51f9efba0c91ab0176a4627296465dae055b49e25a37b92b9bd667102b32be7d"
+      },
+      {
+        "bytes": 89069,
+        "path": "runtime/src/schemas/schema/module/tiinex.schema.module.v1.schema.runtime.json",
+        "sha256": "b008b24b2a22d6a3ef2eabfdd049c2c7a3bb51e1e5483c05e8c58cbbb3b8e0f9"
+      },
+      {
+        "bytes": 542,
+        "path": "runtime/src/schemas/schema/module/tiinex.schema.module.v1.schema.source.js",
+        "sha256": "71fc79c073b7d229d6f4473ea0114a26eae8af8380cad3ab70bf9276cc36b616"
+      },
+      {
+        "bytes": 146,
+        "path": "runtime/src/schemas/schema/module/tiinex.schema.module.v1.sv.i18n.json",
+        "sha256": "ad8454900608480f5d1c32fe5e97f6320f44c7a6166eb548c1ab9b69fb299c60"
+      },
+      {
+        "bytes": 107,
+        "path": "runtime/src/schemas/schema/module/tiinex.schema.module.v1.transitions.js",
+        "sha256": "7944762c9dd5cf4f21918bb3aa4b43f038094b7553885d57ab01a16a0330d992"
+      },
+      {
+        "bytes": 220,
+        "path": "runtime/src/schemas/schema/module/tiinex.schema.module.v1.validate.js",
+        "sha256": "8e00718f44053e2c3177eba6cd1f3a86f67f321e5ac49ef6011adde80a81fb9e"
+      },
+      {
+        "bytes": 256,
+        "path": "runtime/src/schemas/tiinex.root.v1.capabilities.js",
+        "sha256": "623bb67688302a4d5d39a4491c728d4162efbd3ee0dc4b4f469e9cbbe2f027b9"
+      },
+      {
+        "bytes": 2555,
+        "path": "runtime/src/schemas/tiinex.root.v1.classify.js",
+        "sha256": "3885bc772618ee085428b9ee6918bb34cbe664719ea51fcecd2803617baf245b"
+      },
+      {
+        "bytes": 2135,
+        "path": "runtime/src/schemas/tiinex.root.v1.en.i18n.json",
+        "sha256": "d12584480560183f75dcbedce17dc316f85dd977a952cdd2536416eb1db748b7"
+      },
+      {
+        "bytes": 3766,
+        "path": "runtime/src/schemas/tiinex.root.v1.fallback.js",
+        "sha256": "7fb63cda0c593428ee95f93b8a36f4db275dc3bb7dccff26fc8120b5f447fa63"
+      },
+      {
+        "bytes": 1277,
+        "path": "runtime/src/schemas/tiinex.root.v1.findings.js",
+        "sha256": "6553e1437d5402ee51eae205e09701e984aaf50c4b7f1e373c0620a9559a30f7"
+      },
+      {
+        "bytes": 174,
+        "path": "runtime/src/schemas/tiinex.root.v1.presenter.js",
+        "sha256": "634552facd31a3c3c6eb8a70f6af9a4ddb481e2c89a2f2aab5a2008e6acb0250"
+      },
+      {
+        "bytes": 1393,
+        "path": "runtime/src/schemas/tiinex.root.v1.schema.js",
+        "sha256": "f8cfadf9449977029462dbc06f6059048707eda1eab2a484212f448bfd8a7146"
+      },
+      {
+        "bytes": 1187,
+        "path": "runtime/src/schemas/tiinex.root.v1.schema.json",
+        "sha256": "fce0322343963e6b96b3f81bf6f00671840668ba1959bcac73e35f9c5128ea69"
+      },
+      {
+        "bytes": 73554,
+        "path": "runtime/src/schemas/tiinex.root.v1.schema.runtime.json",
+        "sha256": "c1feb9aceb4da58fcd306f29d8403a262a280f3a20597de06cf5a0f02f1eaa62"
+      },
+      {
+        "bytes": 488,
+        "path": "runtime/src/schemas/tiinex.root.v1.schema.source.js",
+        "sha256": "2fbe62a50c5b378a25faf0098ea80eec457452ae7cb8ce94b947ee1c6b7e253f"
+      },
+      {
+        "bytes": 2135,
+        "path": "runtime/src/schemas/tiinex.root.v1.sv.i18n.json",
+        "sha256": "d12584480560183f75dcbedce17dc316f85dd977a952cdd2536416eb1db748b7"
+      },
+      {
+        "bytes": 105,
+        "path": "runtime/src/schemas/tiinex.root.v1.transitions.js",
+        "sha256": "fe697a954d3c458a4168bab35201a9b1b2811d9e1ab62f191c407dc232bb7920"
+      },
+      {
+        "bytes": 2900,
+        "path": "runtime/src/schemas/tiinex.root.v1.validate.js",
+        "sha256": "027eee854c64cf78c77006270851bb64fddb5e8830decbb11e5449d2af6e426c"
+      },
+      {
+        "bytes": 648,
+        "path": "runtime/src/schemas/validation/finding/tiinex.validation.finding.v1.schema.js",
+        "sha256": "f0193edfc0666b909691d9e09c798926241ef1902ad4a54a39a6681686eab660"
+      },
+      {
+        "bytes": 1282,
+        "path": "runtime/src/schemas/validation/finding/tiinex.validation.finding.v1.schema.json",
+        "sha256": "c032205d662c8ba19b274c2a4cd6f2bff691605a593ee98caff7b9034a143825"
+      },
+      {
+        "bytes": 87354,
+        "path": "runtime/src/schemas/validation/finding/tiinex.validation.finding.v1.schema.runtime.json",
+        "sha256": "d2a7f7049824e8a42f8ce57d40435b2a809aa0ecb452864bdd25b94ed5c09d3f"
+      },
+      {
+        "bytes": 567,
+        "path": "runtime/src/schemas/validation/finding/tiinex.validation.finding.v1.schema.source.js",
+        "sha256": "ece51698c936e5cce9ce156dee9d15ef48441afdc0e97966e137b205bae268d5"
+      },
+      {
+        "bytes": 666,
+        "path": "runtime/src/schemas/validation/method/tiinex.validation.method.v1.schema.js",
+        "sha256": "32016e7add119f1fc4bbbfbaa6a37b72df261b9704b3eaa18124b5e4d16effc2"
+      },
+      {
+        "bytes": 1270,
+        "path": "runtime/src/schemas/validation/method/tiinex.validation.method.v1.schema.json",
+        "sha256": "0792c42c9ed617a4bde028eb04fb903247054824e77c8681d4737fe287374b39"
+      },
+      {
+        "bytes": 81904,
+        "path": "runtime/src/schemas/validation/method/tiinex.validation.method.v1.schema.runtime.json",
+        "sha256": "1dedcebafc857009a0b2b1f81019c9f7526bed1c86d4d965e04f3e565eeaffe4"
+      },
+      {
+        "bytes": 562,
+        "path": "runtime/src/schemas/validation/method/tiinex.validation.method.v1.schema.source.js",
+        "sha256": "c930cd612e63faf799575035a7ea5f849c2500382ae24d2c9550a905cea79b88"
+      },
+      {
+        "bytes": 653,
+        "path": "runtime/src/schemas/validation/report/tiinex.validation.report.v1.schema.js",
+        "sha256": "c97cbe6d9a0e7d54ee0325693041196f69a8d84741b17b27b317183d6d3822e4"
+      },
+      {
+        "bytes": 1270,
+        "path": "runtime/src/schemas/validation/report/tiinex.validation.report.v1.schema.json",
+        "sha256": "ad191809d85a1cfb0bd55b2a809881cfd599e1cbb2a5c3c1db84b5ea39eb9915"
+      },
+      {
+        "bytes": 86786,
+        "path": "runtime/src/schemas/validation/report/tiinex.validation.report.v1.schema.runtime.json",
+        "sha256": "7d0368f2a51aecaf233e751038a34fc59fea4e565f98cb713147c849e555404e"
+      },
+      {
+        "bytes": 562,
+        "path": "runtime/src/schemas/validation/report/tiinex.validation.report.v1.schema.source.js",
+        "sha256": "8f09226d5279cd5cc92e22f947df5414b2dc1ecbd91808038f550bf79af1dae8"
+      },
+      {
+        "bytes": 822,
+        "path": "runtime/src/schemas/workspace/tiinex.workspace.v1.capabilities.js",
+        "sha256": "a1933c059ca55849e87aabee1f929c9720040dacde012d37c6f720ff170cf82f"
+      },
+      {
+        "bytes": 488,
+        "path": "runtime/src/schemas/workspace/tiinex.workspace.v1.en.i18n.json",
+        "sha256": "138fad7d5f4b66bbd23a8517ba00cee5646df6f60078d5999defad15729925f4"
+      },
+      {
+        "bytes": 282,
+        "path": "runtime/src/schemas/workspace/tiinex.workspace.v1.findings.js",
+        "sha256": "ccab3f4c0dd20577cf8f582c5731faf72f86781762121829bf6b0fb316c28c69"
+      },
+      {
+        "bytes": 1362,
+        "path": "runtime/src/schemas/workspace/tiinex.workspace.v1.presenter.js",
+        "sha256": "b7e2957deeac87cdcebc340e557cef2dd8cfae39765973a9f34f6f4a4b0de589"
+      },
+      {
+        "bytes": 1611,
+        "path": "runtime/src/schemas/workspace/tiinex.workspace.v1.schema.js",
+        "sha256": "79137fad433c5b0c3847caf3c77af1670e78fa2ee7c6eb970225b1001aaf83db"
+      },
+      {
+        "bytes": 978,
+        "path": "runtime/src/schemas/workspace/tiinex.workspace.v1.schema.json",
+        "sha256": "18b56adb9b83bf4d2e0a3000d5350afca89f44af03e05f6fdd8be58a5d54fdbf"
+      },
+      {
+        "bytes": 74326,
+        "path": "runtime/src/schemas/workspace/tiinex.workspace.v1.schema.runtime.json",
+        "sha256": "be926262de0cc403382559cad0255073e0f217c7b75628cd5214974f22d2ddaf"
+      },
+      {
+        "bytes": 519,
+        "path": "runtime/src/schemas/workspace/tiinex.workspace.v1.schema.source.js",
+        "sha256": "bfa26760ba6dc329916df2dfa1784380f4bdef86c2573e27183f296f798de11d"
+      },
+      {
+        "bytes": 488,
+        "path": "runtime/src/schemas/workspace/tiinex.workspace.v1.sv.i18n.json",
+        "sha256": "138fad7d5f4b66bbd23a8517ba00cee5646df6f60078d5999defad15729925f4"
+      },
+      {
+        "bytes": 351,
+        "path": "runtime/src/schemas/workspace/tiinex.workspace.v1.transitions.js",
+        "sha256": "b2fca7f1250dd1e42dcba9d5345d880b45da534cc22dafae0cbf9002c05dc9f0"
+      },
+      {
+        "bytes": 858,
+        "path": "runtime/src/schemas/workspace/tiinex.workspace.v1.validate.js",
+        "sha256": "63a2f15ecb4a6d2730ae2c7a46df162c012f515bbdb88b5718d0f7dafa55ce74"
+      },
+      {
+        "bytes": 4237,
+        "path": "runtime/src/sources/github/github.issueTarget.js",
+        "sha256": "2a8d046e79d4228c4389770ac17880e821e15a15da823d7406b64a545c446da6"
+      },
+      {
+        "bytes": 11351,
+        "path": "runtime/src/sources/origin.references.js",
+        "sha256": "164429c8a64085b970bbff7117e1f671d1702980a4bf700f764d5d846e338ec1"
+      },
+      {
+        "bytes": 2006,
+        "path": "runtime/src/sources/source.explicitTargets.js",
+        "sha256": "ca7ab5d1a4fc7457e9a8ca9187dac6c8d06bc21562fa98074885fd39bf59855c"
+      },
+      {
+        "bytes": 4427,
+        "path": "runtime/src/sources/transport.levels.js",
+        "sha256": "7bbdb1f17158b30268d0c83f0de738406f2fba6929ce9d949b77a5bee3b2935f"
+      },
+      {
+        "bytes": 1595,
+        "path": "runtime/src/tooling/portable/adapters/cli/cli.cold-start-input.js",
+        "sha256": "ca5e8a258efc6d2c3e09de9d9b4fc0200341f0ad7558233af4790423537ca602"
+      },
+      {
+        "bytes": 23958,
+        "path": "runtime/src/tooling/portable/adapters/cli/cli.command-input.js",
+        "sha256": "2cd652fe20e198a27d9c1a89db3ea18ba7d4208792145b707693b99a38401726"
+      },
+      {
+        "bytes": 13102,
+        "path": "runtime/src/tooling/portable/adapters/cli/cli.common-author.js",
+        "sha256": "dbf5c840d4db265eefc3f029a5a7bb006f0924126906a536f0f6a59efbaf8f8b"
+      },
+      {
+        "bytes": 16091,
+        "path": "runtime/src/tooling/portable/adapters/cli/cli.common-output.js",
+        "sha256": "59ceea2c87bed3b0c2fe47e511eb1a3861752c1b887e77d97be5e44f52adb043"
+      },
+      {
+        "bytes": 873,
+        "path": "runtime/src/tooling/portable/adapters/cli/cli.editor-assistance.js",
+        "sha256": "3a15dbae3d3ee1cc81e5c2f730464eaab377e72e167fd39647927a25d3567592"
+      },
+      {
+        "bytes": 5942,
+        "path": "runtime/src/tooling/portable/adapters/cli/cli.ground-materialize.js",
+        "sha256": "863991a68e3fadccb8efe8efbd7e394dd085ffa07b847bb026551ab77c93785f"
+      },
+      {
+        "bytes": 5373,
+        "path": "runtime/src/tooling/portable/adapters/cli/cli.ground-recovery.js",
+        "sha256": "63dab25e3926bf5ddd891a048dd5fdf415a1d1975939aa6d95ae82025d30f74d"
+      },
+      {
+        "bytes": 21673,
+        "path": "runtime/src/tooling/portable/adapters/cli/cli.handoff-manufacture.js",
+        "sha256": "ad6873f1444fe25da437d70ce8a9eb24c6fe630375fb3b4429773079116281cf"
+      },
+      {
+        "bytes": 1722,
+        "path": "runtime/src/tooling/portable/adapters/cli/cli.handoff-sibling-allocation.js",
+        "sha256": "bc98a20a2ce0a1234e6a2701d7f7871a5d4043acc7746606ab1ab3138c0b4750"
+      },
+      {
+        "bytes": 6620,
+        "path": "runtime/src/tooling/portable/adapters/cli/cli.help.js",
+        "sha256": "c8934bb7fc09ed5a0681265f195680988bbb568b64a8e03fb1aa1c8f4a554c2e"
+      },
+      {
+        "bytes": 595,
+        "path": "runtime/src/tooling/portable/adapters/cli/cli.land.js",
+        "sha256": "b829c6ebd2c75c926208c2f461961f63ba562c55a82472450842929e7e9bdfd8"
+      },
+      {
+        "bytes": 4928,
+        "path": "runtime/src/tooling/portable/adapters/cli/cli.local-output.js",
+        "sha256": "1b564ffded0b7b0ceacb27fdcb341daba6df4cdba7e462e0595f358a9c212637"
+      },
+      {
+        "bytes": 578,
+        "path": "runtime/src/tooling/portable/adapters/cli/cli.material-policy.js",
+        "sha256": "5eb5889b13cd5e0b748d4e33f9a6b9e52b7dc9054c2e74d3b9bf73ca28c4aa1d"
+      },
+      {
+        "bytes": 1409,
+        "path": "runtime/src/tooling/portable/adapters/cli/cli.operator-bridge.js",
+        "sha256": "c93afd120882913af75e0cd6d5a36fbaa35f9073c9478efd3a73a3c7ec9ab551"
+      },
+      {
+        "bytes": 676,
+        "path": "runtime/src/tooling/portable/adapters/cli/cli.reduction-input.js",
+        "sha256": "0f8d779196a698cd3b506d516942352861f9b26b6c40074de14214a7fd12b755"
+      },
+      {
+        "bytes": 21541,
+        "path": "runtime/src/tooling/portable/adapters/cli/cli.run.js",
+        "sha256": "c617432ee9b6eeaa09436d5a25623b9e519e9664f10ea7c01cd27e03615a5f53"
+      },
+      {
+        "bytes": 10631,
+        "path": "runtime/src/tooling/portable/adapters/node/handoff.manufacture.bootstrap.js",
+        "sha256": "46980015f89685667b312a7693fb2af360714df2dbd60f2c8df1af146db4a5fd"
+      },
+      {
+        "bytes": 5340,
+        "path": "runtime/src/tooling/portable/adapters/node/handoff.manufacture.enumeration.js",
+        "sha256": "e0b5084f3bd560f0dd1ac0f09dbcaab0338db4a0e6c75728e3de406d5379675c"
+      },
+      {
+        "bytes": 12422,
+        "path": "runtime/src/tooling/portable/adapters/node/handoff.manufacture.js",
+        "sha256": "815e55bec061df03bc79ff5b51a7f415c7ee0f45b921520ac10cd7bf4919790e"
+      },
+      {
+        "bytes": 2791,
+        "path": "runtime/src/tooling/portable/adapters/node/handoff.manufacture.multiRoot.js",
+        "sha256": "72bf235acdd51ecf3f93441cf8506e33ff5cb554f2dbeb3fb5c796e4c114ace4"
+      },
+      {
+        "bytes": 7483,
+        "path": "runtime/src/tooling/portable/adapters/node/handoff.manufacture.packageParent.js",
+        "sha256": "0c337ccbe6e381489dc38af41562b54523b7104fdac5f9b6a1acb3cb07c56c26"
+      },
+      {
+        "bytes": 21204,
+        "path": "runtime/src/tooling/portable/adapters/node/handoff.manufacture.requirements.js",
+        "sha256": "9ee1b7198ee3fe857ed429e9001a09d740d294b36b0534b18c09825bfa423670"
+      },
+      {
+        "bytes": 8404,
+        "path": "runtime/src/tooling/portable/adapters/node/handoff.manufacture.scope.js",
+        "sha256": "8484a8bfb2403e46188ef16a935385cda2cda212f334ca8023218a71cf386deb"
+      },
+      {
+        "bytes": 4432,
+        "path": "runtime/src/tooling/portable/adapters/node/workspaceCarrier.manufacture.js",
+        "sha256": "414fad7f99c97c8326185247f3d01599d8488c5dc0347661218a03882cf06f8f"
+      },
+      {
+        "bytes": 8042,
+        "path": "runtime/src/tooling/portable/assets/asset.operations.js",
+        "sha256": "20dc2f3ce60da5ee741c79f967191a06e16d4016268f836549f4bb8a8761a3b0"
+      },
+      {
+        "bytes": 5721,
+        "path": "runtime/src/tooling/portable/audit/audit.capability.js",
+        "sha256": "031e03f1f030280103b59b6f29383ec8d8c0dacdd5be65b6f2a76b656c2bbba1"
+      },
+      {
+        "bytes": 49832,
+        "path": "runtime/src/tooling/portable/bootstrap/tiinex.llm.bootstrap.md",
+        "sha256": "8fa5848bdae6b4815497d34b7de79c735cb3180c1ba3bcfdad329223c4e5466d"
+      },
+      {
+        "bytes": 984,
+        "path": "runtime/src/tooling/portable/bootstrap/tiinex.llm.bootstrap.pointer.json",
+        "sha256": "98dd895df6acd86675d5fbaf011394528a0b205af73a87a76771eaad106b6f78"
+      },
+      {
+        "bytes": 4851,
+        "path": "runtime/src/tooling/portable/checkpoint/portable.checkpoint.js",
+        "sha256": "8837824b3bbb7c9af475ef85cfffa6f8e8ddd8f190711931c3ea2881701931f7"
+      },
+      {
+        "bytes": 17348,
+        "path": "runtime/src/tooling/portable/conformance/checkpoint.qualification.js",
+        "sha256": "57ba6d3955fb0e7d6d58ef30e93bc68ca595c48f8ea0686b625c0fc04fb5473a"
+      },
+      {
+        "bytes": 23996,
+        "path": "runtime/src/tooling/portable/draft/draft.create.js",
+        "sha256": "9e314c2778b99a890f2967a707a811ef03da7b9eb3ae39b786b918a6866f08eb"
+      },
+      {
+        "bytes": 9073,
+        "path": "runtime/src/tooling/portable/draft/draft.crud.js",
+        "sha256": "a1402bf2ac0cee9101280d2ab1f8f5b4e614918676bad63e7700dfa5d7e01e61"
+      },
+      {
+        "bytes": 15348,
+        "path": "runtime/src/tooling/portable/draft/draft.exact.js",
+        "sha256": "33f1933384b045622ad06e7ee10a283351fc9c048b40080897607c13b58c2208"
+      },
+      {
+        "bytes": 15583,
+        "path": "runtime/src/tooling/portable/draft/draft.operations.js",
+        "sha256": "e0e93f68a3dfa038dbbf2a6f25d3959499ad2b354fe0dac5ba73d11fe22a65fd"
+      },
+      {
+        "bytes": 3844,
+        "path": "runtime/src/tooling/portable/draft/draft.qualification.js",
+        "sha256": "331ad8b7f77a76042e4d20771491b6dbdc3b02e52264c9c04312a654971df195"
+      },
+      {
+        "bytes": 9682,
+        "path": "runtime/src/tooling/portable/draft/draft.set.js",
+        "sha256": "3894f960c69ba31d76c01180f8ee8bb94bba5d8068564f8deb268781ad2d3af1"
+      },
+      {
+        "bytes": 320,
+        "path": "runtime/src/tooling/portable/draft/draft.validation-context.js",
+        "sha256": "0af64220c977488e0822ad2cc0d33c30ef6b328a8aeb67b7f2e74bb73b18d10d"
+      },
+      {
+        "bytes": 3649,
+        "path": "runtime/src/tooling/portable/editor/authoring.parent.js",
+        "sha256": "a647fabcb1c97d5dacd7d17b93eeb935d75fedbc6b0bd4e7d99074f4b2600216"
+      },
+      {
+        "bytes": 15748,
+        "path": "runtime/src/tooling/portable/editor/editor.assistance.js",
+        "sha256": "2246bef0490781bf98d2792e517fbc5689b02ae1152e8825995015dda41412b7"
+      },
+      {
+        "bytes": 5879,
+        "path": "runtime/src/tooling/portable/editor/staged.validation.js",
+        "sha256": "cd516a2e941e63c2526306623af78628850d3dde6438dff7521336e898ffef8d"
+      },
+      {
+        "bytes": 22046,
+        "path": "runtime/src/tooling/portable/engine.facade.js",
+        "sha256": "080f30283570ace0ef887969f218d624c4af14e04257cd4c9dc2d3ac1f8b8c9e"
+      },
+      {
+        "bytes": 3287,
+        "path": "runtime/src/tooling/portable/findings.js",
+        "sha256": "3b10b4b14a1f7a02947c0f8cd86678a39172b4b101fa967071f776f44fb83117"
+      },
+      {
+        "bytes": 6407,
+        "path": "runtime/src/tooling/portable/grounding/grounding.capsule.js",
+        "sha256": "c0a46a01502426580907519dda2eeccf3214374ad5779f4a60baf6c85b9b7c09"
+      },
+      {
+        "bytes": 12706,
+        "path": "runtime/src/tooling/portable/grounding/grounding.continuity.js",
+        "sha256": "62d180d85c1c458c31353395d50c9b3c4e4b6489a07ab19a735d53067cf1300c"
+      },
+      {
+        "bytes": 1878,
+        "path": "runtime/src/tooling/portable/grounding/grounding.participantAuthority.js",
+        "sha256": "237a904305b2a6e85622fddcbcee6df3b5dddbc3ccdb9c64f7a95ce654605a50"
+      },
+      {
+        "bytes": 1957,
+        "path": "runtime/src/tooling/portable/grounding/grounding.planningContext.js",
+        "sha256": "250ec37891d2f4b7dd5b6e00e0ab3c6c1e8b52a2f6fc6919d916036555dc10aa"
+      },
+      {
+        "bytes": 2147,
+        "path": "runtime/src/tooling/portable/grounding/grounding.readiness.authority.js",
+        "sha256": "7bc0da4eb2d3de247c3eef0ec92bde218d728fab4381a1250ff095c25032e797"
+      },
+      {
+        "bytes": 23997,
+        "path": "runtime/src/tooling/portable/grounding/grounding.readiness.js",
+        "sha256": "9b32b242f0897b78e457036aa339c436ac35e700c95f52ad5cb1293387c2b832"
+      },
+      {
+        "bytes": 13400,
+        "path": "runtime/src/tooling/portable/grounding/grounding.readiness.support.js",
+        "sha256": "015aa7fc01d93722a3934805a13b4a4d07d21d13800c13226c1e69b443f2ea95"
+      },
+      {
+        "bytes": 4318,
+        "path": "runtime/src/tooling/portable/grounding/grounding.sourceEvidence.js",
+        "sha256": "8425b9e7e10b1930ea15d07432afec54d3412aa1ac8dbc9f7260a3098fc5e8b5"
+      },
+      {
+        "bytes": 4875,
+        "path": "runtime/src/tooling/portable/grounding/grounding.workContext.js",
+        "sha256": "f9edcfb2f70561af10a71ec93f7cd5d5b851a537d2efee7cfb74af1b67568d9d"
+      },
+      {
+        "bytes": 10702,
+        "path": "runtime/src/tooling/portable/grounding/grounding.workProvenance.js",
+        "sha256": "e60a764402ffaf4b3d20c5f6989fdf66985da2a7e962a119f6ddca42c0dae743"
+      },
+      {
+        "bytes": 12325,
+        "path": "runtime/src/tooling/portable/handoff/carrierLineage.js",
+        "sha256": "bd9c2faa4b99dffc462960abe77e8a00dd3bd387cdb06562e38e36fe3313731c"
+      },
+      {
+        "bytes": 1871,
+        "path": "runtime/src/tooling/portable/handoff/carrierProfile.js",
+        "sha256": "028d6cce4f0d65fee484e1c4b56490733b701d9f055fe44ef6e39c4721a917fe"
+      },
+      {
+        "bytes": 17203,
+        "path": "runtime/src/tooling/portable/handoff/carrierProjection.js",
+        "sha256": "e839d9b801853c4ecfbe7108f6e15e19396768e9bfc69e6c2aa0565122643686"
+      },
+      {
+        "bytes": 17932,
+        "path": "runtime/src/tooling/portable/handoff/carrierProjection.routeQualification.js",
+        "sha256": "017c8fcf88417b6870a6a16898d2848702555c3d145f4a8daa3803fe8c17be54"
+      },
+      {
+        "bytes": 936,
+        "path": "runtime/src/tooling/portable/handoff/carrierProjection.shared.js",
+        "sha256": "bab595ef142c379acc5b2f67ad47528cb64ace0593573b48e58a42eed10b2928"
+      },
+      {
+        "bytes": 4464,
+        "path": "runtime/src/tooling/portable/handoff/carrierProjection.workspaces.js",
+        "sha256": "f165301fec9712706c2ece044a04269c2f2ca8fcde3a14a912178994fd4ffdcd"
+      },
+      {
+        "bytes": 14462,
+        "path": "runtime/src/tooling/portable/handoff/coldConsumerEntrypoint.js",
+        "sha256": "e55c34f7dff0c8d1561da27d54879111942278e4dbef8d938699bb19dd7482af"
+      },
+      {
+        "bytes": 10381,
+        "path": "runtime/src/tooling/portable/handoff/coldStartQualification.contract.js",
+        "sha256": "e27d681e4b8c7c6840714cb985c04722a1925365a5989170fefc4a63dbbdfb97"
+      },
+      {
+        "bytes": 23738,
+        "path": "runtime/src/tooling/portable/handoff/coldStartQualification.grounding.js",
+        "sha256": "97c0b77f79f1a8f4f1062197c3c4eae4f5bdec3bcc56d2ce5d4398a06fd72fd4"
+      },
+      {
+        "bytes": 956,
+        "path": "runtime/src/tooling/portable/handoff/coldStartQualification.js",
+        "sha256": "16b530a1d49e6a5ddef85fd12a3cd6e09c23aa4e71a338561c54552f32ab3b10"
+      },
+      {
+        "bytes": 21843,
+        "path": "runtime/src/tooling/portable/handoff/coldStartQualification.materials.js",
+        "sha256": "ae878025eab62e6df160fcde1057b838bbf022d2ccbaef1fde1412e5d1d5e963"
+      },
+      {
+        "bytes": 15403,
+        "path": "runtime/src/tooling/portable/handoff/coldStartQualification.observation.js",
+        "sha256": "cbd1515d77ab0d19c4010bb4b64d4bda1376f0f1f5d1e19327a6f02739f5daf3"
+      },
+      {
+        "bytes": 5222,
+        "path": "runtime/src/tooling/portable/handoff/coldStartQualification.run.js",
+        "sha256": "e99a853bfe776fac1e53ab5a1150a9e047fefc8b5056f20d930b4272e0d89205"
+      },
+      {
+        "bytes": 4127,
+        "path": "runtime/src/tooling/portable/handoff/coldStartQualification.shared.js",
+        "sha256": "d61c5556eb42e96e00d62bb7284abf700d716c25cc55fb6b9d1bb3c360cb3d16"
+      },
+      {
+        "bytes": 2836,
+        "path": "runtime/src/tooling/portable/handoff/coldStartRolePointers.js",
+        "sha256": "4bdff69af56a61c4fddbdd39f4a72d2a00ecace718327707039b445c4ed367bd"
+      },
+      {
+        "bytes": 21479,
+        "path": "runtime/src/tooling/portable/handoff/contextAudit.js",
+        "sha256": "7a56b089b7c15ae9ee4d7c45ee727415426bbaccf505c1a01465cc690090a2f9"
+      },
+      {
+        "bytes": 3918,
+        "path": "runtime/src/tooling/portable/handoff/handoffAuthoringPlan.js",
+        "sha256": "b86f248682937d76666913a25a0d7a1ddf8cb7ca815f29611f1ce149dd4a4e53"
+      },
+      {
+        "bytes": 3780,
+        "path": "runtime/src/tooling/portable/handoff/handoffEndpointProjection.js",
+        "sha256": "4db193cbc6d34dc58e8e3d5f3f2915917744bddec9d1de07caedc8fba3e6dd21"
+      },
+      {
+        "bytes": 4987,
+        "path": "runtime/src/tooling/portable/handoff/handoffLeafProjection.js",
+        "sha256": "89946b609598c4ed9969ac975649cf0643bee524e889d324b6f26b7976a0d139"
+      },
+      {
+        "bytes": 953,
+        "path": "runtime/src/tooling/portable/handoff/humanOutputPresentation.js",
+        "sha256": "b026ed01936b8d74e00e4ec96d868e2a85b364a5db7fff95b8674b37baae6f13"
+      },
+      {
+        "bytes": 6142,
+        "path": "runtime/src/tooling/portable/handoff/manufacture.js",
+        "sha256": "f68216e50902d84fca058cfff2a2bea23cf85201f1079af19f6a7e77a9f38d93"
+      },
+      {
+        "bytes": 5134,
+        "path": "runtime/src/tooling/portable/handoff/materialClosure.archiveV2.binding.js",
+        "sha256": "f788461511b91ad2eb24624f14e3ffc648aecbaf5278cd2c048cef949f5a2c9b"
+      },
+      {
+        "bytes": 12289,
+        "path": "runtime/src/tooling/portable/handoff/materialClosure.archiveV2.direct.js",
+        "sha256": "7ad185075533f35e6e85b61fdcf7b211153caf04a02e12ae633127bda59a4d0d"
+      },
+      {
+        "bytes": 1200,
+        "path": "runtime/src/tooling/portable/handoff/materialClosure.archiveV2.indexes.js",
+        "sha256": "975137362aa9274f36fa194a311c0949a829c9467db6becd213fa185aa3c94a7"
+      },
+      {
+        "bytes": 23348,
+        "path": "runtime/src/tooling/portable/handoff/materialClosure.archiveV2.js",
+        "sha256": "a7ee5d3dfa43c419db73ed8ff49ee9104d4aebbd1247be0f64f074c124a46db7"
+      },
+      {
+        "bytes": 2365,
+        "path": "runtime/src/tooling/portable/handoff/materialClosure.archiveV2.projectionProvider.js",
+        "sha256": "7e7f5e4fd9eef4af9332dd40fcd16859b19b644c71c633e245b2a0503fae17e0"
+      },
+      {
+        "bytes": 20070,
+        "path": "runtime/src/tooling/portable/handoff/materialClosure.archiveV2.workspace.js",
+        "sha256": "94626993cb926a3e41ee3b12ebe0e3124d143afcc2dae617f84944937ca24987"
+      },
+      {
+        "bytes": 19073,
+        "path": "runtime/src/tooling/portable/handoff/materialClosure.descriptor.js",
+        "sha256": "2dc7f1076842e86297689cc3135a49e613ad3f594db7d05664e5e927f3a20af9"
+      },
+      {
+        "bytes": 21761,
+        "path": "runtime/src/tooling/portable/handoff/materialClosure.inputBinding.js",
+        "sha256": "1f18925997a9e18ff438f3e07b3d02f15dc88f874a52b501a03fbbf8b91c94a5"
+      },
+      {
+        "bytes": 2791,
+        "path": "runtime/src/tooling/portable/handoff/materialClosure.inputBinding.support.js",
+        "sha256": "449d9c75217a0b9b107c119a8bc55960ec9224b8e067ba187935cfcb1336aa8f"
+      },
+      {
+        "bytes": 6785,
+        "path": "runtime/src/tooling/portable/handoff/materialClosure.materialized.js",
+        "sha256": "15c0ea8cb156c647d89a26aae1b29aca640286994e8c24a034db1bf4821c6b1d"
+      },
+      {
+        "bytes": 8738,
+        "path": "runtime/src/tooling/portable/handoff/materialClosure.materials.js",
+        "sha256": "cbe235fcb055ed094093d67681da3e0e91e03f89e4b1d0375607f4a22f36b89c"
+      },
+      {
+        "bytes": 14846,
+        "path": "runtime/src/tooling/portable/handoff/materialClosure.plan.js",
+        "sha256": "328944b5d8e74a9830f01f977131b06d23f5074aa53082a7a6ea518d27ab6137"
+      },
+      {
+        "bytes": 2047,
+        "path": "runtime/src/tooling/portable/handoff/materialClosure.readiness.js",
+        "sha256": "bc494ab86f6a2b32dda39d11c850466ab7d1796dd5dc28ffa933af330df3b506"
+      },
+      {
+        "bytes": 6987,
+        "path": "runtime/src/tooling/portable/handoff/materialClosure.requirements.js",
+        "sha256": "274df82d726c1e636de64b2d7dfea84cdba369e1f4196a30589ce9a2ac0acc9f"
+      },
+      {
+        "bytes": 6709,
+        "path": "runtime/src/tooling/portable/handoff/operatorContextProjection.js",
+        "sha256": "12b6ca619dbe3ef8a91698d9e08e3677e3a6bf348f6f0741d899c1fc77f3102f"
+      },
+      {
+        "bytes": 11266,
+        "path": "runtime/src/tooling/portable/handoff/pointerEntrypoint.js",
+        "sha256": "eb2174d26aa8916948cf2634052b084a8cb12470950f67e55bd9bc92ab6287d3"
+      },
+      {
+        "bytes": 23685,
+        "path": "runtime/src/tooling/portable/handoff/recipientV2.artifactFirst.build.js",
+        "sha256": "a0cdccec05fbe148cfcb0934255ea85430b40d2116e128798964a9256642d058"
+      },
+      {
+        "bytes": 10782,
+        "path": "runtime/src/tooling/portable/handoff/recipientV2.artifactFirst.closure.js",
+        "sha256": "fed64cad457f4955d065c102f4f36ac480ccf52671accd11f3de3fe02ec116af"
+      },
+      {
+        "bytes": 22102,
+        "path": "runtime/src/tooling/portable/handoff/recipientV2.artifactFirst.inspect.js",
+        "sha256": "04fe3b777efe74f994ed83a7ac32e3d91c283bda46175976297e2ec6b3b3ace7"
+      },
+      {
+        "bytes": 18576,
+        "path": "runtime/src/tooling/portable/handoff/recipientV2.artifactFirst.materials.js",
+        "sha256": "fb9114f7547f5491401d1c97208a9c7b044004b8b143a97489807d6c5c6a41d6"
+      },
+      {
+        "bytes": 5207,
+        "path": "runtime/src/tooling/portable/handoff/recipientV2.artifactFirst.projection.js",
+        "sha256": "6201462720aeda62f5470e358dd8d0a73dd0d5e7164e626cbd0b54fdadcc17be"
+      },
+      {
+        "bytes": 13540,
+        "path": "runtime/src/tooling/portable/handoff/recipientV2.artifactFirst.roles.js",
+        "sha256": "21548c117d85b096620f6665bbfd47c94504c187f9afcc2b52d8b8bc80b1e39d"
+      },
+      {
+        "bytes": 11381,
+        "path": "runtime/src/tooling/portable/handoff/recipientV2.artifactFirst.routes.js",
+        "sha256": "6ebf175ff7b1a67dfba5efb113c6c17ed30bfaa8fe46ad257fa192a39d27db81"
+      },
+      {
+        "bytes": 7394,
+        "path": "runtime/src/tooling/portable/handoff/recipientV2.artifactFirst.shared.js",
+        "sha256": "f11f87e9310213dd8555aebcc3b038cd1ece2e8b3d42e23be02e4bd34d9edd74"
+      },
+      {
+        "bytes": 11872,
+        "path": "runtime/src/tooling/portable/handoff/recipientV2.artifactFirst.workspaces.js",
+        "sha256": "4d93815cac9bdcc15aab6dd1d2061a7f1f7a438ecaba69bea08f4f426636ab51"
+      },
+      {
+        "bytes": 2621,
+        "path": "runtime/src/tooling/portable/handoff/recipientV2.artifactFirstPhase1.js",
+        "sha256": "ffc68f9798795a09cea485ff796d67b2beaf95272c99f493dcc69de78d5dbd96"
+      },
+      {
+        "bytes": 6850,
+        "path": "runtime/src/tooling/portable/handoff/recipientV2.artifactInspection.js",
+        "sha256": "8778d89c53db957756e7172fd6dc043a50008a14a01f4061e452b474026a8f9c"
+      },
+      {
+        "bytes": 19992,
+        "path": "runtime/src/tooling/portable/handoff/recipientV2.artifacts.js",
+        "sha256": "0be1e3eaac7d3414e3b58421a57cdd6bc40fe7b8c2cf4b541465c42483704e79"
+      },
+      {
+        "bytes": 2752,
+        "path": "runtime/src/tooling/portable/handoff/recipientV2.coldProjection.js",
+        "sha256": "95b32630eb9465777152f5ab17ebc066ddfb8e006a310be9077c5b8a98f2eff5"
+      },
+      {
+        "bytes": 10393,
+        "path": "runtime/src/tooling/portable/handoff/recipientV2.endpointRolePointers.js",
+        "sha256": "66377945e824a46177f8322409812f69f417f3a4b9972f137ea8122fb06036dd"
+      },
+      {
+        "bytes": 4260,
+        "path": "runtime/src/tooling/portable/handoff/recipientV2.entryContract.js",
+        "sha256": "4b7f81bd00bbe01ef28ff52fbb5665a7ec170369951467fe88d02b3f8f94a7a6"
+      },
+      {
+        "bytes": 6427,
+        "path": "runtime/src/tooling/portable/handoff/recipientV2.humanOutput.js",
+        "sha256": "b78a532919f533b1c53da3d859d1f3127f68a3fa1210de044b1ffc20f1dfc9dd"
+      },
+      {
+        "bytes": 21903,
+        "path": "runtime/src/tooling/portable/handoff/recipientV2.inspect.helpers.js",
+        "sha256": "0d9d1ededfbf9346dec30067e960e8a4b9cac4e6dcfd87f95f7562940c1eae3c"
+      },
+      {
+        "bytes": 19519,
+        "path": "runtime/src/tooling/portable/handoff/recipientV2.inspect.js",
+        "sha256": "5fb3a88c4cadba2939ec82ed148e94d5fb1a44bb80a1ea6f30cf343a50924288"
+      },
+      {
+        "bytes": 410,
+        "path": "runtime/src/tooling/portable/handoff/recipientV2.inspect.pathToken.js",
+        "sha256": "9a28eadfcabc7eb80a30a23e135a4cea63329b503b7535ba9e300519d34de2d6"
+      },
+      {
+        "bytes": 2977,
+        "path": "runtime/src/tooling/portable/handoff/recipientV2.inspect.projection.js",
+        "sha256": "eb5962f8dff36ab8fc32feee7677f9b8f0f79f3655132379e8b75657a09d413b"
+      },
+      {
+        "bytes": 20358,
+        "path": "runtime/src/tooling/portable/handoff/recipientV2.inspect.workspaces.js",
+        "sha256": "950708ce8d37618b6d738db689b2949b03589571c864647c132500dac4c47128"
+      },
+      {
+        "bytes": 12661,
+        "path": "runtime/src/tooling/portable/handoff/recipientV2.lineage.js",
+        "sha256": "91ba6a58a7c50326e354119892eeb0731934258045d815a8ba8da5122a38ee67"
+      },
+      {
+        "bytes": 20086,
+        "path": "runtime/src/tooling/portable/handoff/recipientV2.packageV1.build.js",
+        "sha256": "47760355b2970fa0c1e3b30c7faffb31b7dbf7dcccc458d71e87edcea63e362d"
+      },
+      {
+        "bytes": 476,
+        "path": "runtime/src/tooling/portable/handoff/recipientV2.packageV1.constants.js",
+        "sha256": "3b09f3e3843cf98a9ca94e9c5219202ef4ae1512c2a0612b237bd7696008df91"
+      },
+      {
+        "bytes": 13154,
+        "path": "runtime/src/tooling/portable/handoff/recipientV2.packageV1.contract.js",
+        "sha256": "7e75c069b76d107fa2a405e2de07a1ea35b7ec863a4e785ee60cefb301855170"
+      },
+      {
+        "bytes": 11274,
+        "path": "runtime/src/tooling/portable/handoff/recipientV2.packageV1.inspect.helpers.js",
+        "sha256": "4cbb424251db7fce1bfd1ecfd77efdc21704c92468a6e90bb5305c2d4f9c9986"
+      },
+      {
+        "bytes": 23075,
+        "path": "runtime/src/tooling/portable/handoff/recipientV2.packageV1.inspect.js",
+        "sha256": "6e42b77a148ecb4653b96e3073446a888a068f7e924c6bd3fda5fa3b1cf5ed62"
+      },
+      {
+        "bytes": 940,
+        "path": "runtime/src/tooling/portable/handoff/recipientV2.packageV1.js",
+        "sha256": "f244ec999e57d8aac0b60c4709da66ff50fbc45059877b19ef4a1cde2cf480d0"
+      },
+      {
+        "bytes": 3610,
+        "path": "runtime/src/tooling/portable/handoff/recipientV2.packageV1.shared.js",
+        "sha256": "ccb018884da49b13e5444db4982f80f34658515754a7ce89ad2063d5579a42a8"
+      },
+      {
+        "bytes": 1346,
+        "path": "runtime/src/tooling/portable/handoff/recipientV2.packageV1.workspaceProjection.js",
+        "sha256": "f18e7dac4da2b5f995adf866b7ef7bdf6b3233a86d77ce6517f53fb802ea346e"
+      },
+      {
+        "bytes": 2889,
+        "path": "runtime/src/tooling/portable/handoff/recipientV2.pointer.js",
+        "sha256": "446c4dcbe79ea67c08d37cb7ee2b0a89ed4fac7110aa19c7e1d62691f1d6961c"
+      },
+      {
+        "bytes": 1365,
+        "path": "runtime/src/tooling/portable/handoff/recipientV2.routeSelection.js",
+        "sha256": "d048e04ae131005f4800ff8edeaf443a76a160a13d992edc635003ca492335c3"
+      },
+      {
+        "bytes": 1095,
+        "path": "runtime/src/tooling/portable/handoff/recipientV2.topology.helpers.js",
+        "sha256": "4b96129cea075661b22f40979fe1efb8c97bca33a8b740546a24d5e4a365c006"
+      },
+      {
+        "bytes": 21029,
+        "path": "runtime/src/tooling/portable/handoff/recipientV2.topology.js",
+        "sha256": "a2b2f78e0c33fef57e63ec52d8a5b30cf797fbf382caeb9e5cfe539280e1fe95"
+      },
+      {
+        "bytes": 8301,
+        "path": "runtime/src/tooling/portable/handoff/recipientV2.topology.materials.js",
+        "sha256": "a60f4c5d0ea134e6891fa0f9cbf23c0efd152ab8d7c79b7aeeebb6e1a40848b1"
+      },
+      {
+        "bytes": 11775,
+        "path": "runtime/src/tooling/portable/handoff/recipientV2.topology.workspaces.js",
+        "sha256": "86cf44c0f278c28ee251673553523f746cab85b9b79e569703aca8cdc160eadf"
+      },
+      {
+        "bytes": 8565,
+        "path": "runtime/src/tooling/portable/handoff/recipientV2.transportManifest.js",
+        "sha256": "065046b73bc29e0f9e53e0a1a694feae76a731067898c34d32a5bd55b2696f27"
+      },
+      {
+        "bytes": 16133,
+        "path": "runtime/src/tooling/portable/handoff/recipientV2.workspaceRepresentation.js",
+        "sha256": "360238015db622084e307e6c5ff190b7ab6481a23143bd164202fd243486cfaa"
+      },
+      {
+        "bytes": 9685,
+        "path": "runtime/src/tooling/portable/handoff/routeArtifactConformance.js",
+        "sha256": "fbc9277fd57edba3a9f6c8b9301a92a5e2346f38fae9d6885d07f1f266bfab90"
+      },
+      {
+        "bytes": 6567,
+        "path": "runtime/src/tooling/portable/handoff/toolingBootstrap.js",
+        "sha256": "07be60d103ec6da2a482d64433e8c132e20cf9a92160b1d33a0feebf68690971"
+      },
+      {
+        "bytes": 14835,
+        "path": "runtime/src/tooling/portable/handoff/transportCompanion.js",
+        "sha256": "6c4f650940a901dfed54f20fcfdd8b7880202e06a6f5b6a2747fe97a6de65ce6"
+      },
+      {
+        "bytes": 9590,
+        "path": "runtime/src/tooling/portable/handoff/workspaceByteProvider.archive.js",
+        "sha256": "7bd61d6be05179fa0f84be088443117301a637b26eca6541ff76d8ab999d6ebc"
+      },
+      {
+        "bytes": 23291,
+        "path": "runtime/src/tooling/portable/handoff/workspaceByteProvider.js",
+        "sha256": "0946cfa9c0800dd5132ffd714f2abb0e0bd0b40b41a31b79dea53c5aa0ec3a90"
+      },
+      {
+        "bytes": 11184,
+        "path": "runtime/src/tooling/portable/handoff/workspaceCarrier.manufacture.js",
+        "sha256": "cb29a8c6ff9dd7c9308fc3176cb37176510930ff88b28cd90b8c1f1750f2aecc"
+      },
+      {
+        "bytes": 11297,
+        "path": "runtime/src/tooling/portable/handoff/workspaceLandingPlan.js",
+        "sha256": "67b64d96ef6185f64809dba35529f62b75286f62fcda684a9fc4026350ee953c"
+      },
+      {
+        "bytes": 7543,
+        "path": "runtime/src/tooling/portable/handoff/workspacePackageSources.js",
+        "sha256": "5973bbe0482db34105c33d4537c490053db48633c9fcb1a84f5bbaf829d3a115"
+      },
+      {
+        "bytes": 755,
+        "path": "runtime/src/tooling/portable/handoff/workspaceQualifiedReference.js",
+        "sha256": "9a43c925ec18b7811eac48eea821b73e8ecbb69052c2838fd3685bc550da1f49"
+      },
+      {
+        "bytes": 2143,
+        "path": "runtime/src/tooling/portable/handoff/workspaceSourceIdentity.js",
+        "sha256": "a840ac7b3c4dc20727132ab5e51006c59bc94bb8e6c42bffaeadf2a942f9383b"
+      },
+      {
+        "bytes": 7779,
+        "path": "runtime/src/tooling/portable/handoff/workspaceTargetConformance.js",
+        "sha256": "541c9eaea643792e84a42ab77d71ed42fe1e059665255125a6a2524725e48172"
+      },
+      {
+        "bytes": 11498,
+        "path": "runtime/src/tooling/portable/host/host.capabilities.js",
+        "sha256": "235a264429f42ae03dcf9b6080f9c2f9c836c984d39a6aebce659a838d9502e0"
+      },
+      {
+        "bytes": 23875,
+        "path": "runtime/src/tooling/portable/host/tool.bindings.js",
+        "sha256": "9c9f223005f34b993f76233c1937fe09b7b66f53a2f8d3b578d8efeecc723cb5"
+      },
+      {
+        "bytes": 7256,
+        "path": "runtime/src/tooling/portable/host/tool.receiptNormalization.js",
+        "sha256": "357ec230ed65d41bef6e4125911fbdcb3f4bf127dc53916f47991d93fcc6d683"
+      },
+      {
+        "bytes": 9873,
+        "path": "runtime/src/tooling/portable/input/node.input.js",
+        "sha256": "82b019a2b0d7b3d0ee0cfb78e119bb6b2b416f446fd7f6c54a68c3ccead1967c"
+      },
+      {
+        "bytes": 10980,
+        "path": "runtime/src/tooling/portable/input/portable.input.js",
+        "sha256": "ad7268f66ef90ecfc63d564f0caa47da173089089cf194e02c1684141803e5f1"
+      },
+      {
+        "bytes": 1806,
+        "path": "runtime/src/tooling/portable/lifecycle/lifecycle.action.js",
+        "sha256": "9756d963e2b607da871ca0d1f506183f31cdd50c57b707aaa6194535c81caab3"
+      },
+      {
+        "bytes": 11434,
+        "path": "runtime/src/tooling/portable/lifecycle/lifecycle.material.js",
+        "sha256": "5eb1ef4990a4b60ab4df193b77b23e7afe64be2f56cad908be07c42ab3aabcbb"
+      },
+      {
+        "bytes": 1562,
+        "path": "runtime/src/tooling/portable/lifecycle/lifecycle.operations.js",
+        "sha256": "3d334395c95bf5c1757fe0820153c3695462c6541266a0f2f893c6e0f0c129a1"
+      },
+      {
+        "bytes": 22232,
+        "path": "runtime/src/tooling/portable/lifecycle/lifecycle.readiness.js",
+        "sha256": "5976c95aa7b6b09121b6d79ee12eaabf1f86adca3eee88c2fc30fe3ddf70e68b"
+      },
+      {
+        "bytes": 1399,
+        "path": "runtime/src/tooling/portable/lineage/lineage.integrity.apply.audit.js",
+        "sha256": "880ae4900fb61985305006305b3acebe793affe8c62e309e53737cf3a4ae3570"
+      },
+      {
+        "bytes": 2101,
+        "path": "runtime/src/tooling/portable/lineage/lineage.integrity.apply.evidence.js",
+        "sha256": "5ae4b7209979fcaae03214a2a50005dfd7a36a67b38d0d186b2b88eb51640569"
+      },
+      {
+        "bytes": 23960,
+        "path": "runtime/src/tooling/portable/lineage/lineage.integrity.apply.js",
+        "sha256": "59a2a6768837e9bbc2b531739759cbcca8665f1061584f45bde0e98b5598928c"
+      },
+      {
+        "bytes": 11383,
+        "path": "runtime/src/tooling/portable/lineage/lineage.integrity.apply.structure.js",
+        "sha256": "6bde2a1a59218b87b7ec647b138e27c380ac48d8ca1995a1b46d96118bb6e7eb"
+      },
+      {
+        "bytes": 23836,
+        "path": "runtime/src/tooling/portable/lineage/lineage.integrity.plan.js",
+        "sha256": "d316a58fb449e6bf9801ce83fd6c227eec5a03f8677a5c39dc4b08585bfe4e86"
+      },
+      {
+        "bytes": 6292,
+        "path": "runtime/src/tooling/portable/lineage/lineage.integrity.projection.human.js",
+        "sha256": "c6734b9570d703df94e1c97fcd6e94b7c2cdd817dfaebf9d36e548959828ced3"
+      },
+      {
+        "bytes": 20485,
+        "path": "runtime/src/tooling/portable/lineage/lineage.integrity.projection.js",
+        "sha256": "5b7e115430fd2182800b13c1c231b15a2e57db9a39c83f9db27c1556cebbe9b4"
+      },
+      {
+        "bytes": 3620,
+        "path": "runtime/src/tooling/portable/lineage/lineage.operations.js",
+        "sha256": "b3898c037a223a2ebf894405b67ae2f139ffcf5f4a059c6152591ac7d8f4738b"
+      },
+      {
+        "bytes": 7377,
+        "path": "runtime/src/tooling/portable/lineage/lineage.publicationProviderReceipts.js",
+        "sha256": "0123e8e173ec5d2bb77923663f52f6b06c9fb4cbc389716edfdea593621ed2b8"
+      },
+      {
+        "bytes": 14006,
+        "path": "runtime/src/tooling/portable/lineage/lineage.publicationQualification.js",
+        "sha256": "97a990f6c7c41b72e4427f20faeb9a064f9c9056c97433874c355ef5afc93bd8"
+      },
+      {
+        "bytes": 14625,
+        "path": "runtime/src/tooling/portable/lineage/lineage.search.js",
+        "sha256": "ce1afc5bb3ffd96d02ee72bd446908ebc1e94267c21642a1efb733e516e290f2"
+      },
+      {
+        "bytes": 11673,
+        "path": "runtime/src/tooling/portable/live/live.artifact.js",
+        "sha256": "1c2873faafbba39eda6264da3f7df69e7ed7334dd6c42f2471720690bc028c71"
+      },
+      {
+        "bytes": 7388,
+        "path": "runtime/src/tooling/portable/live/live.export.js",
+        "sha256": "acea472903e138b62f42c2456029b2b9cad7f0fad7266fe9f2da5247c8541427"
+      },
+      {
+        "bytes": 3587,
+        "path": "runtime/src/tooling/portable/live/live.lineage.closure.js",
+        "sha256": "f57d642d28d01f061708e27da227e05683bf10ba1bdf4065cc288fc1b4eb6cea"
+      },
+      {
+        "bytes": 22293,
+        "path": "runtime/src/tooling/portable/live/live.lineage.js",
+        "sha256": "48decff6148abee266dce4cd036fdb2fbb3d4ce7ac9919e81eec1eb8c0611611"
+      },
+      {
+        "bytes": 11788,
+        "path": "runtime/src/tooling/portable/live/live.protocol.js",
+        "sha256": "7a7c8071f0d09bab658ea285cfafaf3a32b3baf007dd3afdbfbe01ee8c4cc293"
+      },
+      {
+        "bytes": 8839,
+        "path": "runtime/src/tooling/portable/materialization/durable.materialize.js",
+        "sha256": "bbd232d13439f9d03a4c08280de828d8eb2e9731755cbf6a1f587279ce3d4891"
+      },
+      {
+        "bytes": 14931,
+        "path": "runtime/src/tooling/portable/materialization/epistemic.plan.js",
+        "sha256": "33b9662805ffd08c238ba7bed677d467b4da946386025eb964d8faca5fa6efb4"
+      },
+      {
+        "bytes": 2201,
+        "path": "runtime/src/tooling/portable/materialization/loaded.parent.js",
+        "sha256": "a162b61b39de4a323ad4df395841556d27eccb6fdfe6f13c637795d3408a3918"
+      },
+      {
+        "bytes": 1163,
+        "path": "runtime/src/tooling/portable/materialization/materialization.facade.js",
+        "sha256": "8452ffe42047a5fb813a57954ddf67000c5b27b0ebc7e59bf4321c191e40347a"
+      },
+      {
+        "bytes": 21326,
+        "path": "runtime/src/tooling/portable/operation.catalog.js",
+        "sha256": "b3d9fbb2e4ef135c32aa199f02c5e775f1be807d4ff61bd002de35bb601a0205"
+      },
+      {
+        "bytes": 11799,
+        "path": "runtime/src/tooling/portable/operation.catalog.package.js",
+        "sha256": "15e11b13ef7d20a31ab25c3b2f9d8594da73aa020712d9ec24f3a6c726de4a62"
+      },
+      {
+        "bytes": 869,
+        "path": "runtime/src/tooling/portable/operation.result.js",
+        "sha256": "c711bc2dd16bb90c6873d9cad835e87e0347c6cf81fcf26a75c69a795016064e"
+      },
+      {
+        "bytes": 10372,
+        "path": "runtime/src/tooling/portable/orchestration/task.prepare.js",
+        "sha256": "52c1956b5cee67815fd1ab3d07131ffe3efd4328c989bb7ebf2b0b3f0fbf22ec"
+      },
+      {
+        "bytes": 16952,
+        "path": "runtime/src/tooling/portable/output/artifact.result.package.js",
+        "sha256": "23992764f79e58a5231c69cea40580bac84975e90673f87981ee84190575f7db"
+      },
+      {
+        "bytes": 3340,
+        "path": "runtime/src/tooling/portable/output/deterministic.zip.js",
+        "sha256": "1e75f62c2aa0706134e614075003c2e9ba2a5180e8ad5c39b9bca802774c2f48"
+      },
+      {
+        "bytes": 13792,
+        "path": "runtime/src/tooling/portable/output/node.artifact-set.js",
+        "sha256": "dbbba1605fc4d38e911b41de0fec1df15988bbc5b0fa74f2cadc2b6168a66259"
+      },
+      {
+        "bytes": 2111,
+        "path": "runtime/src/tooling/portable/output/node.draft.js",
+        "sha256": "18ea09cc82bf99df6b77eca28f6496747f70fdc99cc2092e0e39b032ce0535d7"
+      },
+      {
+        "bytes": 1959,
+        "path": "runtime/src/tooling/portable/output/node.zip.js",
+        "sha256": "1d1d24626b3e873fb7dd4ae20a5f2d59a8863d1c26465dbf4f0b808e34e04e34"
+      },
+      {
+        "bytes": 3169,
+        "path": "runtime/src/tooling/portable/output/recipientV2.zip.js",
+        "sha256": "ff322431e1aca1d32dca1e9b2b70853d3c4a7cccbcf92dc2d78734e3076e9720"
+      },
+      {
+        "bytes": 897,
+        "path": "runtime/src/tooling/portable/overview/blockingCue.js",
+        "sha256": "636e202480be5b9cd01bcc8f6d9218468375bec2e0e0f5e9bbb6acf63e8dfa6b"
+      },
+      {
+        "bytes": 19455,
+        "path": "runtime/src/tooling/portable/overview/operatingOverview.js",
+        "sha256": "6df17deb2d7025a427e2e757d5c597b32b06f62973e3eb6757af421eedac28cd"
+      },
+      {
+        "bytes": 18199,
+        "path": "runtime/src/tooling/portable/package/runtime.package.js",
+        "sha256": "3366b974bfba42eecec057cca8c62e3fe60454fd968bbe79ad916787f7cf73ea"
+      },
+      {
+        "bytes": 402,
+        "path": "runtime/src/tooling/portable/providers/schema.bootstrap.provenance.js",
+        "sha256": "62a6418de085c71b6b14c03dc758cb146f66266b231b43a638a5f0ea44ca55cc"
+      },
+      {
+        "bytes": 3065,
+        "path": "runtime/src/tooling/portable/providers/schema.provider.qualification.js",
+        "sha256": "7a1a5f66ce5d39d9c1f805714de38cfb5b5fa4a21fd530508eb2e56162697642"
+      },
+      {
+        "bytes": 23790,
+        "path": "runtime/src/tooling/portable/providers/schema.providers.js",
+        "sha256": "b433c60e7ff0dc59c5b6b5d4c23bdc4e7754937ed8d6534456bc0fffd8fb0348"
+      },
+      {
+        "bytes": 2622,
+        "path": "runtime/src/tooling/portable/publication/runtime.publication.js",
+        "sha256": "8f1476aed416038414deeeae5bbfc84dbdeeb8557f1d3a5e4764e3bf9f62964d"
+      },
+      {
+        "bytes": 9047,
+        "path": "runtime/src/tooling/portable/qualification.js",
+        "sha256": "69917853bb669378fffcea984be3cf3e6ca58e5785cdf60534ec4a1d8ad2877f"
+      },
+      {
+        "bytes": 15017,
+        "path": "runtime/src/tooling/portable/reduction/reduction.composition.js",
+        "sha256": "f4813d7e9317f738e6f21741a71e2443f2e7c1ce4131ea76d825039a477813de"
+      },
+      {
+        "bytes": 23177,
+        "path": "runtime/src/tooling/portable/reduction/reduction.eligibility.helpers.js",
+        "sha256": "eaa963edd71c0fb4b490f53b36910a8227ba9d5efd5114eefccb3536fb961f84"
+      },
+      {
+        "bytes": 13870,
+        "path": "runtime/src/tooling/portable/reduction/reduction.eligibility.js",
+        "sha256": "2efc6b2a9d524ee5b54e0d7239147abcd344f4934ada0d94bb206249b6015d7b"
+      },
+      {
+        "bytes": 1383,
+        "path": "runtime/src/tooling/portable/reduction/reduction.operations.js",
+        "sha256": "7bf8b3931291df47d8b9dd23950149ee66503c5d13d5b68816e169949d98821d"
+      },
+      {
+        "bytes": 4745,
+        "path": "runtime/src/tooling/portable/reduction/reduction.preflight.js",
+        "sha256": "779e631c750481e3982271f81183668a2a8eebd58c4198be2d15ddafb09fda8d"
+      },
+      {
+        "bytes": 11074,
+        "path": "runtime/src/tooling/portable/reduction/reduction.shared.js",
+        "sha256": "e01b807aa46fd97552e15953d54ffe1ad526ee8e6b05a803225d62bf55378d31"
+      },
+      {
+        "bytes": 988,
+        "path": "runtime/src/tooling/portable/schema/bootstrap/canonical.pack.js",
+        "sha256": "692121ff0ff3e799f018e241f19e44e5ff7b24435a850366cfbca7a08fc265bf"
+      },
+      {
+        "bytes": 9679,
+        "path": "runtime/src/tooling/portable/schema/bootstrap/docs-3988951208eb9a8926e84ab42625d4b42fa00c2d/party/role/tiinex.party.role.v1.schema.md",
+        "sha256": "77b6b05b03f0ea777fe4d0aeb087d72cbc589b2e1779a03f2c30b6acef4ca22b"
+      },
+      {
+        "bytes": 9479,
+        "path": "runtime/src/tooling/portable/schema/bootstrap/docs-3988951208eb9a8926e84ab42625d4b42fa00c2d/validation/report/tiinex.validation.report.v1.schema.md",
+        "sha256": "4c5eef641e21f93ea98b48c266141af1e18d3ef97a461e9adbe6cbd9cfeaf882"
+      },
+      {
+        "bytes": 1354,
+        "path": "runtime/src/tooling/portable/schema/bootstrap/qualified-local-root/tiinex.root.v1.runtime-projection.json",
+        "sha256": "b80b456992dc4219cded4a17633ff161f528678f21b7cbfe7fdd2868f980a0a8"
+      },
+      {
+        "bytes": 46524,
+        "path": "runtime/src/tooling/portable/schema/bootstrap/qualified-local-root/tiinex.root.v1.schema.md",
+        "sha256": "4ec6d17ef55f51c2305ede8e2f22c8c4a9324c478489114adb86a33664d4d156"
+      },
+      {
+        "bytes": 20886,
+        "path": "runtime/src/tooling/portable/schema/contract.compile.js",
+        "sha256": "d04f9989f71e0ebe173806c9387a5581987deafd9550e72fdfbf38894a124c22"
+      },
+      {
+        "bytes": 231,
+        "path": "runtime/src/tooling/portable/schema/contract.compile.utils.js",
+        "sha256": "31e7ea5774acaf84c0679baf88105805c1f3e4b759048163b669c0d2ff1d3531"
+      },
+      {
+        "bytes": 5890,
+        "path": "runtime/src/tooling/portable/schema/contract.constraints.js",
+        "sha256": "6d2376e5664dad540e50f1797e057d0cf9e540b7560c271951addb9e198b5642"
+      },
+      {
+        "bytes": 10165,
+        "path": "runtime/src/tooling/portable/schema/contract.envelope.validate.js",
+        "sha256": "26861a70d2c7ffb95a9334aed8c664425e5264600d4697fb4623f076f5f04c46"
+      },
+      {
+        "bytes": 17020,
+        "path": "runtime/src/tooling/portable/schema/contract.field-domain.compile.js",
+        "sha256": "3d739460ea3657fefdc6b527b43e3312e36e237afe71f9119ec9b80221f2bd9f"
+      },
+      {
+        "bytes": 11870,
+        "path": "runtime/src/tooling/portable/schema/contract.field-domain.js",
+        "sha256": "6a71479878b19b8eff7e6182e564c5c7efcaf3fbb84c2d40cd4c6a65dc386941"
+      },
+      {
+        "bytes": 2125,
+        "path": "runtime/src/tooling/portable/schema/contract.field-shape.compile.js",
+        "sha256": "9330d4f6da7f0b4dcb7740e7a0ced33344927526003d38e1cff4b015c2ac7861"
+      },
+      {
+        "bytes": 6855,
+        "path": "runtime/src/tooling/portable/schema/contract.inheritance.inline.js",
+        "sha256": "6ed783ef225eb4dabab87d0699fee261a4aeac29dbb15dc7c2cc8de7f8921c1a"
+      },
+      {
+        "bytes": 16956,
+        "path": "runtime/src/tooling/portable/schema/contract.inheritance.js",
+        "sha256": "5ab089ba7551a5f29f471ae9dbef2ae2e9f3cd10dc361a56f44d2861bc181dd2"
+      },
+      {
+        "bytes": 5133,
+        "path": "runtime/src/tooling/portable/schema/contract.inheritance.record.js",
+        "sha256": "90b442cacbe3a91c0fe867a6f357e2613708f9017d6541ece741f999d6ff925c"
+      },
+      {
+        "bytes": 14699,
+        "path": "runtime/src/tooling/portable/schema/contract.machine-shape.js",
+        "sha256": "a862fab8b3991c75edf3303f3dae85e7547ce0b20979c7334a81e8ecc3647274"
+      },
+      {
+        "bytes": 3226,
+        "path": "runtime/src/tooling/portable/schema/contract.semantic-resolution.js",
+        "sha256": "07a1213ea31a16fb49f604b9668b47069cdd4402f618e13ce8b14a577cf43eed"
+      },
+      {
+        "bytes": 23529,
+        "path": "runtime/src/tooling/portable/schema/contract.validate.js",
+        "sha256": "32d495d485acc3ae229e5a1bf5d49a408c2076d736b6190d58343e8d699f377c"
+      },
+      {
+        "bytes": 14049,
+        "path": "runtime/src/tooling/portable/schema/lexical.shape.v1.js",
+        "sha256": "b8022ad8356a275cfed2730dba96cb083a06e9065a74f784edf6e045d29209c2"
+      },
+      {
+        "bytes": 5159,
+        "path": "runtime/src/tooling/portable/schema/llm.companion.js",
+        "sha256": "2410b03aaab1d0c9ef949fa16d5443533881527d21cddde044cdec53581d2566"
+      },
+      {
+        "bytes": 7314,
+        "path": "runtime/src/tooling/portable/schema/named.declarations.js",
+        "sha256": "eb853009e18c1a6375f8520384b6469d0f488a2f6ab6ca3ed8fd633796b57eba"
+      },
+      {
+        "bytes": 10898,
+        "path": "runtime/src/tooling/portable/schema/ordinary.contract.js",
+        "sha256": "907f1d82ef630cb42d485475b04b04f84b0ec8fdd200e3d14bd4f28f9474c8a8"
+      },
+      {
+        "bytes": 8193,
+        "path": "runtime/src/tooling/portable/schema/ordinary.fields.js",
+        "sha256": "ed3d5d686fdc005f24dc092a9b20227e4ff139fa1de0ea1525fd2670a6c119a9"
+      },
+      {
+        "bytes": 3218,
+        "path": "runtime/src/tooling/portable/schema/qualifiedLocalRoot.projection.js",
+        "sha256": "e4faee35f72a087afb75a96c5550ea0520b1a9edb1b1068258dbe13e22d4e84c"
+      },
+      {
+        "bytes": 10383,
+        "path": "runtime/src/tooling/portable/schema/qualifiedLocalRoot.runtime.js",
+        "sha256": "0fdf646cbb5be41c14c62aa5928037ff67b7d581482c5809e8bd3fbffe9447fd"
+      },
+      {
+        "bytes": 19044,
+        "path": "runtime/src/tooling/portable/schema/schema.contract.js",
+        "sha256": "dc6c685c4ebd518f03c27b70fb65ab2c64f2597c15bdd2e0c73dc9f4127056b3"
+      },
+      {
+        "bytes": 18712,
+        "path": "runtime/src/tooling/portable/schema/schema.guide.js",
+        "sha256": "cbeeb11f09c0b3abfb0fa9ce53f48fac718c7eb39595af8d017e8d7bb1f9e86a"
+      },
+      {
+        "bytes": 9110,
+        "path": "runtime/src/tooling/portable/session/portable.session.js",
+        "sha256": "06997bf44369bef5500a1bc0b68c165846078c7acc173034375c981484f807ee"
+      },
+      {
+        "bytes": 21578,
+        "path": "runtime/src/transitions/record.transitions.js",
+        "sha256": "42e47848a43100fe9f39ffc3205eb7b7c09ac5655e4054c534d1eaddd02f3aff"
+      },
+      {
+        "bytes": 6974,
+        "path": "runtime/src/transitions/transition.validate.js",
+        "sha256": "f515ba40eff6db83731c10dd1a9482dc453e02e0248775a6f3c89a8c497dfc1f"
+      },
+      {
+        "bytes": 3500,
+        "path": "runtime/src/validation/findings.js",
+        "sha256": "1f86e8905096225d275562b27ee43cfeee86847f3d602923b501841a61087eff"
+      },
+      {
+        "bytes": 17935,
+        "path": "runtime/src/validation/validateArtifact.js",
+        "sha256": "e26c0880ae7502beded9321d13e1982dfb933fe6c6b197d9eb1b29c6555297e3"
+      },
+      {
+        "bytes": 1900,
+        "path": "runtime/src/workspaces/workspace.entrypointCapability.js",
+        "sha256": "9b81042432cfa26ff66806a6ea0fe2a20e8db5b3c53d46959c6acccfeb7c91fb"
+      },
+      {
+        "bytes": 11681,
+        "path": "runtime/src/workspaces/workspace.materialRole.js",
+        "sha256": "e8c75c1378b787fa8b60ff5b8b89660c8bc748d201f7a0ba5d14f38c07dc59bc"
+      },
+      {
+        "bytes": 19597,
+        "path": "runtime/src/workspaces/workspace.recordPaths.js",
+        "sha256": "db508bd1641125ea615315f2d7cc4a97a21eedabd0509bedfe7a6803174471f5"
+      },
+      {
+        "bytes": 350,
+        "path": "runtime/tools/tiinex-portable.mjs",
+        "sha256": "36904d94f595e6bc9da8c1136b34e065b6a91159642af4fc326d30d863c4f41c"
+      }
+    ],
+    "files": 482,
+    "representationSha256": "6f5daedf4ac8e0fc75be719d99d8cb25424d8521ed565f8c60cb6963db25b9fb"
+  },
+  "schema": "tiinex.portable.tooling-bootstrap.manifest.v1",
+  "version": 1
+}

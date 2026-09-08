@@ -1,0 +1,9 @@
+.tiinex/**
+src/**
+test/**
+scripts/**
+tsconfig.json
+**/*.map
+node_modules/@types/**
+node_modules/@vscode/**
+node_modules/typescript/**
