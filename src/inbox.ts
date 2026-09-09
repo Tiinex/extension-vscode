@@ -52,7 +52,7 @@ export class HandoffInboxWatcher implements vscode.Disposable {
   async restart(): Promise<void> {
     this.stop(false);
     const directory = configuredInboxPath();
-    if (vscode.workspace.getConfiguration('tiinex').get('handoff.discovery', 'manual') !== 'auto') {
+    if (vscode.workspace.getConfiguration('tiinex').get<'manual' | 'auto'>('handoff.discovery', 'manual') !== 'auto') {
       this.setState('disabled', 'Automatic Handoff discovery is disabled. Choose an inbox and enable Auto discovery when you want VS Code to watch it.', '', directory);
       return;
     }
