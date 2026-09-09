@@ -73,29 +73,17 @@ export async function switchToExistingLocalBranch(root: string, expectedBranch: 
   if (!after.clean || after.branch !== branch) throw new Error(`tiinex.git.branch-switch-verification-failed:${branch}`);
 }
 
-async function branchAndUpstream(root: string, runner: ProcessRunner): Promise<{ branch: string; upstream: string }> {
-  const branchResult = await runner('git', ['symbolic-ref', '--quiet', '--short', 'HEAD'], { cwd: root });
-  if (branchResult.code !== 0 || !branchResult.stdout.trim()) throw new Error('tiinex.git.detached-head');
-  const branch = branchResult.stdout.trim();
-  const upstreamResult = await runner('git', ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], { cwd: root });
-  if (upstreamResult.code !== 0 || !upstreamResult.stdout.trim()) throw new Error('tiinex.git.missing-upstream');
-  return { branch, upstream: upstreamResult.stdout.trim() };
+export async function stashWorkingTree(root: string, runner: ProcessRunner = runProcess): Promise<void> {
+  const before = await repositoryFact(root, runner);
+  if (before.clean) return;
+  await runChecked('git', ['stash', 'push', '--include-untracked', '-m', 'Tiinex Receive: preserve local work before Workspace landing'], { cwd: root }, runner);
+  if (!(await repositoryFact(root, runner)).clean) throw new Error('tiinex.git.stash-verification-failed');
 }
 
-async function aheadBehind(root: string, runner: ProcessRunner): Promise<{ ahead: number; behind: number }> {
-  const ahead = await runChecked('git', ['rev-list', '--count', '@{u}..HEAD'], { cwd: root }, runner);
-  const behind = await runChecked('git', ['rev-list', '--count', 'HEAD..@{u}'], { cwd: root }, runner);
-  return { ahead: Number(ahead.stdout.trim() || 0), behind: Number(behind.stdout.trim() || 0) };
-}
+export interface WorkingTreeCommitResult { message: string; commitSha: string }
 
-export interface LandingCommitResult { branch: string; upstream: string; message: string; commitSha: string }
-
-export async function stageLandingCommit(root: string, nodeExecutable: string, runner: ProcessRunner = runProcess): Promise<LandingCommitResult> {
-  const fact = await repositoryFact(root, runner);
-  if (fact.clean) throw new Error('tiinex.git.no-landing-changes');
-  const { branch, upstream } = await branchAndUpstream(root, runner);
-  const base = await aheadBehind(root, runner);
-  if (base.ahead !== 0 || base.behind !== 0) throw new Error(`tiinex.git.upstream-not-aligned:${base.ahead}:${base.behind}`);
+export async function commitWorkingTree(root: string, nodeExecutable: string, runner: ProcessRunner = runProcess): Promise<WorkingTreeCommitResult> {
+  if ((await repositoryFact(root, runner)).clean) throw new Error('tiinex.git.no-local-changes');
   await runChecked('git', ['add', '-A'], { cwd: root }, runner);
   const diff = await runner('git', ['diff', '--cached', '--quiet'], { cwd: root });
   if (diff.code === 0) throw new Error('tiinex.git.no-staged-changes');
@@ -105,10 +93,108 @@ export async function stageLandingCommit(root: string, nodeExecutable: string, r
   const head = await runChecked('git', ['rev-parse', 'HEAD'], { cwd: root }, runner);
   const commitSha = head.stdout.trim().toLowerCase();
   if (!/^[a-f0-9]{40,64}$/.test(commitSha)) throw new Error('tiinex.git.commit-sha-invalid');
-  return { branch, upstream, message, commitSha };
+  if (!(await repositoryFact(root, runner)).clean) throw new Error('tiinex.git.local-commit-verification-failed');
+  return { message, commitSha };
+}
+
+export async function discardWorkingTree(root: string, runner: ProcessRunner = runProcess): Promise<void> {
+  if ((await repositoryFact(root, runner)).clean) return;
+  await runChecked('git', ['reset', '--hard', 'HEAD'], { cwd: root }, runner);
+  // -f/-d removes untracked non-ignored material; ignored paths remain preserved.
+  await runChecked('git', ['clean', '-fd'], { cwd: root }, runner);
+  if (!(await repositoryFact(root, runner)).clean) throw new Error('tiinex.git.discard-verification-failed');
+}
+
+async function currentBranch(root: string, runner: ProcessRunner): Promise<string> {
+  const branchResult = await runner('git', ['symbolic-ref', '--quiet', '--short', 'HEAD'], { cwd: root });
+  if (branchResult.code !== 0 || !branchResult.stdout.trim()) throw new Error('tiinex.git.detached-head');
+  return branchResult.stdout.trim();
+}
+
+async function optionalUpstream(root: string, runner: ProcessRunner): Promise<string> {
+  const upstreamResult = await runner('git', ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], { cwd: root });
+  if (upstreamResult.code === 1 || upstreamResult.code === 128) return '';
+  if (upstreamResult.code !== 0) throw new Error('tiinex.git.upstream-query-failed');
+  return upstreamResult.stdout.trim();
+}
+
+async function branchAndUpstream(root: string, runner: ProcessRunner): Promise<{ branch: string; upstream: string }> {
+  const branch = await currentBranch(root, runner);
+  const upstream = await optionalUpstream(root, runner);
+  if (!upstream) throw new Error('tiinex.git.missing-upstream');
+  return { branch, upstream };
+}
+
+async function aheadBehind(root: string, runner: ProcessRunner): Promise<{ ahead: number; behind: number }> {
+  const ahead = await runChecked('git', ['rev-list', '--count', '@{u}..HEAD'], { cwd: root }, runner);
+  const behind = await runChecked('git', ['rev-list', '--count', 'HEAD..@{u}'], { cwd: root }, runner);
+  return { ahead: Number(ahead.stdout.trim() || 0), behind: Number(behind.stdout.trim() || 0) };
+}
+
+function protectedLandingPaths(values: string[]): string[] {
+  const out = new Set<string>();
+  for (const value of values) {
+    const relative = String(value || '').replace(/\\/g, '/').replace(/^\.\//, '');
+    if (!relative || relative === '.' || relative === '..' || relative.startsWith('../') || path.posix.isAbsolute(relative)) throw new Error(`tiinex.git.protected-path-invalid:${relative || '(empty)'}`);
+    if (relative === '.git' || relative.startsWith('.git/')) throw new Error(`tiinex.git.protected-path-git:${relative}`);
+    out.add(relative);
+  }
+  return [...out].sort();
+}
+
+async function excludeProtectedLandingPaths(root: string, protectedPaths: string[], runner: ProcessRunner): Promise<void> {
+  const protectedSet = new Set(protectedLandingPaths(protectedPaths));
+  if (!protectedSet.size) return;
+  const stagedBefore = new Set(await listStagedPaths(root, runner));
+  const leakedBefore = [...protectedSet].filter((item) => stagedBefore.has(item));
+  for (let offset = 0; offset < leakedBefore.length; offset += 100) {
+    await runChecked('git', ['reset', '--', ...leakedBefore.slice(offset, offset + 100)], { cwd: root }, runner);
+  }
+  const stagedAfter = new Set(await listStagedPaths(root, runner));
+  const leakedAfter = [...protectedSet].filter((item) => stagedAfter.has(item));
+  if (leakedAfter.length) throw new Error(`tiinex.git.protected-ignored-staged:${leakedAfter.join(',')}`);
+}
+
+export async function stageLandingChanges(root: string, protectedPaths: string[] = [], runner: ProcessRunner = runProcess): Promise<boolean> {
+  await runChecked('git', ['add', '-A'], { cwd: root }, runner);
+  await excludeProtectedLandingPaths(root, protectedPaths, runner);
+  const diff = await runner('git', ['diff', '--cached', '--quiet'], { cwd: root });
+  if (diff.code === 0) return false;
+  if (diff.code !== 1) throw new Error(`tiinex.git.staged-diff-failed:${diff.stderr.trim() || diff.stdout.trim() || diff.code}`);
+  return true;
+}
+
+export interface LandingCommitResult {
+  branch: string;
+  upstream: string;
+  message: string;
+  commitSha: string;
+  pushEligible: boolean;
+}
+
+export async function stageLandingCommit(root: string, commitMessage: string, protectedPaths: string[] = [], runner: ProcessRunner = runProcess): Promise<LandingCommitResult> {
+  const message = String(commitMessage || '').trim();
+  if (!message) throw new Error('tiinex.git.landing-commit-message-empty');
+  const fact = await repositoryFact(root, runner);
+  if (fact.clean) throw new Error('tiinex.git.no-landing-changes');
+  const branch = await currentBranch(root, runner);
+  const upstream = await optionalUpstream(root, runner);
+  let pushEligible = false;
+  if (upstream) {
+    const base = await aheadBehind(root, runner);
+    pushEligible = base.ahead === 0 && base.behind === 0;
+  }
+  if (!await stageLandingChanges(root, protectedPaths, runner)) throw new Error('tiinex.git.no-staged-changes');
+  await runChecked('git', ['commit', '-m', message], { cwd: root }, runner);
+  const head = await runChecked('git', ['rev-parse', 'HEAD'], { cwd: root }, runner);
+  const commitSha = head.stdout.trim().toLowerCase();
+  if (!/^[a-f0-9]{40,64}$/.test(commitSha)) throw new Error('tiinex.git.commit-sha-invalid');
+  return { branch, upstream, message, commitSha, pushEligible };
 }
 
 export async function pushExactLandingCommit(root: string, commit: LandingCommitResult, runner: ProcessRunner = runProcess): Promise<void> {
+  if (!commit.upstream) throw new Error('tiinex.git.push-missing-upstream');
+  if (!commit.pushEligible) throw new Error('tiinex.git.push-prelanding-upstream-not-aligned');
   const current = await branchAndUpstream(root, runner);
   if (current.branch !== commit.branch) throw new Error('tiinex.git.push-branch-changed');
   if (current.upstream !== commit.upstream) throw new Error('tiinex.git.push-upstream-changed');

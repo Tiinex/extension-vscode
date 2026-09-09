@@ -2,6 +2,57 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "Tiinex: Link this checkout",
+      "type": "npm",
+      "script": "dev:setup",
+      "options": {
+        "env": {
+          "TIINEX_VSCODE_EXECUTABLE": "${execPath}"
+        }
+      },
+      "problemMatcher": "$tsc",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true,
+        "showReuseMessage": false
+      }
+    },
+    {
+      "label": "Tiinex: Build linked extension",
+      "type": "npm",
+      "script": "dev:build",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": "$tsc",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true,
+        "showReuseMessage": false
+      }
+    },
+    {
+      "label": "Tiinex: Unlink this checkout",
+      "type": "process",
+      "command": "node",
+      "args": [
+        "scripts/dev-link-extension.mjs",
+        "--unlink",
+        "--vscode-executable",
+        "${execPath}"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true,
+        "showReuseMessage": false
+      }
+    },
+    {
       "label": "Tiinex: commit message from staged artifacts",
       "type": "shell",
       "command": "node tools/tiinex-commit-message.mjs",

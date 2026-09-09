@@ -85,6 +85,11 @@
           "default": "",
           "description": "Explicit Node executable for package-declared bootstrap and installed @tiinex/core Tooling. Blank uses the VS Code/Electron executable in Node mode; repository-local helpers keep their own repository boundary."
         },
+        "tiinex.operator.role": {
+          "type": "string",
+          "default": "",
+          "description": "Presentation-only operator role label used after Receive to prefer qualified Handoffs whose From or To label matches (for example Sigma). Blank or no match shows all qualified Handoffs. This setting does not grant Role authority."
+        },
         "tiinex.handoff.discovery": {
           "type": "string",
           "enum": [
@@ -102,7 +107,7 @@
             "yes"
           ],
           "default": "no",
-          "description": "After a qualified Receive/landing, create a commit in each affected repository. This does not imply push, acceptance, completion, or Handoff return. Default is no."
+          "description": "After each qualified Receive, stage every explicitly selected landed repository while excluding the pre-landing ignored set. Yes commits with a trusted deterministic landing message; Ask offers the choice; No leaves changes staged and offers that message for copy/use."
         },
         "tiinex.landing.push": {
           "type": "string",
@@ -112,7 +117,7 @@
             "yes"
           ],
           "default": "no",
-          "description": "After a landing-created commit, push exactly that commit only while the configured upstream remains unchanged. No force push or invented upstream. Default is no."
+          "description": "Push only an exact commit created by the same Receive invocation, and only when auto-commit was approved immediately before it and the pre-landing upstream was aligned and unchanged. Manual commits are never auto-pushed."
         },
         "tiinex.landing.openHandoff": {
           "type": "string",
@@ -121,8 +126,8 @@
             "ask",
             "yes"
           ],
-          "default": "no",
-          "description": "After landing, open the exact selected Handoff route when one exists. Pointerless Workspace carriers have no Handoff target. Default is no."
+          "default": "yes",
+          "description": "After Receive, open qualified Handoff artifacts (never pointer files). The optional tiinex.operator.role text prefers endpoint matches; when it matches none, all qualified Handoffs are eligible."
         }
       }
     },
@@ -175,7 +180,11 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build && node test/run.mjs",
     "vsix": "npm run build && node scripts/package-vsix.mjs",
-    "validate": "npm run typecheck && npm test && npm run vsix"
+    "validate": "npm run typecheck && npm test && npm run vsix",
+    "dev:build": "tsc -p tsconfig.json && node scripts/dev-signal-reload.mjs",
+    "dev:link": "node scripts/dev-link-extension.mjs",
+    "dev:unlink": "node scripts/dev-link-extension.mjs --unlink",
+    "dev:setup": "tsc -p tsconfig.json && node scripts/dev-link-extension.mjs"
   },
   "dependencies": {
     "@tiinex/core": "0.1.1"

@@ -38,6 +38,7 @@ Directory names are locality, not semantic authority. The remaining modules are 
 | `latestWinsQueue` | Host scheduling for stale-result suppression in diagnostics. |
 | `packageArgs` | VS Code host argument shaping for the public portable Tooling entrypoint. |
 | `paths`, `repositoryPath`, `stableFile` | Local filesystem/repository normalization and inbox stability/session behavior. |
+| `receiveUx`, `receivedHandoff` | Host-only Receive presentation/filtering plus qualified received-context bookkeeping. Role text and local folder preferences are never semantic authority. |
 
 None of these files is treated as a reason to create a new Core export. A future move requires an independently frozen shared responsibility, not the word `core` in the local path.
 
@@ -47,13 +48,24 @@ Unsaved bytes are staged only in a transient host file for the lifetime of the s
 
 The extension contributes no tasks or problem matchers for this path, so validation does not depend on task-driven Output/Problems pollution.
 
-## Workspace landing
+## Workspace Receive / unpacking
 
-`Tiinex: Receive Handoff Package` first qualifies ingress with the **received package's own declared bootstrap**. Current landing-plan projection then uses installed `@tiinex/core` Tooling.
+`Tiinex: Receive Handoff Package` first qualifies ingress with the **received package's own declared bootstrap**. Workspace inventory, repository identity and declared ref constraints then come from installed `@tiinex/core` `project-workspace-landing`; the extension does not privately reinterpret `.workspace.md` semantics.
 
-Repository matching is explicitly multi-root. All opened Git roots and explicit Git facts are projected together; slash/case-equivalent Windows paths can represent the same local repository while repository identity remains fail-closed. Dirty worktrees block. Qualified branch mismatches are preflighted and require one explicit branch-switch approval before Workspace bytes are written.
+Receive is explicitly multi-root and per-Workspace:
 
-Landing has one multi-repository confirmation. Post-landing `commit`, `push`, and `openHandoff` policies are independent `no | ask | yes` settings and default to `no`. Push is limited to the unchanged configured upstream for the exact commit created by the same landing run; there is no force push or invented upstream.
+1. Qualified package Workspaces are compared with every Git repository visible in the current VS Code multi-root workspace.
+2. An unmatched Workspace offers **Add Repository** or **Skip Workspace**. Add opens a folder picker at the immediate parent shared by the largest number of current repositories, verifies the chosen Git repository against the qualified Workspace origin through shared Tooling, then adds it through `workspace.updateWorkspaceFolders`. A saved `.code-workspace` is therefore updated by VS Code's native workspace writer (portable relative folder paths where VS Code can relativize them).
+3. A declared branch/ref mismatch offers **Switch Branch** or **Skip Workspace**. If local changes must be cleared before switching, the same dirty-worktree choice is applied first. When the qualified Workspace declares **no Ref**, Receive shows the current branch plus `Declared Ref: (none)` and requires **Use Current Branch** or **Skip Workspace**; branch equivalence is never implied.
+4. Dirty repositories offer **Stash**, **Commit**, **Discard**, or **Skip Workspace**. Discard uses `git reset --hard HEAD` plus `git clean -fd`; ignored material is not removed.
+5. Before source mutation, one multi-select lists every remaining ready Workspace. Only Workspaces explicitly selected there can be replaced; clean carried context is not mutated merely because shared Tooling projected it ready.
+6. After the final explicit Receive confirmation, the clean tracked worktree is replaced by the exact qualified `.workspace.zip` snapshot while `.git` and unrelated ignored material remain preserved. Incoming archive collisions with preserved ignored paths fail closed.
+7. Every changed landed repository is staged with `git add -A`, then the **pre-landing ignored set is explicitly removed from the index and verified absent**. This protects preserved local material such as `.env` even if the incoming `.gitignore` stops ignoring it. Post-landing commit convenience uses a deterministic extension-owned `Tiinex Receive: <workspace-id>` message and never executes code from the received repository snapshot. If auto-commit is declined, that trusted message is pre-filled in Source Control when available and exposed through **Copy Commit Message**.
+8. Auto-push is considered only for a commit created by that exact Receive invocation after auto-commit was approved. It additionally requires the pre-landing upstream to have been aligned and to remain unchanged; manual commits are never auto-pushed.
+
+After landing, `tiinex.operator.role` can contain a presentation-only label such as `Sigma`. Qualified Handoff routes whose From/To label matches are preferred; if none match, all qualified routes remain eligible. `tiinex.landing.openHandoff` opens the actual Handoff Markdown artifacts as tabs/previews and never opens transport pointer files. The role string grants no authority and is not passed off as holder proof.
+
+A Workspace whose qualified material does not expose exactly one usable repository origin cannot be safely mapped; the host offers Skip and reports the missing shared boundary rather than inventing repository identity. Package-carried Required Context remains retained as qualified carrier context even when a Required Context Workspace is intentionally skipped or has no local target; local `workspaceRoots` record only material actually available after Receive.
 
 ## Handoff authoring and package construction
 
@@ -65,16 +77,36 @@ The candidate pipeline stays at package version 0.1.7 in this preparatory lane. 
 
 ## Git workflow
 
-- `Tiinex: Generate Tiinex Commit Message` delegates to the selected repository's own `tools/tiinex-commit-message.mjs`.
+- `Tiinex: Generate Tiinex Commit Message` is an **explicit separate operator command** that delegates to the selected local repository's own `tools/tiinex-commit-message.mjs`; Receive itself never invokes that helper after source landing.
 - `Tiinex: Stage, Commit & Push with Tiinex` remains explicit and fails closed on detached HEAD, missing upstream, no staged changes, failed staged Tiinex validation or changed publication state.
 - Workspace landing never implies commit, push, acceptance or completion.
 
-## Local qualification
+## Local development and qualification
 
-With the declared dev dependencies installed, run:
+Normal UX iteration uses the **same VS Code window** as the installed Tiinex extension. No Extension Development Host and no per-edit VSIX install are required.
+
+One-time setup from this checkout:
+
+1. Run the VS Code task **Tiinex: Link this checkout**.
+2. The task first compiles `dist/`, preserves any currently installed Tiinex copy outside the extensions directory, then symlinks/junctions this checkout into the active VS Code extensions directory.
+3. Restart the Extension Host (or VS Code) once so the linked checkout becomes the running extension.
+
+After that the normal loop is:
+
+```text
+edit → Ctrl+Shift+B → Restart Extensions → test in the same window
+```
+
+`Ctrl+Shift+B` runs the default task **Tiinex: Build linked extension**. A successful TypeScript build writes a development-only reload signal. The linked Tiinex extension detects that signal and shows **Restart Extensions**; pressing it restarts the Extension Host and loads the new `dist/` bytes without building or installing a VSIX.
+
+Use **Tiinex: Unlink this checkout** to remove the development link and restore any installed Tiinex copy that the setup task preserved. Restart once after unlinking.
+
+The linker supports stable VS Code and Insiders automatically; `TIINEX_VSCODE_EXTENSIONS_DIR` can override the extensions directory for unusual/portable installations. Development markers live under ignored `.tiinex-dev/` and are not part of candidate VSIX packaging.
+
+With the declared dev dependencies installed, full qualification remains:
 
 ```text
 npm run validate
 ```
 
-That performs typecheck, a clean build, focused regression tests and candidate VSIX generation. `node scripts/package-vsix.mjs` can also manufacture from an already-built `dist/`; its JSON receipt is the authoritative local candidate-byte summary for that run.
+That performs typecheck, a clean build, focused regression tests and candidate VSIX generation. VSIX is qualification/release evidence, not the normal development loop, and this preparatory lane still does not authorize 0.1.8 publication.

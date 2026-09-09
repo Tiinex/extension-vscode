@@ -126,7 +126,7 @@ export class HandoffInboxWatcher implements vscode.Disposable {
       this.setState('candidate-found', `Stable Handoff Package detected: ${path.basename(filePath)}`, filePath, directory);
       const action = await vscode.window.showInformationMessage(
         `Tiinex found a Handoff Package: ${path.basename(filePath)}`,
-        'Preview / Land',
+        'Review / Receive',
         'Ignore'
       );
       if (generation !== this.generation) return;
@@ -134,17 +134,17 @@ export class HandoffInboxWatcher implements vscode.Disposable {
         this.setState('ignored', `Ignored ${path.basename(filePath)} for this discovery session. The watcher remains active.`, filePath, directory);
         return;
       }
-      if (action !== 'Preview / Land') {
+      if (action !== 'Review / Receive') {
         this.setState('blocked', `Candidate confirmation dismissed for ${path.basename(filePath)}. No action was taken; the watcher remains active.`, filePath, directory);
         return;
       }
-      this.setState('landing-awaiting-confirmation', `Opening the qualified preview/landing flow for ${path.basename(filePath)}. No Workspace bytes are written without the existing explicit landing confirmation.`, filePath, directory);
+      this.setState('landing-awaiting-confirmation', `Opening the qualified Review / Receive flow for ${path.basename(filePath)}. No Workspace bytes are written without the existing explicit landing confirmation.`, filePath, directory);
       await this.onPackage(filePath);
-      if (generation === this.generation) this.setState('landed', `Qualified landing flow completed for ${path.basename(filePath)}. The watcher remains active.`, filePath, directory);
+      if (generation === this.generation) this.setState('landed', `Qualified Receive flow completed for ${path.basename(filePath)}. The watcher remains active.`, filePath, directory);
     } catch (error) {
       if (generation !== this.generation) return;
       if (/cancel/i.test(message(error))) {
-        this.setState('blocked', `Landing flow cancelled for ${path.basename(filePath)}. No bytes were written by discovery; the watcher remains active.`, filePath, directory);
+        this.setState('blocked', `Receive flow cancelled for ${path.basename(filePath)}. No bytes were written by discovery; the watcher remains active.`, filePath, directory);
         return;
       }
       this.setState('candidate-invalid', `Candidate is invalid or unqualified for landing: ${message(error)}`, filePath, directory);

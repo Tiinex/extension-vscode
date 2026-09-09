@@ -15,6 +15,7 @@ export type RouteChoice = { id: string; pointerless: boolean; label: string; des
 export interface PackageWorkspaceChoice { workspaceId: string; repository: string; ref: string; root: string; workspaceTargetPath: string; sourceKind?: string }
 export interface PackageBuilderModel { workspaces: PackageWorkspaceChoice[]; routes: RouteChoice[] }
 export interface PackageBuildInput { routeId: string; workspaceIds: string[] }
+export interface PackageBuildResult { outputPath: string; routingText: string; routeId: string; workspaceIds: string[] }
 export interface HandoffEndpointChoice { id: string; target: string; reference: string; kind: 'role' | 'party'; label: string; workspaceId: string; artifactPath: string; schemaId: string; qualification: string }
 
 function nodeExecutable(): string { return vscode.workspace.getConfiguration('tiinex').get('nodePath', '').toString().trim() || process.execPath; }
@@ -104,7 +105,7 @@ async function handoffArgs(selected: WorkspaceSource[], route: RouteChoice, scra
   return [primary.root, '--handoff', route.path, '--route', route.path, '--workspace-id', primary.workspaceId, '--workspace-target', primary.workspaceTargetPath, '--workspace-roots', descriptorsPath, '--tooling-bootstrap', 'embedded'];
 }
 
-export async function buildHandoffPackageFromForm(extensionPath: string, input: PackageBuildInput): Promise<string> {
+export async function buildHandoffPackageFromForm(extensionPath: string, input: PackageBuildInput): Promise<PackageBuildResult> {
   const runtime = await prepareBundledRuntime(extensionPath, nodeExecutable());
   const scratch = await mkdtemp(path.join(os.tmpdir(), 'tiinex-vscode-package-builder-'));
   try {
@@ -124,7 +125,7 @@ export async function buildHandoffPackageFromForm(extensionPath: string, input: 
       const built = await manufactureHandoffPackage(runtime, [...args, '--output-dir', folder[0].fsPath]);
       if (built.status !== 'ready' || !built.primaryOutput?.path || built?.carrierProjection?.mode !== 'workspace' || (built?.carrierProjection?.routes || []).length !== 0) throw new Error(`tiinex.package-builder.workspace-manufacture-blocked:\n${receiptBlocker(built)}`);
       await announceBuiltCarrier(built.primaryOutput.path, 'Workspace carrier');
-      return built.primaryOutput.path;
+      return { outputPath: built.primaryOutput.path, routingText: '', routeId: route.id, workspaceIds: selectedSources.map((item) => item.workspaceId) };
     }
     if (!route.workspaceId || !selectedSources.some((item) => item.workspaceId === route.workspaceId)) throw new Error('tiinex.package-builder.route-workspace-not-selected');
     const args = await handoffArgs(selectedSources, route, scratch);
@@ -139,8 +140,9 @@ export async function buildHandoffPackageFromForm(extensionPath: string, input: 
     const built = await manufactureHandoffPackage(runtime, [...args, '--output-dir', folder[0].fsPath]);
     if (built.status !== 'ready' || !built.primaryOutput?.path) throw new Error(`tiinex.package-builder.manufacture-blocked:\n${receiptBlocker(built)}`);
     const routing = String(built?.humanOutput?.normalInlineRouting?.content || '').trim();
-    if (routing) await vscode.env.clipboard.writeText(routing);
-    await announceBuiltCarrier(built.primaryOutput.path, 'Handoff carrier', routing ? 'Exact routing text was copied to the clipboard.' : '');
-    return built.primaryOutput.path;
+    if (!routing) throw new Error('tiinex.package-builder.routing-text-missing');
+    await vscode.env.clipboard.writeText(routing);
+    await announceBuiltCarrier(built.primaryOutput.path, 'Handoff carrier', 'Exact routing text was copied to the clipboard.');
+    return { outputPath: built.primaryOutput.path, routingText: routing, routeId: route.id, workspaceIds: selectedSources.map((item) => item.workspaceId) };
   } finally { await rm(scratch, { recursive: true, force: true }); await runtime.dispose(); }
 }

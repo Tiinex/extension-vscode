@@ -108,6 +108,24 @@ export async function orientPackage(runtime: PackageRuntime, packagePath: string
   return result;
 }
 
+export interface GroundingResult {
+  status: string;
+  readiness?: { state?: string };
+  authority?: { route?: { id?: string; pointerPath?: string; workspaceId?: string } };
+  currentWork?: { frontier?: Array<{ id?: string; path?: string; title?: string; declaredStatus?: string }> };
+  requiredContext?: { declared?: number; matchedInWorkspaceSnapshots?: number; items?: unknown[] };
+  findings?: Array<{ severity?: string; code?: string; message?: string }>;
+  [key: string]: unknown;
+}
+
+export async function groundPackageForReview(runtime: PackageRuntime, packagePath: string, routePointerPath: string, runner: ProcessRunner = runProcess): Promise<GroundingResult> {
+  const route = String(routePointerPath || '').trim();
+  if (!route) throw new Error('tiinex.ground.route-required');
+  const result = await runTiinexJson<GroundingResult>(runtime, ['ground', packagePath, '--route', route, '--include-current-work'], runner);
+  if (String(result.status || '').toLowerCase() !== 'ready') throw new Error(`tiinex.ground.not-ready:${String(result.status || 'unknown')}`);
+  return result;
+}
+
 export async function projectWorkspaceLanding(
   runtime: PackageRuntime,
   packagePath: string,

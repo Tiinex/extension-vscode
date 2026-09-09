@@ -1,36 +1,40 @@
 import * as vscode from 'vscode';
 import { generateCommitMessageCommand, stageCommitPushCommand } from './commit';
 import { HandoffInboxWatcher, selectHandoffInbox } from './inbox';
-import { landHandoffPackage } from './landing';
+import { landHandoffPackage, LandingResult } from './landing';
 import { registerTiinexDiagnostics } from './diagnostics';
 import { TiinexOperatorView } from './operatorView';
+import { registerLinkedDevReload } from './devReload';
 
 const inFlight = new Set<string>();
 
 function message(error: unknown): string { return error instanceof Error ? error.message : String(error); }
 
-async function executeLanding(packagePath: string, extensionPath: string): Promise<void> {
-  if (inFlight.has(packagePath)) return;
+async function executeLanding(packagePath: string, extensionPath: string): Promise<LandingResult | null> {
+  if (inFlight.has(packagePath)) return null;
   inFlight.add(packagePath);
   try {
-    await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'Tiinex qualifying Handoff package and preparing landing', cancellable: false }, () => landHandoffPackage(packagePath, extensionPath));
+    return await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'Tiinex qualifying Handoff package and preparing Receive', cancellable: false }, () => landHandoffPackage(packagePath, extensionPath));
   } finally {
     inFlight.delete(packagePath);
   }
 }
 
-async function runManualLanding(packagePath: string, extensionPath: string): Promise<void> {
-  try { await executeLanding(packagePath, extensionPath); }
-  catch (error) { await vscode.window.showErrorMessage(`Tiinex landing failed: ${message(error)}`, { modal: true }); }
+async function runManualLanding(packagePath: string, extensionPath: string, onReceived: (result: LandingResult) => Promise<void>): Promise<void> {
+  try { const result = await executeLanding(packagePath, extensionPath); if (result) await onReceived(result); }
+  catch (error) { await vscode.window.showErrorMessage(`Tiinex Receive failed: ${message(error)}`, { modal: true }); }
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const extensionPath = String((context as any).extensionPath || '');
-  const inbox = new HandoffInboxWatcher((packagePath: string) => executeLanding(packagePath, extensionPath));
+  registerLinkedDevReload(context, extensionPath);
+  let acceptReceived: (result: LandingResult) => Promise<void> = async () => undefined;
+  const inbox = new HandoffInboxWatcher(async (packagePath: string) => { const result = await executeLanding(packagePath, extensionPath); if (result) await acceptReceived(result); });
   context.subscriptions.push(inbox);
 
   const diagnostics = await registerTiinexDiagnostics(context, extensionPath);
   const operator = new TiinexOperatorView(extensionPath, diagnostics, inbox);
+  acceptReceived = async (result: LandingResult) => { if (result.received) await operator.acceptReceivedHandoff(result.received); };
   context.subscriptions.push(operator);
   context.subscriptions.push(vscode.window.registerWebviewViewProvider('tiinex.operator', operator, { webviewOptions: { retainContextWhenHidden: true } }));
 
@@ -57,7 +61,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push(vscode.commands.registerCommand('tiinex.landHandoffPackage', async () => {
     const selected = await vscode.window.showOpenDialog({ canSelectFiles: true, canSelectFolders: false, canSelectMany: false, title: 'Select Tiinex Handoff Package', filters: { 'Handoff package ZIP': ['zip'] } });
     if (!selected?.length) return;
-    await runManualLanding(selected[0].fsPath, extensionPath);
+    await runManualLanding(selected[0].fsPath, extensionPath, acceptReceived);
   }));
   context.subscriptions.push(vscode.commands.registerCommand('tiinex.generateCommitMessage', async () => {
     try { await generateCommitMessageCommand(extensionPath); } catch (error) { await vscode.window.showErrorMessage(`Tiinex commit-message generation failed: ${message(error)}`); }

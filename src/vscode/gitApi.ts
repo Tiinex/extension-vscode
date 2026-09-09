@@ -24,6 +24,22 @@ export async function repositoryRoots(): Promise<string[]> {
   return roots;
 }
 
+
+export interface WorkspaceFolderAdditionResult { added: boolean; workspaceFile: string; savedWorkspace: boolean }
+
+export async function addRepositoryToCurrentWorkspace(root: string): Promise<WorkspaceFolderAdditionResult> {
+  const resolved = vscode.Uri.file(root);
+  const existing = vscode.workspace.workspaceFolders || [];
+  if (existing.some((folder: vscode.WorkspaceFolder) => sameRepositoryRoot(folder.uri.fsPath, resolved.fsPath))) {
+    const workspaceFile = vscode.workspace.workspaceFile?.scheme === 'file' ? vscode.workspace.workspaceFile.fsPath : '';
+    return { added: false, workspaceFile, savedWorkspace: Boolean(workspaceFile) };
+  }
+  const applied = vscode.workspace.updateWorkspaceFolders(existing.length, 0, { uri: resolved });
+  if (!applied) throw new Error('tiinex.vscode.workspace-folder-add-rejected');
+  const workspaceFile = vscode.workspace.workspaceFile?.scheme === 'file' ? vscode.workspace.workspaceFile.fsPath : '';
+  return { added: true, workspaceFile, savedWorkspace: Boolean(workspaceFile) };
+}
+
 export async function repositoryRootForResource(resourcePath: string): Promise<string> {
   const roots = await repositoryRoots();
   const matches = roots.filter((root) => repositoryContainsPath(root, resourcePath));

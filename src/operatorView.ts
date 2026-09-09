@@ -7,8 +7,10 @@ import { operatorClientScript } from './core/operatorWebview';
 import { presentOperatorError } from './core/operatorError';
 import { DiagnosticsSnapshot, TiinexDiagnosticsController } from './diagnostics';
 import { HandoffInboxWatcher } from './inbox';
-import { buildHandoffPackageFromForm, loadHandoffEndpointChoices, loadPackageBuilderModel, HandoffEndpointChoice, PackageBuilderModel } from './packageBuilder';
+import { buildHandoffPackageFromForm, loadHandoffEndpointChoices, loadPackageBuilderModel, HandoffEndpointChoice, PackageBuilderModel, PackageBuildResult } from './packageBuilder';
 import { repositoryRoots } from './vscode/gitApi';
+import { receivedControlTarget, ReceivedHandoffContext } from './core/receivedHandoff';
+import { sameRepositoryRoot } from './core/repositoryPath';
 
 const VIEW_ID = 'tiinex.operator';
 type Section = 'diagnostics' | 'authoring' | 'package';
@@ -21,6 +23,9 @@ export class TiinexOperatorView implements vscode.WebviewViewProvider, vscode.Di
   private view: vscode.WebviewView | undefined;
   private parent: AuthoringParentContext | null = null;
   private packageModel: PackageBuilderModel | null = null;
+  private received: ReceivedHandoffContext | null = null;
+  private preferredReturnTarget: { root: string; path: string } | null = null;
+  private lastBuild: PackageBuildResult | null = null;
   private endpointChoices: HandoffEndpointChoice[] = [];
   private endpointLoading = false;
   private section: Section = 'diagnostics';
@@ -41,7 +46,7 @@ export class TiinexOperatorView implements vscode.WebviewViewProvider, vscode.Di
     this.disposables.push(this.inbox.onDidChangeState(() => { if (this.section === 'diagnostics') void this.render(); }));
     this.disposables.push(vscode.window.onDidChangeActiveTextEditor(() => void this.refreshActiveArtifactCapability()));
     this.disposables.push(vscode.workspace.onDidSaveTextDocument(() => void this.refreshActiveArtifactCapability()));
-    this.disposables.push(vscode.workspace.onDidChangeWorkspaceFolders(() => { this.packageModel = null; this.endpointChoices = []; this.packageEpoch += 1; this.authoringEpoch += 1; void this.render(); }));
+    this.disposables.push(vscode.workspace.onDidChangeWorkspaceFolders(() => { this.packageModel = null; this.endpointChoices = []; this.preferredReturnTarget = null; this.lastBuild = null; this.packageEpoch += 1; this.authoringEpoch += 1; void this.render(); }));
     void this.refreshActiveArtifactCapability();
   }
 
@@ -69,6 +74,18 @@ export class TiinexOperatorView implements vscode.WebviewViewProvider, vscode.Di
   }
 
   async showPackage(): Promise<void> { await this.show('package'); }
+
+  async acceptReceivedHandoff(received: ReceivedHandoffContext): Promise<void> {
+    this.received = received;
+    this.packageModel = null;
+    this.preferredReturnTarget = null;
+    this.lastBuild = null;
+    this.authoringEpoch += 1;
+    this.packageEpoch += 1;
+    this.section = 'diagnostics';
+    this.statusMessage = `Received and grounded Handoff: ${received.from || 'unknown'} → ${received.to || 'unknown'} (${received.groundingState}). Carrier context: ${received.carriedWorkspaceIds.length} Workspace(s); locally landed: ${Object.keys(received.workspaceRoots).length}.`;
+    await this.render();
+  }
 
   async bindArtifact(resource: vscode.Uri): Promise<void> {
     if (resource.scheme !== 'file') throw new Error('tiinex.authoring.parent-must-be-local-file');

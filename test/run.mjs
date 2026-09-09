@@ -10,7 +10,9 @@ import { presentOperatorError } from '../dist/core/operatorError.js';
 import { LatestWinsKeyedQueue } from '../dist/core/latestWinsQueue.js';
 import { canonicalRepositoryRoot, relativeRepositoryPath, repositoryContainsPath, sameRepositoryRoot } from '../dist/core/repositoryPath.js';
 import { ignoredPathCollisions, safeRelativePath, safeTarget } from '../dist/core/paths.js';
-import { generateTiinexCommitMessage, listStagedPaths, preflightExistingLocalBranch, pushExactLandingCommit, stageCommitPush, stageLandingCommit } from '../dist/host/git.js';
+import { preferredRepositoryParent, routesPreferredForRole } from '../dist/core/receiveUx.js';
+import { receivedHandoffContext, withWorkspaceRoots } from '../dist/core/receivedHandoff.js';
+import { commitWorkingTree, discardWorkingTree, generateTiinexCommitMessage, listStagedPaths, preflightExistingLocalBranch, pushExactLandingCommit, stageCommitPush, stageLandingChanges, stageLandingCommit, stashWorkingTree } from '../dist/host/git.js';
 import { createHandoffDraft, parseBootstrapDescriptor, prepareBundledRuntime, runTiinexJson, projectEditorAssistanceText, projectHandoffAuthoringPlan, projectHandoffEndpoints, projectOperatorContext, projectStagedValidation, projectWorkspaceLanding, projectWorkspacePackageSources } from '../dist/tiinex/bootstrap.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -33,6 +35,23 @@ await test('Windows multi-root comparison treats equivalent Git API and git.exe 
   assert.equal(repositoryContainsPath(apiRoot, 'C:/Users/micro/Documents/Repos/Tiinex/business/.topics/x.trace.md', 'win32'), true);
   assert.equal(relativeRepositoryPath(apiRoot, 'C:/Users/micro/Documents/Repos/Tiinex/business/.topics/x.trace.md', 'win32'), '.topics/x.trace.md');
   assert.equal(repositoryContainsPath(apiRoot, 'C:/Users/micro/Documents/Repos/Tiinex/site/x', 'win32'), false);
+});
+
+await test('Receive UX chooses the most common repository parent and treats role text as presentation filtering only', async () => {
+  const roots = [
+    'C:\\Users\\Sigma\\Repos\\Tiinex\\business',
+    'C:\\Users\\Sigma\\Repos\\Tiinex\\core',
+    'C:\\Users\\Sigma\\Repos\\Tiinex\\docs',
+    'D:\\scratch\\other'
+  ];
+  assert.equal(preferredRepositoryParent(roots, 'win32'), 'C:\\Users\\Sigma\\Repos\\Tiinex');
+  const routes = [
+    { id: 'a', from: 'Anchor', to: 'Sigma' },
+    { id: 'b', from: 'Anchor', to: 'Loom' }
+  ];
+  assert.deepEqual(routesPreferredForRole(routes, 'sigma').map((item) => item.id), ['a']);
+  assert.deepEqual(routesPreferredForRole(routes, 'nobody').map((item) => item.id), ['a', 'b']);
+  assert.deepEqual(routesPreferredForRole(routes, '').map((item) => item.id), ['a', 'b']);
 });
 
 await test('package route identity is separate from Workspace inclusion and contains no authoring Parent state', async () => {
@@ -65,6 +84,77 @@ await test('extension contributes immediately discoverable Tiinex Activity Bar o
   assert.match(context?.when || '', /tiinex\.activeArtifactCanCreateHandoff/);
   assert.equal(Boolean(manifest.contributes?.problemMatchers), false);
   assert.equal(Boolean(manifest.contributes?.taskDefinitions), false);
+});
+
+await test('Receive settings expose role filtering and the linked same-window development loop without requiring per-edit VSIX installation', async () => {
+  const fs = await import('node:fs/promises');
+  const root = path.resolve(HERE, '..');
+  const manifest = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8'));
+  assert.equal(manifest.contributes.configuration.properties['tiinex.operator.role'].type, 'string');
+  assert.equal(manifest.contributes.configuration.properties['tiinex.landing.openHandoff'].default, 'yes');
+  assert.match(manifest.scripts['dev:link'], /dev-link-extension/);
+  assert.match(manifest.scripts['dev:setup'], /tsc -p tsconfig\.json.*dev-link-extension/);
+  assert.match(manifest.scripts['dev:build'], /dev-signal-reload/);
+  assert.match(manifest.scripts['dev:unlink'], /--unlink/);
+  assert.equal(Object.hasOwn(manifest.scripts, 'watch'), false);
+  const tasks = JSON.parse(await fs.readFile(path.join(root, '.vscode', 'tasks.json'), 'utf8'));
+  assert.ok(tasks.tasks.some((item) => item.label === 'Tiinex: Link this checkout' && item.script === 'dev:setup' && item.options?.env?.TIINEX_VSCODE_EXECUTABLE === '${execPath}'));
+  assert.ok(tasks.tasks.some((item) => item.label === 'Tiinex: Build linked extension' && item.group?.isDefault === true));
+  assert.ok(tasks.tasks.some((item) => item.label === 'Tiinex: Unlink this checkout' && item.args?.includes('--unlink')));
+  await assert.rejects(fs.stat(path.join(root, '.vscode', 'launch.json')));
+  const reload = await fs.readFile(path.join(root, 'src', 'devReload.ts'), 'utf8');
+  assert.match(reload, /Restart Extensions/);
+  assert.match(reload, /workbench\.action\.restartExtensionHost/);
+  const extension = await fs.readFile(path.join(root, 'src', 'extension.ts'), 'utf8');
+  assert.match(extension, /registerLinkedDevReload\(context, extensionPath\)/);
+});
+
+await test('Receive orchestration keeps Workspace mutation explicit and makes unasserted branch state visible', async () => {
+  const fs = await import('node:fs/promises');
+  const source = await fs.readFile(path.resolve(HERE, '..', 'src', 'landing.ts'), 'utf8');
+  const gitSource = await fs.readFile(path.resolve(HERE, '..', 'src', 'host', 'git.ts'), 'utf8');
+  const gitApi = await fs.readFile(path.resolve(HERE, '..', 'src', 'vscode', 'gitApi.ts'), 'utf8');
+  for (const text of ['Add Repository', 'Skip Workspace', 'Switch Branch', 'Stash', 'Commit', 'Discard', 'Copy Commit Message', 'Use Current Branch', 'Declared Ref: (none)']) assert.match(source, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.match(source, /preferredRepositoryParent/);
+  assert.match(source, /projectWorkspaceLanding\(runtime, packagePath, candidateFacts, candidateSelections, \[workspaceId\]\)/);
+  assert.match(source, /stageLandingChanges\(root, protectedPaths\)/);
+  assert.match(source, /Select every Workspace Tiinex may replace/);
+  assert.match(source, /canPickMany: true/);
+  assert.match(source, /trustedLandingCommitMessage/);
+  assert.doesNotMatch(source, /generateTiinexCommitMessage/);
+  assert.doesNotMatch(source, /requiredWorkspaceIds\.every/);
+  const landingCommitBlock = gitSource.slice(gitSource.indexOf('export async function stageLandingCommit'), gitSource.indexOf('export async function pushExactLandingCommit'));
+  assert.doesNotMatch(landingCommitBlock, /generateTiinexCommitMessage|tiinex-commit-message|nodeExecutable/);
+  assert.match(source, /pushable = \[\.\.\.commits\.entries\(\)\]\.filter/);
+  assert.match(source, /routesPreferredForRole/);
+  assert.match(source, /markdown\.showPreview/);
+  assert.doesNotMatch(source, /openTextDocument\([^\n]*pointerPath/);
+  assert.match(gitApi, /workspace\.updateWorkspaceFolders/);
+  assert.match(gitApi, /workspace\.workspaceFile/);
+});
+
+await test('received carrier context stays qualified when only a subset of carried Workspaces is landed locally', async () => {
+  const orientation = {
+    workspaces: [{ id: 'business' }, { id: 'core' }, { id: 'extension-vscode' }],
+    routes: [{
+      id: 'route-1', state: 'qualified', workspaceId: 'extension-vscode',
+      workspaceRelativeHandoffPath: '.topics/handoff.trace.md', pointerPath: '001-pointer.trace.md', from: 'Anchor', to: 'Sigma',
+      requiredClosure: { state: 'qualified', requiredCount: 2, qualifiedCount: 2, requirements: [
+        { state: 'qualified', resolution: { workspaceId: 'business' } },
+        { state: 'qualified', resolution: { workspaceId: 'extension-vscode' } }
+      ] }
+    }]
+  };
+  const grounding = {
+    status: 'ready', readiness: { state: 'grounded-to-act' },
+    authority: { route: { id: 'route-1', pointerPath: '001-pointer.trace.md', workspaceId: 'extension-vscode' } },
+    currentWork: { frontier: [{ id: 'extension-vscode/.topics/task.trace.md', path: 'extension-vscode/.topics/task.trace.md', title: 'Task' }] }
+  };
+  const received = receivedHandoffContext('/carrier.zip', orientation, grounding, 'route-1');
+  const partial = withWorkspaceRoots(received, { 'extension-vscode': '/repos/vscode' });
+  assert.deepEqual(partial.carriedWorkspaceIds, ['business', 'core', 'extension-vscode']);
+  assert.deepEqual(partial.requiredWorkspaceIds, ['business', 'extension-vscode']);
+  assert.deepEqual(partial.workspaceRoots, { 'extension-vscode': path.resolve('/repos/vscode') });
 });
 
 await test('Parent-driven Handoff defaults reduce boilerplate without inferring endpoint identity', async () => {
@@ -104,7 +194,7 @@ await test('automatic discovery is session-scoped, never startup-backlog-scoped,
   assert.match(source, /Historical inbox carriers are not surfaced automatically/);
   assert.match(source, /Tiinex: Receive Handoff Package/);
   assert.match(source, /this\.seen\.has\(filePath\)/);
-  assert.match(source, /'Preview \/ Land'/);
+  assert.match(source, /'Review \/ Receive'/);
   assert.match(source, /'Ignore'/);
   assert.match(source, /this\.setState\('landed'/);
   assert.match(source, /this\.setState\('ignored'/);
@@ -497,6 +587,90 @@ await test('staged path discovery is exact, null-delimited, and slash-normalized
   assert.deepEqual(fx.calls[0].args, ['diff', '--cached', '--name-only', '--diff-filter=ACMR', '-z']);
 });
 
+await test('Receive dirty-worktree helpers stash, discard, commit, and stage without touching ignored files through git clean -x', async () => {
+  const fs = await import('node:fs/promises');
+  const os = await import('node:os');
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tiinex-receive-dirty-'));
+  await fs.mkdir(path.join(tmp, 'tools'), { recursive: true });
+  const helper = path.join(tmp, 'tools', 'tiinex-commit-message.mjs');
+  await fs.writeFile(helper, '// fixture');
+  const sha = 'c'.repeat(40);
+  try {
+    let dirty = true;
+    const stashFx = fakeRunner((key) => {
+      if (key === 'git rev-parse --show-toplevel') return { code: 0, stdout: tmp + '\n', stderr: '' };
+      if (key === 'git config --get remote.origin.url') return { code: 0, stdout: 'git@github.com:Tiinex/core.git\n', stderr: '' };
+      if (key === 'git symbolic-ref --quiet --short HEAD') return { code: 0, stdout: 'refactor\n', stderr: '' };
+      if (key.startsWith('git status --porcelain')) return { code: 0, stdout: dirty ? ' M src/a.ts\0?? note.txt\0' : '', stderr: '' };
+      if (key.startsWith('git stash push ')) { dirty = false; return { code: 0, stdout: 'Saved\n', stderr: '' }; }
+      return { code: 0, stdout: '', stderr: '' };
+    });
+    await stashWorkingTree(tmp, stashFx.runner);
+    assert.ok(stashFx.calls.some((call) => call.args[0] === 'stash' && call.args.includes('--include-untracked')));
+
+    dirty = true;
+    const discardFx = fakeRunner((key) => {
+      if (key === 'git rev-parse --show-toplevel') return { code: 0, stdout: tmp + '\n', stderr: '' };
+      if (key === 'git config --get remote.origin.url') return { code: 0, stdout: 'git@github.com:Tiinex/core.git\n', stderr: '' };
+      if (key === 'git symbolic-ref --quiet --short HEAD') return { code: 0, stdout: 'refactor\n', stderr: '' };
+      if (key.startsWith('git status --porcelain')) return { code: 0, stdout: dirty ? ' M src/a.ts\0' : '', stderr: '' };
+      if (key === 'git clean -fd') { dirty = false; return { code: 0, stdout: '', stderr: '' }; }
+      return { code: 0, stdout: '', stderr: '' };
+    });
+    await discardWorkingTree(tmp, discardFx.runner);
+    assert.ok(discardFx.calls.some((call) => call.args.join(' ') === 'clean -fd'));
+    assert.equal(discardFx.calls.some((call) => call.args.includes('-x')), false);
+
+    dirty = true;
+    const commitFx = fakeRunner((key) => {
+      if (key === 'git rev-parse --show-toplevel') return { code: 0, stdout: tmp + '\n', stderr: '' };
+      if (key === 'git config --get remote.origin.url') return { code: 0, stdout: 'git@github.com:Tiinex/core.git\n', stderr: '' };
+      if (key === 'git symbolic-ref --quiet --short HEAD') return { code: 0, stdout: 'refactor\n', stderr: '' };
+      if (key.startsWith('git status --porcelain')) return { code: 0, stdout: dirty ? ' M src/a.ts\0' : '', stderr: '' };
+      if (key === 'git diff --cached --quiet') return { code: 1, stdout: '', stderr: '' };
+      if (key.startsWith('node ' + helper)) return { code: 0, stdout: 'Tiinex: preserve local work\n', stderr: '' };
+      if (key.startsWith('git commit -m ')) { dirty = false; return { code: 0, stdout: '', stderr: '' }; }
+      if (key === 'git rev-parse HEAD') return { code: 0, stdout: sha + '\n', stderr: '' };
+      return { code: 0, stdout: '', stderr: '' };
+    });
+    const committed = await commitWorkingTree(tmp, 'node', commitFx.runner);
+    assert.equal(committed.commitSha, sha);
+
+    const stageFx = fakeRunner((key) => key === 'git diff --cached --quiet' ? { code: 1, stdout: '', stderr: '' } : { code: 0, stdout: '', stderr: '' });
+    assert.equal(await stageLandingChanges(tmp, [], stageFx.runner), true);
+    assert.deepEqual(stageFx.calls.map((call) => call.args.join(' ')), ['add -A', 'diff --cached --quiet']);
+  } finally { await fs.rm(tmp, { recursive: true, force: true }); }
+});
+
+await test('landing stage preserves pre-landing ignored files even when the incoming ignore rules stop ignoring them', async () => {
+  const fs = await import('node:fs/promises');
+  const os = await import('node:os');
+  const { execFile } = await import('node:child_process');
+  const { promisify } = await import('node:util');
+  const run = promisify(execFile);
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tiinex-preserved-ignore-'));
+  const git = async (...args) => (await run('git', args, { cwd: tmp })).stdout;
+  try {
+    await git('init', '-q');
+    await git('config', 'user.name', 'Tiinex Test');
+    await git('config', 'user.email', 'tiinex@example.invalid');
+    await fs.writeFile(path.join(tmp, '.gitignore'), '.env\n', 'utf8');
+    await fs.writeFile(path.join(tmp, 'tracked.txt'), 'before\n', 'utf8');
+    await git('add', '-A');
+    await git('commit', '-q', '-m', 'baseline');
+    await fs.writeFile(path.join(tmp, '.env'), 'SECRET=preserve-me\n', 'utf8');
+    await fs.writeFile(path.join(tmp, '.gitignore'), '# incoming snapshot no longer ignores .env\n', 'utf8');
+    await fs.writeFile(path.join(tmp, 'tracked.txt'), 'after\n', 'utf8');
+
+    assert.equal(await stageLandingChanges(tmp, ['.env']), true);
+    const staged = (await git('diff', '--cached', '--name-only')).trim().split(/\r?\n/).filter(Boolean).sort();
+    assert.deepEqual(staged, ['.gitignore', 'tracked.txt']);
+    const status = await git('status', '--porcelain=v1', '--untracked-files=all');
+    assert.match(status, /\?\? \.env/);
+    assert.equal(await fs.readFile(path.join(tmp, '.env'), 'utf8'), 'SECRET=preserve-me\n');
+  } finally { await fs.rm(tmp, { recursive: true, force: true }); }
+});
+
 await test('branch preflight rejects dirty worktrees before branch mutation', async () => {
   const fx = fakeRunner((key) => {
     if (key === 'git rev-parse --show-toplevel') return { code: 0, stdout: '/repo\n', stderr: '' };
@@ -509,13 +683,10 @@ await test('branch preflight rejects dirty worktrees before branch mutation', as
   assert.equal(fx.calls.some((call) => call.args[0] === 'switch'), false);
 });
 
-await test('landing commit requires aligned upstream and exact push rejects unrelated ahead commits', async () => {
+await test('landing commit uses a trusted supplied message and exact push rejects unrelated ahead commits', async () => {
   const fs = await import('node:fs/promises');
   const os = await import('node:os');
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tiinex-landing-commit-'));
-  await fs.mkdir(path.join(tmp, 'tools'), { recursive: true });
-  const helper = path.join(tmp, 'tools', 'tiinex-commit-message.mjs');
-  await fs.writeFile(helper, '// fixture');
   const sha = 'a'.repeat(40);
   const fx = fakeRunner((key) => {
     if (key === 'git rev-parse --show-toplevel') return { code: 0, stdout: tmp + '\n', stderr: '' };
@@ -526,13 +697,14 @@ await test('landing commit requires aligned upstream and exact push rejects unre
     if (key === 'git rev-list --count @{u}..HEAD') return { code: 0, stdout: '0\n', stderr: '' };
     if (key === 'git rev-list --count HEAD..@{u}') return { code: 0, stdout: '0\n', stderr: '' };
     if (key === 'git diff --cached --quiet') return { code: 1, stdout: '', stderr: '' };
-    if (key.startsWith('node ' + helper)) return { code: 0, stdout: 'Tiinex: landing\n', stderr: '' };
     if (key === 'git rev-parse HEAD') return { code: 0, stdout: sha + '\n', stderr: '' };
     return { code: 0, stdout: '', stderr: '' };
   });
   try {
-    const commit = await stageLandingCommit(tmp, 'node', fx.runner);
+    const commit = await stageLandingCommit(tmp, 'Tiinex Receive: site', [], fx.runner);
     assert.equal(commit.commitSha, sha);
+    assert.equal(commit.message, 'Tiinex Receive: site');
+    assert.equal(fx.calls.some((call) => call.command === 'node'), false);
     const pushFx = fakeRunner((key) => {
       if (key === 'git symbolic-ref --quiet --short HEAD') return { code: 0, stdout: 'refactor\n', stderr: '' };
       if (key === 'git rev-parse --abbrev-ref --symbolic-full-name @{u}') return { code: 0, stdout: 'origin/refactor\n', stderr: '' };
