@@ -181,10 +181,9 @@
     "test": "npm run build && node test/run.mjs",
     "vsix": "npm run build && node scripts/package-vsix.mjs",
     "validate": "npm run typecheck && npm test && npm run vsix",
-    "dev:build": "tsc -p tsconfig.json && node scripts/dev-signal-reload.mjs",
-    "dev:link": "node scripts/dev-link-extension.mjs",
-    "dev:unlink": "node scripts/dev-link-extension.mjs --unlink",
-    "dev:setup": "tsc -p tsconfig.json && node scripts/dev-link-extension.mjs"
+    "dev:build": "npm run build",
+    "dev:link": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ensure-windows-main-host-dev-extension-link.ps1",
+    "dev:unlink": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ensure-windows-main-host-dev-extension-link.ps1 -Unlink"
   },
   "dependencies": {
     "@tiinex/core": "0.1.1"

@@ -4,7 +4,6 @@ import { HandoffInboxWatcher, selectHandoffInbox } from './inbox';
 import { landHandoffPackage, LandingResult } from './landing';
 import { registerTiinexDiagnostics } from './diagnostics';
 import { TiinexOperatorView } from './operatorView';
-import { registerLinkedDevReload } from './devReload';
 
 const inFlight = new Set<string>();
 
@@ -27,7 +26,6 @@ async function runManualLanding(packagePath: string, extensionPath: string, onRe
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const extensionPath = String((context as any).extensionPath || '');
-  registerLinkedDevReload(context, extensionPath);
   let acceptReceived: (result: LandingResult) => Promise<void> = async () => undefined;
   const inbox = new HandoffInboxWatcher(async (packagePath: string) => { const result = await executeLanding(packagePath, extensionPath); if (result) await acceptReceived(result); });
   context.subscriptions.push(inbox);

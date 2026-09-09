@@ -3,14 +3,16 @@
   "tasks": [
     {
       "label": "Tiinex: Link this checkout",
-      "type": "npm",
-      "script": "dev:setup",
-      "options": {
-        "env": {
-          "TIINEX_VSCODE_EXECUTABLE": "${execPath}"
-        }
-      },
-      "problemMatcher": "$tsc",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "scripts/ensure-windows-main-host-dev-extension-link.ps1"
+      ],
+      "problemMatcher": [],
       "presentation": {
         "reveal": "always",
         "panel": "shared",
@@ -36,13 +38,15 @@
     },
     {
       "label": "Tiinex: Unlink this checkout",
-      "type": "process",
-      "command": "node",
+      "type": "shell",
+      "command": "powershell",
       "args": [
-        "scripts/dev-link-extension.mjs",
-        "--unlink",
-        "--vscode-executable",
-        "${execPath}"
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "scripts/ensure-windows-main-host-dev-extension-link.ps1",
+        "-Unlink"
       ],
       "problemMatcher": [],
       "presentation": {

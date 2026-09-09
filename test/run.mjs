@@ -86,27 +86,36 @@ await test('extension contributes immediately discoverable Tiinex Activity Bar o
   assert.equal(Boolean(manifest.contributes?.taskDefinitions), false);
 });
 
-await test('Receive settings expose role filtering and the linked same-window development loop without requiring per-edit VSIX installation', async () => {
+await test('Receive settings expose role filtering and ai-provenance-style registered main-host development linking', async () => {
   const fs = await import('node:fs/promises');
   const root = path.resolve(HERE, '..');
   const manifest = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8'));
   assert.equal(manifest.contributes.configuration.properties['tiinex.operator.role'].type, 'string');
   assert.equal(manifest.contributes.configuration.properties['tiinex.landing.openHandoff'].default, 'yes');
-  assert.match(manifest.scripts['dev:link'], /dev-link-extension/);
-  assert.match(manifest.scripts['dev:setup'], /tsc -p tsconfig\.json.*dev-link-extension/);
-  assert.match(manifest.scripts['dev:build'], /dev-signal-reload/);
-  assert.match(manifest.scripts['dev:unlink'], /--unlink/);
+  assert.match(manifest.scripts['dev:link'], /ensure-windows-main-host-dev-extension-link\.ps1/);
+  assert.match(manifest.scripts['dev:build'], /npm run build/);
+  assert.match(manifest.scripts['dev:unlink'], /ensure-windows-main-host-dev-extension-link\.ps1 -Unlink/);
+  assert.equal(Object.hasOwn(manifest.scripts, 'dev:setup'), false);
   assert.equal(Object.hasOwn(manifest.scripts, 'watch'), false);
   const tasks = JSON.parse(await fs.readFile(path.join(root, '.vscode', 'tasks.json'), 'utf8'));
-  assert.ok(tasks.tasks.some((item) => item.label === 'Tiinex: Link this checkout' && item.script === 'dev:setup' && item.options?.env?.TIINEX_VSCODE_EXECUTABLE === '${execPath}'));
+  assert.ok(tasks.tasks.some((item) => item.label === 'Tiinex: Link this checkout' && item.command === 'powershell' && item.args?.includes('scripts/ensure-windows-main-host-dev-extension-link.ps1')));
   assert.ok(tasks.tasks.some((item) => item.label === 'Tiinex: Build linked extension' && item.group?.isDefault === true));
-  assert.ok(tasks.tasks.some((item) => item.label === 'Tiinex: Unlink this checkout' && item.args?.includes('--unlink')));
+  assert.ok(tasks.tasks.some((item) => item.label === 'Tiinex: Unlink this checkout' && item.args?.includes('-Unlink')));
   await assert.rejects(fs.stat(path.join(root, '.vscode', 'launch.json')));
-  const reload = await fs.readFile(path.join(root, 'src', 'devReload.ts'), 'utf8');
-  assert.match(reload, /Restart Extensions/);
-  assert.match(reload, /workbench\.action\.restartExtensionHost/);
+  await assert.rejects(fs.stat(path.join(root, 'src', 'devReload.ts')));
+  await assert.rejects(fs.stat(path.join(root, 'scripts', 'dev-signal-reload.mjs')));
+  const linker = await fs.readFile(path.join(root, 'scripts', 'ensure-windows-main-host-dev-extension-link.ps1'), 'utf8');
+  assert.match(linker, /targetId = 'tiinex\.tiinex-vscode'/);
+  assert.match(linker, /extensionsJsonPath/);
+  assert.match(linker, /New-Item -ItemType Junction/);
+  assert.match(linker, /Write-Registry/);
+  assert.match(linker, /\.vscode\\link/);
+  assert.match(linker, /Remove-LegacyVersionedLinks/);
+  const gitignore = await fs.readFile(path.join(root, '.gitignore'), 'utf8');
+  assert.match(gitignore, /^\.vscode\/link\/$/m);
+  assert.doesNotMatch(gitignore, /^\.tiinex-dev\/$/m);
   const extension = await fs.readFile(path.join(root, 'src', 'extension.ts'), 'utf8');
-  assert.match(extension, /registerLinkedDevReload\(context, extensionPath\)/);
+  assert.doesNotMatch(extension, /registerLinkedDevReload|devReload/);
 });
 
 await test('Receive orchestration keeps Workspace mutation explicit and makes unasserted branch state visible', async () => {

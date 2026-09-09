@@ -83,25 +83,24 @@ The candidate pipeline stays at package version 0.1.7 in this preparatory lane. 
 
 ## Local development and qualification
 
-Normal UX iteration uses the **same VS Code window** as the installed Tiinex extension. No Extension Development Host and no per-edit VSIX install are required.
+Normal UX iteration uses the **same VS Code window**. The local development path now mirrors the proven ai-provenance Windows main-host pattern instead of relying on implicit discovery of a versioned extension folder.
 
 One-time setup from this checkout:
 
-1. Run the VS Code task **Tiinex: Link this checkout**.
-2. The task first compiles `dist/`, preserves any currently installed Tiinex copy outside the extensions directory, then symlinks/junctions this checkout into the active VS Code extensions directory.
-3. Restart the Extension Host (or VS Code) once so the linked checkout becomes the running extension.
+1. Run **Tiinex: Link this checkout**.
+2. The task creates the unversioned junction `%USERPROFILE%\.vscode\extensions\tiinex.tiinex-vscode` -> this checkout.
+3. It explicitly registers that junction in `%USERPROFILE%\.vscode\extensions\extensions.json`, so the main VS Code host knows the linked extension exists.
+4. Run `Ctrl+Shift+B` once, then restart VS Code or its Extension Host once.
 
-After that the normal loop is:
+Normal loop after that:
 
 ```text
-edit → Ctrl+Shift+B → Restart Extensions → test in the same window
+edit → Ctrl+Shift+B → VS Code: Restart Extensions → test in the same window
 ```
 
-`Ctrl+Shift+B` runs the default task **Tiinex: Build linked extension**. A successful TypeScript build writes a development-only reload signal. The linked Tiinex extension detects that signal and shows **Restart Extensions**; pressing it restarts the Extension Host and loads the new `dist/` bytes without building or installing a VSIX.
+`Ctrl+Shift+B` runs **Tiinex: Build linked extension** and only rebuilds the checkout. There is no per-edit VSIX manufacture and no Tiinex-owned reload marker protocol; VS Code observes the registered junction-backed extension and owns the restart-required UX.
 
-Use **Tiinex: Unlink this checkout** to remove the development link and restore any installed Tiinex copy that the setup task preserved. Restart once after unlinking.
-
-The linker supports stable VS Code and Insiders automatically; `TIINEX_VSCODE_EXTENSIONS_DIR` can override the extensions directory for unusual/portable installations. Development markers live under ignored `.tiinex-dev/` and are not part of candidate VSIX packaging.
+Use **Tiinex: Unlink this checkout** to remove the junction and restore the extension-registry entries that existed before linking. Reversible link metadata lives only under ignored `.vscode/link/`. The setup also cleans the superseded `.tiinex-dev/` marker and old versioned Tiinex junction created by the first implementation.
 
 With the declared dev dependencies installed, full qualification remains:
 
