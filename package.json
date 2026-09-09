@@ -32,7 +32,7 @@
     "commands": [
       {
         "command": "tiinex.landHandoffPackage",
-        "title": "Tiinex: Land Handoff Package"
+        "title": "Tiinex: Receive Handoff Package"
       },
       {
         "command": "tiinex.generateCommitMessage",
@@ -48,15 +48,15 @@
       },
       {
         "command": "tiinex.createHandoff",
-        "title": "Tiinex: Create Handoff"
+        "title": "Tiinex: Prepare Return Handoff"
       },
       {
         "command": "tiinex.buildHandoffPackage",
-        "title": "Tiinex: Build Handoff Package"
+        "title": "Tiinex: Build Return Package"
       },
       {
         "command": "tiinex.openOperator",
-        "title": "Tiinex: Open Operator View"
+        "title": "Tiinex: Open Receive / Review / Return"
       },
       {
         "command": "tiinex.refreshDiagnostics",
@@ -78,12 +78,12 @@
         "tiinex.handoffInbox.path": {
           "type": "string",
           "default": "",
-          "description": "Explicit Tiinex Handoff inbox directory. Blank uses ~/Downloads/Tiinex Inbox."
+          "description": "Global inbox override used by Tiinex Handoff discovery. Blank uses ~/Downloads/Tiinex Inbox; manual Receive can still select any package directly."
         },
         "tiinex.nodePath": {
           "type": "string",
           "default": "",
-          "description": "Optional Node executable used for package-declared Tiinex bootstrap and repository commit-message helpers. Blank uses the VS Code/Electron executable in Node mode."
+          "description": "Explicit Node executable for package-declared bootstrap and installed @tiinex/core Tooling. Blank uses the VS Code/Electron executable in Node mode; repository-local helpers keep their own repository boundary."
         },
         "tiinex.handoff.discovery": {
           "type": "string",
@@ -92,7 +92,7 @@
             "auto"
           ],
           "default": "manual",
-          "description": "Handoff package discovery mode. Manual never watches the inbox; Auto watches only stable completed .handoff-package.zip files."
+          "description": "Receive discovery mode. Manual never watches or scans historical inbox files; Auto watches only stable completed .handoff-package.zip files observed after the current watcher session starts."
         },
         "tiinex.landing.commit": {
           "type": "string",
@@ -102,7 +102,7 @@
             "yes"
           ],
           "default": "no",
-          "description": "After a successful qualified landing, create a commit in each affected repository. Default is no."
+          "description": "After a qualified Receive/landing, create a commit in each affected repository. This does not imply push, acceptance, completion, or Handoff return. Default is no."
         },
         "tiinex.landing.push": {
           "type": "string",
@@ -112,7 +112,7 @@
             "yes"
           ],
           "default": "no",
-          "description": "After a landing-created commit, push exactly that commit only when the current configured upstream remains unchanged. Default is no."
+          "description": "After a landing-created commit, push exactly that commit only while the configured upstream remains unchanged. No force push or invented upstream. Default is no."
         },
         "tiinex.landing.openHandoff": {
           "type": "string",
@@ -122,7 +122,7 @@
             "yes"
           ],
           "default": "no",
-          "description": "After landing, open the exact selected Handoff route. Pointerless Workspace carriers have no Handoff target. Default is no."
+          "description": "After landing, open the exact selected Handoff route when one exists. Pointerless Workspace carriers have no Handoff target. Default is no."
         }
       }
     },
@@ -175,13 +175,18 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build && node test/run.mjs",
     "vsix": "npm run build && node scripts/package-vsix.mjs",
-    "validate": "npm run typecheck && npm test && npm run vsix",
-    "sync:shared-core": "node scripts/sync-shared-core.mjs"
+    "validate": "npm run typecheck && npm test && npm run vsix"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@tiinex/core": "0.1.1"
+  },
   "devDependencies": {
     "@types/node": "22.10.2",
     "@types/vscode": "1.95.0",
     "typescript": "5.7.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Tiinex/extension-vscode.git"
   }
 }

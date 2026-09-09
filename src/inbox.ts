@@ -78,7 +78,7 @@ export class HandoffInboxWatcher implements vscode.Disposable {
       this.setState('blocked', `Inbox watcher blocked: ${message(error)}`, '', directory);
       void vscode.window.showErrorMessage(`Tiinex inbox watcher failed: ${message(error)}`);
     });
-    this.setState('watching', 'Watching only for stable completed .handoff-package.zip carriers observed from this discovery session onward. Historical inbox carriers are not surfaced automatically; use Tiinex: Land Handoff Package to inspect one manually.', '', directory);
+    this.setState('watching', 'Watching only for stable completed .handoff-package.zip carriers observed from this discovery session onward. Historical inbox carriers are not surfaced automatically; use Tiinex: Receive Handoff Package to inspect one manually.', '', directory);
   }
 
   stop(emit = true): void {

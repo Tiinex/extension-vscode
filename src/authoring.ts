@@ -112,8 +112,8 @@ export async function createHandoffFromForm(extensionPath: string, raw: HandoffF
     const transition = parentRecord ? 'continue-from-record' : 'create-artifact';
     const created = await createHandoffDraft(runtime, root, plan.path, title, values, parentRecord, transition);
     const parentText = parentPath || '(root Handoff — no Parent)';
-    const confirmed = await vscode.window.showWarningMessage(`Create exact shared-schema Handoff?\n\nParent: ${parentText}\nArtifact: ${plan.path}\n${from} → ${to}\nTransfer: ${transferName}\n\nEnvelope, validation and integrity are owned by shared Tiinex Tooling.`, { modal: true }, 'Create Handoff');
-    if (confirmed !== 'Create Handoff') throw new Error('tiinex.authoring.cancelled');
+    const confirmed = await vscode.window.showWarningMessage(`Create exact shared-schema Handoff?\n\nParent: ${parentText}\nArtifact: ${plan.path}\n${from} → ${to}\nTransfer: ${transferName}\n\nEnvelope, validation and integrity are owned by shared Tiinex Tooling.`, { modal: true }, 'Prepare Return Handoff');
+    if (confirmed !== 'Prepare Return Handoff') throw new Error('tiinex.authoring.cancelled');
     await mkdir(path.dirname(target), { recursive: true });
     await writeFile(target, String(created.draft.markdown), { encoding: 'utf8', flag: 'wx' });
     const document = await vscode.workspace.openTextDocument(target);

@@ -1,63 +1,80 @@
 # Tiinex VS Code
 
-A deliberately thin native VS Code operator adapter over shared Tiinex package/bootstrap, validation, artifact-authoring, Workspace landing and Git mechanics.
+Tiinex VS Code is a thin native editor host over the published, host-neutral `@tiinex/core` Tooling surface. VS Code owns editor integration, operator presentation, filesystem/Git host adapters and user confirmations; it does not define Tiinex schema meaning, Handoff semantics, Workspace authority or shared package behavior.
 
-## Tiinex Operator view
+This checkout is a **preparatory 0.1.7 lane**. It may build and qualify candidate VSIX bytes, but it does not declare or authorize 0.1.8. Final contract-dependent integration remains behind the Refactor Turn-2 Core/CLI/Interop frontier.
 
-The primary human path is the persistent **Tiinex Operator** view in its own **Tiinex Activity Bar** container, visible immediately after activation. Command Palette entries remain escape hatches that focus the same view rather than starting long chains of transient inputs.
+## Primary operator flow: Receive → Review → Return
 
-The view has three bounded surfaces:
+The Tiinex Activity Bar view keeps one calm primary sequence while retaining fail-closed details and Command Palette recovery paths.
 
-- **Validate** — automatically validates eligible Tiinex Markdown on open, debounced in-memory change, and save through shared `project-editor-assistance`; it shows the active artifact state, links directly to Problems, and keeps Tiinex discovery/settings nearby. Manual refresh remains recovery-only.
-- **Create Handoff** — binds an explicit shared-qualified Parent when available, derives only epistemically safe continuation defaults from that Parent, keeps sender/recipient identity explicit, and collapses pre-filled transfer/completion boilerplate. Shared Tooling still owns Parent qualification, path allocation, schema creation, validation, envelope and integrity sealing.
-- **Build Package** — automatically loads shared-qualified Handoff leaves plus explicit **No Handoff pointer** when the tab becomes active, shows selected Handoff From/To read-only, and independently controls Workspace inclusion. Handoff artifact Parent continuity is not package route selection.
+1. **Receive** opens the existing qualified Handoff-package landing flow. Optional Auto discovery watches only stable `.handoff-package.zip` files observed after the current watcher session starts; it never scans an inbox backlog.
+2. **Review** shows shared Tiinex validation for the active artifact. Eligible Markdown is qualified on open, debounced in-memory change and save. Problems, deterministic locations and eligible full-document Quick Fix bytes come from shared Tooling, not editor inference.
+3. **Return** authors exactly one Handoff **From** endpoint and one **To** endpoint, then offers qualified package construction as the transport step. Extra participants/context must use their declared schema fields; they are never encoded as additional Handoff endpoints.
 
-The context-menu transition appears only while shared Tooling has qualified the active local artifact as a usable authoring Parent. UI presence, active editor, filenames and folder placement do not create authority.
+Advanced package construction is intentionally reachable from Return and through `Tiinex: Build Return Package`; it is not a fourth semantic workflow step. Command IDs remain stable for compatibility.
 
-## Native diagnostics and Quick Fixes
+## Runtime/package boundary
 
-Eligible Tiinex Markdown artifacts are projected through shared `project-editor-assistance` automatically. Unsaved editor bytes are staged only in a transient host file and sent through that same shared operation after a short debounce; saves immediately requalify the real file path. Generation guards prevent stale asynchronous results from replacing newer diagnostics. Exact validator findings appear in Problems/editor ranges when a deterministic line is available; otherwise location stays visibly unresolved. Quick Fixes are restricted to shared-core-qualified deterministic full-document hygiene replacement. Semantic rewriting and LLM guesses are never Code Actions.
+The historical tracked `shared-core/` snapshot and Site-coupled `sync:shared-core` path have been removed. The extension now declares the already-published exact dependency:
 
-The extension does not contribute tasks or problem matchers for the operator path, so Tiinex diagnostics do not depend on task-driven Output/Problems pollution.
+```json
+"@tiinex/core": "0.1.1"
+```
 
-## Multi-root and Workspace landing
+VS Code resolves only the public `@tiinex/core/portable-entry` export (plus the public `package.json` export for version qualification). It does not import private Core source paths and does not ask Core to add new subpaths merely to reproduce the old copied tree.
 
-`Tiinex: Land Handoff Package` qualifies ingress with the package-declared portable bootstrap, then uses the manifest-bound current Site shared core for landing-plan projection.
+Parity evidence for this migration is repository-local and mechanical: the former snapshot's 480 `runtime/src` files were byte-identical to the corresponding carried Core 0.1.1 files, its portable entrypoint was byte-identical, and both operation catalogs exposed the same 70 operations. The VSIX includes the installed `@tiinex/core` package under `extension/node_modules/@tiinex/core` so the runtime dependency is self-contained.
 
-Repository matching is explicitly multi-root:
+Package generation removes any previous same-version candidate **before** runtime-dependency qualification. A failed build therefore cannot leave a stale candidate looking current. Successful manufacture prints a deterministic receipt containing candidate SHA-256 plus the Core package version, portable entrypoint, file/byte counts and a representation SHA-256.
 
-- all opened Git roots and their explicit Git facts are projected to shared Tooling together;
-- Windows root comparisons treat slash/case-equivalent Git API and `git.exe` roots as the same filesystem repository without weakening repository identity checks;
-- ambiguous/missing repository identity still fails closed;
-- dirty worktrees block;
-- qualified ref/branch mismatches are preflighted across all targets and require one explicit safe branch-switch approval before Workspace bytes are written.
+## What remains host-local in `src/core/`
 
-Landing uses one multi-repository confirmation. Post-landing `commit`, `push`, and `openHandoff` policies are independent `no | ask | yes` settings and all default to `no`. Push can only target the unchanged configured upstream for the exact commit created by the same landing run; no force push or invented upstream exists in this adapter.
+Directory names are locality, not semantic authority. The remaining modules are intentionally VS Code-owned helpers:
 
-## Package construction
+| Area | Responsibility |
+| --- | --- |
+| `findingPresentation`, `operatorError`, `operatorUx`, `operatorWebview`, `operatorModel` | Editor/operator presentation, safe defaults and selection-state shaping. |
+| `latestWinsQueue` | Host scheduling for stale-result suppression in diagnostics. |
+| `packageArgs` | VS Code host argument shaping for the public portable Tooling entrypoint. |
+| `paths`, `repositoryPath`, `stableFile` | Local filesystem/repository normalization and inbox stability/session behavior. |
 
-Package construction is distinct from Handoff authoring. The persistent builder presents only shared-qualified Handoff leaves plus explicit `No Handoff pointer`, exact repository-matched Workspace candidates, read-only route From/To and Workspace inclusion controls before shared manufacture preview.
+None of these files is treated as a reason to create a new Core export. A future move requires an independently frozen shared responsibility, not the word `core` in the local path.
 
-Pointerless Workspace-carrier manufacture uses shared Tooling's canonical all-`none` mode, emits no Handoff route or routing text, and does not infer endpoint, current-work, transfer, participation, acceptance or completion semantics. Arbitrary tracked-source exclusions are not offered.
+## Diagnostics and Quick Fixes
+
+Unsaved bytes are staged only in a transient host file for the lifetime of the shared `project-editor-assistance` call. Generation guards prevent stale asynchronous results from replacing newer editor state. Exact validator findings appear in Problems/editor ranges when a deterministic line is available; otherwise the location remains visibly unresolved. Quick Fixes remain restricted to shared-qualified deterministic full-document hygiene replacement.
+
+The extension contributes no tasks or problem matchers for this path, so validation does not depend on task-driven Output/Problems pollution.
+
+## Workspace landing
+
+`Tiinex: Receive Handoff Package` first qualifies ingress with the **received package's own declared bootstrap**. Current landing-plan projection then uses installed `@tiinex/core` Tooling.
+
+Repository matching is explicitly multi-root. All opened Git roots and explicit Git facts are projected together; slash/case-equivalent Windows paths can represent the same local repository while repository identity remains fail-closed. Dirty worktrees block. Qualified branch mismatches are preflighted and require one explicit branch-switch approval before Workspace bytes are written.
+
+Landing has one multi-repository confirmation. Post-landing `commit`, `push`, and `openHandoff` policies are independent `no | ask | yes` settings and default to `no`. Push is limited to the unchanged configured upstream for the exact commit created by the same landing run; there is no force push or invented upstream.
+
+## Handoff authoring and package construction
+
+Parent continuity and package route selection remain separate concepts. Shared Tooling qualifies authoring Parent, endpoint references, path allocation, schema rendering, validation and integrity sealing. The host form keeps exactly one From and one To.
+
+The package builder presents shared-qualified Handoff leaves plus explicit **No Handoff pointer**, exact repository-matched Workspace candidates, read-only route From/To and independent Workspace inclusion. Pointerless carriers create no Handoff route, endpoint, current-work, transfer, participation, acceptance or completion semantics.
+
+The candidate pipeline stays at package version 0.1.7 in this preparatory lane. No release publication is performed here.
 
 ## Git workflow
 
-- `Tiinex: Generate Tiinex Commit Message` delegates to the selected repository's own `tools/tiinex-commit-message.mjs` and fills the native SCM input.
-- `Tiinex: Stage, Commit & Push with Tiinex` remains a separate explicit command and fails closed on detached HEAD, missing upstream, no staged changes or changed publication state.
-- Workspace landing itself never implies commit, push, acceptance or completion.
+- `Tiinex: Generate Tiinex Commit Message` delegates to the selected repository's own `tools/tiinex-commit-message.mjs`.
+- `Tiinex: Stage, Commit & Push with Tiinex` remains explicit and fails closed on detached HEAD, missing upstream, no staged changes, failed staged Tiinex validation or changed publication state.
+- Workspace landing never implies commit, push, acceptance or completion.
 
-## Inbox discovery
+## Local qualification
 
-Handoff discovery is `manual` by default or opt-in `auto`, with an explicit inbox override and conservative stable-file debounce for completed `.handoff-package.zip` files. The Operator view visibly distinguishes disabled, watching, candidate-found, candidate-blocked, and landing-awaiting-confirmation states. Auto discovery raises a native **Preview / Land** vs **Ignore** notification before entering the existing qualified, explicitly confirmed landing flow.
-
-## Shared Tiinex core snapshot
-
-The installable VSIX carries `shared-core/tiinex.bootstrap`, a manifest-bound runtime snapshot generated byte-for-byte by the shared `Tiinex/site` portable Tooling bootstrap builder. Package ingress is always qualified first by the received package's own declared bootstrap. Current planning/authoring/manufacture projections then use the bundled shared core so older already-issued carriers need not contain future Tooling operations.
-
-Refresh the snapshot from a qualified Site workspace with:
+With the declared dev dependencies installed, run:
 
 ```text
-npm run sync:shared-core -- /path/to/site
+npm run validate
 ```
 
-VS Code remains a host adapter. It does not define Handoff, Workspace, Role, Task, package, validator, path-allocation or commit-message semantics.
+That performs typecheck, a clean build, focused regression tests and candidate VSIX generation. `node scripts/package-vsix.mjs` can also manufacture from an already-built `dist/`; its JSON receipt is the authoritative local candidate-byte summary for that run.

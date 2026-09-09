@@ -72,30 +72,27 @@ export async function preparePackageRuntime(packagePath: string, nodeExecutable 
 
 
 export async function prepareBundledRuntime(extensionPath: string, nodeExecutable = process.execPath): Promise<PackageRuntime> {
-  const root = path.resolve(extensionPath, 'shared-core', 'tiinex.bootstrap');
-  const manifestPath = path.join(root, 'manifest.json');
-  let manifest: any;
-  try { manifest = JSON.parse(await readFile(manifestPath, 'utf8')); }
-  catch { throw new Error('tiinex.shared-core.manifest-unreadable'); }
-  if (String(manifest?.schema || '') !== 'tiinex.portable.tooling-bootstrap.manifest.v1') throw new Error('tiinex.shared-core.manifest-schema');
-  const entrypointRelative = String(manifest?.entrypoint || '').replace(/\\/g, '/');
-  if (!entrypointRelative.startsWith('runtime/') || entrypointRelative.includes('..')) throw new Error('tiinex.shared-core.entrypoint-invalid');
-  const entries = Array.isArray(manifest?.runtime?.entries) ? manifest.runtime.entries : [];
-  if (!entries.some((entry: any) => String(entry?.path || '') === entrypointRelative)) throw new Error('tiinex.shared-core.entrypoint-unlisted');
-  for (const entry of entries) {
-    const relative = String(entry?.path || '').replace(/\\/g, '/');
-    if (!relative.startsWith('runtime/') || relative.includes('..')) throw new Error('tiinex.shared-core.runtime-entry-invalid');
-    const target = path.resolve(root, ...relative.split('/'));
-    const rel = path.relative(root, target);
-    if (!rel || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) throw new Error('tiinex.shared-core.runtime-entry-outside-root');
-    const bytes = await readFile(target);
-    if (bytes.byteLength !== Number(entry?.bytes || 0)) throw new Error(`tiinex.shared-core.runtime-byte-size-mismatch:${relative}`);
-    if (sha256Hex(bytes) !== String(entry?.sha256 || '').toLowerCase()) throw new Error(`tiinex.shared-core.runtime-sha256-mismatch:${relative}`);
+  const expectedName = '@tiinex/core';
+  const expectedVersion = '0.1.1';
+  let packageJsonPath = '';
+  let entrypoint = '';
+  try {
+    packageJsonPath = require.resolve(`${expectedName}/package.json`, { paths: [extensionPath] });
+    entrypoint = require.resolve(`${expectedName}/portable-entry`, { paths: [extensionPath] });
+  } catch (error) {
+    throw new Error(`tiinex.core-package.unavailable:${messageOf(error)}`);
   }
-  const entrypoint = path.resolve(root, ...entrypointRelative.split('/'));
+  const root = path.dirname(packageJsonPath);
+  const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf8'));
+  if (String(packageJson?.name || '') !== expectedName) throw new Error('tiinex.core-package.name-mismatch');
+  if (String(packageJson?.version || '') !== expectedVersion) throw new Error(`tiinex.core-package.version-mismatch:${String(packageJson?.version || 'unknown')}:${expectedVersion}`);
+  const relativeEntrypoint = path.relative(root, entrypoint);
+  if (!relativeEntrypoint || relativeEntrypoint === '..' || relativeEntrypoint.startsWith(`..${path.sep}`) || path.isAbsolute(relativeEntrypoint)) throw new Error('tiinex.core-package.entrypoint-outside-package');
   await access(entrypoint);
   return { root, entrypoint, nodeExecutable, dispose: async () => undefined };
 }
+
+function messageOf(error: unknown): string { return error instanceof Error ? error.message : String(error); }
 
 export async function runTiinexJson<T>(runtime: PackageRuntime, args: string[], runner: ProcessRunner = runProcess): Promise<T> {
   const result = await runChecked(runtime.nodeExecutable, [runtime.entrypoint, ...args], { env: nodeProcessEnvironment() }, runner);

@@ -8,7 +8,7 @@ function actionForFinding(code: string): string {
   const value = code.toLowerCase();
   if (value.includes('route')) return 'Choose one exact qualified Handoff route (or No Handoff pointer), refresh the preview, and retry.';
   if (value.includes('workspace')) return 'Verify the selected Workspace identity and its host-root mapping, refresh the qualified context, and retry.';
-  if (value.includes('bootstrap') || value.includes('transport') || value.includes('payload') || value.includes('archive')) return 'Regenerate the carrier from the current generated Site shared-core snapshot; do not hand-edit transport bytes.';
+  if (value.includes('bootstrap') || value.includes('transport') || value.includes('payload') || value.includes('archive')) return 'Verify the installed @tiinex/core runtime package and regenerate the carrier through shared Tooling; do not hand-edit transport bytes.';
   if (value.includes('schema') || value.includes('parent') || value.includes('origin') || value.includes('integrity') || value.includes('lineage')) return 'Repair the reported Tiinex artifact through shared Tooling, then refresh the preview and retry.';
   return 'Resolve the shared Tiinex qualification finding, refresh the preview, and retry.';
 }

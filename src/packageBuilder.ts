@@ -132,8 +132,8 @@ export async function buildHandoffPackageFromForm(extensionPath: string, input: 
     if (preview.status !== 'ready' || preview.transportExecutable === false) throw new Error(`tiinex.package-builder.preview-blocked:\n${receiptBlocker(preview)}`);
     const workspaceText = selectedSources.map((item) => `${item.workspaceId}: ${workspaceSourceLabel(item)}`).join('\n');
     const filename = String(preview?.humanOutput?.primary?.filename || '(shared Tooling will resolve filename)');
-    const accepted = await vscode.window.showWarningMessage(`Build qualified Handoff carrier?\n\nRoute: ${route.path}\nFrom/To (read-only): ${route.from} → ${route.to}\n\nWorkspaces:\n${workspaceText}\n\nProjected package: ${filename}\n\nHandoff artifact continuity Parent is not package route selection. Complete-snapshot membership is owned by shared Tooling.`, { modal: true }, 'Build Package');
-    if (accepted !== 'Build Package') throw new Error('tiinex.package-builder.cancelled');
+    const accepted = await vscode.window.showWarningMessage(`Build qualified Handoff carrier?\n\nRoute: ${route.path}\nFrom/To (read-only): ${route.from} → ${route.to}\n\nWorkspaces:\n${workspaceText}\n\nProjected package: ${filename}\n\nHandoff artifact continuity Parent is not package route selection. Complete-snapshot membership is owned by shared Tooling.`, { modal: true }, 'Build Return Package');
+    if (accepted !== 'Build Return Package') throw new Error('tiinex.package-builder.cancelled');
     const folder = await vscode.window.showOpenDialog({ canSelectFiles: false, canSelectFolders: true, canSelectMany: false, title: 'Select output directory for Tiinex Handoff package' });
     if (!folder?.length) throw new Error('tiinex.package-builder.output-cancelled');
     const built = await manufactureHandoffPackage(runtime, [...args, '--output-dir', folder[0].fsPath]);

@@ -11,7 +11,7 @@ import { LatestWinsKeyedQueue } from '../dist/core/latestWinsQueue.js';
 import { canonicalRepositoryRoot, relativeRepositoryPath, repositoryContainsPath, sameRepositoryRoot } from '../dist/core/repositoryPath.js';
 import { ignoredPathCollisions, safeRelativePath, safeTarget } from '../dist/core/paths.js';
 import { generateTiinexCommitMessage, listStagedPaths, preflightExistingLocalBranch, pushExactLandingCommit, stageCommitPush, stageLandingCommit } from '../dist/host/git.js';
-import { createHandoffDraft, parseBootstrapDescriptor, prepareBundledRuntime, projectEditorAssistanceText, projectHandoffAuthoringPlan, projectHandoffEndpoints, projectOperatorContext, projectStagedValidation, projectWorkspaceLanding, projectWorkspacePackageSources } from '../dist/tiinex/bootstrap.js';
+import { createHandoffDraft, parseBootstrapDescriptor, prepareBundledRuntime, runTiinexJson, projectEditorAssistanceText, projectHandoffAuthoringPlan, projectHandoffEndpoints, projectOperatorContext, projectStagedValidation, projectWorkspaceLanding, projectWorkspacePackageSources } from '../dist/tiinex/bootstrap.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 let count = 0;
@@ -102,7 +102,7 @@ await test('automatic discovery is session-scoped, never startup-backlog-scoped,
   assert.doesNotMatch(source, /initialScan/);
   assert.doesNotMatch(source, /readdir\(/);
   assert.match(source, /Historical inbox carriers are not surfaced automatically/);
-  assert.match(source, /Tiinex: Land Handoff Package/);
+  assert.match(source, /Tiinex: Receive Handoff Package/);
   assert.match(source, /this\.seen\.has\(filePath\)/);
   assert.match(source, /'Preview \/ Land'/);
   assert.match(source, /'Ignore'/);
@@ -118,7 +118,7 @@ await test('automatic discovery is session-scoped, never startup-backlog-scoped,
 await test('operator webview client script parses and binds every visible primary action', async () => {
   const script = operatorClientScript({ routes: [{ id: 'route', pointerless: false, from: 'Anchor', to: 'Loom' }], workspaces: [{ workspaceId: 'site' }] }, 3, 4);
   assert.doesNotThrow(() => new Function(script));
-  for (const type of ['section', 'refreshDiagnostics', 'showProblems', 'openSettings', 'selectInbox', 'useActiveParent', 'clearParent', 'reloadPackage', 'createHandoff', 'buildPackage']) {
+  for (const type of ['section', 'landPackage', 'refreshDiagnostics', 'showProblems', 'openSettings', 'selectInbox', 'useActiveParent', 'clearParent', 'openPackageBuilder', 'returnToAuthoring', 'reloadPackage', 'createHandoff', 'buildPackage']) {
     assert.match(script, new RegExp(`type:'${type}'`));
   }
   assert.match(script, /\\nWorkspaces:/);
@@ -137,6 +137,10 @@ await test('native Handoff authoring preserves qualified Role/Party references a
   assert.match(operator, /kind\.value=chosen\.dataset\.kind\|\|''/);
   assert.match(operator, /reference\.value=chosen\.value/);
   assert.match(operator, /reference\.value=''/);
+  const view = await fs.readFile(path.resolve(HERE, '..', 'src', 'operatorView.ts'), 'utf8');
+  assert.equal((view.match(/name=\"from\"/g) || []).length, 1);
+  assert.equal((view.match(/name=\"to\"/g) || []).length, 1);
+  assert.match(view, /Additional context or participants belong in their declared schema fields/);
   assert.doesNotMatch(operator, /option\.disabled=option\.dataset\.kind/);
 });
 
@@ -215,34 +219,40 @@ await test('bootstrap descriptor binds exact package payload bytes and entrypoin
   assert.deepEqual(parseBootstrapDescriptor(start, trace), { packagePath: '001-2-bootstrap.zip', bytes: 42, sha256: 'a'.repeat(64), entrypoint: 'runtime/tools/tiinex-portable.mjs' });
 });
 
-await test('bundled shared core is manifest-bound exact Site Tooling bytes', async () => {
-  const runtime = await prepareBundledRuntime(path.resolve(HERE, '..'), process.execPath);
+await test('installed @tiinex/core 0.1.1 public portable entry replaces the tracked shared snapshot', async () => {
+  const fs = await import('node:fs/promises');
+  const root = path.resolve(HERE, '..');
+  const manifest = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8'));
+  assert.equal(manifest.dependencies?.['@tiinex/core'], '0.1.1');
+  assert.equal(Object.hasOwn(manifest.scripts || {}, 'sync:shared-core'), false);
+  await assert.rejects(fs.access(path.join(root, 'shared-core')));
+  const runtime = await prepareBundledRuntime(root, process.execPath);
   try {
-    assert.match(runtime.entrypoint, /shared-core[\\/]tiinex\.bootstrap[\\/]runtime[\\/]tools[\\/]tiinex-portable\.mjs$/);
+    assert.match(runtime.root, /node_modules[\\/]@tiinex[\\/]core$/);
+    assert.match(runtime.entrypoint, /node_modules[\\/]@tiinex[\\/]core[\\/]tools[\\/]tiinex-portable\.mjs$/);
+    const corePackage = JSON.parse(await fs.readFile(path.join(runtime.root, 'package.json'), 'utf8'));
+    assert.equal(corePackage.name, '@tiinex/core');
+    assert.equal(corePackage.version, '0.1.1');
+    assert.equal(corePackage.exports?.['./portable-entry'], './tools/tiinex-portable.mjs');
   } finally { await runtime.dispose(); }
 });
 
-
-
-await test('recovered shared-core provenance is exact and registers the Major 013 operator-context and staged-validation operations', async () => {
-  const fs = await import('node:fs/promises');
-  const root = path.resolve(HERE, '..');
-  const provenance = JSON.parse(await fs.readFile(path.join(root, 'shared-core', 'provenance.json'), 'utf8'));
-  assert.equal(provenance.bootstrapManifestSha256, '7782647668200c4a398978d7fb3582f8a1c64a2f0c6506784a27b93303d6e3ec');
-  assert.equal(provenance.runtimeRepresentationSha256, '6f5daedf4ac8e0fc75be719d99d8cb25424d8521ed565f8c60cb6963db25b9fb');
-  assert.equal(provenance.runtimeFiles, 482);
-  const catalog = await fs.readFile(path.join(root, 'shared-core', 'tiinex.bootstrap', 'runtime', 'src', 'tooling', 'portable', 'operation.catalog.package.js'), 'utf8');
-  assert.match(catalog, /'project-operator-context'/);
-  assert.match(catalog, /'project-staged-validation'/);
+await test('public Core portable entry exposes every VS Code-used shared operation', async () => {
+  const runtime = await prepareBundledRuntime(path.resolve(HERE, '..'), process.execPath);
+  try {
+    const catalog = await runTiinexJson(runtime, ['operations']);
+    const names = new Set((catalog.operations || []).map((item) => item.name));
+    for (const name of ['orient-handoff-package', 'project-workspace-landing', 'project-editor-assistance', 'project-authoring-parent', 'project-operator-context', 'project-staged-validation', 'project-handoff-endpoints', 'project-handoff-authoring-plan', 'create-local-draft', 'manufacture-handoff-package']) assert.equal(names.has(name), true, name);
+  } finally { await runtime.dispose(); }
 });
 
-await test('bundled shared runtime executes real operator-context and staged-only validation projections', async () => {
+await test('installed Core runtime executes real operator-context and staged-only validation projections', async () => {
   const root = path.resolve(HERE, '..');
   const runtime = await prepareBundledRuntime(root, process.execPath);
   try {
     const context = await projectOperatorContext(runtime, [root]);
     assert.equal(context.status, 'ready');
-    assert.deepEqual(context.workspaces.map((item) => item.workspaceId), ['vscode']);
+    assert.deepEqual(context.workspaces.map((item) => item.workspaceId), ['extension-vscode', 'vscode']);
     assert.equal((context.findings || []).some((item) => item.severity === 'error'), false);
     const staged = await projectStagedValidation(runtime, root, ['README.md']);
     assert.equal(staged.status, 'ready');
@@ -252,7 +262,7 @@ await test('bundled shared runtime executes real operator-context and staged-onl
   } finally { await runtime.dispose(); }
 });
 
-await test('bundled editor assistance withholds mixed-revision schema lineage while preserving qualified local authority', async () => {
+await test('installed Core editor assistance withholds mixed-revision schema lineage while preserving qualified local authority', async () => {
   const fs = await import('node:fs/promises');
   const os = await import('node:os');
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tiinex-vscode-editor-material-'));
