@@ -95,9 +95,22 @@ await test('Receive settings expose role filtering and ai-provenance-style regis
   assert.match(manifest.scripts['dev:link'], /ensure-windows-main-host-dev-extension-link\.ps1/);
   assert.match(manifest.scripts['dev:build'], /npm run build/);
   assert.match(manifest.scripts['dev:unlink'], /ensure-windows-main-host-dev-extension-link\.ps1 -Unlink/);
-  assert.equal(Object.hasOwn(manifest.scripts, 'dev:setup'), false);
+  assert.equal(manifest.scripts['dev:setup'], 'npm run dev:link');
   assert.equal(Object.hasOwn(manifest.scripts, 'watch'), false);
   const tasks = JSON.parse(await fs.readFile(path.join(root, '.vscode', 'tasks.json'), 'utf8'));
+  for (const item of tasks.tasks) {
+    if (item.type === 'npm') {
+      assert.ok(typeof item.script === 'string' && Object.hasOwn(manifest.scripts, item.script), `VS Code task ${item.label} references missing npm script ${item.script}`);
+    }
+    if (item.command === 'powershell') {
+      const fileIndex = item.args?.indexOf('-File') ?? -1;
+      if (fileIndex >= 0) {
+        const taskFile = item.args?.[fileIndex + 1];
+        assert.ok(typeof taskFile === 'string' && taskFile.length > 0, `VS Code task ${item.label} has no PowerShell -File target`);
+        await fs.stat(path.join(root, taskFile));
+      }
+    }
+  }
   assert.ok(tasks.tasks.some((item) => item.label === 'Tiinex: Link this checkout' && item.command === 'powershell' && item.args?.includes('scripts/ensure-windows-main-host-dev-extension-link.ps1')));
   assert.ok(tasks.tasks.some((item) => item.label === 'Tiinex: Build linked extension' && item.group?.isDefault === true));
   assert.ok(tasks.tasks.some((item) => item.label === 'Tiinex: Unlink this checkout' && item.args?.includes('-Unlink')));

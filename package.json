@@ -182,6 +182,7 @@
     "vsix": "npm run build && node scripts/package-vsix.mjs",
     "validate": "npm run typecheck && npm test && npm run vsix",
     "dev:build": "npm run build",
+    "dev:setup": "npm run dev:link",
     "dev:link": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ensure-windows-main-host-dev-extension-link.ps1",
     "dev:unlink": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ensure-windows-main-host-dev-extension-link.ps1 -Unlink"
   },

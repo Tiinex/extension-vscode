@@ -102,6 +102,8 @@ edit → Ctrl+Shift+B → VS Code: Restart Extensions → test in the same windo
 
 Use **Tiinex: Unlink this checkout** to remove the junction and restore the extension-registry entries that existed before linking. Reversible link metadata lives only under ignored `.vscode/link/`. The setup also cleans the superseded `.tiinex-dev/` marker and old versioned Tiinex junction created by the first implementation.
 
+For checkouts that still have the earlier npm-backed Link task cached or materialized, `dev:setup` remains as a compatibility alias to `dev:link`; the canonical task now calls the PowerShell linker directly.
+
 With the declared dev dependencies installed, full qualification remains:
 
 ```text
