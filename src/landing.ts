@@ -31,7 +31,7 @@ type Policy = 'no' | 'ask' | 'yes';
 type DirtyAction = 'stash' | 'commit' | 'discard' | 'skip';
 
 function nodeExecutable(): string { return vscode.workspace.getConfiguration('tiinex').get('nodePath', '').toString().trim() || process.execPath; }
-function policy(name: 'commit' | 'push' | 'openHandoff'): Policy { const value = vscode.workspace.getConfiguration('tiinex.landing').get(name, 'no').toString(); return value === 'ask' || value === 'yes' ? value : 'no'; }
+function policy(name: 'commit' | 'push'): Policy { const value = vscode.workspace.getConfiguration('tiinex.landing').get(name, 'no').toString(); return value === 'ask' || value === 'yes' ? value : 'no'; }
 function rolePreference(): string { return vscode.workspace.getConfiguration('tiinex').get('operator.role', '').toString().trim(); }
 function message(error: unknown): string { return error instanceof Error ? error.message : String(error); }
 function findingsText(plan: LandingPlan): string { return plan.findings.filter((item) => item.severity === 'error').map((item) => `${item.code}: ${item.message}`).join('\n') || `Landing plan status: ${plan.status}`; }
@@ -360,36 +360,9 @@ function routeForGrounding(orientation: OrientResult, preferred: QualifiedRouteR
   return routes.length === 1 ? routes[0] : null;
 }
 
-async function openReceivedHandoffs(orientation: OrientResult, workspaceRoots: Record<string, string>, preferredRoutes?: QualifiedRouteReceipt[]): Promise<{ opened: number; preferred: QualifiedRouteReceipt[] }> {
-  const allRoutes = qualifiedRoutes(orientation);
-  const preferred = preferredRoutes || routesPreferredForRole(allRoutes, rolePreference());
-  const available = preferred.filter((route) => Boolean(workspaceRoots[route.workspaceId]));
-  const openPolicy = policy('openHandoff');
-  if (!available.length || openPolicy === 'no') return { opened: 0, preferred };
-  if (!await askPolicy(openPolicy, `Open ${available.length} qualified Handoff artifact${available.length === 1 ? '' : 's'} after Receive? Pointer files will not be opened.`, 'Open Handoffs')) return { opened: 0, preferred };
-  const seen = new Set<string>();
-  let opened = 0;
-  for (const route of available) {
-    const key = `${route.workspaceId}::${route.workspaceRelativeHandoffPath}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    const target = safeTarget(workspaceRoots[route.workspaceId], safeRelativePath(route.workspaceRelativeHandoffPath));
-    const uri = vscode.Uri.file(target);
-    try {
-      await vscode.commands.executeCommand('markdown.showPreview', uri);
-      await vscode.commands.executeCommand('workbench.action.keepEditor');
-    } catch {
-      const document = await vscode.workspace.openTextDocument(uri);
-      await vscode.window.showTextDocument(document, { preview: false, preserveFocus: true });
-    }
-    opened += 1;
-  }
-  return { opened, preferred };
-}
+function policySummary(): string { return `Post-landing policies: commit=${policy('commit')}, push=${policy('push')}. Handoff preview is controlled separately by Incoming. Shared Tiinex Tooling qualifies package/Workspace targeting; the VS Code host owns only explicit local UX and Git actions.`; }
 
-function policySummary(): string { return `Post-landing policies: commit=${policy('commit')}, push=${policy('push')}, openHandoff=${policy('openHandoff')}. Shared Tiinex Tooling qualifies package/Workspace targeting; the VS Code host owns only explicit local UX and Git actions.`; }
-
-export async function landHandoffPackage(packagePath: string, extensionPath: string): Promise<LandingResult | null> {
+export async function landHandoffPackage(packagePath: string, extensionPath: string, requestedWorkspaceIds: string[] = []): Promise<LandingResult | null> {
   const ingressRuntime = await preparePackageRuntime(packagePath, nodeExecutable());
   let sharedRuntime: Awaited<ReturnType<typeof prepareBundledRuntime>> | null = null;
   try {
@@ -401,21 +374,22 @@ export async function landHandoffPackage(packagePath: string, extensionPath: str
       : null;
     sharedRuntime = await prepareBundledRuntime(extensionPath, nodeExecutable());
 
+    const requested = [...new Set(requestedWorkspaceIds.map((item) => String(item || '').trim()).filter(Boolean))].sort();
     let facts = await collectRepositoryFacts();
     const selections: Record<string, string> = {};
     const skipped = new Set<string>();
 
-    let discoveryPlan = await projectWorkspaceLanding(sharedRuntime, packagePath, facts, selections);
+    let discoveryPlan = await projectWorkspaceLanding(sharedRuntime, packagePath, facts, selections, requested);
     await skipUntargetableWorkspaces(discoveryPlan, skipped);
     await resolveAmbiguousSelections(discoveryPlan, facts, selections, skipped);
     facts = await addMissingWorkspaces(packagePath, sharedRuntime, discoveryPlan, facts, selections, skipped);
 
-    discoveryPlan = await projectWorkspaceLanding(sharedRuntime, packagePath, facts, selections);
+    discoveryPlan = await projectWorkspaceLanding(sharedRuntime, packagePath, facts, selections, requested);
     await resolveBranchAndDirty(discoveryPlan, skipped);
 
     const knownRoots = facts.map((item) => item.root);
     facts = await collectRepositoryFacts(knownRoots);
-    discoveryPlan = await projectWorkspaceLanding(sharedRuntime, packagePath, facts, selections);
+    discoveryPlan = await projectWorkspaceLanding(sharedRuntime, packagePath, facts, selections, requested);
     for (const workspace of discoveryPlan.workspaces) {
       if (!skipped.has(workspace.workspaceId) && workspace.state !== 'ready') {
         skipped.add(workspace.workspaceId);
@@ -423,7 +397,7 @@ export async function landHandoffPackage(packagePath: string, extensionPath: str
       }
     }
     await acknowledgeUnassertedBranches(discoveryPlan, skipped);
-    await selectReadyWorkspaces(discoveryPlan, skipped);
+    if (!requested.length) await selectReadyWorkspaces(discoveryPlan, skipped);
 
     const selectedWorkspaceIds = discoveryPlan.workspaces.filter((item) => item.state === 'ready' && !skipped.has(item.workspaceId)).map((item) => item.workspaceId).sort();
     if (!selectedWorkspaceIds.length) {
@@ -451,7 +425,7 @@ export async function landHandoffPackage(packagePath: string, extensionPath: str
     const workspaceRoots: Record<string, string> = {};
     for (const workspace of finalPlan.workspaces) if (workspace.repository?.root) workspaceRoots[workspace.workspaceId] = workspace.repository.root;
 
-    const opened = await openReceivedHandoffs(orientation, workspaceRoots, preferredRoutes);
+    const opened = { opened: 0, preferred: preferredRoutes };
     const qualifiedReceived = receivedBeforeLanding ? withWorkspaceRoots(receivedBeforeLanding, workspaceRoots) : null;
 
     await vscode.window.showInformationMessage(`Tiinex received ${finalPrepared.length} Workspace${finalPrepared.length === 1 ? '' : 's'}; staged ${git.staged}, committed ${git.commits.size}, pushed ${git.pushed}, opened ${opened.opened} Handoff artifact${opened.opened === 1 ? '' : 's'}.`);

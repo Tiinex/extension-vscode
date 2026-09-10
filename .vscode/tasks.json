@@ -2,6 +2,18 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "Tiinex: npm install",
+      "type": "shell",
+      "command": "npm install",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true,
+        "showReuseMessage": false
+      }
+    },
+    {
       "label": "Tiinex: Link this checkout",
       "type": "shell",
       "command": "powershell",
@@ -11,6 +23,10 @@
         "Bypass",
         "-File",
         "scripts/ensure-windows-main-host-dev-extension-link.ps1"
+      ],
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Tiinex: npm install"
       ],
       "problemMatcher": [],
       "presentation": {
@@ -24,6 +40,10 @@
       "label": "Tiinex: Build linked extension",
       "type": "npm",
       "script": "dev:build",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Tiinex: Link this checkout"
+      ],
       "group": {
         "kind": "build",
         "isDefault": true

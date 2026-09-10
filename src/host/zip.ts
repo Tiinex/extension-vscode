@@ -39,6 +39,20 @@ export async function inspectZipBuffer(buffer: Buffer): Promise<ZipEntryInfo[]> 
   return parseCentralDirectory(buffer).map(({ path: entryPath, bytes, directory }) => ({ path: entryPath, bytes, directory }));
 }
 
+export interface ZipTextEntry extends ZipEntryInfo { data: Buffer }
+
+export async function readZipEntriesFromBuffer(buffer: Buffer, predicate: (entry: ZipEntryInfo) => boolean = () => true): Promise<ZipTextEntry[]> {
+  const entries = parseCentralDirectory(buffer);
+  const out: ZipTextEntry[] = [];
+  for (const entry of entries) {
+    const info: ZipEntryInfo = { path: entry.path, bytes: entry.bytes, directory: entry.directory };
+    if (entry.directory || !predicate(info)) continue;
+    if (isSymlink(entry)) throw new Error(`tiinex.zip.symlink-unsupported:${entry.rawName}`);
+    out.push({ ...info, data: extractEntry(buffer, entry) });
+  }
+  return out;
+}
+
 export async function extractZipBuffer(buffer: Buffer, outputDir: string): Promise<ZipEntryInfo[]> {
   const entries = parseCentralDirectory(buffer);
   await mkdir(outputDir, { recursive: true });

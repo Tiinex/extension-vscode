@@ -117,7 +117,7 @@ function Read-Registry {
 function Write-Registry {
     param(
         [Parameter(Mandatory = $true)]$Registry,
-        [Parameter(Mandatory = $true)][object[]]$Entries
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$Entries
     )
     if ($Registry.Kind -eq 'object') {
         $Registry.Root.extensions = @($Entries)
@@ -146,7 +146,10 @@ function Remove-LegacyVersionedLinks {
 }
 
 function Save-State {
-    param([Parameter(Mandatory = $true)]$Registry, [Parameter(Mandatory = $true)][object[]]$PreviousEntries)
+    param(
+        [Parameter(Mandatory = $true)]$Registry,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$PreviousEntries
+    )
     New-Item -ItemType Directory -Force -Path $stateRoot | Out-Null
     $state = [pscustomobject]@{
         schema = 'tiinex.vscode.main-host-link.v2'

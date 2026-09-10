@@ -6,7 +6,7 @@ import { manufactureHandoffPackage, OperatorContextResult, prepareBundledRuntime
 import { repositoryRoots } from './vscode/gitApi';
 import { repositoryFact } from './host/git';
 import { workspaceCarrierArgs } from './core/packageArgs';
-import { exactRouteByKey, exactWorkspaceIds, routeChoiceKey } from './core/operatorModel';
+import { exactRouteByKey, routeChoiceKey } from './core/operatorModel';
 import { sameRepositoryRoot } from './core/repositoryPath';
 import { presentActionableFindings } from './core/findingPresentation';
 
@@ -14,8 +14,10 @@ type WorkspaceSource = WorkspacePackageSourcesResult['candidates'][number] & { r
 export type RouteChoice = { id: string; pointerless: boolean; label: string; description: string; detail?: string; path?: string; from?: string; to?: string; workspaceId?: string };
 export interface PackageWorkspaceChoice { workspaceId: string; repository: string; ref: string; root: string; workspaceTargetPath: string; sourceKind?: string }
 export interface PackageBuilderModel { workspaces: PackageWorkspaceChoice[]; routes: RouteChoice[] }
-export interface PackageBuildInput { routeId: string; workspaceIds: string[] }
-export interface PackageBuildResult { outputPath: string; routingText: string; routeId: string; workspaceIds: string[] }
+export interface PackageParticipantRole { label: string; reference: string; workspaceId: string; path: string }
+export interface PackageRouteInput { routeId: string; participantRoles?: PackageParticipantRole[] }
+export interface PackageBuildInput { routeId: string; routeInputs?: PackageRouteInput[]; workspaceIds: string[]; packageParentPath?: string; participantRoles?: PackageParticipantRole[] }
+export interface PackageBuildResult { outputPath: string; routingText: string; routeId: string; routeIds: string[]; workspaceIds: string[] }
 export interface HandoffEndpointChoice { id: string; target: string; reference: string; kind: 'role' | 'party'; label: string; workspaceId: string; artifactPath: string; schemaId: string; qualification: string }
 
 function nodeExecutable(): string { return vscode.workspace.getConfiguration('tiinex').get('nodePath', '').toString().trim() || process.execPath; }
@@ -95,14 +97,28 @@ async function announceBuiltCarrier(outputPath: string, label: string, note = ''
   else if (action === 'Copy path') await vscode.env.clipboard.writeText(outputPath);
 }
 
-async function handoffArgs(selected: WorkspaceSource[], route: RouteChoice, scratch: string): Promise<string[]> {
-  if (!route.workspaceId || !route.path) throw new Error('tiinex.package-builder.route-unresolved');
-  const primary = selected.find((item) => item.workspaceId === route.workspaceId);
+export function routeChoiceKeyForHandoff(workspaceId: string, pathValue: string): string { return routeChoiceKey({ pointerless: false, workspaceId, path: pathValue }); }
+
+async function handoffArgs(selected: WorkspaceSource[], primaryRoute: RouteChoice, routes: Array<{ route: RouteChoice; participantRoles: PackageParticipantRole[] }>, scratch: string, packageParentPath = ''): Promise<string[]> {
+  if (!primaryRoute.workspaceId || !primaryRoute.path) throw new Error('tiinex.package-builder.route-unresolved');
+  const primary = selected.find((item) => item.workspaceId === primaryRoute.workspaceId);
   if (!primary) throw new Error('tiinex.package-builder.route-workspace-not-selected');
   const ordered = [primary, ...selected.filter((item) => item.workspaceId !== primary.workspaceId)];
   const descriptorsPath = path.join(scratch, 'workspaces.json');
   await writeFile(descriptorsPath, JSON.stringify({ workspaces: ordered.slice(1).map((item) => ({ id: item.workspaceId, root: item.root, workspaceTargetPath: item.workspaceTargetPath })) }), 'utf8');
-  return [primary.root, '--handoff', route.path, '--route', route.path, '--workspace-id', primary.workspaceId, '--workspace-target', primary.workspaceTargetPath, '--workspace-roots', descriptorsPath, '--tooling-bootstrap', 'embedded'];
+  const selector = `${primaryRoute.workspaceId}:${primaryRoute.path}`;
+  const args = [primary.root, '--handoff', primaryRoute.path, '--route', selector, '--workspace-id', primary.workspaceId, '--workspace-target', primary.workspaceTargetPath, '--workspace-roots', descriptorsPath, '--tooling-bootstrap', 'embedded'];
+  if (packageParentPath) args.push('--package-parent', path.resolve(packageParentPath));
+  if (routes.length > 1 || routes.some((item) => item.participantRoles.length)) {
+    const routesPath = path.join(scratch, 'workspace-routes.json');
+    await writeFile(routesPath, JSON.stringify({ routes: routes.map(({ route, participantRoles }) => ({
+      workspaceId: route.workspaceId,
+      path: route.path,
+      participantRoles: participantRoles.map((item) => ({ label: item.label, workspaceId: item.workspaceId, path: item.path, reference: item.reference }))
+    })) }), 'utf8');
+    args.push('--workspace-routes', routesPath);
+  }
+  return args;
 }
 
 export async function buildHandoffPackageFromForm(extensionPath: string, input: PackageBuildInput): Promise<PackageBuildResult> {
@@ -111,7 +127,17 @@ export async function buildHandoffPackageFromForm(extensionPath: string, input: 
   try {
     const current = await loadModelWithRuntime(runtime);
     const route = exactRouteByKey(current.routes, input.routeId);
-    const selectedSources = exactWorkspaceIds(current.sources, input.workspaceIds);
+    const requestedRouteInputs = (input.routeInputs?.length ? input.routeInputs : [{ routeId: input.routeId, participantRoles: input.participantRoles || [] }]);
+    const uniqueRouteInputs = new Map<string, PackageRouteInput>();
+    for (const item of requestedRouteInputs) uniqueRouteInputs.set(item.routeId, item);
+    if (!uniqueRouteInputs.has(input.routeId)) uniqueRouteInputs.set(input.routeId, { routeId: input.routeId, participantRoles: input.participantRoles || [] });
+    const routeInputs = [...uniqueRouteInputs.values()].map((item) => ({ route: exactRouteByKey(current.routes, item.routeId), participantRoles: item.participantRoles || [] }));
+    const requestedWorkspaceIds = [...new Set(input.workspaceIds.map((item) => String(item || '').trim()).filter(Boolean))].sort();
+    const selectedSources = current.sources.filter((item) => requestedWorkspaceIds.includes(item.workspaceId));
+    const selectedIds = new Set(selectedSources.map((item) => item.workspaceId));
+    const missingWorkspaceIds = requestedWorkspaceIds.filter((item) => !selectedIds.has(item));
+    if (missingWorkspaceIds.length && !input.packageParentPath) throw new Error(`tiinex.package-builder.workspace-id-unresolved:${missingWorkspaceIds.join(',')}`);
+    if (!selectedSources.length) throw new Error('tiinex.package-builder.no-local-workspace-source');
     if (route.pointerless) {
       const args = await workspaceCarrierArgs(selectedSources, scratch);
       const preview = await manufactureHandoffPackage(runtime, args);
@@ -125,10 +151,14 @@ export async function buildHandoffPackageFromForm(extensionPath: string, input: 
       const built = await manufactureHandoffPackage(runtime, [...args, '--output-dir', folder[0].fsPath]);
       if (built.status !== 'ready' || !built.primaryOutput?.path || built?.carrierProjection?.mode !== 'workspace' || (built?.carrierProjection?.routes || []).length !== 0) throw new Error(`tiinex.package-builder.workspace-manufacture-blocked:\n${receiptBlocker(built)}`);
       await announceBuiltCarrier(built.primaryOutput.path, 'Workspace carrier');
-      return { outputPath: built.primaryOutput.path, routingText: '', routeId: route.id, workspaceIds: selectedSources.map((item) => item.workspaceId) };
+      return { outputPath: built.primaryOutput.path, routingText: '', routeId: route.id, routeIds: [route.id], workspaceIds: selectedSources.map((item) => item.workspaceId) };
     }
     if (!route.workspaceId || !selectedSources.some((item) => item.workspaceId === route.workspaceId)) throw new Error('tiinex.package-builder.route-workspace-not-selected');
-    const args = await handoffArgs(selectedSources, route, scratch);
+    for (const item of routeInputs) {
+      if (item.route.pointerless || !item.route.workspaceId || !item.route.path) throw new Error('tiinex.package-builder.handoff-route-required');
+      if (!selectedSources.some((source) => source.workspaceId === item.route.workspaceId) && !input.packageParentPath) throw new Error(`tiinex.package-builder.route-workspace-not-selected:${item.route.workspaceId}`);
+    }
+    const args = await handoffArgs(selectedSources, route, routeInputs, scratch, String(input.packageParentPath || ''));
     const preview = await manufactureHandoffPackage(runtime, args);
     if (preview.status !== 'ready' || preview.transportExecutable === false) throw new Error(`tiinex.package-builder.preview-blocked:\n${receiptBlocker(preview)}`);
     const workspaceText = selectedSources.map((item) => `${item.workspaceId}: ${workspaceSourceLabel(item)}`).join('\n');
@@ -143,6 +173,6 @@ export async function buildHandoffPackageFromForm(extensionPath: string, input: 
     if (!routing) throw new Error('tiinex.package-builder.routing-text-missing');
     await vscode.env.clipboard.writeText(routing);
     await announceBuiltCarrier(built.primaryOutput.path, 'Handoff carrier', 'Exact routing text was copied to the clipboard.');
-    return { outputPath: built.primaryOutput.path, routingText: routing, routeId: route.id, workspaceIds: selectedSources.map((item) => item.workspaceId) };
+    return { outputPath: built.primaryOutput.path, routingText: routing, routeId: route.id, routeIds: routeInputs.map((item) => item.route.id), workspaceIds: selectedSources.map((item) => item.workspaceId) };
   } finally { await rm(scratch, { recursive: true, force: true }); await runtime.dispose(); }
 }

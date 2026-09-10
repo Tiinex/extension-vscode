@@ -4,15 +4,26 @@ Tiinex VS Code is a thin native editor host over the published, host-neutral `@t
 
 This checkout is a **preparatory 0.1.7 lane**. It may build and qualify candidate VSIX bytes, but it does not declare or authorize 0.1.8. Final contract-dependent integration remains behind the Refactor Turn-2 Core/CLI/Interop frontier.
 
-## Primary operator flow: Receive → Review → Return
+## Native operator trees
 
-The Tiinex Activity Bar view keeps one calm primary sequence while retaining fail-closed details and Command Palette recovery paths.
+The Tiinex Activity Bar is now object-based rather than a schema-form workflow. It exposes three native VS Code TreeViews:
 
-1. **Receive** opens the existing qualified Handoff-package landing flow. Optional Auto discovery watches only stable `.handoff-package.zip` files observed after the current watcher session starts; it never scans an inbox backlog.
-2. **Review** shows shared Tiinex validation for the active artifact. Eligible Markdown is qualified on open, debounced in-memory change and save. Problems, deterministic locations and eligible full-document Quick Fix bytes come from shared Tooling, not editor inference.
-3. **Return** authors exactly one Handoff **From** endpoint and one **To** endpoint, then offers qualified package construction as the transport step. Extra participants/context must use their declared schema fields; they are never encoded as additional Handoff endpoints.
+1. **Discovery** — read-only `.handoff-package.zip` discovery in one explicit operator-selected folder. Expanding a carrier browses Tiinex Markdown artifacts only; it never performs Receive/landing.
+2. **Incoming** — exactly one active qualified carrier. Workspace rows expose an explicit **Merge** action; a successful merge becomes a session-local green check and resets if the carrier is reopened.
+3. **Outgoing** — a live package-selection context. **New** supports **Blank** and **From Incoming**. From Incoming mirrors the Incoming Workspace set and binds that incoming carrier as package parent; Blank does not infer carrier parentage.
 
-Advanced package construction is intentionally reachable from Return and through `Tiinex: Build Return Package`; it is not a fourth semantic workflow step. Command IDs remain stable for compatibility.
+Every section independently supports **Logical / Files** and **Leaves / Lineage** presentation. These are projections only: package, Workspace and artifact actions keep the same identity regardless of how the tree is visualized. File projection shows only directories needed to reach indexed Tiinex Markdown artifacts; the Tiinex panel is not another general file browser.
+
+Discovery settings are deliberately separated:
+
+- `tiinex.discovery.folder` — explicit discovery root; blank means no scan. Opening Discovery without one asks for a folder and shows `You need to select a discovery folder` if cancelled.
+- `tiinex.discovery.autoRefresh` — refresh the Discovery tree when package files change; no Incoming/Receive mutation follows.
+- `tiinex.discovery.latestToIncoming` — independently qualify and set the newest discovered carrier as Incoming.
+- `tiinex.incoming.autoShowRoleHandoff` — `yes` / `ask` / `no` automatic Markdown preview when exactly one qualified Incoming route matches `tiinex.operator.role`. The actual Handoff artifact is opened, never its package pointer.
+
+Role/identity presentation scans every qualified local Workspace plus the active Incoming carrier, then prefers the latest actual Role artifact per label. Package-carried endpoint Role cache pointers are a fallback when the owning Role Workspace is not otherwise present. Role text remains presentation/defaulting only and grants no authority.
+
+Discovery cache identity includes path, modification time and byte size, so rebuilding a carrier at the same filename invalidates the indexed view and can become the new latest Incoming candidate. Tree-item-only actions are hidden from the Command Palette and guard missing node context; they remain item actions in every projection. The retired webview/inbox implementation is no longer part of the source surface.
 
 ## Runtime/package boundary
 
@@ -34,10 +45,10 @@ Directory names are locality, not semantic authority. The remaining modules are 
 
 | Area | Responsibility |
 | --- | --- |
-| `findingPresentation`, `operatorError`, `operatorUx`, `operatorWebview`, `operatorModel` | Editor/operator presentation, safe defaults and selection-state shaping. |
+| `artifactTree`, `findingPresentation`, `operatorError`, `operatorUx`, `operatorModel` | Native artifact-tree projection, editor/operator presentation, safe defaults and selection-state shaping. |
 | `latestWinsQueue` | Host scheduling for stale-result suppression in diagnostics. |
 | `packageArgs` | VS Code host argument shaping for the public portable Tooling entrypoint. |
-| `paths`, `repositoryPath`, `stableFile` | Local filesystem/repository normalization and inbox stability/session behavior. |
+| `paths`, `repositoryPath`, `stableFile` | Local filesystem/repository normalization and stable-file/session behavior. |
 | `receiveUx`, `receivedHandoff` | Host-only Receive presentation/filtering plus qualified received-context bookkeeping. Role text and local folder preferences are never semantic authority. |
 
 None of these files is treated as a reason to create a new Core export. A future move requires an independently frozen shared responsibility, not the word `core` in the local path.
@@ -63,17 +74,25 @@ Receive is explicitly multi-root and per-Workspace:
 7. Every changed landed repository is staged with `git add -A`, then the **pre-landing ignored set is explicitly removed from the index and verified absent**. This protects preserved local material such as `.env` even if the incoming `.gitignore` stops ignoring it. Post-landing commit convenience uses a deterministic extension-owned `Tiinex Receive: <workspace-id>` message and never executes code from the received repository snapshot. If auto-commit is declined, that trusted message is pre-filled in Source Control when available and exposed through **Copy Commit Message**.
 8. Auto-push is considered only for a commit created by that exact Receive invocation after auto-commit was approved. It additionally requires the pre-landing upstream to have been aligned and to remain unchanged; manual commits are never auto-pushed.
 
-After landing, `tiinex.operator.role` can contain a presentation-only label such as `Sigma`. Qualified Handoff routes whose From/To label matches are preferred; if none match, all qualified routes remain eligible. `tiinex.landing.openHandoff` opens the actual Handoff Markdown artifacts as tabs/previews and never opens transport pointer files. The role string grants no authority and is not passed off as holder proof.
+After qualification, `tiinex.operator.role` can contain a presentation-only label such as `Sigma`. `tiinex.incoming.autoShowRoleHandoff` may open the actual Handoff Markdown artifact only when exactly one qualified Incoming route has a From/To label matching that role; it never opens transport pointer files. `yes` opens it, `ask` asks first, and `no` leaves it closed. The role string grants no authority and is not passed off as holder proof.
 
 A Workspace whose qualified material does not expose exactly one usable repository origin cannot be safely mapped; the host offers Skip and reports the missing shared boundary rather than inventing repository identity. Package-carried Required Context remains retained as qualified carrier context even when a Required Context Workspace is intentionally skipped or has no local target; local `workspaceRoots` record only material actually available after Receive.
 
-## Handoff authoring and package construction
+## Handoff authoring and Outgoing packaging
 
-Parent continuity and package route selection remain separate concepts. Shared Tooling qualifies authoring Parent, endpoint references, path allocation, schema rendering, validation and integrity sealing. The host form keeps exactly one From and one To.
+Handoff creation now starts from the **+** action on an Outgoing Workspace instead of the old raw schema form. The happy path asks for a short subject, one bounded intent (`Discussion`, `Continue`, `Review`, `Blocked`, or `Complete`), exactly one From endpoint, exactly one To endpoint, and optional additional Role participants.
 
-The package builder presents shared-qualified Handoff leaves plus explicit **No Handoff pointer**, exact repository-matched Workspace candidates, read-only route From/To and independent Workspace inclusion. Pointerless carriers create no Handoff route, endpoint, current-work, transfer, participation, acceptance or completion semantics.
+`tiinex.operator.role` is only a preferred From choice. When a current Role artifact can be resolved, its exact `workspaceId::artifact-path` reference is carried; when it cannot, the operator may use an explicitly unrepresented label without pretending that a Role artifact exists. For **New (From Incoming)**, an unambiguous Incoming route From Role is suggested as the return To endpoint. Additional participants remain package-grounding context rather than extra From/To endpoints.
 
-The candidate pipeline stays at package version 0.1.7 in this preparatory lane. No release publication is performed here.
+Shared Tiinex Tooling owns the Handoff path, schema fields, continuity rendering, validation and integrity. The extension first creates the draft against scratch Markdown material and opens the resulting `.trace.md` through a virtual Markdown preview. **No repository file is written merely to preview it.** Writing the exact reviewed bytes is a separate explicit action.
+
+Outgoing is not staging. Selected local Workspaces stay bound to their live repository roots, so edits made after adding a Workspace remain eligible when packaging eventually runs. Workspace siblings are always ordered case-insensitively by Workspace id for deterministic/manual-merge-friendly presentation.
+
+Carrier parentage is separate from Handoff artifact Parent semantics. **New (From Incoming)** passes the active Incoming `.handoff-package.zip` as the package parent to shared manufacture; **New (Blank)** does not. Package routing/pointer artifacts remain Tooling-owned projections rather than manually-authored pointer Markdown.
+
+Reviewed/written Handoffs can be explicitly marked as Outgoing routes. One or more marked routes are passed through the public shared `--workspace-routes` manufacture surface; when several routes are present, the operator chooses one primary route only for the copied human-facing routing text while the carrier keeps every selected route. Pointer Markdown remains Tooling-manufactured rather than manually authored.
+
+The following requested Outgoing capabilities are lineage-recorded but intentionally deferred until a qualified shared contract exists: descriptor-only Workspace carriage / narrower file scopes, optional bootstrap delivery profiles, and root/Workspace encryption controls. VS Code will not invent these package semantics by rewriting ZIP bytes privately.
 
 ## Git workflow
 
@@ -98,7 +117,7 @@ Normal loop after that:
 edit → Ctrl+Shift+B → VS Code: Restart Extensions → test in the same window
 ```
 
-`Ctrl+Shift+B` runs **Tiinex: Build linked extension** and only rebuilds the checkout. There is no per-edit VSIX manufacture and no Tiinex-owned reload marker protocol; VS Code observes the registered junction-backed extension and owns the restart-required UX.
+`Ctrl+Shift+B` runs **Tiinex: Build linked extension** with the explicit sequence **npm install → Link this checkout → build**, so a replaced checkout refreshes dependencies before the main-host link/build step. There is no per-edit VSIX manufacture and no Tiinex-owned reload marker protocol; VS Code observes the registered junction-backed extension and owns the restart-required UX.
 
 Use **Tiinex: Unlink this checkout** to remove the junction and restore the extension-registry entries that existed before linking. Reversible link metadata lives only under ignored `.vscode/link/`. The setup also cleans the superseded `.tiinex-dev/` marker and old versioned Tiinex junction created by the first implementation.
 

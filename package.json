@@ -15,7 +15,6 @@
     "onCommand:tiinex.landHandoffPackage",
     "onCommand:tiinex.generateCommitMessage",
     "onCommand:tiinex.stageCommitPush",
-    "onCommand:tiinex.selectHandoffInbox",
     "workspaceContains:.topics",
     "onCommand:tiinex.createHandoff",
     "onCommand:tiinex.buildHandoffPackage",
@@ -25,79 +24,185 @@
     "onCommand:tiinex.refreshDiagnostics",
     "onCommand:tiinex.showProblems",
     "onCommand:tiinex.createHandoffFromArtifact",
-    "onView:tiinex.operator"
+    "onView:tiinex.discovery",
+    "onView:tiinex.incoming",
+    "onView:tiinex.outgoing",
+    "onCommand:tiinex.discovery.selectFolder",
+    "onCommand:tiinex.outgoing.new"
   ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
+        "command": "tiinex.discovery.selectFolder",
+        "title": "Tiinex: Select Discovery Folder",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "command": "tiinex.discovery.refresh",
+        "title": "Tiinex: Refresh Discovery",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "tiinex.discovery.toggleProjection",
+        "title": "Tiinex: Toggle Discovery Logical / Files",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "tiinex.discovery.toggleLineage",
+        "title": "Tiinex: Toggle Discovery Leaves / Lineage",
+        "icon": "$(references)"
+      },
+      {
+        "command": "tiinex.discovery.setIncoming",
+        "title": "Tiinex: Set as Incoming",
+        "icon": "$(arrow-right)"
+      },
+      {
+        "command": "tiinex.incoming.clear",
+        "title": "Tiinex: Clear Incoming",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "tiinex.incoming.toggleProjection",
+        "title": "Tiinex: Toggle Incoming Logical / Files",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "tiinex.incoming.toggleLineage",
+        "title": "Tiinex: Toggle Incoming Leaves / Lineage",
+        "icon": "$(references)"
+      },
+      {
+        "command": "tiinex.incoming.mergeWorkspace",
+        "title": "Tiinex: Merge Incoming Workspace",
+        "icon": "$(git-merge)"
+      },
+      {
+        "command": "tiinex.outgoing.new",
+        "title": "Tiinex: New Outgoing",
+        "icon": "$(add)"
+      },
+      {
+        "command": "tiinex.outgoing.addWorkspace",
+        "title": "Tiinex: Add Workspace to Outgoing",
+        "icon": "$(repo-push)"
+      },
+      {
+        "command": "tiinex.outgoing.toggleProjection",
+        "title": "Tiinex: Toggle Outgoing Logical / Files",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "tiinex.outgoing.toggleLineage",
+        "title": "Tiinex: Toggle Outgoing Leaves / Lineage",
+        "icon": "$(references)"
+      },
+      {
+        "command": "tiinex.outgoing.newHandoff",
+        "title": "Tiinex: New Handoff",
+        "icon": "$(add)"
+      },
+      {
+        "command": "tiinex.outgoing.previewDraft",
+        "title": "Tiinex: Preview Handoff Draft",
+        "icon": "$(preview)"
+      },
+      {
+        "command": "tiinex.outgoing.writeDraft",
+        "title": "Tiinex: Write Reviewed Handoff",
+        "icon": "$(save)"
+      },
+      {
+        "command": "tiinex.outgoing.excludeRoute",
+        "title": "Tiinex: Exclude Handoff Route",
+        "icon": "$(unlink)"
+      },
+      {
+        "command": "tiinex.outgoing.includeRoute",
+        "title": "Tiinex: Include Handoff Route",
+        "icon": "$(link)"
+      },
+      {
+        "command": "tiinex.outgoing.package",
+        "title": "Tiinex: Package Outgoing",
+        "icon": "$(package)"
+      },
+      {
+        "command": "tiinex.createHandoffFromArtifact",
+        "title": "Tiinex: Create Handoff from This Artifact",
+        "enablement": "tiinex.activeArtifactCanCreateHandoff"
+      },
+      {
         "command": "tiinex.landHandoffPackage",
-        "title": "Tiinex: Receive Handoff Package"
-      },
-      {
-        "command": "tiinex.generateCommitMessage",
-        "title": "Tiinex: Generate Tiinex Commit Message"
-      },
-      {
-        "command": "tiinex.stageCommitPush",
-        "title": "Tiinex: Stage, Commit & Push with Tiinex"
-      },
-      {
-        "command": "tiinex.selectHandoffInbox",
-        "title": "Tiinex: Select Handoff Inbox"
-      },
-      {
-        "command": "tiinex.createHandoff",
-        "title": "Tiinex: Prepare Return Handoff"
+        "title": "Tiinex: Open Handoff Package as Incoming"
       },
       {
         "command": "tiinex.buildHandoffPackage",
-        "title": "Tiinex: Build Return Package"
+        "title": "Tiinex: Package Outgoing"
       },
       {
-        "command": "tiinex.openOperator",
-        "title": "Tiinex: Open Receive / Review / Return"
+        "command": "tiinex.createHandoff",
+        "title": "Tiinex: New Outgoing Handoff"
       },
       {
         "command": "tiinex.refreshDiagnostics",
         "title": "Tiinex: Refresh Validation"
       },
       {
-        "command": "tiinex.showProblems",
-        "title": "Tiinex: Show Validation Problems"
+        "command": "tiinex.stageCommitPush",
+        "title": "Tiinex: Stage, Commit & Push with Tiinex"
       },
       {
-        "command": "tiinex.createHandoffFromArtifact",
-        "title": "Tiinex: Create Handoff from This Artifact",
-        "enablement": "tiinex.activeArtifactCanCreateHandoff"
+        "command": "tiinex.generateCommitMessage",
+        "title": "Tiinex: Generate Tiinex Commit Message"
+      },
+      {
+        "command": "tiinex.openOperator",
+        "title": "Tiinex: Open Operator"
+      },
+      {
+        "command": "tiinex.showProblems",
+        "title": "Tiinex: Show Validation Problems"
       }
     ],
     "configuration": {
       "title": "Tiinex",
       "properties": {
-        "tiinex.handoffInbox.path": {
+        "tiinex.discovery.folder": {
           "type": "string",
           "default": "",
-          "description": "Global inbox override used by Tiinex Handoff discovery. Blank uses ~/Downloads/Tiinex Inbox; manual Receive can still select any package directly."
+          "description": "Folder containing .handoff-package.zip carriers shown by Discovery. Blank means no discovery folder; expanding Discovery asks you to choose one."
         },
-        "tiinex.nodePath": {
+        "tiinex.discovery.autoRefresh": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically refresh the Discovery tree when .handoff-package.zip files change in the selected discovery folder. This never performs Receive/landing."
+        },
+        "tiinex.discovery.latestToIncoming": {
+          "type": "boolean",
+          "default": false,
+          "description": "When Discovery finds a new latest carrier, set that carrier as Incoming after qualification. This never performs Receive/landing."
+        },
+        "tiinex.incoming.autoShowRoleHandoff": {
           "type": "string",
-          "default": "",
-          "description": "Explicit Node executable for package-declared bootstrap and installed @tiinex/core Tooling. Blank uses the VS Code/Electron executable in Node mode; repository-local helpers keep their own repository boundary."
+          "enum": [
+            "no",
+            "ask",
+            "yes"
+          ],
+          "default": "ask",
+          "description": "When Incoming has exactly one qualified Handoff route whose From or To matches tiinex.operator.role, optionally open the actual Handoff artifact in Markdown preview. Pointer files are never opened."
         },
         "tiinex.operator.role": {
           "type": "string",
           "default": "",
-          "description": "Presentation-only operator role label used after Receive to prefer qualified Handoffs whose From or To label matches (for example Sigma). Blank or no match shows all qualified Handoffs. This setting does not grant Role authority."
+          "description": "Operator role label used only for UI defaults and exact role-matched Handoff preview (for example Sigma). It does not grant Role authority."
         },
-        "tiinex.handoff.discovery": {
+        "tiinex.nodePath": {
           "type": "string",
-          "enum": [
-            "manual",
-            "auto"
-          ],
-          "default": "manual",
-          "description": "Receive discovery mode. Manual never watches or scans historical inbox files; Auto watches only stable completed .handoff-package.zip files observed after the current watcher session starts."
+          "default": "",
+          "description": "Optional Node executable override for Tiinex Tooling. Blank uses the VS Code/Electron executable in Node mode."
         },
         "tiinex.landing.commit": {
           "type": "string",
@@ -107,7 +212,7 @@
             "yes"
           ],
           "default": "no",
-          "description": "After each qualified Receive, stage every explicitly selected landed repository while excluding the pre-landing ignored set. Yes commits with a trusted deterministic landing message; Ask offers the choice; No leaves changes staged and offers that message for copy/use."
+          "description": "After an explicitly merged Incoming Workspace, stage safe landed changes. Yes commits using the trusted deterministic landing message; Ask asks; No leaves changes staged and offers the message."
         },
         "tiinex.landing.push": {
           "type": "string",
@@ -117,26 +222,25 @@
             "yes"
           ],
           "default": "no",
-          "description": "Push only an exact commit created by the same Receive invocation, and only when auto-commit was approved immediately before it and the pre-landing upstream was aligned and unchanged. Manual commits are never auto-pushed."
-        },
-        "tiinex.landing.openHandoff": {
-          "type": "string",
-          "enum": [
-            "no",
-            "ask",
-            "yes"
-          ],
-          "default": "yes",
-          "description": "After Receive, open qualified Handoff artifacts (never pointer files). The optional tiinex.operator.role text prefers endpoint matches; when it matches none, all qualified Handoffs are eligible."
+          "description": "Push only a commit created by the same explicit Merge invocation after commit was approved. Manual commits are never auto-pushed."
         }
       }
     },
     "views": {
       "tiinex": [
         {
-          "id": "tiinex.operator",
-          "name": "Tiinex Operator",
-          "type": "webview",
+          "id": "tiinex.discovery",
+          "name": "Discovery",
+          "visibility": "visible"
+        },
+        {
+          "id": "tiinex.incoming",
+          "name": "Incoming",
+          "visibility": "visible"
+        },
+        {
+          "id": "tiinex.outgoing",
+          "name": "Outgoing",
           "visibility": "visible"
         }
       ]
@@ -158,9 +262,126 @@
       ],
       "view/title": [
         {
-          "command": "tiinex.refreshDiagnostics",
-          "when": "view == tiinex.operator",
-          "group": "navigation@10"
+          "command": "tiinex.discovery.selectFolder",
+          "when": "view == tiinex.discovery",
+          "group": "navigation@1"
+        },
+        {
+          "command": "tiinex.discovery.refresh",
+          "when": "view == tiinex.discovery",
+          "group": "navigation@2"
+        },
+        {
+          "command": "tiinex.discovery.toggleProjection",
+          "when": "view == tiinex.discovery",
+          "group": "navigation@3"
+        },
+        {
+          "command": "tiinex.discovery.toggleLineage",
+          "when": "view == tiinex.discovery",
+          "group": "navigation@4"
+        },
+        {
+          "command": "tiinex.incoming.clear",
+          "when": "view == tiinex.incoming",
+          "group": "navigation@1"
+        },
+        {
+          "command": "tiinex.incoming.toggleProjection",
+          "when": "view == tiinex.incoming",
+          "group": "navigation@2"
+        },
+        {
+          "command": "tiinex.incoming.toggleLineage",
+          "when": "view == tiinex.incoming",
+          "group": "navigation@3"
+        },
+        {
+          "command": "tiinex.outgoing.new",
+          "when": "view == tiinex.outgoing",
+          "group": "navigation@1"
+        },
+        {
+          "command": "tiinex.outgoing.addWorkspace",
+          "when": "view == tiinex.outgoing",
+          "group": "navigation@2"
+        },
+        {
+          "command": "tiinex.outgoing.package",
+          "when": "view == tiinex.outgoing",
+          "group": "navigation@3"
+        },
+        {
+          "command": "tiinex.outgoing.toggleProjection",
+          "when": "view == tiinex.outgoing",
+          "group": "navigation@4"
+        },
+        {
+          "command": "tiinex.outgoing.toggleLineage",
+          "when": "view == tiinex.outgoing",
+          "group": "navigation@5"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "tiinex.discovery.setIncoming",
+          "when": "view == tiinex.discovery && viewItem == tiinex.discoveryPackage",
+          "group": "inline@1"
+        },
+        {
+          "command": "tiinex.incoming.mergeWorkspace",
+          "when": "view == tiinex.incoming && viewItem == tiinex.incomingWorkspace",
+          "group": "inline@1"
+        },
+        {
+          "command": "tiinex.outgoing.newHandoff",
+          "when": "view == tiinex.outgoing && viewItem == tiinex.outgoingWorkspace",
+          "group": "inline@1"
+        },
+        {
+          "command": "tiinex.outgoing.writeDraft",
+          "when": "view == tiinex.outgoing && viewItem == tiinex.outgoingDraft",
+          "group": "inline@1"
+        },
+        {
+          "command": "tiinex.outgoing.includeRoute",
+          "when": "view == tiinex.outgoing && viewItem == tiinex.outgoingDraftWritten",
+          "group": "inline@2"
+        },
+        {
+          "command": "tiinex.outgoing.excludeRoute",
+          "when": "view == tiinex.outgoing && viewItem == tiinex.outgoingDraftRoute",
+          "group": "inline@2"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "tiinex.discovery.setIncoming",
+          "when": "false"
+        },
+        {
+          "command": "tiinex.incoming.mergeWorkspace",
+          "when": "false"
+        },
+        {
+          "command": "tiinex.outgoing.newHandoff",
+          "when": "false"
+        },
+        {
+          "command": "tiinex.outgoing.previewDraft",
+          "when": "false"
+        },
+        {
+          "command": "tiinex.outgoing.writeDraft",
+          "when": "false"
+        },
+        {
+          "command": "tiinex.outgoing.includeRoute",
+          "when": "false"
+        },
+        {
+          "command": "tiinex.outgoing.excludeRoute",
+          "when": "false"
         }
       ]
     },
