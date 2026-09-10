@@ -3,6 +3,7 @@ import path from 'node:path';
 import { mkdir, mkdtemp, rm, writeFile, access, readFile } from 'node:fs/promises';
 import { extractZipBuffer, readExactZipEntryFromFile, sha256Hex } from '../host/zip';
 import { nodeProcessEnvironment, ProcessRunner, runChecked, runProcess } from '../host/process';
+import { preferredNodeExecutable } from '../host/nodeExecutable';
 import { LandingPlan, OrientResult } from './types';
 
 const START_ENTRY = '001-1-READ-BEFORE-PROCEEDING.trace.md';
@@ -47,7 +48,7 @@ export function parseBootstrapDescriptor(startMarkdown: string, bootstrapTraceMa
   return { packagePath, bytes, sha256, entrypoint };
 }
 
-export async function preparePackageRuntime(packagePath: string, nodeExecutable = process.execPath): Promise<PackageRuntime> {
+export async function preparePackageRuntime(packagePath: string, nodeExecutable = preferredNodeExecutable()): Promise<PackageRuntime> {
   const start = (await readExactZipEntryFromFile(packagePath, START_ENTRY)).toString('utf8');
   const tracePath = markdownLinkTarget(start, /portable tooling bootstrap|bootstrap payload trace/i) || firstMatch(start, [/Bootstrap Payload Trace\s*:\s*`?([^`\s]+)`?/i]);
   if (!tracePath) throw new Error('tiinex.bootstrap.trace-path-missing');
@@ -71,7 +72,7 @@ export async function preparePackageRuntime(packagePath: string, nodeExecutable 
 }
 
 
-export async function prepareBundledRuntime(extensionPath: string, nodeExecutable = process.execPath): Promise<PackageRuntime> {
+export async function prepareBundledRuntime(extensionPath: string, nodeExecutable = preferredNodeExecutable()): Promise<PackageRuntime> {
   const expectedName = '@tiinex/core';
   const expectedVersion = '0.1.1';
   let packageJsonPath = '';
@@ -95,11 +96,24 @@ export async function prepareBundledRuntime(extensionPath: string, nodeExecutabl
 function messageOf(error: unknown): string { return error instanceof Error ? error.message : String(error); }
 
 export async function runTiinexJson<T>(runtime: PackageRuntime, args: string[], runner: ProcessRunner = runProcess): Promise<T> {
-  const result = await runChecked(runtime.nodeExecutable, [runtime.entrypoint, ...args], { env: nodeProcessEnvironment() }, runner);
+  const commandArgs = [runtime.entrypoint, ...args];
+  const result = await runner(runtime.nodeExecutable, commandArgs, { env: nodeProcessEnvironment() });
   const text = result.stdout.trim();
-  if (!text) throw new Error('tiinex.bootstrap.empty-output');
-  try { return JSON.parse(text) as T; }
-  catch { throw new Error(`tiinex.bootstrap.invalid-json:${text.slice(0, 200)}`); }
+
+  // Portable Tooling deliberately uses non-zero exit codes when a valid machine
+  // receipt contains qualification errors. Preserve that structured receipt so
+  // the host can surface the real fail-closed reason instead of degrading it to
+  // a generic child-process failure. Only execution failures without valid JSON
+  // are process failures.
+  if (text) {
+    try { return JSON.parse(text) as T; }
+    catch {
+      if (result.code !== 0) throw new Error(`tiinex.process.failed:${runtime.nodeExecutable}:${commandArgs.join(' ')}:${result.stderr.trim() || text.slice(0, 200) || result.code}`);
+      throw new Error(`tiinex.bootstrap.invalid-json:${text.slice(0, 200)}`);
+    }
+  }
+  if (result.code !== 0) throw new Error(`tiinex.process.failed:${runtime.nodeExecutable}:${commandArgs.join(' ')}:${result.stderr.trim() || result.code}`);
+  throw new Error('tiinex.bootstrap.empty-output');
 }
 
 export async function orientPackage(runtime: PackageRuntime, packagePath: string, runner: ProcessRunner = runProcess): Promise<OrientResult> {
@@ -152,6 +166,65 @@ export async function projectWorkspaceLanding(
   }
 }
 
+export interface SourceFrontierComparisonResult {
+  status: string;
+  state: string;
+  mode: string;
+  workspaces: Array<{
+    workspaceId: string;
+    state: string;
+    delta?: {
+      counts?: { added?: number; removed?: number; byteChanged?: number; total?: number };
+      added?: string[];
+      removed?: string[];
+      byteChanged?: string[];
+      omitted?: number;
+    } | null;
+  }>;
+  counts?: {
+    exact?: number;
+    changed?: number;
+    onlyLeft?: number;
+    onlyRight?: number;
+    locked?: number;
+    unavailable?: number;
+    qualificationError?: number;
+    workspaces?: number;
+    pathChanges?: number;
+  };
+  findingSummary?: { status?: string; counts?: { error?: number; warning?: number; info?: number; total?: number } };
+  actionableFindings?: Array<{ severity?: string; code?: string; message?: string }>;
+  boundary?: string;
+}
+
+export async function compareIncomingWorkspaceToLocal(
+  runtime: PackageRuntime,
+  packagePath: string,
+  localRoot: string,
+  workspaceId: string,
+  runner: ProcessRunner = runProcess
+): Promise<SourceFrontierComparisonResult> {
+  const id = String(workspaceId || '').trim();
+  if (!packagePath || !localRoot || !id) throw new Error('tiinex.source-frontier.compare-input-required');
+  const result = await runTiinexJson<SourceFrontierComparisonResult>(runtime, [
+    'compare-source-frontiers',
+    '--left-kind', 'local-workspace',
+    '--left', localRoot,
+    '--left-id', id,
+    '--right-kind', 'handoff-package',
+    '--right', packagePath,
+    '--right-select', id
+  ], runner);
+  if (String(result.status || '').toLowerCase() !== 'ready') {
+    const finding = (result.actionableFindings || [])[0];
+    throw new Error(`tiinex.source-frontier.compare-blocked:${finding?.code || result.state || 'unknown'}`);
+  }
+  if (!(result.workspaces || []).some((item) => item.workspaceId === id)) {
+    throw new Error(`tiinex.source-frontier.workspace-missing:${id}`);
+  }
+  return result;
+}
+
 export interface EditorAssistanceResult {
   status: string;
   documents: Array<{
@@ -162,9 +235,11 @@ export interface EditorAssistanceResult {
     actions: Array<{ id: string; title: string; kind: string; qualification: string; sourceSha256: string; replacementMarkdown: string; diagnosticCodes?: string[] }>;
   }>;
 }
+export interface HandoffLeafCandidate { path: string; title: string; from: string; to: string; purpose: string; qualification: string; leaf?: boolean }
 export interface HandoffLeavesResult {
   status: string;
-  leaves: Array<{ path: string; title: string; from: string; to: string; purpose: string; qualification: string }>;
+  candidates?: HandoffLeafCandidate[];
+  leaves: HandoffLeafCandidate[];
   pointerless: { selectionLabel: string; packageRole: string; manufactureState: string; blockerCode: string; consequence: string };
 }
 
@@ -287,11 +362,67 @@ export async function projectHandoffEndpoints(runtime: PackageRuntime, root: str
   return runTiinexJson<HandoffEndpointProjectionResult>(runtime, ['project-handoff-endpoints', root, '--workspace-id', workspaceId, '--compact'], runner);
 }
 
+export interface ArtifactCreationContractResult {
+  status?: string;
+  contract: any;
+  validation?: any;
+  qualification?: string;
+  findings?: Array<{ severity?: string; code?: string; message?: string }>;
+}
+
+export interface ArtifactSchemaGuideResult {
+  status?: string;
+  guide: any;
+  findings?: Array<{ severity?: string; code?: string; message?: string }>;
+}
+
+export async function inspectArtifactCreationContract(runtime: PackageRuntime, schemaId: string, transitionType = 'create-artifact', runner: ProcessRunner = runProcess): Promise<ArtifactCreationContractResult> {
+  if (!schemaId) throw new Error('tiinex.authoring.schema-required');
+  return runTiinexJson<ArtifactCreationContractResult>(runtime, ['inspect-creation-contract', '--schema', schemaId, '--transition', transitionType, '--compact'], runner);
+}
+
+export async function projectArtifactSchemaGuide(runtime: PackageRuntime, schemaId: string, task: 'create' | 'continue' = 'create', runner: ProcessRunner = runProcess): Promise<ArtifactSchemaGuideResult> {
+  if (!schemaId) throw new Error('tiinex.authoring.schema-required');
+  return runTiinexJson<ArtifactSchemaGuideResult>(runtime, ['schema-guide', '--schema', schemaId, '--task', task, '--detail', 'compact', '--compact'], runner);
+}
+
 export async function projectHandoffAuthoringPlan(runtime: PackageRuntime, root: string, title: string, parentPath = '', runner: ProcessRunner = runProcess): Promise<HandoffAuthoringPlanResult> {
   const args = ['project-handoff-authoring-plan', root, '--title', title];
   if (parentPath) args.push('--parent', parentPath);
   args.push('--compact');
   return runTiinexJson<HandoffAuthoringPlanResult>(runtime, args, runner);
+}
+
+export async function createArtifactDraft(
+  runtime: PackageRuntime,
+  schemaId: string,
+  materialRoot: string,
+  childPath: string,
+  title: string,
+  values: unknown,
+  parentRecord: unknown = null,
+  transition: 'create-artifact' | 'continue-from-record' = parentRecord ? 'continue-from-record' : 'create-artifact',
+  runner: ProcessRunner = runProcess
+): Promise<any> {
+  if (!schemaId) throw new Error('tiinex.authoring.schema-required');
+  const scratch = await mkdtemp(path.join(os.tmpdir(), 'tiinex-vscode-author-'));
+  try {
+    const valuesPath = path.join(scratch, 'values.json');
+    const isolatedMaterialRoot = path.join(scratch, 'material');
+    await mkdir(isolatedMaterialRoot, { recursive: true });
+    await writeFile(valuesPath, JSON.stringify(values), 'utf8');
+    const args = ['create-local-draft', isolatedMaterialRoot, '--schema', schemaId, '--transition', transition, '--path', childPath, '--title', title, '--values', valuesPath];
+    if (transition === 'continue-from-record') {
+      if (!parentRecord) throw new Error('tiinex.authoring.parent-required');
+      const parentPath = path.join(scratch, 'parent.json');
+      await writeFile(parentPath, JSON.stringify(parentRecord), 'utf8');
+      args.push('--parent', parentPath);
+    }
+    args.push('--compact');
+    const result = await runTiinexJson<any>(runtime, args, runner);
+    if (!String(result.status || '').startsWith('created-') || !result.draft?.markdown || Number(result.findingSummary?.counts?.error || 0) > 0) throw new Error(`tiinex.authoring.draft-blocked:${result.status || 'unknown'}`);
+    return result;
+  } finally { await rm(scratch, { recursive: true, force: true }); }
 }
 
 export async function createHandoffDraft(
@@ -304,24 +435,7 @@ export async function createHandoffDraft(
   transition: 'create-artifact' | 'continue-from-record' = parentRecord ? 'continue-from-record' : 'create-artifact',
   runner: ProcessRunner = runProcess
 ): Promise<any> {
-  const scratch = await mkdtemp(path.join(os.tmpdir(), 'tiinex-vscode-author-'));
-  try {
-    const valuesPath = path.join(scratch, 'values.json');
-    const isolatedMaterialRoot = path.join(scratch, 'material');
-    await mkdir(isolatedMaterialRoot, { recursive: true });
-    await writeFile(valuesPath, JSON.stringify(values), 'utf8');
-    const args = ['create-local-draft', isolatedMaterialRoot, '--schema', 'tiinex.handoff.v1', '--transition', transition, '--path', childPath, '--title', title, '--values', valuesPath];
-    if (transition === 'continue-from-record') {
-      if (!parentRecord) throw new Error('tiinex.authoring.parent-required');
-      const parentPath = path.join(scratch, 'parent.json');
-      await writeFile(parentPath, JSON.stringify(parentRecord), 'utf8');
-      args.push('--parent', parentPath);
-    }
-    args.push('--compact');
-    const result = await runTiinexJson<any>(runtime, args, runner);
-    if (!String(result.status || '').startsWith('created-') || !result.draft?.markdown || Number(result.findingSummary?.counts?.error || 0) > 0) throw new Error(`tiinex.authoring.draft-blocked:${result.status || 'unknown'}`);
-    return result;
-  } finally { await rm(scratch, { recursive: true, force: true }); }
+  return createArtifactDraft(runtime, 'tiinex.handoff.v1', materialRoot, childPath, title, values, parentRecord, transition, runner);
 }
 
 export async function manufactureHandoffPackage(runtime: PackageRuntime, args: string[], runner: ProcessRunner = runProcess): Promise<any> {

@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 
 export interface ProcessResult { code: number; stdout: string; stderr: string }
-export interface ProcessOptions { cwd?: string; env?: NodeJS.ProcessEnv }
+export interface ProcessOptions { cwd?: string; env?: NodeJS.ProcessEnv; input?: string | Buffer }
 export type ProcessRunner = (command: string, args: string[], options?: ProcessOptions) => Promise<ProcessResult>;
 
 export const runProcess: ProcessRunner = async (command, args, options = {}) => new Promise((resolve, reject) => {
@@ -10,18 +10,19 @@ export const runProcess: ProcessRunner = async (command, args, options = {}) => 
     env: options.env ?? process.env,
     windowsHide: true,
     shell: false,
-    stdio: ['ignore', 'pipe', 'pipe']
+    stdio: [options.input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe']
   });
   const stdout: Buffer[] = [];
   const stderr: Buffer[] = [];
-  child.stdout.on('data', (chunk: Buffer) => stdout.push(chunk));
-  child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk));
+  child.stdout?.on('data', (chunk: Buffer) => stdout.push(chunk));
+  child.stderr?.on('data', (chunk: Buffer) => stderr.push(chunk));
   child.on('error', reject);
   child.on('close', (code) => resolve({
     code: Number(code ?? 1),
     stdout: Buffer.concat(stdout).toString('utf8'),
     stderr: Buffer.concat(stderr).toString('utf8')
   }));
+  if (options.input !== undefined) child.stdin?.end(options.input);
 });
 
 export async function runChecked(command: string, args: string[], options: ProcessOptions = {}, runner: ProcessRunner = runProcess): Promise<ProcessResult> {

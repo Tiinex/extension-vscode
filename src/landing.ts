@@ -2,6 +2,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { copyFile, lstat, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import * as vscode from 'vscode';
+import { preferredNodeExecutable } from './host/nodeExecutable';
 import { ignoredPathCollisions, safeRelativePath, safeTarget } from './core/paths';
 import { preferredRepositoryParent, routesPreferredForRole } from './core/receiveUx';
 import { sameRepositoryRoot } from './core/repositoryPath';
@@ -28,10 +29,12 @@ import { addRepositoryToCurrentWorkspace, repositoryRoots, setRepositoryInput } 
 interface PreparedWorkspace { plan: LandingWorkspace; archive: Buffer; incomingFiles: string[]; ignoredFiles: string[]; trackedFiles: string[] }
 export interface LandingResult { received: ReceivedHandoffContext | null; workspaceRoots: Record<string, string>; affectedWorkspaceIds: string[] }
 type Policy = 'no' | 'ask' | 'yes';
+type StagePolicy = 'no' | 'yes';
 type DirtyAction = 'stash' | 'commit' | 'discard' | 'skip';
 
-function nodeExecutable(): string { return vscode.workspace.getConfiguration('tiinex').get('nodePath', '').toString().trim() || process.execPath; }
+function nodeExecutable(): string { return preferredNodeExecutable(vscode.workspace.getConfiguration('tiinex').get('nodePath', '').toString().trim()); }
 function policy(name: 'commit' | 'push'): Policy { const value = vscode.workspace.getConfiguration('tiinex.landing').get(name, 'no').toString(); return value === 'ask' || value === 'yes' ? value : 'no'; }
+function stagePolicy(): StagePolicy { return vscode.workspace.getConfiguration('tiinex.landing').get('stage', 'yes').toString() === 'no' ? 'no' : 'yes'; }
 function rolePreference(): string { return vscode.workspace.getConfiguration('tiinex').get('operator.role', '').toString().trim(); }
 function message(error: unknown): string { return error instanceof Error ? error.message : String(error); }
 function findingsText(plan: LandingPlan): string { return plan.findings.filter((item) => item.severity === 'error').map((item) => `${item.code}: ${item.message}`).join('\n') || `Landing plan status: ${plan.status}`; }
@@ -315,6 +318,7 @@ function protectedIgnoredByRoot(prepared: PreparedWorkspace[]): Map<string, stri
 }
 
 async function postLandingGit(plan: LandingPlan, prepared: PreparedWorkspace[]): Promise<{ commits: Map<string, LandingCommitResult>; pushed: number; staged: number }> {
+  if (stagePolicy() === 'no') return { commits: new Map(), pushed: 0, staged: 0 };
   const roots = [...new Set(plan.affected.map((item) => item.repository?.root).filter((value): value is string => Boolean(value)))];
   const protectedByRoot = protectedIgnoredByRoot(prepared);
   const changedRoots: string[] = [];
@@ -360,7 +364,7 @@ function routeForGrounding(orientation: OrientResult, preferred: QualifiedRouteR
   return routes.length === 1 ? routes[0] : null;
 }
 
-function policySummary(): string { return `Post-landing policies: commit=${policy('commit')}, push=${policy('push')}. Handoff preview is controlled separately by Incoming. Shared Tiinex Tooling qualifies package/Workspace targeting; the VS Code host owns only explicit local UX and Git actions.`; }
+function policySummary(): string { return `Post-landing policies: stage=${stagePolicy()}, commit=${policy('commit')}, push=${policy('push')}. Handoff preview is controlled separately by Incoming. Shared Tiinex Tooling qualifies package/Workspace targeting; the VS Code host owns only explicit local UX and Git actions.`; }
 
 export async function landHandoffPackage(packagePath: string, extensionPath: string, requestedWorkspaceIds: string[] = []): Promise<LandingResult | null> {
   const ingressRuntime = await preparePackageRuntime(packagePath, nodeExecutable());

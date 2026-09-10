@@ -25,6 +25,39 @@ export async function repositoryFact(root: string, runner: ProcessRunner = runPr
   return { id: resolved, root: resolved, repository: remote.stdout.trim(), branch: branch.code === 0 ? branch.stdout.trim() : '', clean: status.stdout.length === 0 };
 }
 
+export interface PayloadCheckoutEligibility {
+  eligible: boolean;
+  reason: string;
+  repository: string;
+  ref: string;
+  branch: string;
+}
+
+/**
+ * Conservative qualification for omitting a local Workspace payload from a future
+ * carrier. We only accept a clean Git worktree whose HEAD is exactly mirrored by
+ * its configured upstream and which declares an origin URL. This is intentionally
+ * stronger than merely having a commit locally: the descriptor must be capable of
+ * naming reproducible checkout material.
+ */
+export async function payloadCheckoutEligibility(root: string, runner: ProcessRunner = runProcess): Promise<PayloadCheckoutEligibility> {
+  try {
+    const fact = await repositoryFact(root, runner);
+    if (!fact.clean) return { eligible: false, reason: 'workspace-is-dirty', repository: fact.repository, ref: '', branch: fact.branch };
+    if (!fact.repository) return { eligible: false, reason: 'origin-remote-missing', repository: '', ref: '', branch: fact.branch };
+    if (!fact.branch) return { eligible: false, reason: 'branch-unresolved', repository: fact.repository, ref: '', branch: '' };
+    const head = await runChecked('git', ['rev-parse', '--verify', 'HEAD^{commit}'], { cwd: root }, runner);
+    const commit = head.stdout.trim().toLowerCase();
+    if (!/^[a-f0-9]{40,64}$/.test(commit)) return { eligible: false, reason: 'head-commit-unresolved', repository: fact.repository, ref: '', branch: fact.branch };
+    const upstream = await runner('git', ['rev-parse', '--verify', '@{u}^{commit}'], { cwd: root });
+    if (upstream.code !== 0) return { eligible: false, reason: 'upstream-missing', repository: fact.repository, ref: commit, branch: fact.branch };
+    if (upstream.stdout.trim().toLowerCase() !== commit) return { eligible: false, reason: 'head-not-published-to-upstream', repository: fact.repository, ref: commit, branch: fact.branch };
+    return { eligible: true, reason: 'qualified-exact-checkout', repository: fact.repository, ref: commit, branch: fact.branch };
+  } catch {
+    return { eligible: false, reason: 'not-a-qualified-git-repository', repository: '', ref: '', branch: '' };
+  }
+}
+
 export async function listTrackedFiles(root: string, runner: ProcessRunner = runProcess): Promise<string[]> {
   const result = await runChecked('git', ['ls-files', '-z'], { cwd: root }, runner);
   return splitZero(result.stdout);
@@ -221,4 +254,84 @@ export async function stageCommitPush(root: string, nodeExecutable: string, runn
   const commitSha = head.stdout.trim().toLowerCase();
   await runChecked('git', ['push'], { cwd: root }, runner);
   return { branch, upstream, message, commitSha };
+}
+
+export async function dirtyWorkingTreePaths(root: string, runner: ProcessRunner = runProcess): Promise<string[]> {
+  const paths = new Set<string>();
+  for (const args of [
+    ['diff', '--name-only', '-z'],
+    ['diff', '--cached', '--name-only', '-z'],
+    ['ls-files', '--others', '--exclude-standard', '-z']
+  ]) {
+    const result = await runChecked('git', args, { cwd: root }, runner);
+    for (const item of splitZero(result.stdout)) paths.add(item.replace(/\\/g, '/'));
+  }
+  return [...paths].sort();
+}
+
+export async function checkIgnoredPaths(root: string, paths: string[], runner: ProcessRunner = runProcess): Promise<string[]> {
+  const values = [...new Set(paths.map((item) => String(item || '').replace(/\\/g, '/').replace(/^\.\//, '')).filter(Boolean))];
+  if (!values.length) return [];
+  const result = await runner('git', ['check-ignore', '--no-index', '-z', '--stdin'], { cwd: root, input: `${values.join('\0')}\0` });
+  if (result.code !== 0 && result.code !== 1) throw new Error(`tiinex.git.check-ignore-failed:${result.stderr.trim() || result.stdout.trim() || result.code}`);
+  return splitZero(result.stdout).map((item) => item.replace(/\\/g, '/')).sort();
+}
+
+export async function localBranchExists(root: string, branchName: string, runner: ProcessRunner = runProcess): Promise<boolean> {
+  const branch = safeBranchName(branchName);
+  const valid = await runner('git', ['check-ref-format', '--branch', branch], { cwd: root });
+  if (valid.code !== 0) return false;
+  const exists = await runner('git', ['show-ref', '--verify', '--quiet', `refs/heads/${branch}`], { cwd: root });
+  if (exists.code === 0) return true;
+  if (exists.code === 1) return false;
+  throw new Error(`tiinex.git.branch-query-failed:${branch}`);
+}
+
+export async function resolveCommit(root: string, ref: string, runner: ProcessRunner = runProcess): Promise<string> {
+  const value = String(ref || '').trim();
+  if (!value || value.startsWith('-') || /[\s~^:?*\\\[]/.test(value)) return '';
+  const result = await runner('git', ['rev-parse', '--verify', `${value}^{commit}`], { cwd: root });
+  if (result.code !== 0) return '';
+  const sha = result.stdout.trim().toLowerCase();
+  return /^[a-f0-9]{40,64}$/.test(sha) ? sha : '';
+}
+
+export async function mergeBase(root: string, left: string, right: string, runner: ProcessRunner = runProcess): Promise<string> {
+  const result = await runner('git', ['merge-base', left, right], { cwd: root });
+  if (result.code !== 0) return '';
+  return result.stdout.trim().toLowerCase();
+}
+
+export async function changedPathsBetween(root: string, from: string, to: string, runner: ProcessRunner = runProcess): Promise<string[]> {
+  const result = await runChecked('git', ['diff', '--name-only', '-z', `${from}..${to}`], { cwd: root }, runner);
+  return splitZero(result.stdout).map((item) => item.replace(/\\/g, '/')).sort();
+}
+
+export async function commitWorkingTreeWithMessage(root: string, commitMessage: string, runner: ProcessRunner = runProcess): Promise<WorkingTreeCommitResult> {
+  const message = String(commitMessage || '').trim();
+  if (!message) throw new Error('tiinex.git.commit-message-empty');
+  if ((await repositoryFact(root, runner)).clean) throw new Error('tiinex.git.no-local-changes');
+  await runChecked('git', ['add', '-A'], { cwd: root }, runner);
+  const diff = await runner('git', ['diff', '--cached', '--quiet'], { cwd: root });
+  if (diff.code === 0) throw new Error('tiinex.git.no-staged-changes');
+  if (diff.code !== 1) throw new Error(`tiinex.git.staged-diff-failed:${diff.stderr.trim() || diff.stdout.trim() || diff.code}`);
+  await runChecked('git', ['commit', '-m', message], { cwd: root }, runner);
+  const head = await runChecked('git', ['rev-parse', 'HEAD'], { cwd: root }, runner);
+  const commitSha = head.stdout.trim().toLowerCase();
+  if (!/^[a-f0-9]{40,64}$/.test(commitSha)) throw new Error('tiinex.git.commit-sha-invalid');
+  if (!(await repositoryFact(root, runner)).clean) throw new Error('tiinex.git.local-commit-verification-failed');
+  return { message, commitSha };
+}
+
+export interface MergeNoCommitResult { conflicts: string[]; alreadyUpToDate: boolean }
+
+export async function mergeCommitNoCommit(root: string, commitSha: string, runner: ProcessRunner = runProcess): Promise<MergeNoCommitResult> {
+  const target = String(commitSha || '').trim().toLowerCase();
+  if (!/^[a-f0-9]{40,64}$/.test(target)) throw new Error('tiinex.git.merge-target-invalid');
+  const result = await runner('git', ['merge', '--no-commit', '--no-ff', '--no-edit', target], { cwd: root });
+  const conflictResult = await runner('git', ['diff', '--name-only', '--diff-filter=U', '-z'], { cwd: root });
+  if (conflictResult.code !== 0) throw new Error(`tiinex.git.merge-conflict-query-failed:${conflictResult.stderr.trim() || conflictResult.stdout.trim() || conflictResult.code}`);
+  const conflicts = splitZero(conflictResult.stdout).map((item) => item.replace(/\\/g, '/')).sort();
+  if (result.code !== 0 && !conflicts.length) throw new Error(`tiinex.git.merge-failed:${result.stderr.trim() || result.stdout.trim() || result.code}`);
+  return { conflicts, alreadyUpToDate: /already up[ -]to[ -]date/i.test(`${result.stdout}\n${result.stderr}`) };
 }

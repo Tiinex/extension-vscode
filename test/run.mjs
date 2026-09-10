@@ -10,10 +10,15 @@ import { LatestWinsKeyedQueue } from '../dist/core/latestWinsQueue.js';
 import { canonicalRepositoryRoot, relativeRepositoryPath, repositoryContainsPath, sameRepositoryRoot } from '../dist/core/repositoryPath.js';
 import { ignoredPathCollisions, safeRelativePath, safeTarget } from '../dist/core/paths.js';
 import { preferredRepositoryParent, routesPreferredForRole } from '../dist/core/receiveUx.js';
-import { alphabeticalWorkspaceIds, currentRoleArtifacts, currentRoleChoices, makeIndexedArtifact } from '../dist/core/artifactTree.js';
+import { alphabeticalWorkspaceIds, artifactsForLineageMode, currentRoleArtifacts, currentRoleChoices, makeIndexedArtifact } from '../dist/core/artifactTree.js';
 import { receivedHandoffContext, withWorkspaceRoots } from '../dist/core/receivedHandoff.js';
-import { commitWorkingTree, discardWorkingTree, generateTiinexCommitMessage, listStagedPaths, preflightExistingLocalBranch, pushExactLandingCommit, stageCommitPush, stageLandingChanges, stageLandingCommit, stashWorkingTree } from '../dist/host/git.js';
-import { createHandoffDraft, parseBootstrapDescriptor, prepareBundledRuntime, runTiinexJson, projectEditorAssistanceText, projectHandoffAuthoringPlan, projectHandoffEndpoints, projectOperatorContext, projectStagedValidation, projectWorkspaceLanding, projectWorkspacePackageSources } from '../dist/tiinex/bootstrap.js';
+import { operatorMatchedWorkspaceIds, resolvePrioritizedWorkspaceDuplicates } from '../dist/core/sourceSelection.js';
+import { comparePackageRecency, inheritedOutgoingLabel } from '../dist/core/outgoingUx.js';
+import { projectArtifactAuthoringModel } from '../dist/core/artifactAuthoringModel.js';
+import { planWorkspaceSession, validateWorkspaceTargetMapping } from '../dist/core/workspaceSession.js';
+import { checkIgnoredPaths, commitWorkingTree, dirtyWorkingTreePaths, discardWorkingTree, generateTiinexCommitMessage, listStagedPaths, mergeCommitNoCommit, payloadCheckoutEligibility, preflightExistingLocalBranch, pushExactLandingCommit, stageCommitPush, stageLandingChanges, stageLandingCommit, stashWorkingTree } from '../dist/host/git.js';
+import { preferredNodeExecutable } from '../dist/host/nodeExecutable.js';
+import { compareIncomingWorkspaceToLocal, createHandoffDraft, inspectArtifactCreationContract, parseBootstrapDescriptor, prepareBundledRuntime, projectArtifactSchemaGuide, runTiinexJson, projectEditorAssistanceText, projectHandoffAuthoringPlan, projectHandoffEndpoints, projectOperatorContext, projectStagedValidation, projectWorkspaceLanding, projectWorkspacePackageSources } from '../dist/tiinex/bootstrap.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 let count = 0;
@@ -37,6 +42,42 @@ await test('Windows multi-root comparison treats equivalent Git API and git.exe 
   assert.equal(repositoryContainsPath(apiRoot, 'C:/Users/micro/Documents/Repos/Tiinex/site/x', 'win32'), false);
 });
 
+await test('Incoming repository session stays single-root for one repo and opens multi-root only for multiple repo targets', async () => {
+  assert.equal(planWorkspaceSession(['/repos/a'], ['/repos/a']).transition, 'none');
+  assert.equal(planWorkspaceSession(['/repos/a'], ['/repos/a', '/repos/a']).distinctTargetRootCount, 1);
+  assert.equal(planWorkspaceSession(['/repos/a'], ['/repos/b']).transition, 'single-root-unavailable');
+  const multi = planWorkspaceSession(['/repos/a'], ['/repos/a', '/repos/b']);
+  assert.equal(multi.transition, 'dedicated-multi-root');
+  assert.deepEqual(multi.missingRoots, [path.resolve('/repos/b')]);
+  assert.equal(planWorkspaceSession(['/repos/a', '/repos/b'], ['/repos/a', '/repos/b']).transition, 'none');
+});
+
+await test('Incoming mutation roots fail closed when full Workspace snapshots alias or overlap', async () => {
+  assert.equal(validateWorkspaceTargetMapping([
+    { workspaceId: 'a', root: '/repos/a' },
+    { workspaceId: 'b', root: '/repos/b' }
+  ]).status, 'ready');
+  const aliased = validateWorkspaceTargetMapping([
+    { workspaceId: 'a', root: '/repos/shared' },
+    { workspaceId: 'b', root: '/repos/shared' }
+  ]);
+  assert.equal(aliased.status, 'blocked');
+  assert.deepEqual(aliased.duplicateRoots[0].workspaceIds, ['a', 'b']);
+  const nested = validateWorkspaceTargetMapping([
+    { workspaceId: 'parent', root: '/repos/project' },
+    { workspaceId: 'child', root: '/repos/project/vendor/child' }
+  ]);
+  assert.equal(nested.status, 'blocked');
+  assert.equal(nested.overlappingRoots.length, 1);
+});
+
+await test('VS Code main-host tooling avoids Code.exe for portable Node tooling unless explicitly overridden', async () => {
+  assert.equal(preferredNodeExecutable('', 'C:\\Users\\Sigma\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe', 'win32'), 'node.exe');
+  assert.equal(preferredNodeExecutable('', 'C:\\Program Files\\nodejs\\node.exe', 'win32'), 'C:\\Program Files\\nodejs\\node.exe');
+  assert.equal(preferredNodeExecutable('D:\\tools\\node.exe', 'C:\\VSCode\\Code.exe', 'win32'), 'D:\\tools\\node.exe');
+  assert.equal(preferredNodeExecutable('', '/usr/bin/node', 'linux'), '/usr/bin/node');
+});
+
 await test('Receive UX chooses the most common repository parent and treats role text as presentation filtering only', async () => {
   const roots = [
     'C:\\Users\\Sigma\\Repos\\Tiinex\\business',
@@ -54,6 +95,41 @@ await test('Receive UX chooses the most common repository parent and treats role
   assert.deepEqual(routesPreferredForRole(routes, '').map((item) => item.id), ['a', 'b']);
 });
 
+await test('Incoming operator defaults allow multiple matching Workspaces and Outgoing duplicate selection uses top-source priority', async () => {
+  const matches = operatorMatchedWorkspaceIds([
+    { workspaceId: 'business', from: 'Anchor', to: 'Sigma' },
+    { workspaceId: 'vscode', from: 'Sigma', to: 'Anchor' },
+    { workspaceId: 'core', from: 'Anchor', to: 'Loom' },
+    { workspaceId: 'vscode', from: 'Other', to: 'Sigma' }
+  ], 'sigma');
+  assert.deepEqual(matches.sort(), ['business', 'vscode']);
+  assert.deepEqual(operatorMatchedWorkspaceIds([{ workspaceId: 'vscode', from: 'Sigma', to: 'Anchor' }], 'Sigma'), []);
+  assert.deepEqual(operatorMatchedWorkspaceIds([{ workspaceId: 'docs', from: 'Anchor', to: 'Loom' }], 'Sigma'), []);
+  const resolution = resolvePrioritizedWorkspaceDuplicates(
+    ['incoming-old:docs', 'incoming-new:docs', 'local:docs', 'incoming-new:core'],
+    [
+      { key: 'local:docs', workspaceId: 'docs', priority: 0 },
+      { key: 'incoming-new:docs', workspaceId: 'docs', priority: 1 },
+      { key: 'incoming-new:core', workspaceId: 'core', priority: 2 },
+      { key: 'incoming-old:docs', workspaceId: 'docs', priority: 3 }
+    ]
+  );
+  assert.deepEqual(resolution.selectedKeys.sort(), ['incoming-new:core', 'local:docs']);
+  assert.deepEqual(resolution.deselectedKeys.sort(), ['incoming-new:docs', 'incoming-old:docs']);
+  assert.deepEqual(resolution.duplicateWorkspaceIds, ['docs']);
+});
+
+await test('Outgoing source UX inherits Incoming carrier identity and shares Discovery time ordering', async () => {
+  assert.equal(inheritedOutgoingLabel('business-001-1-2-anchor-to-anchor.handoff-package.zip', '001-1-2'), 'business-001-1-2');
+  assert.equal(inheritedOutgoingLabel('001-3-anchor-to-anchor.handoff-package.zip', '001-3'), '001-3');
+  const items = [
+    { filename: 'older.handoff-package.zip', mtimeMs: 10 },
+    { filename: 'newer-b.handoff-package.zip', mtimeMs: 20 },
+    { filename: 'newer-a.handoff-package.zip', mtimeMs: 20 }
+  ].sort(comparePackageRecency);
+  assert.deepEqual(items.map((item) => item.filename), ['newer-a.handoff-package.zip', 'newer-b.handoff-package.zip', 'older.handoff-package.zip']);
+});
+
 await test('package route identity is separate from Workspace inclusion and contains no authoring Parent state', async () => {
   const routes = [
     { pointerless: true, label: 'none' },
@@ -69,7 +145,7 @@ await test('package route identity is separate from Workspace inclusion and cont
   assert.throws(() => exactWorkspaceIds([{ workspaceId: 'site' }], ['business']), /workspace-selection-unresolved/);
 });
 
-await test('extension contributes native Discovery, Incoming and Outgoing TreeViews with VS Code-native actions', async () => {
+await test('extension contributes stable Discovery, Incoming and Outgoing TreeView actions', async () => {
   const fs = await import('node:fs/promises');
   const manifest = JSON.parse(await fs.readFile(path.resolve(HERE, '..', 'package.json'), 'utf8'));
   const container = manifest.contributes?.viewsContainers?.activitybar?.find((item) => item.id === 'tiinex');
@@ -78,15 +154,81 @@ await test('extension contributes native Discovery, Incoming and Outgoing TreeVi
   const views = manifest.contributes?.views?.tiinex || [];
   assert.deepEqual(views.map((item) => item.id), ['tiinex.discovery', 'tiinex.incoming', 'tiinex.outgoing']);
   assert.equal(views.some((item) => item.type === 'webview'), false);
-  const titleCommands = new Set((manifest.contributes?.menus?.['view/title'] || []).map((item) => item.command));
-  for (const command of ['tiinex.discovery.selectFolder', 'tiinex.discovery.refresh', 'tiinex.outgoing.new', 'tiinex.outgoing.package']) assert.equal(titleCommands.has(command), true);
+  const commands = new Map((manifest.contributes?.commands || []).map((item) => [item.command, item]));
+  assert.equal(commands.get('tiinex.discovery.setIncoming')?.icon, '$(arrow-down)');
+  assert.equal(commands.get('tiinex.outgoing.new')?.icon, '$(add)');
+  assert.equal(commands.get('tiinex.outgoing.selectWorkspaces')?.icon, '$(list-selection)');
+  assert.equal(commands.get('tiinex.outgoing.package')?.title, 'Pack');
+  assert.equal(commands.get('tiinex.outgoing.package')?.icon, '$(package)');
+  assert.equal(commands.get('tiinex.incoming.merge')?.title, 'Merge');
+  assert.equal(commands.get('tiinex.incoming.merge')?.icon, '$(git-merge)');
+  assert.equal(commands.get('tiinex.incoming.replace')?.title, 'Replace');
+  assert.equal(commands.get('tiinex.incoming.replace')?.icon, '$(replace-all)');
+  assert.equal(commands.get('tiinex.discovery.toggleDelta')?.icon, '$(diff)');
+  assert.equal(commands.get('tiinex.incoming.toggleDelta')?.icon, '$(diff)');
+  assert.equal(commands.get('tiinex.outgoing.copyTransportText')?.icon, '$(copy)');
+  const titleMenus = manifest.contributes?.menus?.['view/title'] || [];
+  const titleCommands = new Set(titleMenus.map((item) => item.command));
+  for (const command of ['tiinex.discovery.toggleDelta', 'tiinex.discovery.selectFolder', 'tiinex.discovery.refresh', 'tiinex.incoming.toggleDelta', 'tiinex.incoming.refresh', 'tiinex.outgoing.new', 'tiinex.outgoing.selectWorkspaces', 'tiinex.outgoing.selectFolder', 'tiinex.outgoing.refresh']) assert.equal(titleCommands.has(command), true);
+  assert.equal(titleCommands.has('tiinex.outgoing.package'), false);
+  assert.equal(titleCommands.has('tiinex.incoming.mergeSelected'), false);
+  assert.equal(titleCommands.has('tiinex.outgoing.newBlank'), false);
+  assert.equal(titleCommands.has('tiinex.outgoing.newFromIncoming'), false);
+  const groupOrder = (command) => Number(String(titleMenus.find((item) => item.command === command)?.group || '').split('@')[1]);
+  assert.ok(groupOrder('tiinex.discovery.toggleProjection') < groupOrder('tiinex.discovery.selectFolder'));
+  assert.ok(groupOrder('tiinex.discovery.toggleLineage') < groupOrder('tiinex.discovery.selectFolder'));
+  assert.ok(groupOrder('tiinex.discovery.selectFolder') < groupOrder('tiinex.discovery.refresh'));
+  assert.ok(groupOrder('tiinex.outgoing.new') < groupOrder('tiinex.outgoing.selectWorkspaces'));
+  assert.ok(groupOrder('tiinex.outgoing.selectWorkspaces') < groupOrder('tiinex.outgoing.toggleProjection'));
+  assert.ok(groupOrder('tiinex.outgoing.toggleLineage') < groupOrder('tiinex.outgoing.selectFolder'));
+  assert.ok(groupOrder('tiinex.outgoing.selectFolder') < groupOrder('tiinex.outgoing.refresh'));
   const itemMenus = manifest.contributes?.menus?.['view/item/context'] || [];
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.discovery.setIncoming' && /discoveryPackage/.test(item.when || '')));
-  assert.ok(itemMenus.some((item) => item.command === 'tiinex.incoming.mergeWorkspace' && /incomingWorkspace/.test(item.when || '')));
-  assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.newHandoff' && /outgoingWorkspace/.test(item.when || '')));
-  assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.includeRoute' && /outgoingDraftWritten/.test(item.when || '')));
-  assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.excludeRoute' && /outgoingDraftRoute/.test(item.when || '')));
+  const incomingMergeMenu = itemMenus.find((item) => item.command === 'tiinex.incoming.merge');
+  const incomingReplaceMenu = itemMenus.find((item) => item.command === 'tiinex.incoming.replace');
+  for (const contextValue of ['tiinex.incomingPackage', 'tiinex.incomingWorkspace', 'tiinex.incomingWorkspaceArchive']) {
+    assert.match(incomingMergeMenu?.when || '', new RegExp(contextValue));
+    assert.match(incomingReplaceMenu?.when || '', new RegExp(contextValue));
+  }
+  assert.equal(incomingMergeMenu?.group, 'inline@1');
+  assert.equal(incomingReplaceMenu?.group, 'inline@2');
+  const incomingCloseMenu = itemMenus.find((item) => item.command === 'tiinex.incoming.close');
+  assert.match(incomingCloseMenu?.when || '', /tiinex\.incomingPackage/);
+  assert.match(incomingCloseMenu?.when || '', /tiinex\.incomingPackageLoading/);
+  assert.equal(incomingCloseMenu?.group, 'inline@9');
+  assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.package' && /outgoingRoot/.test(item.when || '') && !/canPackage/.test(item.when || '') && item.group === 'inline@1'));
+  assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.close' && /outgoingRoot/.test(item.when || '')));
+  assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.newHandoff' && /outgoingWorkspace/.test(item.when || '') && /outgoingWorkspaceArchive/.test(item.when || '') && item.group === 'inline@1'));
+  assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.attachHandoff' && /outgoingHandoffUnattached/.test(item.when || '')));
+  assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.detachHandoff' && /outgoingHandoffAttached/.test(item.when || '')));
+  assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.copyTransportText' && /outgoingHandoffAttached/.test(item.when || '') && item.group === 'inline@1'));
+  assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.omitWorkspacePayload' && /outgoingWorkspaceDescriptorEmbedded/.test(item.when || '')));
+  assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.embedWorkspacePayload' && /outgoingWorkspaceDescriptorCheckout/.test(item.when || '')));
+  const explorerMenus = manifest.contributes?.menus?.['explorer/context'] || [];
+  assert.ok(explorerMenus.some((item) => item.submenu === 'tiinex.explorer.actions' && item.group === '1_tiinex@1'));
+  assert.ok((manifest.contributes?.submenus || []).some((item) => item.id === 'tiinex.explorer.actions' && item.label === 'Tiinex'));
+  const tiinexExplorerMenus = manifest.contributes?.menus?.['tiinex.explorer.actions'] || [];
+  assert.ok(tiinexExplorerMenus.some((item) => item.command === 'tiinex.artifact.newHandoff' && /explorerResourceIsFolder/.test(item.when || '')));
+  assert.ok(tiinexExplorerMenus.some((item) => item.command === 'tiinex.artifact.attachHandoff' && item.when === '!explorerResourceIsFolder && resourceExtname == .md'));
+  assert.equal(commands.get('tiinex.artifact.attachHandoff')?.title, 'Attach Handoff to Outgoing');
+  assert.equal(commands.get('tiinex.artifact.attachHandoff')?.icon, '$(link)');
+  const treeSource = await fs.readFile(path.resolve(HERE, '..', 'src', 'operatorTrees.ts'), 'utf8');
+  assert.match(treeSource, /label: '\$\(add\) Blank'/);
+  assert.doesNotMatch(treeSource, /actionNode\('incoming'[\s\S]*Review Merge Plan/);
+  assert.doesNotMatch(treeSource, /actionNode\('incoming'[\s\S]*Review Replace Plan/);
+  assert.doesNotMatch(treeSource, /actionNode\('outgoing'[\s\S]*Pack…/);
+  assert.doesNotMatch(treeSource, /actionNode\('outgoing'[\s\S]*New Handoff…/);
+  assert.match(treeSource, /revealOutgoingPanel/);
+  assert.match(treeSource, /workbench\.view\.extension\.tiinex/);
+  assert.match(treeSource, /filter\(\(workspace\) => !state\.appliedWorkspaceIds\.has\(workspace\.workspaceId\)\)/);
+  assert.match(treeSource, /No Outgoing carrier is open\. Create one and continue attaching this Handoff\?/);
+  assert.match(treeSource, /packageParentPath = await this\.pickOutgoingParent\(\)/);
+  assert.match(treeSource, /this\.sortIncomingByDiscoveryOrder\(\)/);
+  assert.doesNotMatch(treeSource, /chooseOutgoingCarrierParent/);
   assert.equal(Boolean(manifest.contributes?.problemMatchers), false);
+  const extensionSource = await fs.readFile(path.resolve(HERE, '..', 'src', 'extension.ts'), 'utf8');
+  assert.match(extensionSource, /trees\.beginHandoffAuthoring\(\)/);
+  assert.doesNotMatch(extensionSource, /Use the \+ action on an Outgoing Workspace/);
   assert.equal(Boolean(manifest.contributes?.taskDefinitions), false);
 });
 
@@ -101,6 +243,9 @@ await test('Discovery settings are non-mutating and default build chains install
   assert.equal(properties['tiinex.discovery.latestToIncoming'].default, false);
   assert.equal(properties['tiinex.incoming.autoShowRoleHandoff'].default, 'ask');
   assert.deepEqual(properties['tiinex.incoming.autoShowRoleHandoff'].enum, ['no', 'ask', 'yes']);
+  assert.match(properties['tiinex.incoming.autoShowRoleHandoff'].description, /one or more qualified Handoff routes/);
+  assert.equal(properties['tiinex.landing.stage'].default, 'yes');
+  assert.deepEqual(properties['tiinex.landing.stage'].enum, ['no', 'yes']);
   assert.equal(Object.hasOwn(properties, 'tiinex.handoffInbox.path'), false);
   assert.equal(Object.hasOwn(properties, 'tiinex.handoff.discovery'), false);
   assert.equal(Object.hasOwn(properties, 'tiinex.landing.openHandoff'), false);
@@ -146,6 +291,12 @@ await test('Receive orchestration keeps Workspace mutation explicit and makes un
   assert.match(source, /preferredRepositoryParent/);
   assert.match(source, /projectWorkspaceLanding\(runtime, packagePath, candidateFacts, candidateSelections, \[workspaceId\]\)/);
   assert.match(source, /stageLandingChanges\(root, protectedPaths\)/);
+  assert.match(source, /function stagePolicy\(\): StagePolicy/);
+  const postLandingStart = source.indexOf('async function postLandingGit');
+  const stageDisabledGate = source.indexOf("if (stagePolicy() === 'no')", postLandingStart);
+  const stageLandingCall = source.indexOf('stageLandingChanges(root, protectedPaths)', postLandingStart);
+  assert.ok(stageDisabledGate >= 0 && stageLandingCall > stageDisabledGate);
+  assert.match(source, /Post-landing policies: stage=\$\{stagePolicy\(\)\}, commit=\$\{policy\('commit'\)\}, push=\$\{policy\('push'\)\}/);
   assert.match(source, /Select every Workspace Tiinex may replace/);
   assert.match(source, /canPickMany: true/);
   assert.match(source, /trustedLandingCommitMessage/);
@@ -202,10 +353,16 @@ await test('native tree operator keeps projection choices separate from canonica
   assert.match(source, /TreeLineageMode/);
   assert.match(source, /toggleProjection\('discovery'\)/);
   assert.match(source, /toggleLineage\('discovery'\)/);
-  assert.match(source, /contextValue = 'tiinex\.incomingWorkspace'/);
+  assert.match(source, /contextValue = applied \? 'tiinex\.incomingWorkspaceApplied' : 'tiinex\.incomingWorkspace'/);
+  assert.match(source, /tiinex\.incomingWorkspaceArchiveApplied/);
   assert.match(source, /contextValue = 'tiinex\.outgoingWorkspace'/);
-  assert.match(source, /logicalArtifactGroups/);
+  assert.match(source, /logicalWorkspaceRootChildren/);
   assert.match(source, /fileArtifactRoots/);
+  assert.match(source, /workspaceState\.get<TreeProjectionMode>\(`tiinex\.tree\.\$\{section\}\.projection`, 'files'\)/);
+  assert.match(source, /workspaceState\.get<TreeLineageMode>\(`tiinex\.tree\.\$\{section\}\.lineage`, 'lineage'\)/);
+  assert.match(source, /this\.discoveryView\.description = this\.modeLabel\('discovery'\)/);
+  assert.match(source, /this\.incomingView\.description = this\.modeLabel\('incoming'\)/);
+  assert.match(source, /this\.outgoingView\.description = this\.modeLabel\('outgoing'\)/);
   assert.doesNotMatch(source, /WebviewViewProvider|registerWebviewViewProvider/);
   const extension = await fs.readFile(path.resolve(HERE, '..', 'src', 'extension.ts'), 'utf8');
   assert.match(extension, /new TiinexOperatorTrees/);
@@ -219,7 +376,12 @@ await test('native tree operator keeps projection choices separate from canonica
   assert.equal(titles.get('tiinex.landHandoffPackage'), 'Tiinex: Open Handoff Package as Incoming');
   assert.equal(titles.get('tiinex.buildHandoffPackage'), 'Tiinex: Package Outgoing');
   const hiddenPalette = new Set((manifest.contributes.menus.commandPalette || []).filter((item) => item.when === 'false').map((item) => item.command));
-  for (const command of ['tiinex.discovery.setIncoming', 'tiinex.incoming.mergeWorkspace', 'tiinex.outgoing.newHandoff', 'tiinex.outgoing.previewDraft', 'tiinex.outgoing.writeDraft', 'tiinex.outgoing.includeRoute', 'tiinex.outgoing.excludeRoute']) assert.equal(hiddenPalette.has(command), true);
+  for (const command of ['tiinex.discovery.setIncoming', 'tiinex.incoming.mergeReplace', 'tiinex.incoming.close', 'tiinex.outgoing.close', 'tiinex.outgoing.newHandoff', 'tiinex.outgoing.previewDraft', 'tiinex.outgoing.writeDraft', 'tiinex.outgoing.includeRoute', 'tiinex.outgoing.excludeRoute']) assert.equal(hiddenPalette.has(command), true);
+  const contributedCommands = new Set(manifest.contributes.commands.map((item) => item.command));
+  assert.equal(contributedCommands.has('tiinex.incoming.mergeWorkspace'), false);
+  assert.equal(contributedCommands.has('tiinex.outgoing.new'), true);
+  assert.equal(contributedCommands.has('tiinex.incoming.mergeReplace'), true);
+  assert.equal(contributedCommands.has('tiinex.outgoing.selectWorkspaces'), true);
 });
 
 await test('Discovery indexes explicit folders and auto-refresh never invokes landing', async () => {
@@ -252,6 +414,8 @@ await test('artifact-tree helpers keep latest Roles, lineage leaves and alphabet
   const roles = currentRoleArtifacts([roleOld, roleNew]);
   assert.equal(roles.length, 1);
   assert.equal(roles[0].path, '.topics/roles/001-1.trace.md');
+  assert.deepEqual(artifactsForLineageMode([roleOld, roleNew], 'lineage').map((item) => item.path), ['.topics/roles/001.trace.md', '.topics/roles/001-1.trace.md']);
+  assert.deepEqual(artifactsForLineageMode([roleOld, roleNew], 'leaves').map((item) => item.path), ['.topics/roles/001-1.trace.md']);
   const cached = makeIndexedArtifact({ path: '001-endpoint-role.trace.md', markdown: '# Continuity Context\n\n- Current\n  - Current Schema: tiinex.pointer.v1\n  - Created At: 2026-03-01 00:00:00\n\n---\n\n# Endpoint Role Pointer — Sigma\n\n## Current Read\n\n- Carrier Role: endpoint-role\n- Role Label Hint: Sigma\n- Role Reference: `business::.topics/roles/001.trace.md`\n- Target Workspace Id: `business`\n- Target Inner Path: `.topics/roles/001.trace.md`\n' });
   const cacheOnly = makeIndexedArtifact({ path: '001-other-endpoint-role.trace.md', markdown: '# Continuity Context\n\n- Current\n  - Current Schema: tiinex.pointer.v1\n  - Created At: 2026-03-01 00:00:00\n\n---\n\n# Endpoint Role Pointer — Reviewer\n\n## Current Read\n\n- Carrier Role: endpoint-role\n- Role Label Hint: Reviewer\n- Role Reference: `business::.topics/roles/009-reviewer.trace.md`\n- Target Workspace Id: `business`\n- Target Inner Path: `.topics/roles/009-reviewer.trace.md`\n' });
   assert.ok(cached && cacheOnly);
@@ -264,34 +428,216 @@ await test('artifact-tree helpers keep latest Roles, lineage leaves and alphabet
   assert.deepEqual(sorted.map((item) => item.workspaceId), ['Business', 'core', 'vscode']);
 });
 
-await test('minimal Handoff drafts preserve one From/To, current Role references, participants and preview-before-write', async () => {
+
+await test('generic authoring exposes only Core-executable ordinary fields and reports schema-only optional gaps', async () => {
+  const contract = {
+    status: 'ready',
+    target: { schemaId: 'tiinex.example.v1', label: 'Example' },
+    transitionType: 'create-artifact',
+    creation: {
+      inputBindings: [
+        { input: 'Required', kind: 'ordinary-field', section: 'Parties', field: 'Required', requirement: 'required' },
+        { input: 'Group', kind: 'ordinary-group', section: 'Group', requiredFields: ['A'], optionalFields: ['B'] }
+      ]
+    }
+  };
+  const guide = {
+    schemaId: 'tiinex.example.v1',
+    factoryDescriptor: { sections: [
+      { group: 'Parties', requiredFields: ['Required'], optionalFields: ['Optional Schema Field'], fieldConstraints: [] },
+      { group: 'Group', requiredFields: ['A'], optionalFields: ['B'], fieldConstraints: [] }
+    ] }
+  };
+  const model = projectArtifactAuthoringModel({ contract }, { guide });
+  assert.deepEqual(model.sections.find((section) => section.key === 'Parties')?.fields.map((field) => field.key), ['Required']);
+  assert.deepEqual(model.sections.find((section) => section.key === 'Group')?.fields.map((field) => field.key), ['A', 'B']);
+  assert.deepEqual(model.capabilityGaps, [{ section: 'Parties', fields: ['Optional Schema Field'], reason: 'schema-optional-fields-not-bound-for-creation' }]);
+});
+
+await test('installed Core 0.1.1 exposes Handoff reference fields as validation-only authoring gaps', async () => {
+  const root = path.resolve(HERE, '..');
+  const runtime = await prepareBundledRuntime(root, process.execPath);
+  try {
+    const [contract, guide] = await Promise.all([
+      inspectArtifactCreationContract(runtime, 'tiinex.handoff.v1', 'create-artifact'),
+      projectArtifactSchemaGuide(runtime, 'tiinex.handoff.v1', 'create')
+    ]);
+    const model = projectArtifactAuthoringModel(contract, guide);
+    const parties = model.sections.find((section) => section.key === 'Handoff Parties');
+    assert.ok(parties);
+    assert.equal(parties.fields.some((field) => field.key === 'From Reference'), false);
+    assert.equal(parties.fields.some((field) => field.key === 'To Reference'), false);
+    const gap = model.capabilityGaps.find((item) => item.section === 'Handoff Parties');
+    assert.ok(gap?.fields.includes('From Reference'));
+    assert.ok(gap?.fields.includes('To Reference'));
+  } finally { await runtime.dispose(); }
+});
+
+await test('generic Artifact Authoring renders Core contracts while Handoff host actions remain separate', async () => {
   const fs = await import('node:fs/promises');
   const authoring = await fs.readFile(path.resolve(HERE, '..', 'src', 'authoring.ts'), 'utf8');
+  const model = await fs.readFile(path.resolve(HERE, '..', 'src', 'core', 'artifactAuthoringModel.ts'), 'utf8');
+  const panel = await fs.readFile(path.resolve(HERE, '..', 'src', 'artifactAuthoringPanel.ts'), 'utf8');
   const tree = await fs.readFile(path.resolve(HERE, '..', 'src', 'operatorTrees.ts'), 'utf8');
-  assert.match(authoring, /if \(kind === 'unknown'\) return ''/);
-  assert.match(authoring, /'From Reference': fromReference/);
-  assert.match(authoring, /'To Reference': toReference/);
-  assert.match(authoring, /Additional participant Role context requested for carrier grounding/);
-  assert.match(authoring, /prepareSimpleHandoffDraft/);
-  assert.match(authoring, /writePreparedSimpleHandoffDraft/);
-  assert.match(tree, /currentRoleChoices/);
-  assert.match(tree, /const localModel = await safePackageModel\(this\.extensionPath\)/);
-  assert.match(tree, /Discussion/);
-  assert.match(tree, /Additional participants \(optional\)/);
-  assert.match(tree, /prepareSimpleHandoffDraft/);
-  assert.match(tree, /tiinex-preview/);
-  assert.match(tree, /markdown\.showPreview/);
-  const previewCall = tree.indexOf('prepareSimpleHandoffDraft');
-  const writeCall = tree.indexOf('writePreparedSimpleHandoffDraft');
-  assert.ok(previewCall >= 0 && writeCall >= 0 && previewCall < writeCall);
-  assert.match(tree, /routeIncluded/);
-  assert.match(tree, /setDraftRoute/);
-  assert.match(tree, /routeInputs: routes\.map/);
+  assert.match(authoring, /inspectArtifactCreationContract/);
+  assert.match(authoring, /projectArtifactSchemaGuide/);
+  assert.match(authoring, /projectArtifactAuthoringModel/);
+  assert.match(authoring, /createArtifactDraft/);
+  assert.match(authoring, /path-planner-capability-gap/);
+  assert.match(model, /intentionally knows no artifact-specific field[\s\S]*semantics/);
+  assert.doesNotMatch(model, /\bFrom\b|\bTo\b|Transfers|Required Context/);
+  assert.match(panel, /Schema and validation are projected by Tiinex Core/);
+  assert.match(panel, /Core authoring boundary/);
+  assert.match(panel, /not currently bound by Core creation/);
+  assert.match(panel, /applyAssist/);
+  assert.match(panel, /assistCapabilityErrors/);
+  assert.match(panel, /cannot be written by the current Core creation contract/);
+  assert.match(panel, /Additional carrier Roles/);
+  assert.match(panel, /Attach to Outgoing/);
+  assert.match(panel, /Preview/);
+  assert.match(panel, /repeatable-section/);
+  assert.match(panel, /fieldAssists/);
+  assert.match(tree, /loadArtifactAuthoringModel\(this\.extensionPath, 'tiinex\.handoff\.v1'\)/);
+  assert.match(tree, /openArtifactAuthoringPanel/);
+  assert.match(tree, /ensureOutgoingAuthoringRoot/);
+  assert.match(tree, /Incoming payloads are materialized only into extension-owned staging/);
+  assert.match(tree, /trackOutgoingHandoff/);
+  assert.match(tree, /attachOutgoingHandoffNode/);
+  assert.match(tree, /detachOutgoingHandoffNode/);
+  assert.match(tree, /newHandoffFromExplorer/);
+  assert.match(tree, /attachHandoffFromExplorer/);
+  assert.match(tree, /decorateOutgoingWorkspaceFileNodes/);
+  assert.match(tree, /Local Workspace source was not selected/);
+  assert.match(tree, /routeId: routeChoiceKey\(\{ pointerless: true \}\)/);
+  assert.doesNotMatch(tree, /This Outgoing continues an Incoming Handoff carrier, so Pack needs at least one attached Handoff route/);
+  assert.match(tree, /refreshDiscoveryAfterPack/);
+  assert.match(tree, /participantRoles: item\.participants/);
+  assert.match(tree, /workspaceSourceOverrides/);
+  assert.match(tree, /const outputDirectory = this\.outgoingFolder\(\) \|\| await this\.selectOutgoingFolder\(\)/);
+  assert.match(tree, /outputDirectory,/);
+  assert.match(tree, /ConfigurationTarget\.Global/);
+  const previewCall = tree.indexOf("title: 'Tiinex preparing Handoff preview'");
+  const writeCall = tree.indexOf('writePreparedArtifactDraft(this.extensionPath, prepared.draft)');
+  assert.ok(previewCall >= 0 && writeCall > previewCall);
   const packageBuilder = await fs.readFile(path.resolve(HERE, '..', 'src', 'packageBuilder.ts'), 'utf8');
   assert.match(packageBuilder, /PackageRouteInput/);
   assert.match(packageBuilder, /workspace-routes\.json/);
-  assert.match(packageBuilder, /const selector = `\$\{primaryRoute\.workspaceId\}:\$\{primaryRoute\.path\}`/);
-  assert.match(packageBuilder, /routeInputs\.map/);
+  assert.match(packageBuilder, /participantRoles/);
+  assert.match(packageBuilder, /workspaceSourceOverrides/);
+  assert.match(packageBuilder, /Select Tiinex outgoing folder/);
+  assert.match(packageBuilder, /showOpenDialog/);
+  assert.match(packageBuilder, /workspaceFolders \|\| \[\]/);
+  assert.match(packageBuilder, /revealInExplorer/);
+  assert.match(packageBuilder, /revealFileInOS/);
+  assert.match(packageBuilder, /routeRoutingTexts/);
+  assert.match(packageBuilder, /routeTexts\.length === 1/);
+  assert.match(tree, /copyOutgoingTransportText/);
+  assert.match(tree, /Pack Outgoing first\. Exact transport text/);
+});
+
+await test('Discovery and Incoming delta display is shared-compare-backed and never hides unqualified differences', async () => {
+  const fs = await import('node:fs/promises');
+  const tree = await fs.readFile(path.resolve(HERE, '..', 'src', 'operatorTrees.ts'), 'utf8');
+  assert.match(tree, /toggleDelta\('discovery'\)/);
+  assert.match(tree, /toggleDelta\('incoming'\)/);
+  assert.match(tree, /compareIncomingWorkspaceToLocal/);
+  assert.match(tree, /No Workspace delta against open local repositories/);
+  assert.match(tree, /state: 'local-missing'/);
+  assert.match(tree, /state: 'unavailable'/);
+  assert.match(tree, /delta\.incomingPaths/);
+  assert.doesNotMatch(tree, /delta.*source mutation/i);
+});
+
+await test('multi-Incoming and Merge/Replace remain selection-first, dry until final execute, and keep filesystem/Git safety explicit', async () => {
+  const fs = await import('node:fs/promises');
+  const tree = await fs.readFile(path.resolve(HERE, '..', 'src', 'operatorTrees.ts'), 'utf8');
+  const apply = await fs.readFile(path.resolve(HERE, '..', 'src', 'incomingApply.ts'), 'utf8');
+  assert.match(tree, /private incoming: IncomingState\[\] = \[\]/);
+  assert.match(tree, /this\.incoming = \[state, \.\.\.this\.incoming\.filter/);
+  assert.match(tree, /operatorMatchedWorkspaceIds/);
+  assert.match(tree, /resolvePrioritizedWorkspaceDuplicates/);
+  assert.match(tree, /Duplicate sources removed; the higher group wins/);
+  assert.match(tree, /LOCAL first, then INCOMING newest → oldest/);
+  assert.match(tree, /\$\(repo\) LOCAL · VS CODE/);
+  assert.match(tree, /\$\(archive\) INCOMING \$\{incomingIndex \+ 1\}/);
+  assert.match(tree, /seed\?\.kind === 'local'/);
+  assert.match(tree, /seed\?\.kind === 'incoming'/);
+  assert.match(tree, /this\.selectOutgoingWorkspaces\(packageParentPath/);
+  assert.match(tree, /this\.outgoingProjectedFilename\(\)/);
+  assert.match(tree, /const routes = qualifiedRoutes\(parent\.orientation\)/);
+  assert.match(tree, /routes\.findIndex/);
+  assert.match(tree, /this\.projection\('outgoing'\) === 'files'/);
+  assert.match(tree, /outgoingCarrierFileChildren\(\)/);
+  assert.match(tree, /001-1-READ-BEFORE-PROCEEDING\.trace\.md/);
+  assert.match(tree, /001-2-bootstrap\.zip/);
+  assert.match(tree, /001-tiinex-handoff-package\.trace\.md/);
+  assert.match(tree, /Keep Incoming and Outgoing package roots visually identical/);
+  assert.doesNotMatch(tree, /\$\{parentDimension\}-\?/);
+  assert.doesNotMatch(tree, /: '…'/);
+  assert.match(tree, /tooltipLines = \[projectedFilename, lineage\]/);
+  assert.match(tree, /logicalWorkspaceGroupNode\(section, workspaceId, packagePath, 'files', 'Files'\)/);
+  assert.match(tree, /logicalWorkspaceGroupNode\(section, workspaceId, packagePath, 'lineage', 'Lineage'\)/);
+  assert.doesNotMatch(tree, /logicalWorkspaceGroupNode\(section, workspaceId, packagePath, 'handoffs', 'Handoffs'\)/);
+  assert.match(tree, /visibleDiscoveredPackages\(\)/);
+  assert.match(tree, /Loading…/);
+  assert.match(tree, /loading~spin/);
+  assert.match(tree, /workspacePayloadIncluded/);
+  assert.match(tree, /logicalWorkspaceHandoffTargets/);
+  assert.match(tree, /resolved-handoff:/);
+  assert.match(tree, /logicalHandoffProvenance/);
+  assert.match(tree, /pointerTargetChildren/);
+  assert.match(tree, /workspaceFileTreeChildren/);
+  assert.match(tree, /logicalLineageChildren/);
+  assert.match(tree, /readCarrierWorkspaceFile/);
+  assert.match(tree, /openWorkspaceMarkdownNode/);
+  assert.match(tree, /revealIncomingRoute/);
+  assert.match(tree, /VS Code operator selected stable multi-Workspace checkpoint/);
+  assert.doesNotMatch(tree, /Why is this multi-Workspace state stable/);
+  assert.match(tree, /bootstrapPayloadIncluded/);
+  assert.match(tree, /payloadCheckoutEligibility/);
+  assert.match(tree, /shared Core manufacture\/unpack support/);
+  assert.match(tree, /artifactProjectionChildren\('outgoing', node, artifacts\)/);
+  assert.match(tree, /applyIncomingWorkspaces/);
+  assert.match(tree, /planWorkspaceSession/);
+  assert.match(tree, /Open Multi-Repo Workspace/);
+  assert.match(tree, /will not mutate a hidden repository/);
+  assert.match(tree, /Continue the Incoming Review Plan in the new window/);
+  assert.match(tree, /Review Plan/);
+  const workspaceSession = await fs.readFile(path.resolve(HERE, '..', 'src', 'vscode', 'incomingWorkspaceSession.ts'), 'utf8');
+  assert.match(workspaceSession, /globalStorage|storageRoot/);
+  assert.match(workspaceSession, /\.code-workspace/);
+  assert.match(workspaceSession, /tiinex-resume\.json/);
+  assert.doesNotMatch(workspaceSession, /updateWorkspaceFolders/);
+  assert.match(apply, /compareIncomingWorkspaceToLocal/);
+  assert.match(apply, /sourceComparisonLabel/);
+  assert.match(apply, /shared-compare-unavailable/);
+  assert.match(apply, /shared-compare-blocked/);
+  assert.match(apply, /Stash local changes/);
+  assert.match(apply, /stashWorkingTree/);
+  assert.doesNotMatch(apply, /discardWorkingTree|git clean|reset --hard/);
+  assert.match(apply, /only these Workspace roots can change/);
+  assert.match(apply, /ignored paths and symlinks are protected/);
+  assert.match(apply, /local-state-changed-after-review/);
+  assert.match(apply, /assertMutationPreconditions\(plans\)/);
+  assert.match(apply, /not a cross-repository atomic transaction/);
+  const packageBuilder = await fs.readFile(path.resolve(HERE, '..', 'src', 'packageBuilder.ts'), 'utf8');
+  assert.match(packageBuilder, /carrier-dimension-shared-contract-mismatch/);
+  assert.match(packageBuilder, /carrier-filename-shared-contract-mismatch/);
+  assert.match(packageBuilder, /assertExpectedCarrierDimension\(preview/);
+  assert.match(packageBuilder, /assertExpectedCarrierDimension\(built/);
+  assert.match(packageBuilder, /assertExpectedCarrierFilename\(preview/);
+  assert.match(packageBuilder, /assertExpectedCarrierFilename\(built/);
+  assert.match(tree, /expectedCarrierFilename = this\.outgoingProjectedFilename\(\)/);
+  assert.match(tree, /fileArtifactRoots\('discovery',[\s\S]*index\.packagePath/);
+  assert.match(tree, /index\.carrierFiles/);
+  assert.match(apply, /entry\.name === '\.git'/);
+  assert.match(apply, /check-ignore/);
+  assert.match(apply, /ignored-or-symlink-collision/);
+  assert.match(apply, /mergeCommitNoCommit/);
+  assert.match(apply, /workbench\.view\.scm/);
+  const finalConfirm = apply.indexOf("'Execute Plan'");
+  const execution = apply.indexOf('for (const plan of plans)', finalConfirm);
+  assert.ok(finalConfirm >= 0 && execution > finalConfirm);
 });
 
 await test('tree errors keep compact summaries visible and full technical detail behind Show Details', async () => {
@@ -385,7 +731,7 @@ await test('public Core portable entry exposes every VS Code-used shared operati
   try {
     const catalog = await runTiinexJson(runtime, ['operations']);
     const names = new Set((catalog.operations || []).map((item) => item.name));
-    for (const name of ['orient-handoff-package', 'project-workspace-landing', 'project-editor-assistance', 'project-authoring-parent', 'project-operator-context', 'project-staged-validation', 'project-handoff-endpoints', 'project-handoff-authoring-plan', 'create-local-draft', 'manufacture-handoff-package']) assert.equal(names.has(name), true, name);
+    for (const name of ['orient-handoff-package', 'compare-source-frontiers', 'project-workspace-landing', 'project-editor-assistance', 'project-authoring-parent', 'project-operator-context', 'project-staged-validation', 'project-handoff-endpoints', 'project-handoff-authoring-plan', 'create-local-draft', 'manufacture-handoff-package']) assert.equal(names.has(name), true, name);
   } finally { await runtime.dispose(); }
 });
 
@@ -459,6 +805,46 @@ await test('installed Core editor assistance withholds mixed-revision schema lin
     assert.equal(hygieneAction.replacementMarkdown.includes(legacyIntegrityTarget), false);
     assert.equal(hygieneAction.replacementMarkdown.includes(preferredIntegrityTarget), true);
   } finally { await runtime.dispose(); await fs.rm(root, { recursive: true, force: true }); }
+});
+
+await test('source-frontier compare wrapper uses current shared Core and exact explicit source kinds', async () => {
+  const runtime = { root: '/runtime', entrypoint: '/runtime/tiinex-portable.mjs', nodeExecutable: 'node', dispose: async () => undefined };
+  const fx = fakeRunner(() => ({
+    code: 0,
+    stdout: JSON.stringify({
+      status: 'ready',
+      state: 'changed',
+      mode: 'two-way',
+      workspaces: [{ workspaceId: 'core', state: 'changed', delta: { counts: { added: 1, removed: 2, byteChanged: 3, total: 6 }, added: ['new'], removed: ['old'], byteChanged: ['changed'] } }]
+    }),
+    stderr: ''
+  }));
+  const result = await compareIncomingWorkspaceToLocal(runtime, '/carrier.zip', '/repo-core', 'core', fx.runner);
+  assert.equal(result.workspaces[0].delta.counts.total, 6);
+  assert.deepEqual(fx.calls[0].args.slice(1), [
+    'compare-source-frontiers',
+    '--left-kind', 'local-workspace',
+    '--left', '/repo-core',
+    '--left-id', 'core',
+    '--right-kind', 'handoff-package',
+    '--right', '/carrier.zip',
+    '--right-select', 'core'
+  ]);
+});
+
+await test('structured Core qualification receipts survive non-zero CLI exit codes', async () => {
+  const runtime = { root: '/runtime', entrypoint: '/runtime/tiinex-portable.mjs', nodeExecutable: 'Code.exe', dispose: async () => undefined };
+  const blockedReceipt = { status: 'blocked', actionableFindings: [{ code: 'portable.source-frontier.fixture-blocked', severity: 'error', message: 'fixture' }] };
+  const fx = fakeRunner(() => ({ code: 2, stdout: JSON.stringify(blockedReceipt), stderr: '' }));
+  const parsed = await runTiinexJson(runtime, ['compare-source-frontiers'], fx.runner);
+  assert.equal(parsed.status, 'blocked');
+  assert.equal(fx.calls[0].env?.ELECTRON_RUN_AS_NODE, '1');
+
+  const compareFx = fakeRunner(() => ({ code: 2, stdout: JSON.stringify(blockedReceipt), stderr: '' }));
+  await assert.rejects(
+    compareIncomingWorkspaceToLocal(runtime, '/carrier.zip', '/repo-core', 'core', compareFx.runner),
+    /tiinex\.source-frontier\.compare-blocked:portable\.source-frontier\.fixture-blocked/
+  );
 });
 
 await test('landing-plan descriptors use cleaned OS temp files and exact CLI flag shapes', async () => {
@@ -721,6 +1107,94 @@ await test('landing stage preserves pre-landing ignored files even when the inco
     const status = await git('status', '--porcelain=v1', '--untracked-files=all');
     assert.match(status, /\?\? \.env/);
     assert.equal(await fs.readFile(path.join(tmp, '.env'), 'utf8'), 'SECRET=preserve-me\n');
+  } finally { await fs.rm(tmp, { recursive: true, force: true }); }
+});
+
+await test('checkout-only payload eligibility requires a clean exact HEAD published to upstream', async () => {
+  const sha = 'c'.repeat(40);
+  const clean = fakeRunner((key) => {
+    if (key === 'git rev-parse --show-toplevel') return { code: 0, stdout: '/repo\n', stderr: '' };
+    if (key === 'git config --get remote.origin.url') return { code: 0, stdout: 'git@github.com:Tiinex/site.git\n', stderr: '' };
+    if (key === 'git symbolic-ref --quiet --short HEAD') return { code: 0, stdout: 'main\n', stderr: '' };
+    if (key.startsWith('git status --porcelain')) return { code: 0, stdout: '', stderr: '' };
+    if (key === 'git rev-parse --verify HEAD^{commit}') return { code: 0, stdout: `${sha}\n`, stderr: '' };
+    if (key === 'git rev-parse --verify @{u}^{commit}') return { code: 0, stdout: `${sha}\n`, stderr: '' };
+    return { code: 0, stdout: '', stderr: '' };
+  });
+  assert.deepEqual(await payloadCheckoutEligibility('/repo', clean.runner), { eligible: true, reason: 'qualified-exact-checkout', repository: 'git@github.com:Tiinex/site.git', ref: sha, branch: 'main' });
+
+  const dirty = fakeRunner((key) => {
+    if (key === 'git rev-parse --show-toplevel') return { code: 0, stdout: '/repo\n', stderr: '' };
+    if (key === 'git config --get remote.origin.url') return { code: 0, stdout: 'git@github.com:Tiinex/site.git\n', stderr: '' };
+    if (key === 'git symbolic-ref --quiet --short HEAD') return { code: 0, stdout: 'main\n', stderr: '' };
+    if (key.startsWith('git status --porcelain')) return { code: 0, stdout: ' M src/a.ts\0', stderr: '' };
+    return { code: 0, stdout: '', stderr: '' };
+  });
+  assert.equal((await payloadCheckoutEligibility('/repo', dirty.runner)).reason, 'workspace-is-dirty');
+  assert.equal(dirty.calls.some((call) => call.args.join(' ') === 'rev-parse --verify HEAD^{commit}'), false);
+});
+
+await test('Git safety helpers honor .gitignore for future paths and report dirty paths exactly once', async () => {
+  const fs = await import('node:fs/promises');
+  const os = await import('node:os');
+  const { execFile } = await import('node:child_process');
+  const { promisify } = await import('node:util');
+  const run = promisify(execFile);
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tiinex-git-safety-'));
+  const git = async (...args) => (await run('git', args, { cwd: tmp })).stdout;
+  try {
+    await git('init', '-q');
+    await git('config', 'user.name', 'Tiinex Test');
+    await git('config', 'user.email', 'tiinex@example.invalid');
+    await fs.writeFile(path.join(tmp, '.gitignore'), 'ignored/\n*.secret\n', 'utf8');
+    await fs.writeFile(path.join(tmp, 'tracked.txt'), 'base\n', 'utf8');
+    await fs.writeFile(path.join(tmp, 'staged.txt'), 'base\n', 'utf8');
+    await git('add', '-A');
+    await git('commit', '-q', '-m', 'baseline');
+
+    assert.deepEqual(await checkIgnoredPaths(tmp, ['ignored/future.txt', 'future.secret', 'visible.txt']), ['future.secret', 'ignored/future.txt']);
+
+    await fs.writeFile(path.join(tmp, 'tracked.txt'), 'working\n', 'utf8');
+    await fs.writeFile(path.join(tmp, 'staged.txt'), 'staged\n', 'utf8');
+    await git('add', 'staged.txt');
+    await fs.writeFile(path.join(tmp, 'new.txt'), 'untracked\n', 'utf8');
+    assert.deepEqual(await dirtyWorkingTreePaths(tmp), ['new.txt', 'staged.txt', 'tracked.txt']);
+  } finally { await fs.rm(tmp, { recursive: true, force: true }); }
+});
+
+await test('Git-native Incoming merge leaves real unmerged index entries for VS Code Merge Editor', async () => {
+  const fs = await import('node:fs/promises');
+  const os = await import('node:os');
+  const { execFile } = await import('node:child_process');
+  const { promisify } = await import('node:util');
+  const run = promisify(execFile);
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tiinex-git-conflict-'));
+  const git = async (...args) => (await run('git', args, { cwd: tmp })).stdout;
+  try {
+    await git('init', '-q');
+    await git('config', 'user.name', 'Tiinex Test');
+    await git('config', 'user.email', 'tiinex@example.invalid');
+    await fs.writeFile(path.join(tmp, 'conflict.txt'), 'base\n', 'utf8');
+    await git('add', '-A');
+    await git('commit', '-q', '-m', 'base');
+    const baseBranch = (await git('branch', '--show-current')).trim();
+
+    await git('switch', '-q', '-c', 'incoming');
+    await fs.writeFile(path.join(tmp, 'conflict.txt'), 'incoming\n', 'utf8');
+    await git('commit', '-qam', 'incoming');
+    const incomingSha = (await git('rev-parse', 'HEAD')).trim();
+
+    await git('switch', '-q', baseBranch);
+    await fs.writeFile(path.join(tmp, 'conflict.txt'), 'local\n', 'utf8');
+    await git('commit', '-qam', 'local');
+
+    const result = await mergeCommitNoCommit(tmp, incomingSha);
+    assert.deepEqual(result.conflicts, ['conflict.txt']);
+    assert.equal(result.alreadyUpToDate, false);
+    await fs.access(path.join(tmp, '.git', 'MERGE_HEAD'));
+    const unresolved = (await git('diff', '--name-only', '--diff-filter=U')).trim().split(/\r?\n/).filter(Boolean);
+    assert.deepEqual(unresolved, ['conflict.txt']);
+    await git('merge', '--abort');
   } finally { await fs.rm(tmp, { recursive: true, force: true }); }
 });
 

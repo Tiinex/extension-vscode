@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import * as vscode from 'vscode';
+import { preferredNodeExecutable } from './host/nodeExecutable';
 import { prepareBundledRuntime, projectEditorAssistance, projectEditorAssistanceText } from './tiinex/bootstrap';
 import { relativeRepositoryPath } from './core/repositoryPath';
 import { repositoryRootForResource } from './vscode/gitApi';
@@ -63,7 +64,7 @@ export class TiinexDiagnosticsController implements vscode.Disposable {
   }
 
   private runtime() {
-    return this.runtimePromise ??= prepareBundledRuntime(this.extensionPath, vscode.workspace.getConfiguration('tiinex').get('nodePath', '').toString().trim() || process.execPath);
+    return this.runtimePromise ??= prepareBundledRuntime(this.extensionPath, preferredNodeExecutable(vscode.workspace.getConfiguration('tiinex').get('nodePath', '').toString().trim()));
   }
 
   private emit(snapshot: DiagnosticsSnapshot | null): void {

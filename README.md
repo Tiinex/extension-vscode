@@ -6,24 +6,54 @@ This checkout is a **preparatory 0.1.7 lane**. It may build and qualify candidat
 
 ## Native operator trees
 
-The Tiinex Activity Bar is now object-based rather than a schema-form workflow. It exposes three native VS Code TreeViews:
+The Tiinex Activity Bar uses three native VS Code TreeViews with the same projection controls: **Logical / Files** and **Leaves / Lineage**. Conditional projection controls stay left of stable actions; mutation actions stay left of **Refresh**, so always-visible buttons do not move as state changes. Tree items use native ThemeIcons and keep package/workspace actions on the object they affect.
 
-1. **Discovery** — read-only `.handoff-package.zip` discovery in one explicit operator-selected folder. Expanding a carrier browses Tiinex Markdown artifacts only; it never performs Receive/landing.
-2. **Incoming** — exactly one active qualified carrier. Workspace rows expose an explicit **Merge** action; a successful merge becomes a session-local green check and resets if the carrier is reopened.
-3. **Outgoing** — a live package-selection context. **New** supports **Blank** and **From Incoming**. From Incoming mirrors the Incoming Workspace set and binds that incoming carrier as package parent; Blank does not infer carrier parentage.
+### Discovery
 
-Every section independently supports **Logical / Files** and **Leaves / Lineage** presentation. These are projections only: package, Workspace and artifact actions keep the same identity regardless of how the tree is visualized. File projection shows only directories needed to reach indexed Tiinex Markdown artifacts; the Tiinex panel is not another general file browser.
+**Discovery** is read-only `.handoff-package.zip` discovery in one explicit operator-selected folder. Expanding a carrier browses the qualified Tiinex carrier/workspace artifacts without performing Receive or Merge. Nested package context is retained through every directory level, so `.topics` and other Tiinex descendants remain expandable instead of disappearing after the first level.
 
-Discovery settings are deliberately separated:
+Discovery settings remain deliberately separated:
 
-- `tiinex.discovery.folder` — explicit discovery root; blank means no scan. Opening Discovery without one asks for a folder and shows `You need to select a discovery folder` if cancelled.
-- `tiinex.discovery.autoRefresh` — refresh the Discovery tree when package files change; no Incoming/Receive mutation follows.
-- `tiinex.discovery.latestToIncoming` — independently qualify and set the newest discovered carrier as Incoming.
-- `tiinex.incoming.autoShowRoleHandoff` — `yes` / `ask` / `no` automatic Markdown preview when exactly one qualified Incoming route matches `tiinex.operator.role`. The actual Handoff artifact is opened, never its package pointer.
+- `tiinex.discovery.folder` — explicit discovery root; blank means no scan.
+- `tiinex.discovery.autoRefresh` — refresh Discovery when package files change.
+- `tiinex.discovery.latestToIncoming` — independently qualify and open the newest discovered carrier in Incoming.
+- `tiinex.incoming.autoShowRoleHandoff` — `yes` / `ask` / `no` preview+reveal policy for qualified Handoffs whose **To** role matches `tiinex.operator.role`.
 
-Role/identity presentation scans every qualified local Workspace plus the active Incoming carrier, then prefers the latest actual Role artifact per label. Package-carried endpoint Role cache pointers are a fallback when the owning Role Workspace is not otherwise present. Role text remains presentation/defaulting only and grants no authority.
+### Incoming
 
-Discovery cache identity includes path, modification time and byte size, so rebuilding a carrier at the same filename invalidates the indexed view and can become the new latest Incoming candidate. Tree-item-only actions are hidden from the Command Palette and guard missing node context; they remain item actions in every projection. The retired webview/inbox implementation is no longer part of the source surface.
+**Incoming** can keep multiple qualified Handoff packages open at once. Packages are independent carrier roots rather than implicitly merged, and their order mirrors Discovery: newest package timestamp first. Opening/reopening a package does not reshuffle that time order. Each package root has an inline **Close** action.
+
+**Merge / Replace** is available both on a package root and on each carried Workspace. Package-level use first opens a Workspace multi-select. Every Workspace owning a qualified Handoff route whose **To** matches `tiinex.operator.role` is preselected; multiple matches can therefore preselect multiple Workspaces, and no match leaves the selection empty. Workspace-level use scopes directly to that Workspace.
+
+Before any Merge/Replace choice, the extension asks the current shared Core `compare-source-frontiers` operation for an exact read-only byte/path comparison between the selected Incoming Workspace and its qualified Local Workspace. `exact` skips mutation, `changed` is summarized as `+added ~changed -removed` in the plan UI, and any non-qualified comparison state fails visible instead of guessing.
+
+The apply flow is plan-first and fail-closed:
+
+- **Git Workspace:** `.git` is retained. When a carried snapshot can be proven to be an exact locally available commit with a common base, Merge uses real `git merge --no-commit` semantics so unresolved paths become native Git conflicts that VS Code Source Control / Merge Editor can resolve.
+- **Non-Git Workspace:** Merge is file-safe: incoming-only files may be added, identical overlaps are retained, local-only files are preserved, and differing overlaps block rather than guessing a winner.
+- **Replace:** Incoming becomes the non-ignored working-tree source while `.git`, ignored local material and protected local symlinks are retained. Incoming collisions with protected material block.
+- `.gitignore` is evaluated from the local pre-operation state, including for ordinary folders without `.git`; ignored local material is not made disposable merely because Incoming contains different ignore rules.
+- Dirty Git Workspaces require an explicit safe precondition. Preserve+Merge is offered only when proven non-overlapping; otherwise Commit or Discard is required. A differing branch disables Preserve, and a branch switch is separately confirmed.
+- Every prompt can be escaped/cancelled. Source mutation begins only after the final **Execute Plan** confirmation.
+
+### Outgoing
+
+**Outgoing** is a descriptor-first package plan rather than a copied workspace tree. **New** is always visible and replacing an existing context requires confirmation. With open Incoming packages, New first shows one single-select choice: **Blank** or one of the open Incoming package roots in Incoming/Discovery time order. Blank (or no Incoming at all) asks for the lowercase Outgoing label and starts at carrier major `001`; choosing Incoming inherits that carrier's name/dimension context without an extra name prompt. Carrier continuation and major checkpoints remain delegated to shared Tooling rather than recreated in the extension.
+
+New then opens the same **Select Workspaces** picker immediately. Blank preselects every qualified Local Workspace; choosing an Incoming package preselects every Workspace carried by that selected Incoming package. Cancelling that picker cancels the new Outgoing context rather than leaving a half-created plan.
+
+**Select Workspaces** uses one compact multi-select ordered by source priority: a visually explicit `LOCAL · VS CODE` group first, then numbered `INCOMING 1`, `INCOMING 2`, ... groups newest to oldest. Workspace rows avoid secondary detail/subtitle lines so Local versus carried sources are recognizable mainly by group placement and native icons rather than dense text. If the same qualified Workspace is selected from more than one source, the highest-listed source wins; lower-priority duplicates are de-selected and the corrected picker is shown again so the operator explicitly confirms the effective selection. Outgoing does not merge sources. It carries exactly one selected source per Workspace.
+
+The lineage parent is chosen only by **New**; **Select Workspaces** changes source membership only and never opens a second lineage prompt. Workspaces may still be sourced from Local or any open Incoming package independently of that parent choice. **Bump Major** is one explicit click with no throw-away Why prompt; it immediately advances the projected major in the Outgoing root and shared Tooling still owns the qualified manufacture. The Outgoing root has inline **Close**; package construction stays behind **Package** and shared Tiinex manufacture.
+Before writing a Handoff carrier, Package requires shared Tooling preview/output to match the exact carrier dimension and visible ZIP filename projected by Outgoing. A mismatch is a shared-contract blocker: VS Code fails closed and never renames or post-edits qualified carrier bytes.
+
+Logical projection keeps **Handoff identity** bounded to the outer Handoff-package layer: only package-level Handoff route pointers become current Handoff rows, so historical Handoffs inside a repository payload are never flattened into the carrier view. A Workspace with an embedded `.workspace.zip` additionally exposes **Files** (the complete payload file tree) and **Lineage** only when the payload actually contains Tiinex artifacts. A Workspace without a payload ZIP exposes only its package-level Handoff rows; the extension does not shadow-clone a checkout just to fill the tree. Expanding a resolved Handoff shows the outer pointer that led to it as provenance.
+
+The ordinary **Files** projection remains package-truthful. Outer pointer Markdown stays a real clickable pointer artifact; expanding a resolvable Handoff/endpoint pointer shows the exact target filename beneath it, and clicking that Markdown target opens the same preview surface. `bootstrap.zip` is shown only when it physically exists in the carrier. Carrier timestamps use one deterministic visual format everywhere: `YYYY-MM-DD HH:mm:ss`.
+
+While Outgoing performs a long qualification/manufacture step, its root remains visible immediately with a native spinning `Loading…` state in the tree; notification/status progress is secondary rather than the only indication that Outgoing is working. Source selection itself still does not scan/copy repository contents before it needs to qualify the available Local choices.
+
+Role/identity presentation scans every qualified local Workspace plus every open Incoming carrier and prefers the latest actual Role artifact per label. Package-carried endpoint Role pointers are only fallback presentation data when the owning Role Workspace is not otherwise present. Role text never grants authority.
 
 ## Runtime/package boundary
 
@@ -71,28 +101,26 @@ Receive is explicitly multi-root and per-Workspace:
 4. Dirty repositories offer **Stash**, **Commit**, **Discard**, or **Skip Workspace**. Discard uses `git reset --hard HEAD` plus `git clean -fd`; ignored material is not removed.
 5. Before source mutation, one multi-select lists every remaining ready Workspace. Only Workspaces explicitly selected there can be replaced; clean carried context is not mutated merely because shared Tooling projected it ready.
 6. After the final explicit Receive confirmation, the clean tracked worktree is replaced by the exact qualified `.workspace.zip` snapshot while `.git` and unrelated ignored material remain preserved. Incoming archive collisions with preserved ignored paths fail closed.
-7. Every changed landed repository is staged with `git add -A`, then the **pre-landing ignored set is explicitly removed from the index and verified absent**. This protects preserved local material such as `.env` even if the incoming `.gitignore` stops ignoring it. Post-landing commit convenience uses a deterministic extension-owned `Tiinex Receive: <workspace-id>` message and never executes code from the received repository snapshot. If auto-commit is declined, that trusted message is pre-filled in Source Control when available and exposed through **Copy Commit Message**.
+7. After every selected merge finishes, `tiinex.landing.stage` controls the Git boundary: the default `yes` stages with `git add -A`, then the **pre-landing ignored set is explicitly removed from the index and verified absent**; `no` leaves the landed changes unstaged and suppresses extension-driven commit/push for that invocation. This protects preserved local material such as `.env` even if the incoming `.gitignore` stops ignoring it. Commit policy is evaluated only for changes staged by the same merge invocation, using the deterministic extension-owned `Tiinex Receive: <workspace-id>` message and never executing code from the received repository snapshot. If auto-commit is declined, that trusted message is pre-filled in Source Control when available and exposed through **Copy Commit Message**.
 8. Auto-push is considered only for a commit created by that exact Receive invocation after auto-commit was approved. It additionally requires the pre-landing upstream to have been aligned and to remain unchanged; manual commits are never auto-pushed.
 
-After qualification, `tiinex.operator.role` can contain a presentation-only label such as `Sigma`. `tiinex.incoming.autoShowRoleHandoff` may open the actual Handoff Markdown artifact only when exactly one qualified Incoming route has a From/To label matching that role; it never opens transport pointer files. `yes` opens it, `ask` asks first, and `no` leaves it closed. The role string grants no authority and is not passed off as holder proof.
+After qualification, `tiinex.operator.role` can contain a presentation-only label such as `Sigma`. `tiinex.incoming.autoShowRoleHandoff` applies to every qualified Incoming route whose **To** label matches that role. `yes` previews and reveals every match, `ask` asks once first, and `no` leaves navigation untouched. Reveal expands the Incoming package/workspace path and selects the real Handoff destination while transport pointers remain separate provenance. Multiple matching Handoffs are supported. The role string grants no authority and is not passed off as holder proof.
 
 A Workspace whose qualified material does not expose exactly one usable repository origin cannot be safely mapped; the host offers Skip and reports the missing shared boundary rather than inventing repository identity. Package-carried Required Context remains retained as qualified carrier context even when a Required Context Workspace is intentionally skipped or has no local target; local `workspaceRoots` record only material actually available after Receive.
 
 ## Handoff authoring and Outgoing packaging
 
-Handoff creation now starts from the **+** action on an Outgoing Workspace instead of the old raw schema form. The happy path asks for a short subject, one bounded intent (`Discussion`, `Continue`, `Review`, `Blocked`, or `Complete`), exactly one From endpoint, exactly one To endpoint, and optional additional Role participants.
+Handoff creation starts from the **+** action on a selected local Outgoing Workspace. The happy path asks for a short subject, one bounded intent (`Discussion`, `Continue`, `Review`, `Blocked`, or `Complete`), exactly one From endpoint, exactly one To endpoint, and optional additional Role participants.
 
-`tiinex.operator.role` is only a preferred From choice. When a current Role artifact can be resolved, its exact `workspaceId::artifact-path` reference is carried; when it cannot, the operator may use an explicitly unrepresented label without pretending that a Role artifact exists. For **New (From Incoming)**, an unambiguous Incoming route From Role is suggested as the return To endpoint. Additional participants remain package-grounding context rather than extra From/To endpoints.
+`tiinex.operator.role` is a preferred presentation/defaulting choice only. When a current Role artifact can be resolved, its exact `workspaceId::artifact-path` reference is carried; otherwise an explicitly unrepresented text label may be used without pretending that a Role artifact exists. If the Outgoing lineage continues an Incoming route, that exact route can supply the return endpoint and Handoff Parent defaults.
 
-Shared Tiinex Tooling owns the Handoff path, schema fields, continuity rendering, validation and integrity. The extension first creates the draft against scratch Markdown material and opens the resulting `.trace.md` through a virtual Markdown preview. **No repository file is written merely to preview it.** Writing the exact reviewed bytes is a separate explicit action.
+Shared Tiinex Tooling owns Handoff paths, schema fields, continuity rendering, validation, integrity, carrier manufacture and package routing artifacts. The extension prepares scratch Markdown and opens a preview first; no repository Handoff file is written merely to preview it. Writing the reviewed bytes is a separate explicit action.
 
-Outgoing is not staging. Selected local Workspaces stay bound to their live repository roots, so edits made after adding a Workspace remain eligible when packaging eventually runs. Workspace siblings are always ordered case-insensitively by Workspace id for deterministic/manual-merge-friendly presentation.
+Outgoing Workspace choices stay source descriptors until Package. Local selections remain bound to their live roots, while Incoming selections are materialized from the exact carried `.workspace.zip` only when manufacture needs them. One qualified Workspace identity can occur only once in the effective Outgoing selection.
 
-Carrier parentage is separate from Handoff artifact Parent semantics. **New (From Incoming)** passes the active Incoming `.handoff-package.zip` as the package parent to shared manufacture; **New (Blank)** does not. Package routing/pointer artifacts remain Tooling-owned projections rather than manually-authored pointer Markdown.
+Reviewed/written Handoffs can be marked as Outgoing routes. One or more marked routes are passed through shared `--workspace-routes`; the primary route selects the human-facing route and carrier continuation. For a child carrier, the extension derives the next carrier dimension from the ordinal position of the exact continued Handoff route in the parent carrier's qualified route sequence, not from the Handoff filename number. Shared manufacture is checked against that expected dimension and fails closed if the shared contract would allocate a different lineage.
 
-Reviewed/written Handoffs can be explicitly marked as Outgoing routes. One or more marked routes are passed through the public shared `--workspace-routes` manufacture surface; when several routes are present, the operator chooses one primary route only for the copied human-facing routing text while the carrier keeps every selected route. Pointer Markdown remains Tooling-manufactured rather than manually authored.
-
-The following requested Outgoing capabilities are lineage-recorded but intentionally deferred until a qualified shared contract exists: descriptor-only Workspace carriage / narrower file scopes, optional bootstrap delivery profiles, and root/Workspace encryption controls. VS Code will not invent these package semantics by rewriting ZIP bytes privately.
+**Bump Major** delegates the stable-checkpoint major transition to shared manufacture. Descriptor-only carriage semantics beyond the public shared Tooling contract, optional bootstrap profiles and encryption remain deferred rather than being recreated privately in VS Code.
 
 ## Git workflow
 

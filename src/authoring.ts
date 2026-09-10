@@ -2,11 +2,149 @@ import path from 'node:path';
 import os from 'node:os';
 import { access, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import * as vscode from 'vscode';
-import { createHandoffDraft, prepareBundledRuntime, projectAuthoringParent, projectHandoffAuthoringPlan } from './tiinex/bootstrap';
+import { preferredNodeExecutable } from './host/nodeExecutable';
+import { createArtifactDraft, createHandoffDraft, inspectArtifactCreationContract, prepareBundledRuntime, projectArtifactSchemaGuide, projectAuthoringParent, projectHandoffAuthoringPlan, projectHandoffLeaves } from './tiinex/bootstrap';
+import { ArtifactAuthoringModel, projectArtifactAuthoringModel } from './core/artifactAuthoringModel';
 import { normalizedTransferName } from './core/operatorModel';
+import { normalizePath, parentTargetFromMarkdown, titleFromMarkdown } from './core/artifactTree';
 import { safeRelativePath, safeTarget } from './core/paths';
 import { relativeRepositoryPath, sameRepositoryRoot } from './core/repositoryPath';
 import { repositoryRootForResource, repositoryRoots } from './vscode/gitApi';
+
+
+export interface ArtifactDraftParent {
+  path: string;
+  markdown: string;
+}
+
+export interface ArtifactDraftSpec {
+  root: string;
+  workspaceId: string;
+  schemaId: string;
+  title: string;
+  values: Record<string, unknown>;
+  parentArtifact?: ArtifactDraftParent | null;
+}
+
+export interface PreparedArtifactDraft {
+  root: string;
+  workspaceId: string;
+  schemaId: string;
+  path: string;
+  title: string;
+  markdown: string;
+  values: Record<string, unknown>;
+  parentPath: string;
+}
+
+export async function loadArtifactAuthoringModel(extensionPath: string, schemaId: string, transitionType: 'create-artifact' | 'continue-from-record' = 'create-artifact'): Promise<ArtifactAuthoringModel> {
+  const runtime = await prepareBundledRuntime(extensionPath, nodeExecutable());
+  try {
+    const [contract, guide] = await Promise.all([
+      inspectArtifactCreationContract(runtime, schemaId, transitionType),
+      projectArtifactSchemaGuide(runtime, schemaId, transitionType === 'continue-from-record' ? 'continue' : 'create')
+    ]);
+    const model = projectArtifactAuthoringModel(contract, guide);
+    if (model.status !== 'ready') throw new Error(`tiinex.authoring.contract-blocked:${model.status}`);
+    return model;
+  } finally { await runtime.dispose(); }
+}
+
+export async function prepareArtifactDraft(extensionPath: string, spec: ArtifactDraftSpec): Promise<PreparedArtifactDraft> {
+  const root = required(spec.root, 'tiinex.authoring.repository-required');
+  const title = required(spec.title, 'tiinex.authoring.title-required');
+  const schemaId = required(spec.schemaId, 'tiinex.authoring.schema-required');
+  // Current public Core exposes a qualified deterministic path planner for
+  // Handoff. The form engine is generic, but path semantics are not guessed
+  // for other artifact types in the VS Code host.
+  if (schemaId !== 'tiinex.handoff.v1') throw new Error(`tiinex.authoring.path-planner-capability-gap:${schemaId}`);
+  const runtime = await prepareBundledRuntime(extensionPath, nodeExecutable());
+  const scratch = await mkdtemp(path.join(os.tmpdir(), 'tiinex-vscode-artifact-preview-'));
+  try {
+    await copyMarkdownMaterial(root, scratch);
+    const parentPath = spec.parentArtifact?.path ? safeRelativePath(spec.parentArtifact.path) : '';
+    let parentRecord: any = null;
+    if (parentPath && spec.parentArtifact) {
+      const target = safeTarget(scratch, parentPath);
+      await mkdir(path.dirname(target), { recursive: true });
+      await writeFile(target, spec.parentArtifact.markdown, 'utf8');
+      parentRecord = await projectAuthoringParent(runtime, target);
+    }
+    const plan = await projectHandoffAuthoringPlan(runtime, scratch, title, parentPath);
+    if (plan.status !== 'ready' || !plan.path) throw new Error(`tiinex.authoring.path-blocked:${plan.findings?.map((f) => f.code).join(',') || plan.status}`);
+    const transition = parentRecord ? 'continue-from-record' : 'create-artifact';
+    const created = await createArtifactDraft(runtime, schemaId, scratch, plan.path, title, spec.values, parentRecord, transition);
+    return {
+      root,
+      workspaceId: spec.workspaceId,
+      schemaId,
+      path: safeRelativePath(plan.path),
+      title,
+      markdown: String(created.draft.markdown),
+      values: spec.values,
+      parentPath
+    };
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+    await runtime.dispose();
+  }
+}
+
+export async function writePreparedArtifactDraft(extensionPath: string, draft: PreparedArtifactDraft): Promise<string> {
+  if (draft.schemaId !== 'tiinex.handoff.v1') throw new Error(`tiinex.authoring.path-planner-capability-gap:${draft.schemaId}`);
+  const runtime = await prepareBundledRuntime(extensionPath, nodeExecutable());
+  try {
+    const plan = await projectHandoffAuthoringPlan(runtime, draft.root, draft.title, draft.parentPath);
+    if (plan.status !== 'ready' || safeRelativePath(plan.path) !== draft.path) throw new Error('tiinex.authoring.preview-stale-recreate-required');
+  } finally { await runtime.dispose(); }
+  const target = safeTarget(draft.root, draft.path);
+  if (!await absent(target)) throw new Error(`tiinex.authoring.target-exists:${draft.path}`);
+  await mkdir(path.dirname(target), { recursive: true });
+  await writeFile(target, draft.markdown, { encoding: 'utf8', flag: 'wx' });
+  return target;
+}
+
+
+export interface QualifiedHandoffArtifact {
+  root: string;
+  workspaceId: string;
+  path: string;
+  title: string;
+  markdown: string;
+  from: string;
+  to: string;
+  purpose: string;
+  parentPath: string;
+}
+
+function resolvedParentPath(artifactPath: string, markdown: string): string {
+  const target = parentTargetFromMarkdown(markdown);
+  if (!target || target.includes('::') || /^(?:https?:|[a-z][a-z0-9+.-]*:)/i.test(target)) return '';
+  return normalizePath(path.posix.normalize(path.posix.join(path.posix.dirname(normalizePath(artifactPath)), target)));
+}
+
+export async function qualifyExistingHandoff(extensionPath: string, root: string, workspaceId: string, artifactPath: string): Promise<QualifiedHandoffArtifact> {
+  const safePath = safeRelativePath(artifactPath);
+  const markdown = await readFile(safeTarget(root, safePath), 'utf8');
+  const runtime = await prepareBundledRuntime(extensionPath, nodeExecutable());
+  try {
+    const projected = await projectHandoffLeaves(runtime, [root]);
+    const candidates = projected.candidates?.length ? projected.candidates : projected.leaves;
+    const candidate = candidates.find((item) => normalizePath(item.path) === normalizePath(safePath));
+    if (projected.status !== 'ready' || !candidate || candidate.qualification !== 'qualified-exact') throw new Error(`tiinex.authoring.handoff-unqualified:${safePath}`);
+    return {
+      root,
+      workspaceId,
+      path: safePath,
+      title: candidate.title || titleFromMarkdown(markdown, path.posix.basename(safePath)),
+      markdown,
+      from: candidate.from,
+      to: candidate.to,
+      purpose: candidate.purpose,
+      parentPath: resolvedParentPath(safePath, markdown)
+    };
+  } finally { await runtime.dispose(); }
+}
 
 export type EndpointKind = 'role' | 'party' | 'unknown';
 export type TransferKind = 'work' | 'responsibility' | 'work-and-responsibility';
@@ -38,7 +176,7 @@ export interface HandoffFormInput {
   mustNotClaim: string;
 }
 
-function nodeExecutable(): string { return vscode.workspace.getConfiguration('tiinex').get('nodePath', '').toString().trim() || process.execPath; }
+function nodeExecutable(): string { return preferredNodeExecutable(vscode.workspace.getConfiguration('tiinex').get('nodePath', '').toString().trim()); }
 async function absent(file: string): Promise<boolean> { try { await access(file); return false; } catch { return true; } }
 function required(value: string, code: string): string { const out = String(value || '').trim(); if (!out) throw new Error(code); return out; }
 function endpointKind(value: string): EndpointKind { if (value === 'role' || value === 'party' || value === 'unknown') return value; throw new Error('tiinex.authoring.endpoint-kind-invalid'); }

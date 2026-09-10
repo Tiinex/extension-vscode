@@ -1,11 +1,12 @@
 import * as vscode from 'vscode';
+import { preferredNodeExecutable } from './host/nodeExecutable';
 import { generateTiinexCommitMessage, listStagedPaths, stageCommitPush } from './host/git';
 import { prepareBundledRuntime, projectStagedValidation } from './tiinex/bootstrap';
 import { selectRepositoryRoot, setRepositoryInput } from './vscode/gitApi';
 import { presentActionableFindings } from './core/findingPresentation';
 
 function nodeExecutable(): string {
-  return vscode.workspace.getConfiguration('tiinex').get('nodePath', '').toString().trim() || process.execPath;
+  return preferredNodeExecutable(vscode.workspace.getConfiguration('tiinex').get('nodePath', '').toString().trim());
 }
 
 function stagedBlocker(result: any): string {

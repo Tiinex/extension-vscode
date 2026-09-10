@@ -27,8 +27,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     await trees.focus('incoming');
   }));
   context.subscriptions.push(vscode.commands.registerCommand('tiinex.createHandoff', async () => {
-    await trees.focus('outgoing');
-    await vscode.window.showInformationMessage('Use the + action on an Outgoing Workspace to prepare a Handoff preview.');
+    try { await trees.beginHandoffAuthoring(); }
+    catch (error) { await vscode.window.showErrorMessage(`Tiinex Handoff authoring failed: ${message(error)}`); }
   }));
   context.subscriptions.push(vscode.commands.registerCommand('tiinex.buildHandoffPackage', async () => vscode.commands.executeCommand('tiinex.outgoing.package')));
   context.subscriptions.push(vscode.commands.registerCommand('tiinex.createHandoffFromArtifact', async () => {
