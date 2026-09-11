@@ -1,3 +1,4 @@
+import { qualifyInstalledCore } from '../host/corePackageBinding';
 import os from 'node:os';
 import path from 'node:path';
 import { mkdir, mkdtemp, rm, writeFile, access, readFile } from 'node:fs/promises';
@@ -73,51 +74,8 @@ export async function preparePackageRuntime(packagePath: string, nodeExecutable 
 
 
 export async function prepareBundledRuntime(extensionPath: string, nodeExecutable = preferredNodeExecutable()): Promise<PackageRuntime> {
-  const expectedName = '@tiinex/core';
-  let packageJsonPath = '';
-  let entrypoint = '';
-  try {
-    packageJsonPath = require.resolve(`${expectedName}/package.json`, { paths: [extensionPath] });
-    entrypoint = require.resolve(`${expectedName}/portable-entry`, { paths: [extensionPath] });
-  } catch (error) {
-    throw new Error(`tiinex.core-package.unavailable:${messageOf(error)}`);
-  }
-
-  const root = path.dirname(packageJsonPath);
-  const corePackage = JSON.parse(await readFile(packageJsonPath, 'utf8'));
-  if (String(corePackage?.name || '') !== expectedName) throw new Error('tiinex.core-package.name-mismatch');
-
-  const extensionManifest = JSON.parse(await readFile(path.join(extensionPath, 'package.json'), 'utf8'));
-  const declaredRange = String(
-    extensionManifest?.dependencies?.[expectedName]
-      || extensionManifest?.devDependencies?.[expectedName]
-      || extensionManifest?.optionalDependencies?.[expectedName]
-      || ''
-  ).trim();
-  if (!declaredRange) throw new Error('tiinex.core-package.dependency-missing');
-
-  const installedVersion = String(corePackage?.version || '').trim();
-  let lockedVersion = '';
-  try {
-    const lock = JSON.parse(await readFile(path.join(extensionPath, 'package-lock.json'), 'utf8'));
-    lockedVersion = String(lock?.packages?.[`node_modules/${expectedName}`]?.version || '').trim();
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') throw error;
-  }
-  if (lockedVersion && installedVersion !== lockedVersion) {
-    throw new Error(`tiinex.core-package.version-mismatch:${installedVersion || 'unknown'}:${lockedVersion}`);
-  }
-
-  const relativeEntrypoint = path.relative(root, entrypoint);
-  if (!relativeEntrypoint || relativeEntrypoint === '..' || relativeEntrypoint.startsWith(`..${path.sep}`) || path.isAbsolute(relativeEntrypoint)) throw new Error('tiinex.core-package.entrypoint-outside-package');
-  await access(entrypoint);
-
-  return {
-    root,
-    entrypoint,
-    nodeExecutable,
-    dispose: async () => undefined
-  };
+  const binding = await qualifyInstalledCore(extensionPath);
+  return { root: binding.root, entrypoint: binding.entrypoint, nodeExecutable, dispose: async () => undefined };
 }
 
 function messageOf(error: unknown): string { return error instanceof Error ? error.message : String(error); }

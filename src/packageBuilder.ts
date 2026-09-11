@@ -1,3 +1,5 @@
+import { checkedCarrierFilename } from './core/carrierFilename';
+import { publishCarrierFile } from './host/carrierPublish';
 import os from 'node:os';
 import path from 'node:path';
 import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
@@ -55,7 +57,7 @@ function assertExpectedCarrierFilename(receipt: any, expected: string): void {
 }
 function assertExactWorkspaceSelection(receipt: any, requestedWorkspaceIds: string[]): void {
   const actual = receiptWorkspaceIds(receipt);
-  if (!actual.length) return;
+  if (!actual.length) throw new Error('tiinex.package-builder.workspace-selection-unavailable');
   const requested = [...new Set(requestedWorkspaceIds)].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
   const actualSet = new Set(actual);
   const requestedSet = new Set(requested);
@@ -359,10 +361,18 @@ export async function buildHandoffPackageFromForm(extensionPath: string, input: 
       const args = await workspaceCarrierArgs(selectedSources, scratch, String(input.expectedCarrierFilename || ''));
       const preview = await manufactureHandoffPackage(runtime, args);
       if (preview.status !== 'ready' || preview.transportExecutable === false || preview?.carrierProjection?.mode !== 'workspace' || (preview?.carrierProjection?.routes || []).length !== 0) throw new Error(`tiinex.package-builder.workspace-preview-blocked:\n${receiptBlocker(preview)}`);
+      assertExpectedCarrierFilename(preview, String(input.expectedCarrierFilename || ''));
+      assertExactWorkspaceSelection(preview, requestedWorkspaceIds);
       const folder = await outputDirectory(input, 'Select Tiinex outgoing folder');
-      const built = await manufactureHandoffPackage(runtime, [...args, '--output-dir', folder]);
+      const stage = path.join(scratch, 'manufactured');
+      const built = await manufactureHandoffPackage(runtime, [...args, '--output-dir', stage]);
       if (built.status !== 'ready' || !built.primaryOutput?.path || built?.carrierProjection?.mode !== 'workspace' || (built?.carrierProjection?.routes || []).length !== 0) throw new Error(`tiinex.package-builder.workspace-manufacture-blocked:\n${receiptBlocker(built)}`);
-      return { outputPath: built.primaryOutput.path, routingText: '', routeRoutingTexts: [], autoCopiedTransportText: false, routeId: route.id, routeIds: [route.id], workspaceIds: selectedSources.map((item) => item.workspaceId) };
+      assertExpectedCarrierFilename(built, String(input.expectedCarrierFilename || ''));
+      assertExactWorkspaceSelection(built, requestedWorkspaceIds);
+      const filename = checkedCarrierFilename(String(built.humanOutput?.primary?.filename || ''));
+      if (path.basename(built.primaryOutput.path) !== filename || path.resolve(path.dirname(built.primaryOutput.path)) !== path.resolve(stage)) throw new Error('tiinex.package-builder.output-path-mismatch');
+      const outputPath = await publishCarrierFile(built.primaryOutput.path, folder, filename);
+      return { outputPath, routingText: '', routeRoutingTexts: [], autoCopiedTransportText: false, routeId: route.id, routeIds: [route.id], workspaceIds: selectedSources.map((item) => item.workspaceId) };
     }
     if (!route.workspaceId || !selectedSources.some((item) => item.workspaceId === route.workspaceId)) throw new Error('tiinex.package-builder.route-workspace-not-selected');
     for (const item of routeInputs) {
@@ -376,16 +386,21 @@ export async function buildHandoffPackageFromForm(extensionPath: string, input: 
     assertExpectedCarrierFilename(preview, String(input.expectedCarrierFilename || ''));
     assertExactWorkspaceSelection(preview, requestedWorkspaceIds);
     const folder = await outputDirectory(input, 'Select Tiinex outgoing folder');
-    const built = await manufactureHandoffPackage(runtime, [...args, '--output-dir', folder]);
+    const stage = path.join(scratch, 'manufactured');
+    const built = await manufactureHandoffPackage(runtime, [...args, '--output-dir', stage]);
     if (built.status !== 'ready' || !built.primaryOutput?.path) throw new Error(`tiinex.package-builder.manufacture-blocked:\n${receiptBlocker(built)}`);
     assertExpectedCarrierDimension(built, String(input.expectedCarrierDimension || ''));
     assertExpectedCarrierFilename(built, String(input.expectedCarrierFilename || ''));
+    assertExactWorkspaceSelection(built, requestedWorkspaceIds);
     const routing = String(built?.humanOutput?.normalInlineRouting?.content || '').trim();
     if (!routing) throw new Error('tiinex.package-builder.routing-text-missing');
     const routeTexts = routeRoutingTexts(built, routeInputs, routing);
     if (routeTexts.length !== routeInputs.length) throw new Error('tiinex.package-builder.routing-text-route-count-mismatch');
+    const filename = checkedCarrierFilename(String(built.humanOutput?.primary?.filename || ''));
+    if (path.basename(built.primaryOutput.path) !== filename || path.resolve(path.dirname(built.primaryOutput.path)) !== path.resolve(stage)) throw new Error('tiinex.package-builder.output-path-mismatch');
+    const outputPath = await publishCarrierFile(built.primaryOutput.path, folder, filename);
     const autoCopied = routeTexts.length === 1;
     if (autoCopied) await vscode.env.clipboard.writeText(routeTexts[0].text);
-    return { outputPath: built.primaryOutput.path, routingText: autoCopied ? routeTexts[0].text : '', routeRoutingTexts: routeTexts, autoCopiedTransportText: autoCopied, routeId: route.id, routeIds: routeInputs.map((item) => item.route.id), workspaceIds: selectedSources.map((item) => item.workspaceId) };
+    return { outputPath, routingText: autoCopied ? routeTexts[0].text : '', routeRoutingTexts: routeTexts, autoCopiedTransportText: autoCopied, routeId: route.id, routeIds: routeInputs.map((item) => item.route.id), workspaceIds: selectedSources.map((item) => item.workspaceId) };
   } finally { await rm(scratch, { recursive: true, force: true }); await runtime.dispose(); }
 }

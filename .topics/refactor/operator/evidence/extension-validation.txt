@@ -1,0 +1,66 @@
+✓ Windows multi-root comparison treats equivalent Git API and git.exe roots as the same repository
+✓ Incoming repository session stays single-root for one repo and opens multi-root only for multiple repo targets
+✓ Incoming mutation roots fail closed when full Workspace snapshots alias or overlap
+✓ VS Code main-host tooling avoids Code.exe for portable Node tooling unless explicitly overridden
+✓ Receive UX chooses the most common repository parent and treats role text as presentation filtering only
+✓ Incoming operator defaults allow multiple matching Workspaces and Outgoing duplicate selection uses top-source priority
+✓ Outgoing source UX inherits Incoming carrier identity and shares Discovery time ordering
+✓ Outgoing workspace picker chooses one representative qualified Workspace per open VS Code root
+✓ package route identity is separate from Workspace inclusion and contains no authoring Parent state
+✓ extension contributes stable Discovery, Incoming and Outgoing TreeView actions
+✓ Discovery settings are non-mutating and default build chains install -> link -> build
+✓ Receive orchestration keeps Workspace mutation explicit and makes unasserted branch state visible
+✓ received carrier context stays qualified when only a subset of carried Workspaces is landed locally
+✓ Parent-driven Handoff defaults reduce boilerplate without inferring endpoint identity
+✓ native tree operator keeps projection choices separate from canonical item actions
+✓ Discovery indexes explicit folders and auto-refresh never invokes landing
+✓ artifact-tree helpers keep latest Roles, lineage leaves and alphabetical Workspace siblings deterministic
+✓ generic authoring exposes only Core-executable ordinary fields and reports schema-only optional gaps
+✓ installed Core exposes Handoff reference fields as validation-only authoring gaps
+✓ generic Artifact Authoring renders Core contracts while Handoff host actions remain separate
+✓ Discovery and Incoming delta display is shared-compare-backed and never hides unqualified differences
+✓ multi-Incoming and Merge/Replace remain selection-first, dry until final execute, and keep filesystem/Git safety explicit
+✓ tree errors keep compact summaries visible and full technical detail behind Show Details
+✓ latest-wins queue keeps active work serialized and collapses multiple pending values for the same key
+✓ watcher accepts only completed Handoff package names
+✓ stable debounce requires consecutive unchanged probes
+✓ safe landing paths reject traversal and absolute forms
+✓ ignored preservation rejects direct and ancestor collisions only
+✓ bootstrap descriptor binds exact package payload bytes and entrypoint
+✓ installed @tiinex/core public portable entry matches the lockfile-resolved runtime
+✓ runtime binding rejects a missing lockfile, stale declaration and different installed version
+✓ carrier names are labels and never filesystem paths
+✓ pointerless Pack passes the displayed filename and verifies both receipts
+✓ carrier publication does not overwrite different bytes and accepts an exact retry
+✓ title extraction skips the integrity footer and fenced examples
+✓ package collision and runtime drift errors suggest a non-destructive next step
+✓ public Core portable entry exposes every VS Code-used shared operation
+✓ installed Core runtime executes real operator-context and staged-only validation projections
+✓ installed Core editor assistance withholds mixed-revision schema lineage while preserving qualified local authority
+✓ source-frontier compare wrapper uses current shared Core and exact explicit source kinds
+✓ structured Core qualification receipts survive non-zero CLI exit codes
+✓ landing-plan descriptors use cleaned OS temp files and exact CLI flag shapes
+✓ in-memory editor assistance stages exact unsaved overlay bytes only for the shared operation lifetime
+✓ diagnostics controller captures unsaved bytes before debounce and discards stale or closed-editor work
+✓ native Quick Fixes are diagnostic-scoped and preserve deterministic shared-core replacement bytes
+✓ pointerless package builder projects exact workspace-carrier args without route semantics
+✓ native package and authoring wrappers preserve exact shared CLI operation shapes
+✓ multi-root package-source projection passes every opened root and Git fact to one shared-core call
+✓ operator-context wrapper sends all roots plus explicit root and repository descriptors to shared Tooling
+✓ staged-validation wrapper carries only explicit staged paths and cleans its descriptor
+✓ staged path discovery is exact, null-delimited, and slash-normalized before shared validation
+✓ Receive dirty-worktree helpers stash, discard, commit, and stage without touching ignored files through git clean -x
+✓ landing stage preserves pre-landing ignored files even when the incoming ignore rules stop ignoring them
+✓ checkout-only payload eligibility requires a clean exact HEAD published to upstream
+✓ Git safety helpers honor .gitignore for future paths and report dirty paths exactly once
+✓ Git-native Incoming merge leaves real unmerged index entries for VS Code Merge Editor
+✓ branch preflight rejects dirty worktrees before branch mutation
+✓ landing commit uses a trusted supplied message and exact push rejects unrelated ahead commits
+✓ commit message delegates to repository helper instead of reimplementing derivation
+✓ Stage Commit Push fails closed on detached HEAD
+✓ Stage Commit Push fails closed when upstream is missing
+✓ Stage Commit Push fails closed when staging yields no changes
+✓ Stage Commit Push validates the staged Tiinex path set before commit-message derivation or commit
+✓ Stage Commit Push uses helper after staging and pushes only after successful commit
+
+64/64 Tiinex VS Code bridge core cases passed.

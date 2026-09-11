@@ -1971,7 +1971,8 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
               workspaceIds,
               incomingWorkspaceSources,
               workspaceSourceOverrides,
-              outputDirectory
+              outputDirectory,
+              expectedCarrierFilename: this.outgoingProjectedFilename()
             });
           }
         );

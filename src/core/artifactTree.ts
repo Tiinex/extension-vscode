@@ -37,10 +37,22 @@ export function schemaIdFromMarkdown(markdown: string): string {
 }
 
 export function titleFromMarkdown(markdown: string, fallback = ''): string {
-  const divider = markdown.indexOf('\n---');
-  const body = divider >= 0 ? markdown.slice(divider + 4) : markdown;
-  const match = body.match(/^#\s+(.+?)\s*$/m);
-  return String(match?.[1] || fallback).trim();
+  let fence = '';
+  for (const line of markdown.replace(/^\uFEFF/, '').split(/\r?\n/)) {
+    const marker = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+    if (fence) {
+      if (marker && marker[1][0] === fence[0] && marker[1].length >= fence.length && !marker[2].trim()) fence = '';
+      continue;
+    }
+    if (marker) { fence = marker[1]; continue; }
+    const heading = line.match(/^ {0,3}#\s+(.+?)\s*#*\s*$/);
+    if (!heading) continue;
+    const title = heading[1].trim();
+    if (/^Continuity Integrity$/i.test(title)) break;
+    if (/^Continuity Context$/i.test(title)) continue;
+    return title;
+  }
+  return String(fallback).trim();
 }
 
 export function parentTargetFromMarkdown(markdown: string): string {

@@ -775,31 +775,87 @@ await test('installed @tiinex/core public portable entry matches the lockfile-re
     assert.match(runtime.entrypoint, /node_modules[\\/]@tiinex[\\/]core[\\/]tools[\\/]tiinex-portable\.mjs$/);
     const corePackage = JSON.parse(await fs.readFile(path.join(runtime.root, 'package.json'), 'utf8'));
     assert.equal(corePackage.name, '@tiinex/core');
+    const lock = JSON.parse(await fs.readFile(path.join(root, 'package-lock.json'), 'utf8'));
+    assert.equal(corePackage.version, lock.packages['node_modules/@tiinex/core'].version);
     assert.equal(corePackage.exports?.['./portable-entry'], './tools/tiinex-portable.mjs');
   } finally { await runtime.dispose(); }
 });
 
-await test('prepareBundledRuntime tolerates a packaged extension path without package-lock.json', async () => {
+await test('runtime binding rejects a missing lockfile, stale declaration and different installed version', async () => {
   const fs = await import('node:fs/promises');
   const root = path.resolve(HERE, '..');
-  const scratch = await fs.mkdtemp(path.join((await import('node:os')).default.tmpdir(), 'tiinex-extension-lockless-'));
+  const scratch = await fs.mkdtemp(path.join((await import('node:os')).tmpdir(), 'tiinex-extension-binding-'));
   try {
-    const sourceCore = path.join(root, 'node_modules', '@tiinex', 'core');
-    const targetCore = path.join(scratch, 'node_modules', '@tiinex', 'core');
-    await fs.mkdir(path.dirname(targetCore), { recursive: true });
-    await fs.cp(sourceCore, targetCore, { recursive: true });
+    await fs.cp(path.join(root, 'node_modules', '@tiinex', 'core'), path.join(scratch, 'node_modules', '@tiinex', 'core'), { recursive: true });
     await fs.copyFile(path.join(root, 'package.json'), path.join(scratch, 'package.json'));
-    await assert.rejects(fs.access(path.join(scratch, 'package-lock.json')));
+    await assert.rejects(prepareBundledRuntime(scratch, process.execPath), /lockfile-missing/);
+    const lock = JSON.parse(await fs.readFile(path.join(root, 'package-lock.json'), 'utf8'));
+    const validLock = JSON.stringify(lock);
+    lock.packages[''].dependencies['@tiinex/core'] = 'mismatching-declaration';
+    await fs.writeFile(path.join(scratch, 'package-lock.json'), JSON.stringify(lock));
+    await assert.rejects(prepareBundledRuntime(scratch, process.execPath), /lockfile-declaration-mismatch/);
+    await fs.writeFile(path.join(scratch, 'package-lock.json'), validLock);
     const runtime = await prepareBundledRuntime(scratch, process.execPath);
-    try {
-      assert.equal(runtime.root.replace(/\\/g, '/').endsWith('/node_modules/@tiinex/core'), true);
-      assert.equal(runtime.entrypoint.replace(/\\/g, '/').endsWith('/node_modules/@tiinex/core/tools/tiinex-portable.mjs'), true);
-    } finally {
-      await runtime.dispose();
-    }
-  } finally {
-    await fs.rm(scratch, { recursive: true, force: true });
+    await runtime.dispose();
+    const corePath = path.join(scratch, 'node_modules', '@tiinex', 'core', 'package.json');
+    const core = JSON.parse(await fs.readFile(corePath, 'utf8'));
+    core.version = '999.0.0';
+    await fs.writeFile(corePath, JSON.stringify(core));
+    await assert.rejects(prepareBundledRuntime(scratch, process.execPath), /version-mismatch/);
+  } finally { await fs.rm(scratch, { recursive: true, force: true }); }
+});
+
+await test('carrier names are labels and never filesystem paths', async () => {
+  const { checkedCarrierFilename } = await import('../dist/core/carrierFilename.js');
+  assert.equal(checkedCarrierFilename('business-001-1.handoff-package.zip'), 'business-001-1.handoff-package.zip');
+  for (const bad of ['../a.handoff-package.zip', 'C:\\a.handoff-package.zip', 'a/b.handoff-package.zip', 'CON.handoff-package.zip', 'a:secret.handoff-package.zip', 'x\x00.handoff-package.zip', ' a.handoff-package.zip', 'a.handoff-package.zip ', 'file.zip']) {
+    assert.throws(() => checkedCarrierFilename(bad), /carrier-filename-invalid/);
   }
+});
+
+await test('pointerless Pack passes the displayed filename and verifies both receipts', async () => {
+  const fs = await import('node:fs/promises');
+  const root = path.resolve(HERE, '..');
+  const tree = await fs.readFile(path.join(root, 'src', 'operatorTrees.ts'), 'utf8');
+  const start = tree.indexOf('if (!routes.length)', tree.indexOf('private async packageOutgoing'));
+  const section = tree.slice(start, tree.indexOf('const selected', start));
+  assert.match(section, /expectedCarrierFilename: this\.outgoingProjectedFilename\(\)/);
+  const builder = await fs.readFile(path.join(root, 'src', 'packageBuilder.ts'), 'utf8');
+  const branch = builder.slice(builder.indexOf('if (route.pointerless) {'), builder.indexOf('if (!route.workspaceId', builder.indexOf('if (route.pointerless) {')));
+  assert.match(branch, /assertExpectedCarrierFilename\(preview/);
+  assert.match(branch, /assertExpectedCarrierFilename\(built/);
+  assert.match(branch, /assertExactWorkspaceSelection\(preview/);
+  assert.match(branch, /assertExactWorkspaceSelection\(built/);
+  assert.match(branch, /publishCarrierFile/);
+});
+
+await test('carrier publication does not overwrite different bytes and accepts an exact retry', async () => {
+  const fs = await import('node:fs/promises');
+  const { publishCarrierFile } = await import('../dist/host/carrierPublish.js');
+  const scratch = await fs.mkdtemp(path.join((await import('node:os')).tmpdir(), 'tiinex-publish-test-'));
+  try {
+    const src = path.join(scratch, 'source.zip'); const out = path.join(scratch, 'output');
+    await fs.writeFile(src, 'candidate');
+    const target = await publishCarrierFile(src, out, 'a.handoff-package.zip');
+    assert.equal(await publishCarrierFile(src, out, 'a.handoff-package.zip'), target);
+    await fs.writeFile(src, 'different');
+    await assert.rejects(publishCarrierFile(src, out, 'a.handoff-package.zip'), /output-exists-different/);
+    assert.equal(await fs.readFile(target, 'utf8'), 'candidate');
+    assert.deepEqual(await fs.readdir(out), ['a.handoff-package.zip']);
+  } finally { await fs.rm(scratch, { recursive: true, force: true }); }
+});
+
+await test('title extraction skips the integrity footer and fenced examples', async () => {
+  const { titleFromMarkdown } = await import('../dist/core/artifactTree.js');
+  assert.equal(titleFromMarkdown('# My Handoff\n\n## Purpose\nHi\n---\n# Continuity Integrity\n'), 'My Handoff');
+  assert.equal(titleFromMarkdown('# Continuity Context\n\n---\n# Real title\n---\n# Continuity Integrity\n'), 'Real title');
+  assert.equal(titleFromMarkdown('```md\n# Example\n```\n# Actual title\n'), 'Actual title');
+  assert.equal(titleFromMarkdown('# Continuity Context\n---\n# Continuity Integrity\n', 'fallback'), 'fallback');
+});
+
+await test('package collision and runtime drift errors suggest a non-destructive next step', async () => {
+  assert.match(presentOperatorError(new Error('tiinex.package-builder.output-exists-different')).summary, /different package/);
+  assert.match(presentOperatorError(new Error('tiinex.core-package.lockfile-missing')).summary, /npm ci/);
 });
 
 await test('public Core portable entry exposes every VS Code-used shared operation', async () => {

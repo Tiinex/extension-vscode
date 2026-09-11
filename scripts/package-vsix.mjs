@@ -15,21 +15,16 @@ const table=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;fo
 // cannot leave a stale VSIX looking current.
 await rm(OUT, { force: true });
 
-const corePackageJsonPath = require.resolve(`${CORE_NAME}/package.json`, { paths: [ROOT] });
-const coreRoot = path.dirname(corePackageJsonPath);
-const corePackage = JSON.parse(await readFile(corePackageJsonPath, 'utf8'));
-const declaredCoreRange = packageJson.dependencies?.[CORE_NAME] ?? packageJson.devDependencies?.[CORE_NAME] ?? null;
-if (!declaredCoreRange) throw new Error('tiinex.vsix.core-dependency-missing');
-if (corePackage.name !== CORE_NAME) throw new Error(`tiinex.vsix.core-name-mismatch:${corePackage.name || 'unknown'}`);
-const lockfile = JSON.parse(await readFile(path.join(ROOT, 'package-lock.json'), 'utf8'));
-const lockedCoreVersion = lockfile.packages?.[`node_modules/${CORE_NAME}`]?.version ?? null;
-if (!lockedCoreVersion) throw new Error('tiinex.vsix.core-lock-missing');
-if (corePackage.version !== lockedCoreVersion) throw new Error(`tiinex.vsix.core-version-mismatch:${corePackage.version || 'unknown'}:${lockedCoreVersion}`);
-const coreEntrypoint = require.resolve(`${CORE_NAME}/portable-entry`, { paths: [ROOT] });
-const coreEntrypointRelative = safeContainedRelative(coreRoot, coreEntrypoint);
+const { qualifyInstalledCore } = require('../dist/host/corePackageBinding.js');
+const binding = await qualifyInstalledCore(ROOT);
+const coreRoot = binding.root;
+const corePackage = JSON.parse(await readFile(binding.packageJsonPath, 'utf8'));
+const declaredCoreRange = binding.declaredRange;
+const lockedCoreVersion = binding.lockedVersion;
+const coreEntrypointRelative = safeContainedRelative(coreRoot, binding.entrypoint);
 
 const files = [];
-for (const relative of ['LICENSE', 'NOTICE', 'README.md', 'package.json']) files.push([`extension/${relative}`, await readFile(path.join(ROOT, relative))]);
+for (const relative of ['LICENSE', 'NOTICE', 'README.md', 'package.json', 'package-lock.json']) files.push([`extension/${relative}`, await readFile(path.join(ROOT, relative))]);
 for (const relative of await walk(path.join(ROOT, 'dist'))) {
   if (relative.endsWith('.vsix')) continue;
   files.push([`extension/dist/${relative}`, await readFile(path.join(ROOT, 'dist', relative))]);

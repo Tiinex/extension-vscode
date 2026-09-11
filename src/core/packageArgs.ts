@@ -1,3 +1,4 @@
+import { checkedCarrierFilename } from './carrierFilename';
 import path from 'node:path';
 import { writeFile } from 'node:fs/promises';
 
@@ -17,6 +18,6 @@ export async function workspaceCarrierArgs(selected: WorkspaceCarrierSource[], s
   await writeFile(targetsPath, JSON.stringify(ordered.slice(1).map((item) => ({ workspaceId: item.workspaceId, path: item.workspaceTargetPath }))), 'utf8');
   const args = [primary.root, '--carrier-mode', 'workspace', '--workspace-id', primary.workspaceId, '--workspace-target', primary.workspaceTargetPath, '--workspace-roots', descriptorsPath, '--workspace-targets', targetsPath, '--tooling-bootstrap', 'embedded'];
   const filename = String(projectedFilename || '').trim();
-  if (filename) args.push('--projected-filename', filename);
+  if (filename) args.push('--projected-filename', checkedCarrierFilename(filename));
   return args;
 }

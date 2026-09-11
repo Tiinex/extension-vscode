@@ -25,6 +25,12 @@ export function presentOperatorError(error: unknown): OperatorErrorPresentation 
   if (/tiinex\.(?:authoring|package-builder)\.(?:cancelled|output-cancelled)\b/i.test(message)) {
     return { cancelled: true, summary: 'Cancelled — no changes were made.', detail, code };
   }
+  if (/output-exists-different/.test(message)) {
+    return { cancelled: false, summary: 'A different package already uses this filename. Keep it and choose another destination or carrier name.', detail, code };
+  }
+  if (/core-package\.(?:lock|version|dependency)/.test(message)) {
+    return { cancelled: false, summary: 'The Core dependency, lockfile and installed runtime do not match. Restore the reviewed package files and run npm ci before rebuilding.', detail, code };
+  }
   if (/endpoint-(?:unqualified|ambiguous)|endpoint-reference/i.test(message)) {
     return { cancelled: false, summary: 'The selected Handoff endpoint is no longer uniquely qualified. Refresh the endpoint choices and select it again.', detail, code };
   }
