@@ -514,7 +514,7 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(tree, /participantRoles: item\.participants/);
   assert.match(tree, /workspaceSourceOverrides/);
   assert.match(tree, /root: item\.stagedRoot \|\| item\.root/);
-  assert.match(tree, /const outputDirectory = this\.outgoingFolder\(\) \|\| await this\.selectOutgoingFolder\(this\.discoveryFolder\(\) \|\| undefined\)/);
+  assert.match(tree, /const outputDirectory = this\.outgoingFolder\(\) \|\| await this\.selectOutgoingFolder\(this\.discoveryFolder\(\) \|\| undefined, false\)/);
   assert.match(tree, /defaultUri: defaultFolder \? vscode\.Uri\.file\(path\.resolve\(defaultFolder\)\) : undefined/);
   assert.match(tree, /outputDirectory,/);
   assert.match(tree, /ConfigurationTarget\.Global/);
@@ -522,6 +522,9 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(tree, /Tiinex packing Handoff carrier/);
   assert.match(tree, /this\.closeOutgoing\(\);/);
   assert.match(tree, /register\('tiinex\.outgoing\.selectFolder', \(\) => this\.selectOutgoingFolder\(this\.outgoingFolder\(\) \|\| this\.discoveryFolder\(\) \|\| undefined\)\)/);
+  assert.match(tree, /private async selectOutgoingFolder\(defaultFolder\?: string, persist = true\): Promise<string>/);
+  assert.match(tree, /if \(persist\) \{/);
+  assert.match(tree, /await this\.selectOutgoingFolder\(this\.discoveryFolder\(\) \|\| undefined, false\)/);
   const workspaceClose = tree.indexOf('this.closeOutgoing();', tree.indexOf("Tiinex packing Workspace carrier"));
   const workspaceAnnounce = tree.indexOf("await announceBuiltCarrier(built.outputPath, 'Workspace carrier');");
   const handoffClose = tree.indexOf('this.closeOutgoing();', tree.indexOf("Tiinex packing Handoff carrier"));

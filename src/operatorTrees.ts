@@ -453,7 +453,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     else await this.updateUiContexts();
   }
 
-  private async selectOutgoingFolder(defaultFolder?: string): Promise<string> {
+  private async selectOutgoingFolder(defaultFolder?: string, persist = true): Promise<string> {
     const selected = await vscode.window.showOpenDialog({
       canSelectFiles: false,
       canSelectFolders: true,
@@ -462,8 +462,10 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       defaultUri: defaultFolder ? vscode.Uri.file(path.resolve(defaultFolder)) : undefined
     });
     if (!selected?.length) return '';
-    this.outgoingFolderSelection = selected[0].fsPath;
-    await this.config().update('outgoing.folder', selected[0].fsPath, vscode.ConfigurationTarget.Global);
+    if (persist) {
+      this.outgoingFolderSelection = selected[0].fsPath;
+      await this.config().update('outgoing.folder', selected[0].fsPath, vscode.ConfigurationTarget.Global);
+    }
     this.outgoingProvider.refresh();
     return selected[0].fsPath;
   }
@@ -1921,7 +1923,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       // intentionally independent from whether the Outgoing context originated from
       // Incoming: shared Tooling manufactures a pointerless Workspace carrier and the
       // host does not invent a Handoff merely to preserve transport continuity.
-      const outputDirectory = this.outgoingFolder() || await this.selectOutgoingFolder(this.discoveryFolder() || undefined);
+      const outputDirectory = this.outgoingFolder() || await this.selectOutgoingFolder(this.discoveryFolder() || undefined, false);
       if (!outputDirectory) return;
       this.setOutgoingLoading(true);
       try {
@@ -1958,7 +1960,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     if (!selected) return;
     const expectedCarrierDimension = this.expectedOutgoingCarrierDimension(selected.item);
     const expectedCarrierFilename = this.outgoingProjectedFilename();
-    const outputDirectory = this.outgoingFolder() || await this.selectOutgoingFolder(this.discoveryFolder() || undefined);
+    const outputDirectory = this.outgoingFolder() || await this.selectOutgoingFolder(this.discoveryFolder() || undefined, false);
     if (!outputDirectory) return;
     if (this.outgoing.packageParentPath && !this.outgoing.packageMajorReason && !expectedCarrierDimension) {
       await vscode.window.showErrorMessage('Tiinex Package blocked: the primary Handoff does not continue an exact qualified Handoff route in the selected Incoming carrier parent.');
