@@ -230,6 +230,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
   private incoming: IncomingState[] = [];
   private readonly incomingPending = new Map<string, IncomingPendingState>();
   private outgoing: OutgoingState | null = null;
+  private outgoingFolderSelection = '';
   private outgoingLoading = false;
 
   constructor(private readonly context: vscode.ExtensionContext, private readonly extensionPath: string) {
@@ -354,7 +355,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
 
   private config(): vscode.WorkspaceConfiguration { return vscode.workspace.getConfiguration('tiinex'); }
   private discoveryFolder(): string { return String(this.config().get('discovery.folder', '') || '').trim(); }
-  private outgoingFolder(): string { return String(this.config().get('outgoing.folder', '') || '').trim(); }
+  private outgoingFolder(): string { return String(this.outgoingFolderSelection || this.config().get('outgoing.folder', '') || '').trim(); }
   private projection(section: OperatorSection): TreeProjectionMode { return this.context.workspaceState.get<TreeProjectionMode>(`tiinex.tree.${section}.projection`, 'files'); }
   private lineage(section: OperatorSection): TreeLineageMode { return this.context.workspaceState.get<TreeLineageMode>(`tiinex.tree.${section}.lineage`, 'lineage'); }
   private delta(section: OperatorSection): boolean { return section !== 'outgoing' && this.context.workspaceState.get<boolean>(`tiinex.tree.${section}.delta`, false); }
@@ -461,6 +462,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       defaultUri: defaultFolder ? vscode.Uri.file(path.resolve(defaultFolder)) : undefined
     });
     if (!selected?.length) return '';
+    this.outgoingFolderSelection = selected[0].fsPath;
     await this.config().update('outgoing.folder', selected[0].fsPath, vscode.ConfigurationTarget.Global);
     this.outgoingProvider.refresh();
     return selected[0].fsPath;
