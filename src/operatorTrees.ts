@@ -233,6 +233,8 @@ export class TiinexOperatorTrees implements vscode.Disposable {
   private outgoingFolderSelection = '';
   private outgoingLoading = false;
   private discoveryStartupLatestIdentity = '';
+  private discoveryCutoffMs = 0;
+  private discoverySuppressedPath = '';
 
   constructor(private readonly context: vscode.ExtensionContext, private readonly extensionPath: string) {
     this.discoveryView = vscode.window.createTreeView('tiinex.discovery', { treeDataProvider: this.discoveryProvider, showCollapseAll: true });
@@ -252,6 +254,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
 
   async start(): Promise<void> {
     await this.ensureTreePreferenceDefaults();
+    this.discoveryCutoffMs = this.shouldAutoClearDiscovery() ? Date.now() : 0;
     await this.refreshDiscovery(false, false);
     this.discoveryStartupLatestIdentity = discoveryIdentity(this.discovered[0]);
     await this.restartDiscovery();
@@ -307,6 +310,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
   private registerCommands(): void {
     const register = (id: string, fn: (...args: any[]) => any) => this.context.subscriptions.push(vscode.commands.registerCommand(id, fn));
     register('tiinex.discovery.selectFolder', () => this.selectDiscoveryFolder());
+    register('tiinex.discovery.clear', () => this.clearDiscovery());
     register('tiinex.discovery.refresh', () => this.refreshDiscovery(true));
     register('tiinex.discovery.displayOptions', () => this.showDisplayOptions('discovery'));
     register('tiinex.discovery.toggleProjection', () => this.toggleProjection('discovery'));
@@ -508,6 +512,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
 
   private async restartDiscovery(): Promise<void> {
     this.stopWatcher();
+    if (this.shouldAutoClearDiscovery() && !this.discoveryCutoffMs) this.discoveryCutoffMs = Date.now();
     await this.refreshDiscovery(false);
     if (this.config().get<boolean>('discovery.autoRefresh', false) && this.discoveryFolder()) this.startWatcher();
     await this.updateUiContexts();
@@ -526,6 +531,11 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     try {
       this.watcher = watch(folder, { persistent: false }, (_event, filename) => {
         if (!filename || !String(filename).toLowerCase().endsWith('.handoff-package.zip')) return;
+        const resolved = path.resolve(folder, String(filename));
+        if (this.discoverySuppressedPath && path.resolve(this.discoverySuppressedPath) === resolved) {
+          this.discoverySuppressedPath = '';
+          return;
+        }
         if (this.watcherTimer) clearTimeout(this.watcherTimer);
         this.watcherTimer = setTimeout(() => void this.refreshDiscovery(false), 700);
       });
@@ -545,7 +555,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     }
     try {
       const before = discoveryIdentity(this.discovered[0]);
-      this.discovered = await discoveryPackages(folder);
+      this.discovered = (await discoveryPackages(folder)).filter((item) => item.mtimeMs > this.discoveryCutoffMs);
       this.discoveryProvider.refresh();
       const latest = this.discovered[0];
       const latestIdentity = discoveryIdentity(latest);
@@ -1973,7 +1983,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     const discovery = this.discoveryFolder();
     if (!discovery || path.resolve(path.dirname(outputPath)) !== path.resolve(discovery)) return;
     this.carrierCache.delete(path.resolve(outputPath));
-    await this.refreshDiscovery(false);
+    this.discoverySuppressedPath = path.resolve(outputPath);
   }
 
   private async packageOutgoing(): Promise<void> {
@@ -2074,6 +2084,18 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
   }
 
   private operatorRole(): string { return String(this.config().get('operator.role', '') || '').trim(); }
+
+  private shouldAutoClearDiscovery(): boolean {
+    return String(this.config().get('discovery.autoClearDiscovery', 'no') || '').trim().toLowerCase() === 'yes';
+  }
+
+  private async clearDiscovery(): Promise<void> {
+    this.discoveryCutoffMs = Date.now();
+    this.discoveryStartupLatestIdentity = '';
+    this.discovered = [];
+    this.discoveryProvider.refresh();
+    await this.updateUiContexts();
+  }
 
   private async endpointCatalog(): Promise<Array<{ label: string; kind: 'role' | 'party' | 'unknown'; reference: string; workspaceId: string; path: string }>> {
     const artifacts: IndexedArtifact[] = [];

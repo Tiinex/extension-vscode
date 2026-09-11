@@ -28,6 +28,7 @@
     "onView:tiinex.incoming",
     "onView:tiinex.outgoing",
     "onCommand:tiinex.discovery.selectFolder",
+    "onCommand:tiinex.discovery.clear",
     "onCommand:tiinex.outgoing.new",
     "onCommand:tiinex.outgoing.bumpMajor",
     "onCommand:tiinex.outgoing.clearMajor",
@@ -110,6 +111,11 @@
         "command": "tiinex.discovery.selectFolder",
         "title": "Tiinex: Select Discovery Folder",
         "icon": "$(folder-opened)"
+      },
+      {
+        "command": "tiinex.discovery.clear",
+        "title": "Tiinex: Clear Discovery",
+        "icon": "$(clear-all)"
       },
       {
         "command": "tiinex.discovery.refresh",
@@ -306,6 +312,15 @@
           "default": false,
           "description": "Automatically refresh the Discovery tree when .handoff-package.zip files change in the selected discovery folder. This never performs Receive/landing."
         },
+        "tiinex.discovery.autoClearDiscovery": {
+          "type": "string",
+          "enum": [
+            "no",
+            "yes"
+          ],
+          "default": "no",
+          "description": "Automatically clear old Discovery entries on startup before scanning the selected discovery folder. This only affects what Discovery shows, not Receive/landing."
+        },
         "tiinex.discovery.latestToIncoming": {
           "type": "boolean",
           "default": false,
@@ -406,6 +421,11 @@
           "command": "tiinex.discovery.selectFolder",
           "when": "view == tiinex.discovery",
           "group": "navigation@7"
+        },
+        {
+          "command": "tiinex.discovery.clear",
+          "when": "view == tiinex.discovery",
+          "group": "navigation@8"
         },
         {
           "command": "tiinex.discovery.refresh",

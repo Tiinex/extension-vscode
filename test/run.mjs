@@ -180,6 +180,8 @@ await test('extension contributes stable Discovery, Incoming and Outgoing TreeVi
   assert.equal(commands.get('tiinex.outgoing.selectWorkspaces')?.icon, '$(list-selection)');
   assert.equal(commands.get('tiinex.outgoing.package')?.title, 'Pack');
   assert.equal(commands.get('tiinex.outgoing.package')?.icon, '$(package)');
+  assert.equal(commands.get('tiinex.discovery.clear')?.title, 'Tiinex: Clear Discovery');
+  assert.equal(commands.get('tiinex.discovery.clear')?.icon, '$(clear-all)');
   assert.equal(commands.get('tiinex.incoming.merge')?.title, 'Merge');
   assert.equal(commands.get('tiinex.incoming.merge')?.icon, '$(git-merge)');
   assert.equal(commands.get('tiinex.incoming.replace')?.title, 'Replace');
@@ -188,9 +190,10 @@ await test('extension contributes stable Discovery, Incoming and Outgoing TreeVi
   assert.equal(commands.get('tiinex.incoming.displayOptions')?.icon, '$(settings)');
   assert.equal(commands.get('tiinex.outgoing.displayOptions')?.icon, '$(settings)');
   assert.equal(commands.get('tiinex.outgoing.copyTransportText')?.icon, '$(copy)');
+  assert.equal(manifest.contributes?.configuration?.properties?.['tiinex.discovery.autoClearDiscovery']?.enum?.join(','), 'no,yes');
   const titleMenus = manifest.contributes?.menus?.['view/title'] || [];
   const titleCommands = new Set(titleMenus.map((item) => item.command));
-  for (const command of ['tiinex.discovery.displayOptions', 'tiinex.discovery.selectFolder', 'tiinex.discovery.refresh', 'tiinex.incoming.displayOptions', 'tiinex.incoming.refresh', 'tiinex.outgoing.new', 'tiinex.outgoing.selectWorkspaces', 'tiinex.outgoing.displayOptions', 'tiinex.outgoing.selectFolder', 'tiinex.outgoing.refresh']) assert.equal(titleCommands.has(command), true);
+  for (const command of ['tiinex.discovery.displayOptions', 'tiinex.discovery.selectFolder', 'tiinex.discovery.clear', 'tiinex.discovery.refresh', 'tiinex.incoming.displayOptions', 'tiinex.incoming.refresh', 'tiinex.outgoing.new', 'tiinex.outgoing.selectWorkspaces', 'tiinex.outgoing.displayOptions', 'tiinex.outgoing.selectFolder', 'tiinex.outgoing.refresh']) assert.equal(titleCommands.has(command), true);
   for (const legacy of ['tiinex.discovery.toggleProjection', 'tiinex.discovery.toggleLineage', 'tiinex.discovery.toggleDelta', 'tiinex.incoming.toggleProjection', 'tiinex.incoming.toggleLineage', 'tiinex.incoming.toggleDelta', 'tiinex.outgoing.toggleProjection', 'tiinex.outgoing.toggleLineage']) assert.equal(titleCommands.has(legacy), false);
   assert.equal(titleCommands.has('tiinex.outgoing.package'), false);
   assert.equal(titleCommands.has('tiinex.incoming.mergeSelected'), false);
@@ -199,6 +202,8 @@ await test('extension contributes stable Discovery, Incoming and Outgoing TreeVi
   const groupOrder = (command) => Number(String(titleMenus.find((item) => item.command === command)?.group || '').split('@')[1]);
   assert.ok(groupOrder('tiinex.discovery.displayOptions') < groupOrder('tiinex.discovery.selectFolder'));
   assert.ok(groupOrder('tiinex.discovery.selectFolder') < groupOrder('tiinex.discovery.refresh'));
+  assert.ok(groupOrder('tiinex.discovery.selectFolder') < groupOrder('tiinex.discovery.clear'));
+  assert.ok(groupOrder('tiinex.discovery.clear') < groupOrder('tiinex.discovery.refresh'));
   assert.ok(groupOrder('tiinex.outgoing.new') < groupOrder('tiinex.outgoing.selectWorkspaces'));
   assert.ok(groupOrder('tiinex.outgoing.selectWorkspaces') < groupOrder('tiinex.outgoing.displayOptions'));
   assert.ok(groupOrder('tiinex.outgoing.displayOptions') < groupOrder('tiinex.outgoing.selectFolder'));
