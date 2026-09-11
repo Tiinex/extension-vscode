@@ -319,7 +319,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     register('tiinex.outgoing.new', () => this.newOutgoing());
     register('tiinex.outgoing.selectWorkspaces', () => this.selectOutgoingWorkspaces());
     register('tiinex.outgoing.refresh', () => this.refreshOutgoing());
-    register('tiinex.outgoing.selectFolder', () => this.selectOutgoingFolder());
+    register('tiinex.outgoing.selectFolder', () => this.selectOutgoingFolder(this.discoveryFolder() || undefined));
     register('tiinex.outgoing.close', () => this.closeOutgoing());
     register('tiinex.outgoing.bumpMajor', () => this.bumpOutgoingMajor());
     register('tiinex.outgoing.clearMajor', () => this.clearOutgoingMajor());
@@ -452,8 +452,14 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     else await this.updateUiContexts();
   }
 
-  private async selectOutgoingFolder(): Promise<string> {
-    const selected = await vscode.window.showOpenDialog({ canSelectFiles: false, canSelectFolders: true, canSelectMany: false, title: 'Select Tiinex outgoing folder' });
+  private async selectOutgoingFolder(defaultFolder?: string): Promise<string> {
+    const selected = await vscode.window.showOpenDialog({
+      canSelectFiles: false,
+      canSelectFolders: true,
+      canSelectMany: false,
+      title: 'Select Tiinex outgoing folder',
+      defaultUri: defaultFolder ? vscode.Uri.file(path.resolve(defaultFolder)) : undefined
+    });
     if (!selected?.length) return '';
     await this.config().update('outgoing.folder', selected[0].fsPath, vscode.ConfigurationTarget.Global);
     this.outgoingProvider.refresh();
@@ -964,7 +970,6 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     );
     return accepted === 'Replace';
   }
-
   private async pickOutgoingParent(): Promise<string | null> {
     if (!this.incoming.length) return '';
     const items: Array<vscode.QuickPickItem & { packagePath: string }> = [
@@ -1907,25 +1912,31 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       .map((item) => ({ workspaceId: item.workspaceId, packagePath: item.packagePath!, archivePath: item.archivePath! }));
     const workspaceIds = this.outgoing.workspaces.map((item) => item.workspaceId);
     const workspaceSourceOverrides = this.outgoing.workspaces
-      .filter((item) => Boolean(item.stagedRoot))
-      .map((item): PackageWorkspaceSourceOverride => ({ workspaceId: item.workspaceId, root: item.stagedRoot! }));
+      .filter((item) => item.source === 'local' || Boolean(item.stagedRoot))
+      .map((item): PackageWorkspaceSourceOverride => ({ workspaceId: item.workspaceId, root: item.stagedRoot || item.root }));
 
     if (!routes.length) {
       // Packing Workspace state is valid without Handoff routing semantics. This is
       // intentionally independent from whether the Outgoing context originated from
       // Incoming: shared Tooling manufactures a pointerless Workspace carrier and the
       // host does not invent a Handoff merely to preserve transport continuity.
-      const outputDirectory = this.outgoingFolder() || await this.selectOutgoingFolder();
+      const outputDirectory = this.outgoingFolder() || await this.selectOutgoingFolder(this.discoveryFolder() || undefined);
       if (!outputDirectory) return;
       this.setOutgoingLoading(true);
       try {
-        const built = await buildHandoffPackageFromForm(this.extensionPath, {
-          routeId: routeChoiceKey({ pointerless: true }),
-          workspaceIds,
-          incomingWorkspaceSources,
-          workspaceSourceOverrides,
-          outputDirectory
-        });
+        const built = await vscode.window.withProgress(
+          { location: vscode.ProgressLocation.Notification, title: 'Tiinex packing Workspace carrier', cancellable: false },
+          async (progress) => {
+            progress.report({ message: 'Preparing outgoing sources...' });
+            return buildHandoffPackageFromForm(this.extensionPath, {
+              routeId: routeChoiceKey({ pointerless: true }),
+              workspaceIds,
+              incomingWorkspaceSources,
+              workspaceSourceOverrides,
+              outputDirectory
+            });
+          }
+        );
         this.outgoing.lastBuilt = { outputPath: built.outputPath, routes: built.routeRoutingTexts };
         this.outgoingProvider.refresh();
         await this.refreshDiscoveryAfterPack(built.outputPath);
@@ -1945,7 +1956,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     if (!selected) return;
     const expectedCarrierDimension = this.expectedOutgoingCarrierDimension(selected.item);
     const expectedCarrierFilename = this.outgoingProjectedFilename();
-    const outputDirectory = this.outgoingFolder() || await this.selectOutgoingFolder();
+    const outputDirectory = this.outgoingFolder() || await this.selectOutgoingFolder(this.discoveryFolder() || undefined);
     if (!outputDirectory) return;
     if (this.outgoing.packageParentPath && !this.outgoing.packageMajorReason && !expectedCarrierDimension) {
       await vscode.window.showErrorMessage('Tiinex Package blocked: the primary Handoff does not continue an exact qualified Handoff route in the selected Incoming carrier parent.');
@@ -1953,18 +1964,24 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     }
     this.setOutgoingLoading(true);
     try {
-      const built = await buildHandoffPackageFromForm(this.extensionPath, {
-        routeId: routeChoiceKeyForHandoff(selected.item.draft.workspaceId, selected.item.draft.path),
-        routeInputs: routes.map((item) => ({ routeId: routeChoiceKeyForHandoff(item.draft.workspaceId, item.draft.path), participantRoles: item.participants })),
-        workspaceIds,
-        packageParentPath: this.outgoing.packageParentPath,
-        packageMajorReason: this.outgoing.packageMajorReason,
-        incomingWorkspaceSources,
-        workspaceSourceOverrides,
-        outputDirectory,
-        expectedCarrierDimension,
-        expectedCarrierFilename
-      });
+      const built = await vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Notification, title: 'Tiinex packing Handoff carrier', cancellable: false },
+        async (progress) => {
+          progress.report({ message: 'Preparing outgoing sources...' });
+          return buildHandoffPackageFromForm(this.extensionPath, {
+            routeId: routeChoiceKeyForHandoff(selected.item.draft.workspaceId, selected.item.draft.path),
+            routeInputs: routes.map((item) => ({ routeId: routeChoiceKeyForHandoff(item.draft.workspaceId, item.draft.path), participantRoles: item.participants })),
+            workspaceIds,
+            packageParentPath: this.outgoing?.packageParentPath || '',
+            packageMajorReason: this.outgoing?.packageMajorReason || '',
+            incomingWorkspaceSources,
+            workspaceSourceOverrides,
+            outputDirectory,
+            expectedCarrierDimension,
+            expectedCarrierFilename
+          });
+        }
+      );
       this.outgoing.lastBuilt = { outputPath: built.outputPath, routes: built.routeRoutingTexts };
       this.outgoingProvider.refresh();
       await this.refreshDiscoveryAfterPack(built.outputPath);

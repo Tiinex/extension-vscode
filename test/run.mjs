@@ -513,9 +513,13 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(tree, /refreshDiscoveryAfterPack/);
   assert.match(tree, /participantRoles: item\.participants/);
   assert.match(tree, /workspaceSourceOverrides/);
-  assert.match(tree, /const outputDirectory = this\.outgoingFolder\(\) \|\| await this\.selectOutgoingFolder\(\)/);
+  assert.match(tree, /root: item\.stagedRoot \|\| item\.root/);
+  assert.match(tree, /const outputDirectory = this\.outgoingFolder\(\) \|\| await this\.selectOutgoingFolder\(this\.discoveryFolder\(\) \|\| undefined\)/);
+  assert.match(tree, /defaultUri: defaultFolder \? vscode\.Uri\.file\(path\.resolve\(defaultFolder\)\) : undefined/);
   assert.match(tree, /outputDirectory,/);
   assert.match(tree, /ConfigurationTarget\.Global/);
+  assert.match(tree, /Tiinex packing Workspace carrier/);
+  assert.match(tree, /Tiinex packing Handoff carrier/);
   const previewCall = tree.indexOf("title: 'Tiinex preparing Handoff preview'");
   const writeCall = tree.indexOf('writePreparedArtifactDraft(this.extensionPath, prepared.draft)');
   assert.ok(previewCall >= 0 && writeCall > previewCall);
@@ -531,6 +535,7 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(packageBuilder, /revealFileInOS/);
   assert.match(packageBuilder, /routeRoutingTexts/);
   assert.match(packageBuilder, /routeTexts\.length === 1/);
+  assert.doesNotMatch(packageBuilder, /Build qualified pointerless Workspace carrier\?|Build qualified Handoff carrier\?/);
   assert.match(tree, /copyOutgoingTransportText/);
   assert.match(tree, /Pack Outgoing first\. Exact transport text/);
 });

@@ -320,10 +320,6 @@ export async function buildHandoffPackageFromForm(extensionPath: string, input: 
       const args = await workspaceCarrierArgs(selectedSources, scratch);
       const preview = await manufactureHandoffPackage(runtime, args);
       if (preview.status !== 'ready' || preview.transportExecutable === false || preview?.carrierProjection?.mode !== 'workspace' || (preview?.carrierProjection?.routes || []).length !== 0) throw new Error(`tiinex.package-builder.workspace-preview-blocked:\n${receiptBlocker(preview)}`);
-      const workspaceText = selectedSources.map((item) => `${item.workspaceId}: ${workspaceSourceLabel(item)}`).join('\n');
-      const filename = String(preview?.humanOutput?.primary?.filename || '(shared Tooling will resolve filename)');
-      const accepted = await vscode.window.showWarningMessage(`Build qualified pointerless Workspace carrier?\n\nNo Handoff pointer, From/To, Role, current-work, transfer, participation, acceptance, or completion semantics will be created.\n\nWorkspaces:\n${workspaceText}\n\nProjected package: ${filename}\n\nComplete Workspace membership and package qualification are owned by shared Tooling.`, { modal: true }, 'Build Workspace Carrier');
-      if (accepted !== 'Build Workspace Carrier') throw new Error('tiinex.package-builder.cancelled');
       const folder = await outputDirectory(input, 'Select Tiinex outgoing folder');
       const built = await manufactureHandoffPackage(runtime, [...args, '--output-dir', folder]);
       if (built.status !== 'ready' || !built.primaryOutput?.path || built?.carrierProjection?.mode !== 'workspace' || (built?.carrierProjection?.routes || []).length !== 0) throw new Error(`tiinex.package-builder.workspace-manufacture-blocked:\n${receiptBlocker(built)}`);
@@ -340,11 +336,6 @@ export async function buildHandoffPackageFromForm(extensionPath: string, input: 
     assertExpectedCarrierDimension(preview, String(input.expectedCarrierDimension || ''));
     assertExpectedCarrierFilename(preview, String(input.expectedCarrierFilename || ''));
     assertExactWorkspaceSelection(preview, requestedWorkspaceIds);
-    const workspaceText = selectedSources.map((item) => `${item.workspaceId}: ${workspaceSourceLabel(item)}`).join('\n');
-    const filename = String(preview?.humanOutput?.primary?.filename || '(shared Tooling will resolve filename)');
-    const lineageText = input.packageMajorReason ? `Major checkpoint: ${input.packageMajorReason}` : (input.packageParentPath ? 'Child continuation of Incoming carrier' : 'New root carrier (001)');
-    const accepted = await vscode.window.showWarningMessage(`Build qualified Handoff carrier?\n\nRoute: ${route.path}\nFrom/To (read-only): ${route.from} → ${route.to}\nCarrier lineage: ${lineageText}\n\nWorkspaces:\n${workspaceText}\n\nProjected package: ${filename}\n\nHandoff artifact continuity Parent is not package route selection. Complete-snapshot membership is owned by shared Tooling.`, { modal: true }, 'Build Return Package');
-    if (accepted !== 'Build Return Package') throw new Error('tiinex.package-builder.cancelled');
     const folder = await outputDirectory(input, 'Select Tiinex outgoing folder');
     const built = await manufactureHandoffPackage(runtime, [...args, '--output-dir', folder]);
     if (built.status !== 'ready' || !built.primaryOutput?.path) throw new Error(`tiinex.package-builder.manufacture-blocked:\n${receiptBlocker(built)}`);
