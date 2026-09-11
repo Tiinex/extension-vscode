@@ -692,7 +692,7 @@
     "dev:unlink": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ensure-windows-main-host-dev-extension-link.ps1 -Unlink"
   },
   "dependencies": {
-    "@tiinex/core": "^0.6.0"
+    "@tiinex/core": "^0.7.0"
   },
   "devDependencies": {
     "@types/node": "22.10.2",
