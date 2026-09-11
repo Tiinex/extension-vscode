@@ -7,15 +7,18 @@ function message(error: unknown): string { return error instanceof Error ? error
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const extensionPath = String((context as any).extensionPath || '');
-  const diagnostics = await registerTiinexDiagnostics(context, extensionPath);
   const trees = new TiinexOperatorTrees(context, extensionPath);
   context.subscriptions.push(trees);
+  let diagnostics: Awaited<ReturnType<typeof registerTiinexDiagnostics>> | null = null;
 
   context.subscriptions.push(vscode.commands.registerCommand('tiinex.openOperator', async () => {
     try { await trees.focus('discovery'); } catch (error) { await vscode.window.showErrorMessage(`Tiinex operator failed: ${message(error)}`); }
   }));
   context.subscriptions.push(vscode.commands.registerCommand('tiinex.refreshDiagnostics', async () => {
-    try { await diagnostics.refreshActive(); } catch (error) { await vscode.window.showErrorMessage(`Tiinex validation failed: ${message(error)}`); }
+    try {
+      if (!diagnostics) diagnostics = await registerTiinexDiagnostics(context, extensionPath);
+      await diagnostics.refreshActive();
+    } catch (error) { await vscode.window.showErrorMessage(`Tiinex validation failed: ${message(error)}`); }
   }));
   context.subscriptions.push(vscode.commands.registerCommand('tiinex.showProblems', async () => vscode.commands.executeCommand('workbench.actions.view.problems')));
 
@@ -43,7 +46,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     try { await stageCommitPushCommand(extensionPath); } catch (error) { await vscode.window.showErrorMessage(`Tiinex Stage, Commit & Push failed: ${message(error)}`, { modal: true }); }
   }));
 
-  await trees.start();
+  try {
+    diagnostics = await registerTiinexDiagnostics(context, extensionPath);
+    await trees.start();
+  } catch (error) {
+    await vscode.window.showErrorMessage(`Tiinex activation degraded: ${message(error)}`);
+  }
 }
 
 export function deactivate(): void { /* disposables are owned by VS Code */ }
