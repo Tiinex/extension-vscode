@@ -96,12 +96,15 @@ export async function prepareBundledRuntime(extensionPath: string, nodeExecutabl
   ).trim();
   if (!declaredRange) throw new Error('tiinex.core-package.dependency-missing');
 
-  const lock = JSON.parse(await readFile(path.join(extensionPath, 'package-lock.json'), 'utf8'));
-  const lockedVersion = String(lock?.packages?.[`node_modules/${expectedName}`]?.version || '').trim();
-  if (!lockedVersion) throw new Error('tiinex.core-package.locked-version-missing');
-
   const installedVersion = String(corePackage?.version || '').trim();
-  if (installedVersion !== lockedVersion) {
+  let lockedVersion = '';
+  try {
+    const lock = JSON.parse(await readFile(path.join(extensionPath, 'package-lock.json'), 'utf8'));
+    lockedVersion = String(lock?.packages?.[`node_modules/${expectedName}`]?.version || '').trim();
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') throw error;
+  }
+  if (lockedVersion && installedVersion !== lockedVersion) {
     throw new Error(`tiinex.core-package.version-mismatch:${installedVersion || 'unknown'}:${lockedVersion}`);
   }
 

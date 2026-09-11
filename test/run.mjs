@@ -714,9 +714,6 @@ await test('installed @tiinex/core public portable entry matches the lockfile-re
   const manifest = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8'));
   const declaredRange = String(manifest.dependencies?.['@tiinex/core'] || '').trim();
   assert.ok(declaredRange, '@tiinex/core must remain a declared runtime dependency');
-  const lock = JSON.parse(await fs.readFile(path.join(root, 'package-lock.json'), 'utf8'));
-  const lockedVersion = String(lock?.packages?.['node_modules/@tiinex/core']?.version || '').trim();
-  assert.ok(lockedVersion, '@tiinex/core must have an exact package-lock resolution');
   assert.equal(Object.hasOwn(manifest.scripts || {}, 'sync:shared-core'), false);
   await assert.rejects(fs.access(path.join(root, 'shared-core')));
   const runtime = await prepareBundledRuntime(root, process.execPath);
@@ -725,9 +722,31 @@ await test('installed @tiinex/core public portable entry matches the lockfile-re
     assert.match(runtime.entrypoint, /node_modules[\\/]@tiinex[\\/]core[\\/]tools[\\/]tiinex-portable\.mjs$/);
     const corePackage = JSON.parse(await fs.readFile(path.join(runtime.root, 'package.json'), 'utf8'));
     assert.equal(corePackage.name, '@tiinex/core');
-    assert.equal(corePackage.version, lockedVersion);
     assert.equal(corePackage.exports?.['./portable-entry'], './tools/tiinex-portable.mjs');
   } finally { await runtime.dispose(); }
+});
+
+await test('prepareBundledRuntime tolerates a packaged extension path without package-lock.json', async () => {
+  const fs = await import('node:fs/promises');
+  const root = path.resolve(HERE, '..');
+  const scratch = await fs.mkdtemp(path.join((await import('node:os')).default.tmpdir(), 'tiinex-extension-lockless-'));
+  try {
+    const sourceCore = path.join(root, 'node_modules', '@tiinex', 'core');
+    const targetCore = path.join(scratch, 'node_modules', '@tiinex', 'core');
+    await fs.mkdir(path.dirname(targetCore), { recursive: true });
+    await fs.cp(sourceCore, targetCore, { recursive: true });
+    await fs.copyFile(path.join(root, 'package.json'), path.join(scratch, 'package.json'));
+    await assert.rejects(fs.access(path.join(scratch, 'package-lock.json')));
+    const runtime = await prepareBundledRuntime(scratch, process.execPath);
+    try {
+      assert.equal(runtime.root.replace(/\\/g, '/').endsWith('/node_modules/@tiinex/core'), true);
+      assert.equal(runtime.entrypoint.replace(/\\/g, '/').endsWith('/node_modules/@tiinex/core/tools/tiinex-portable.mjs'), true);
+    } finally {
+      await runtime.dispose();
+    }
+  } finally {
+    await fs.rm(scratch, { recursive: true, force: true });
+  }
 });
 
 await test('public Core portable entry exposes every VS Code-used shared operation', async () => {
