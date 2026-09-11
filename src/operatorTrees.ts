@@ -2,7 +2,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { createHash } from 'node:crypto';
 import { FSWatcher, watch } from 'node:fs';
-import { mkdir, readFile, rm, stat } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm, stat } from 'node:fs/promises';
 import * as vscode from 'vscode';
 import { preferredNodeExecutable } from './host/nodeExecutable';
 import { indexCarrierPackage, indexLocalWorkspace, indexLocalWorkspaceFiles, readCarrierWorkspaceFile, discoveryPackages, IndexedCarrierPackage, IndexedWorkspaceFile } from './carrierIndex';
@@ -1022,16 +1022,15 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     } else {
       const localRoots = (vscode.workspace.workspaceFolders || []).map((item: vscode.WorkspaceFolder) => item.uri.fsPath);
       const defaultParent = preferredRepositoryParent(localRoots);
-      const focus = path.basename(defaultParent || localRoots[0] || 'tiinex') || 'tiinex';
-      const defaultName = `${focus.toLocaleLowerCase()}-001`;
+      const focus = outgoingSeriesPrefix(path.basename(defaultParent || localRoots[0] || 'tiinex') || 'tiinex');
       const entered = await vscode.window.showInputBox({
         title: 'New Outgoing · Blank',
-        prompt: 'Outgoing label. A new lineage starts at carrier major 001; shared Tooling owns the qualified package filename.',
-        value: defaultName,
+        prompt: 'Outgoing prefix. Shared Tooling owns the qualified package filename; Tiinex adds the 000-series suffix after you choose the prefix.',
+        value: focus,
         ignoreFocusOut: true
       });
       if (!entered?.trim()) return;
-      name = entered.trim().toLocaleLowerCase();
+      name = await nextOutgoingSeriesLabel(entered, this.outgoingFolder());
     }
 
     this.outgoing = { name, packageParentPath, workspaces: [], drafts: [], packageMajorReason: '' };
@@ -1943,6 +1942,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
         this.outgoingProvider.refresh();
         await this.refreshDiscoveryAfterPack(built.outputPath);
         await announceBuiltCarrier(built.outputPath, 'Workspace carrier');
+        this.closeOutgoing();
       } catch (error) {
         await vscode.window.showErrorMessage(`Tiinex Outgoing package blocked: ${shortMessage(error)}`, 'Show Details').then(async (choice: string | undefined) => {
           if (choice === 'Show Details') await vscode.window.showErrorMessage(String(error instanceof Error ? error.stack || error.message : error), { modal: true });
@@ -1992,6 +1992,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
         'Handoff carrier',
         built.autoCopiedTransportText ? 'Exact Handoff transport text was copied to the clipboard.' : 'Use the copy action beside an attached Handoff route to copy its exact transport text.'
       );
+      this.closeOutgoing();
     } catch (error) {
       await vscode.window.showErrorMessage(`Tiinex Outgoing package blocked: ${shortMessage(error)}`, 'Show Details').then(async (choice: string | undefined) => {
         if (choice === 'Show Details') await vscode.window.showErrorMessage(String(error instanceof Error ? error.stack || error.message : error), { modal: true });
@@ -2846,6 +2847,31 @@ function nextMajorDimension(value: string): string {
   const current = Number.parseInt(match[1], 10);
   if (!Number.isFinite(current) || current < 1 || current >= 999) return '';
   return String(current + 1).padStart(3, '0');
+}
+
+function outgoingSeriesPrefix(value: string): string {
+  return filenameToken(String(value || '').trim()).replace(/-(\d{3})$/, '') || 'tiinex';
+}
+
+async function nextOutgoingSeriesLabel(prefix: string, folder = ''): Promise<string> {
+  const normalizedPrefix = outgoingSeriesPrefix(prefix);
+  const used = new Set<number>();
+  const outputFolder = String(folder || '').trim();
+  if (outputFolder) {
+    try {
+      const escapedPrefix = normalizedPrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      for (const entry of await readdir(outputFolder)) {
+        const match = new RegExp(`^${escapedPrefix}-(\\d{3})\\.handoff-package\\.zip$`, 'i').exec(entry);
+        if (match) used.add(Number.parseInt(match[1], 10));
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') throw error;
+    }
+  }
+  for (let index = 1; index < 1000; index += 1) {
+    if (!used.has(index)) return `${normalizedPrefix}-${String(index).padStart(3, '0')}`;
+  }
+  return `${normalizedPrefix}-999`;
 }
 
 function filenameToken(value: string): string {

@@ -520,6 +520,7 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(tree, /ConfigurationTarget\.Global/);
   assert.match(tree, /Tiinex packing Workspace carrier/);
   assert.match(tree, /Tiinex packing Handoff carrier/);
+  assert.match(tree, /this\.closeOutgoing\(\);/);
   const previewCall = tree.indexOf("title: 'Tiinex preparing Handoff preview'");
   const writeCall = tree.indexOf('writePreparedArtifactDraft(this.extensionPath, prepared.draft)');
   assert.ok(previewCall >= 0 && writeCall > previewCall);
@@ -593,6 +594,10 @@ await test('multi-Incoming and Merge/Replace remain selection-first, dry until f
   assert.match(tree, /pointerTargetChildren/);
   assert.match(tree, /workspaceFileTreeChildren/);
   assert.match(tree, /logicalLineageChildren/);
+  assert.match(tree, /outgoingSeriesPrefix/);
+  assert.match(tree, /nextOutgoingSeriesLabel/);
+  assert.match(tree, /Outgoing prefix\. Shared Tooling owns the qualified package filename; Tiinex adds the 000-series suffix after you choose the prefix\./);
+  assert.doesNotMatch(tree, /Outgoing label\. A new lineage starts at carrier major 001/);
   assert.match(tree, /readCarrierWorkspaceFile/);
   assert.match(tree, /openWorkspaceMarkdownNode/);
   assert.match(tree, /revealIncomingRoute/);
