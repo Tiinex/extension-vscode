@@ -179,7 +179,7 @@ async function materializeSnapshot(runtime: Awaited<ReturnType<typeof prepareBun
   const entries = await inspectZipBuffer(archive);
   const files = entries.filter((entry) => !entry.directory).map((entry) => safeRelativePath(entry.path));
   if (files.some((item) => item === '.git' || item.startsWith('.git/'))) throw new Error(`tiinex.incoming-apply.incoming-git-path:${workspace.workspaceId}`);
-  const root = path.join(scratch, `incoming-${ordinal}-${workspace.workspaceId.replace(/[^a-z0-9._-]+/gi, '-')}`);
+  const root = path.join(scratch, `i${ordinal}`);
   await extractZipBuffer(archive, root);
   const candidate = await qualifyWorkspaceRoot(runtime, root, workspace.workspaceId);
   return { workspace, root, files, candidate };
@@ -454,7 +454,7 @@ async function applyReplace(plan: WorkspaceApplyPlan, scratch: string): Promise<
   const collisions = incomingFiles.filter((item) => protectedPaths.some((protectedPath) => pathOverlap(item, protectedPath)));
   if (collisions.length) throw new Error(`tiinex.incoming-apply.ignored-or-symlink-collision:${plan.workspaceId}:${collisions.join(',')}`);
   const replaceable = local.files.filter((item) => !ignored.has(item));
-  const backupRoot = path.join(scratch, `backup-${plan.workspaceId.replace(/[^a-z0-9._-]+/gi, '-')}-${Date.now()}`);
+  const backupRoot = path.join(scratch, `b${Math.max(0, plan.snapshot.files.length)}`);
   for (const relative of replaceable) {
     const target = safeTarget(backupRoot, relative);
     await mkdir(path.dirname(target), { recursive: true });
@@ -510,7 +510,7 @@ export async function applyIncomingWorkspaces(extensionPath: string, index: Inde
   const requested = [...new Set(workspaceIds.map((item) => String(item || '').trim()).filter(Boolean))];
   if (!requested.length) return { affectedWorkspaceIds: [], conflictWorkspaceIds: [] };
   return withIncomingApplyMutex(async () => {
-    const scratch = await mkdtemp(path.join(os.tmpdir(), 'tiinex-vscode-incoming-apply-'));
+    const scratch = await mkdtemp(path.join(os.tmpdir(), 'ti-'));
     const runtime = await prepareBundledRuntime(extensionPath, nodeExecutable());
     try {
       return await vscode.window.withProgress(
