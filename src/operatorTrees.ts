@@ -232,6 +232,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
   private outgoing: OutgoingState | null = null;
   private outgoingFolderSelection = '';
   private outgoingLoading = false;
+  private discoveryStartupLatestIdentity = '';
 
   constructor(private readonly context: vscode.ExtensionContext, private readonly extensionPath: string) {
     this.discoveryView = vscode.window.createTreeView('tiinex.discovery', { treeDataProvider: this.discoveryProvider, showCollapseAll: true });
@@ -251,6 +252,8 @@ export class TiinexOperatorTrees implements vscode.Disposable {
 
   async start(): Promise<void> {
     await this.ensureTreePreferenceDefaults();
+    await this.refreshDiscovery(false, false);
+    this.discoveryStartupLatestIdentity = discoveryIdentity(this.discovered[0]);
     await this.restartDiscovery();
     await this.updateUiContexts();
     await this.resumeIncomingMultiRootSession();
@@ -499,7 +502,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     }
   }
 
-  private async refreshDiscovery(showError: boolean): Promise<void> {
+  private async refreshDiscovery(showError: boolean, autoOpenLatest = true): Promise<void> {
     const folder = this.discoveryFolder();
     if (!folder) {
       this.discovered = [];
@@ -512,7 +515,8 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       this.discovered = await discoveryPackages(folder);
       this.discoveryProvider.refresh();
       const latest = this.discovered[0];
-      if (latest && discoveryIdentity(latest) !== before && this.config().get<boolean>('discovery.latestToIncoming', false)) await this.setIncoming(latest.path);
+      const latestIdentity = discoveryIdentity(latest);
+      if (autoOpenLatest && latest && latestIdentity !== before && latestIdentity !== this.discoveryStartupLatestIdentity && this.config().get<boolean>('discovery.latestToIncoming', false)) await this.setIncoming(latest.path);
       await this.updateUiContexts();
     } catch (error) {
       this.discovered = [];
@@ -1087,6 +1091,27 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
   private async refreshOutgoing(): Promise<void> {
     this.outgoingProvider.refresh();
     await this.updateUiContexts();
+  }
+
+  private async qualifiedOutgoingWorkspaceSourceOverrides(): Promise<PackageWorkspaceSourceOverride[]> {
+    if (!this.outgoing) return [];
+    let freshLocalChoices: PackageWorkspaceChoice[] = [];
+    try {
+      freshLocalChoices = await loadLocalWorkspaceChoices(this.extensionPath);
+    } catch {
+      freshLocalChoices = [];
+    }
+    const freshByWorkspaceId = new Map(freshLocalChoices.map((item) => [item.workspaceId, item]));
+    return this.outgoing.workspaces
+      .filter((item) => Boolean(item.root) || Boolean(item.stagedRoot) || item.source === 'local')
+      .map((item): PackageWorkspaceSourceOverride => {
+        if (item.source === 'local') {
+          const fresh = freshByWorkspaceId.get(item.workspaceId);
+          if (fresh?.root) return { workspaceId: item.workspaceId, root: fresh.root };
+        }
+        return { workspaceId: item.workspaceId, root: item.stagedRoot || item.root };
+      })
+      .filter((item) => Boolean(item.root));
   }
 
   private bootstrapPayloadIncluded(): boolean {
@@ -1926,9 +1951,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       .filter((item) => item.source === 'incoming' && item.packagePath && item.archivePath)
       .map((item) => ({ workspaceId: item.workspaceId, packagePath: item.packagePath!, archivePath: item.archivePath! }));
     const workspaceIds = this.outgoing.workspaces.map((item) => item.workspaceId);
-    const workspaceSourceOverrides = this.outgoing.workspaces
-      .filter((item) => Boolean(item.root) || Boolean(item.stagedRoot))
-      .map((item): PackageWorkspaceSourceOverride => ({ workspaceId: item.workspaceId, root: item.stagedRoot || item.root }));
+    const workspaceSourceOverrides = await this.qualifiedOutgoingWorkspaceSourceOverrides();
 
     if (!routes.length) {
       // Packing Workspace state is valid without Handoff routing semantics. This is

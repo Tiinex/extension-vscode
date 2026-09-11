@@ -16,6 +16,7 @@ import { operatorMatchedWorkspaceIds, resolvePrioritizedWorkspaceDuplicates } fr
 import { comparePackageRecency, inheritedOutgoingLabel } from '../dist/core/outgoingUx.js';
 import { projectArtifactAuthoringModel } from '../dist/core/artifactAuthoringModel.js';
 import { planWorkspaceSession, validateWorkspaceTargetMapping } from '../dist/core/workspaceSession.js';
+import { representativeWorkspaceChoicesForRoot } from '../dist/core/workspaceChoice.js';
 import { checkIgnoredPaths, commitWorkingTree, dirtyWorkingTreePaths, discardWorkingTree, generateTiinexCommitMessage, listStagedPaths, mergeCommitNoCommit, payloadCheckoutEligibility, preflightExistingLocalBranch, pushExactLandingCommit, stageCommitPush, stageLandingChanges, stageLandingCommit, stashWorkingTree } from '../dist/host/git.js';
 import { preferredNodeExecutable } from '../dist/host/nodeExecutable.js';
 import { compareIncomingWorkspaceToLocal, createHandoffDraft, inspectArtifactCreationContract, parseBootstrapDescriptor, prepareBundledRuntime, projectArtifactSchemaGuide, runTiinexJson, projectEditorAssistanceText, projectHandoffAuthoringPlan, projectHandoffEndpoints, projectOperatorContext, projectStagedValidation, projectWorkspaceLanding, projectWorkspacePackageSources } from '../dist/tiinex/bootstrap.js';
@@ -128,6 +129,25 @@ await test('Outgoing source UX inherits Incoming carrier identity and shares Dis
     { filename: 'newer-a.handoff-package.zip', mtimeMs: 20 }
   ].sort(comparePackageRecency);
   assert.deepEqual(items.map((item) => item.filename), ['newer-a.handoff-package.zip', 'newer-b.handoff-package.zip', 'older.handoff-package.zip']);
+});
+
+await test('Outgoing workspace picker chooses one representative qualified Workspace per open VS Code root', async () => {
+  const interop = representativeWorkspaceChoicesForRoot('/repos/interop-native', [
+    { workspaceId: 'interop-native', workspaceTargetPath: '.topics/.workspaces/tiinex-interop-native.workspace.md' },
+    { workspaceId: 'interop', workspaceTargetPath: '.topics/.workspaces/tiinex-interop.workspace.md' }
+  ]);
+  assert.deepEqual(interop.map((item) => item.workspaceId), ['interop-native']);
+
+  const vscodeRoot = representativeWorkspaceChoicesForRoot('/repos/extension-vscode', [
+    { workspaceId: 'extension-vscode', workspaceTargetPath: '.topics/.workspaces/tiinex-extension-vscode.workspace.md' },
+    { workspaceId: 'vscode', workspaceTargetPath: '.topics/.workspaces/tiinex-vscode.workspace.md' }
+  ]);
+  assert.deepEqual(vscodeRoot.map((item) => item.workspaceId), ['extension-vscode']);
+
+  const unchanged = representativeWorkspaceChoicesForRoot('/repos/single', [
+    { workspaceId: 'single', workspaceTargetPath: '.topics/.workspaces/tiinex-single.workspace.md' }
+  ]);
+  assert.deepEqual(unchanged.map((item) => item.workspaceId), ['single']);
 });
 
 await test('package route identity is separate from Workspace inclusion and contains no authoring Parent state', async () => {
@@ -392,6 +412,7 @@ await test('Discovery indexes explicit folders and auto-refresh never invokes la
   assert.match(tree, /Select Tiinex discovery folder/);
   assert.match(tree, /discovery\.autoRefresh/);
   assert.match(tree, /discovery\.latestToIncoming/);
+  assert.match(tree, /refreshDiscovery\(false, false\)/);
   assert.match(tree, /watch\(folder/);
   assert.match(tree, /discoveryIdentity/);
   assert.match(tree, /current\.mtimeMs === existing\.mtimeMs && current\.size === existing\.bytes/);
@@ -538,7 +559,11 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   const packageBuilder = await fs.readFile(path.resolve(HERE, '..', 'src', 'packageBuilder.ts'), 'utf8');
   assert.match(packageBuilder, /PackageRouteInput/);
   assert.match(packageBuilder, /workspace-routes\.json/);
+  assert.match(packageBuilder, /workspace-targets\.json/);
+  assert.match(packageBuilder, /--workspace-targets/);
   assert.match(packageBuilder, /participantRoles/);
+  assert.match(packageBuilder, /shouldExposeWorkspaceRoot/);
+  assert.match(packageBuilder, /ignoredPathsWithoutRepository/);
   assert.match(packageBuilder, /workspaceSourceOverrides/);
   assert.match(packageBuilder, /Select Tiinex outgoing folder/);
   assert.match(packageBuilder, /showOpenDialog/);
@@ -547,6 +572,7 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(packageBuilder, /revealFileInOS/);
   assert.match(packageBuilder, /routeRoutingTexts/);
   assert.match(packageBuilder, /routeTexts\.length === 1/);
+  assert.match(tree, /qualifiedOutgoingWorkspaceSourceOverrides/);
   assert.doesNotMatch(packageBuilder, /Build qualified pointerless Workspace carrier\?|Build qualified Handoff carrier\?/);
   assert.match(tree, /copyOutgoingTransportText/);
   assert.match(tree, /Pack Outgoing first\. Exact transport text/);
@@ -983,8 +1009,9 @@ await test('pointerless package builder projects exact workspace-carrier args wi
     assert.equal(args[args.indexOf('--tooling-bootstrap') + 1], 'embedded');
     assert.equal(args[args.indexOf('--projected-filename') + 1], projectedFilename);
     const descriptor = JSON.parse(await fs.readFile(args[args.indexOf('--workspace-roots') + 1], 'utf8'));
-    assert.deepEqual(descriptor, { workspaces: [{ id: 'vscode', root: '/repo-vscode', workspaceTargetPath: 'extensions/tiinex' }] });
-    assert.equal(args.includes('--workspace-targets'), false);
+    assert.deepEqual(descriptor, { workspaces: [{ id: 'vscode', root: '/repo-vscode' }] });
+    const targets = JSON.parse(await fs.readFile(args[args.indexOf('--workspace-targets') + 1], 'utf8'));
+    assert.deepEqual(targets, [{ workspaceId: 'vscode', path: 'extensions/tiinex' }]);
   } finally { await fs.rm(scratch, { recursive: true, force: true }); }
 });
 

@@ -12,8 +12,10 @@ export async function workspaceCarrierArgs(selected: WorkspaceCarrierSource[], s
   const primary = ordered[0];
   if (!primary) throw new Error('tiinex.package-builder.workspace-selection-empty');
   const descriptorsPath = path.join(scratch, 'workspace-carrier-workspaces.json');
-  await writeFile(descriptorsPath, JSON.stringify({ workspaces: ordered.slice(1).map((item) => ({ id: item.workspaceId, root: item.root, workspaceTargetPath: item.workspaceTargetPath })) }), 'utf8');
-  const args = [primary.root, '--carrier-mode', 'workspace', '--workspace-id', primary.workspaceId, '--workspace-target', primary.workspaceTargetPath, '--workspace-roots', descriptorsPath, '--tooling-bootstrap', 'embedded'];
+  const targetsPath = path.join(scratch, 'workspace-carrier-targets.json');
+  await writeFile(descriptorsPath, JSON.stringify({ workspaces: ordered.slice(1).map((item) => ({ id: item.workspaceId, root: item.root })) }), 'utf8');
+  await writeFile(targetsPath, JSON.stringify(ordered.slice(1).map((item) => ({ workspaceId: item.workspaceId, path: item.workspaceTargetPath }))), 'utf8');
+  const args = [primary.root, '--carrier-mode', 'workspace', '--workspace-id', primary.workspaceId, '--workspace-target', primary.workspaceTargetPath, '--workspace-roots', descriptorsPath, '--workspace-targets', targetsPath, '--tooling-bootstrap', 'embedded'];
   const filename = String(projectedFilename || '').trim();
   if (filename) args.push('--projected-filename', filename);
   return args;

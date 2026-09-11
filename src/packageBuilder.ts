@@ -1,6 +1,6 @@
 import os from 'node:os';
 import path from 'node:path';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
 import * as vscode from 'vscode';
 import { preferredNodeExecutable } from './host/nodeExecutable';
 import { manufactureHandoffPackage, OperatorContextResult, prepareBundledRuntime, projectHandoffLeaves, projectOperatorContext, projectWorkspacePackageSources, WorkspacePackageSourcesResult } from './tiinex/bootstrap';
@@ -11,6 +11,9 @@ import { exactRouteByKey, routeChoiceKey } from './core/operatorModel';
 import { repositoryContainsPath, sameRepositoryRoot } from './core/repositoryPath';
 import { presentActionableFindings } from './core/findingPresentation';
 import { extractZipBuffer, readExactZipEntryFromFile } from './host/zip';
+import { indexLocalWorkspaceFiles } from './carrierIndex';
+import { runChecked, runProcess } from './host/process';
+import { representativeWorkspaceChoicesForRoot } from './core/workspaceChoice';
 
 type WorkspaceSource = WorkspacePackageSourcesResult['candidates'][number] & { root: string };
 export type RouteChoice = { id: string; pointerless: boolean; label: string; description: string; detail?: string; path?: string; from?: string; to?: string; workspaceId?: string };
@@ -156,7 +159,8 @@ export async function loadLocalWorkspaceChoices(extensionPath: string): Promise<
     for (let index = 0; index < roots.length; index += 1) {
       const projected = projectedByRoot[index];
       if (projected?.status !== 'ready') continue;
-      for (const item of projected.candidates || []) {
+      if (await shouldExposeWorkspaceRoot(roots[index]) === false) continue;
+      for (const item of representativeWorkspaceChoicesForRoot(roots[index], projected.candidates || [])) {
         if (!item.workspaceId || !item.workspaceTargetPath) continue;
         choices.push({ workspaceId: item.workspaceId, repository: item.repository, ref: item.ref, root: roots[index], workspaceTargetPath: item.workspaceTargetPath, sourceKind: item.sourceKind });
       }
@@ -167,6 +171,39 @@ export async function loadLocalWorkspaceChoices(extensionPath: string): Promise<
     if (ambiguous) throw new Error(`tiinex.package-builder.workspace-id-ambiguous:${ambiguous[0]}`);
     return choices;
   } finally { await runtime.dispose(); }
+}
+
+async function shouldExposeWorkspaceRoot(root: string): Promise<boolean> {
+  const resolved = path.resolve(String(root || '').trim());
+  if (!resolved) return false;
+  if (await hasGitMetadata(resolved)) return true;
+  const entries = await indexLocalWorkspaceFiles(resolved);
+  if (!entries.length) return false;
+  const scratch = await mkdtemp(path.join(os.tmpdir(), 'tiinex-vscode-ignore-filter-'));
+  try {
+    const ignored = await ignoredPathsWithoutRepository(resolved, entries.map((entry) => entry.path), scratch);
+    const ignoredSet = new Set(ignored.map((item) => item.replace(/\\/g, '/')));
+    return entries.some((entry) => !ignoredSet.has(entry.path));
+  } finally { await rm(scratch, { recursive: true, force: true }); }
+}
+
+async function hasGitMetadata(root: string): Promise<boolean> {
+  try {
+    const info = await stat(path.join(root, '.git'));
+    return info.isDirectory() || info.isFile();
+  } catch {
+    return false;
+  }
+}
+
+async function ignoredPathsWithoutRepository(root: string, candidates: string[], scratch: string): Promise<string[]> {
+  if (!candidates.length) return [];
+  const gitRoot = path.join(scratch, `ignore-${Math.random().toString(36).slice(2)}`);
+  await runChecked('git', ['init', '--quiet', gitRoot]);
+  const gitDir = path.join(gitRoot, '.git');
+  const result = await runProcess('git', ['--git-dir', gitDir, '--work-tree', root, 'check-ignore', '--no-index', '-z', '--stdin'], { cwd: root, input: `${candidates.join('\0')}\0` });
+  if (result.code !== 0 && result.code !== 1) throw new Error(`tiinex.package-builder.ignore-check-failed:${result.stderr.trim() || result.stdout.trim() || result.code}`);
+  return result.stdout.split('\0').map((item) => String(item || '').replace(/\\/g, '/')).filter(Boolean).sort();
 }
 
 async function qualifyIncomingWorkspaceSources(runtime: Awaited<ReturnType<typeof prepareBundledRuntime>>, scratch: string, sources: IncomingPackageWorkspaceSource[]): Promise<WorkspaceSource[]> {
@@ -270,9 +307,11 @@ async function handoffArgs(selected: WorkspaceSource[], primaryRoute: RouteChoic
   if (!primary) throw new Error('tiinex.package-builder.route-workspace-not-selected');
   const ordered = [primary, ...selected.filter((item) => item.workspaceId !== primary.workspaceId)];
   const descriptorsPath = path.join(scratch, 'workspaces.json');
-  await writeFile(descriptorsPath, JSON.stringify({ workspaces: ordered.slice(1).map((item) => ({ id: item.workspaceId, root: item.root, workspaceTargetPath: item.workspaceTargetPath })) }), 'utf8');
+  const targetsPath = path.join(scratch, 'workspace-targets.json');
+  await writeFile(descriptorsPath, JSON.stringify({ workspaces: ordered.slice(1).map((item) => ({ id: item.workspaceId, root: item.root })) }), 'utf8');
+  await writeFile(targetsPath, JSON.stringify(ordered.slice(1).map((item) => ({ workspaceId: item.workspaceId, path: item.workspaceTargetPath }))), 'utf8');
   const selector = `${primaryRoute.workspaceId}:${primaryRoute.path}`;
-  const args = [primary.root, '--handoff', primaryRoute.path, '--route', selector, '--workspace-id', primary.workspaceId, '--workspace-target', primary.workspaceTargetPath, '--workspace-roots', descriptorsPath, '--tooling-bootstrap', 'embedded'];
+  const args = [primary.root, '--handoff', primaryRoute.path, '--route', selector, '--workspace-id', primary.workspaceId, '--workspace-target', primary.workspaceTargetPath, '--workspace-roots', descriptorsPath, '--workspace-targets', targetsPath, '--tooling-bootstrap', 'embedded'];
   if (packageParentPath) args.push('--package-parent', path.resolve(packageParentPath));
   if (packageMajorReason) {
     if (!packageParentPath) throw new Error('tiinex.package-builder.package-major-parent-required');
