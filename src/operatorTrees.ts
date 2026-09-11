@@ -308,12 +308,14 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     const register = (id: string, fn: (...args: any[]) => any) => this.context.subscriptions.push(vscode.commands.registerCommand(id, fn));
     register('tiinex.discovery.selectFolder', () => this.selectDiscoveryFolder());
     register('tiinex.discovery.refresh', () => this.refreshDiscovery(true));
+    register('tiinex.discovery.displayOptions', () => this.showDisplayOptions('discovery'));
     register('tiinex.discovery.toggleProjection', () => this.toggleProjection('discovery'));
     register('tiinex.discovery.toggleLineage', () => this.toggleLineage('discovery'));
     register('tiinex.discovery.toggleDelta', () => this.toggleDelta('discovery'));
     register('tiinex.discovery.setIncoming', (node?: OperatorNode) => this.setIncoming(node?.data.packagePath || ''));
     register('tiinex.incoming.refresh', () => this.refreshIncoming());
     register('tiinex.incoming.close', (node?: OperatorNode) => this.closeIncoming(node?.data.packagePath || ''));
+    register('tiinex.incoming.displayOptions', () => this.showDisplayOptions('incoming'));
     register('tiinex.incoming.toggleProjection', () => this.toggleProjection('incoming'));
     register('tiinex.incoming.toggleLineage', () => this.toggleLineage('incoming'));
     register('tiinex.incoming.toggleDelta', () => this.toggleDelta('incoming'));
@@ -327,6 +329,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     register('tiinex.outgoing.close', () => this.closeOutgoing());
     register('tiinex.outgoing.bumpMajor', () => this.bumpOutgoingMajor());
     register('tiinex.outgoing.clearMajor', () => this.clearOutgoingMajor());
+    register('tiinex.outgoing.displayOptions', () => this.showDisplayOptions('outgoing'));
     register('tiinex.outgoing.toggleProjection', () => this.toggleProjection('outgoing'));
     register('tiinex.outgoing.toggleLineage', () => this.toggleLineage('outgoing'));
     register('tiinex.outgoing.newHandoff', (node?: OperatorNode) => this.newOutgoingHandoff(node?.data.workspaceId || ''));
@@ -379,6 +382,36 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     const lineage = this.lineage(section) === 'lineage' ? 'Lineage' : 'Leaves';
     const delta = this.delta(section) ? ' · Delta' : '';
     return `${projection} · ${lineage}${delta}`;
+  }
+
+  private async showDisplayOptions(section: OperatorSection): Promise<void> {
+    type DisplayOption = vscode.QuickPickItem & { key: 'files' | 'lineage' | 'delta' };
+    const currentFiles = this.projection(section) === 'files';
+    const currentLineage = this.lineage(section) === 'lineage';
+    const currentDelta = this.delta(section);
+    const items: DisplayOption[] = [
+      { key: 'files', label: '$(list-tree) Files projection', description: currentFiles ? 'On' : 'Off', detail: 'Unchecked shows the compact Logical projection.', picked: currentFiles },
+      { key: 'lineage', label: '$(references) Full lineage', description: currentLineage ? 'On' : 'Off', detail: 'Unchecked shows lineage leaves only.', picked: currentLineage }
+    ];
+    if (section !== 'outgoing') items.push({ key: 'delta', label: '$(diff) Delta only', description: currentDelta ? 'On' : 'Off', detail: 'Unchecked shows every qualified carried Workspace/artifact.', picked: currentDelta });
+    const selected = await vscode.window.showQuickPick(items, {
+      title: `${section[0].toUpperCase()}${section.slice(1)} Display Options`,
+      placeHolder: 'Toggle view options, then press Enter',
+      canPickMany: true,
+      ignoreFocusOut: true
+    });
+    if (!selected) return;
+    const enabled = new Set(selected.map((item) => item.key));
+    const nextProjection: TreeProjectionMode = enabled.has('files') ? 'files' : 'logical';
+    const nextLineage: TreeLineageMode = enabled.has('lineage') ? 'lineage' : 'leaves';
+    const nextDelta = section !== 'outgoing' && enabled.has('delta');
+    const deltaChanged = section !== 'outgoing' && nextDelta !== currentDelta;
+    await this.context.workspaceState.update(`tiinex.tree.${section}.projection`, nextProjection);
+    await this.context.workspaceState.update(`tiinex.tree.${section}.lineage`, nextLineage);
+    if (section !== 'outgoing') await this.context.workspaceState.update(`tiinex.tree.${section}.delta`, nextDelta);
+    if (deltaChanged) this.deltaCache.clear();
+    this.refresh(section);
+    await this.updateUiContexts();
   }
 
   private async toggleDelta(section: 'discovery' | 'incoming'): Promise<void> {
@@ -720,7 +753,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       const artifacts = artifactsForLineageMode(workspace?.artifacts || [], this.lineage('incoming'));
       return this.fileArtifactRoots('incoming', workspace?.workspaceId || '', await this.filterDeltaArtifacts('incoming', index, workspace?.workspaceId || '', artifacts), index.packagePath);
     }
-    if (node.data.kind === 'directory' && node.data.pathPrefix?.startsWith('outer:')) return this.outerCarrierFileChildren('incoming', index, node.data.pathPrefix.slice('outer:'.length));
+    if (node.data.kind === 'directory' && node.data.pathPrefix?.startsWith('outer:')) return this.outerCarrierFileChildren('incoming', index, node.data.pathPrefix.slice('outer:'.length), await this.packageDeltaView(index));
     const logical = await this.logicalWorkspaceProjectionChildren('incoming', node);
     if (logical) return logical;
     return this.artifactProjectionChildren('incoming', node, await this.artifactsForNode('incoming', node));
@@ -2198,17 +2231,18 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     return artifacts.filter((artifact) => delta.incomingPaths.has(normalizePath(artifact.path)));
   }
 
-  private packageProjection(section: OperatorSection, index: IndexedCarrierPackage): OperatorNode[] {
+  private async packageProjection(section: OperatorSection, index: IndexedCarrierPackage): Promise<OperatorNode[]> {
+    const incomingDelta = section === 'incoming' ? await this.packageDeltaView(index) : undefined;
     if (this.projection(section) === 'logical') {
       // Logical is deliberately package-simple: one row per carried Workspace.
       // Carrier control artifacts remain truthful in Files; expanding a Workspace
       // exposes Lineage / Handoffs / Files without inventing carrier-wide buckets.
-      return index.workspaces.map((workspace) => this.workspaceNode(section, workspace.workspaceId, workspace.label, true, '', index.packagePath));
+      return index.workspaces.map((workspace) => this.workspaceNode(section, workspace.workspaceId, workspace.label, true, '', index.packagePath, incomingDelta?.workspaces.get(workspace.workspaceId)));
     }
-    return this.outerCarrierFileChildren(section, index, '');
+    return this.outerCarrierFileChildren(section, index, '', incomingDelta);
   }
 
-  private outerCarrierFileChildren(section: OperatorSection, index: IndexedCarrierPackage, prefix: string): OperatorNode[] {
+  private outerCarrierFileChildren(section: OperatorSection, index: IndexedCarrierPackage, prefix: string, incomingDelta?: PackageDeltaView): OperatorNode[] {
     const normalizedPrefix = normalizePath(prefix);
     const artifacts = artifactsForLineageMode(index.carrierArtifacts, this.lineage(section));
     const represented = new Set<string>();
@@ -2268,27 +2302,36 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
         archiveNode.contextValue = 'tiinex.incomingWorkspaceArchiveApplied';
         archiveNode.data.contextValue = 'tiinex.incomingWorkspaceArchiveApplied';
         archiveNode.iconPath = new vscode.ThemeIcon('pass-filled', new vscode.ThemeColor('testing.iconPassed'));
+      } else if (section === 'incoming' && entry.workspaceId && incomingDelta?.workspaces.get(entry.workspaceId)?.state === 'exact') {
+        archiveNode.description = `qualified match · ${workspace?.label || entry.workspaceId}`;
+        archiveNode.contextValue = 'tiinex.incomingWorkspaceArchiveExact';
+        archiveNode.data.contextValue = 'tiinex.incomingWorkspaceArchiveExact';
+        archiveNode.iconPath = new vscode.ThemeIcon('pass-filled', new vscode.ThemeColor('testing.iconPassed'));
       }
       nodes.push(archiveNode);
     }
     return nodes;
   }
 
-  private workspaceNode(section: OperatorSection, workspaceId: string, label: string, hasSource: boolean, description = '', packagePath = ''): OperatorNode {
+  private workspaceNode(section: OperatorSection, workspaceId: string, label: string, hasSource: boolean, description = '', packagePath = '', delta?: WorkspaceDeltaView): OperatorNode {
     let contextValue = `tiinex.${section}Workspace`;
     let applied = false;
+    let exact = false;
     if (section === 'incoming') {
       applied = Boolean(this.incomingState(packagePath)?.appliedWorkspaceIds.has(workspaceId));
-      contextValue = applied ? 'tiinex.incomingWorkspaceApplied' : 'tiinex.incomingWorkspace';
+      exact = !applied && delta?.state === 'exact';
+      contextValue = applied ? 'tiinex.incomingWorkspaceApplied' : exact ? 'tiinex.incomingWorkspaceExact' : 'tiinex.incomingWorkspace';
     } else if (section === 'outgoing' && !hasSource) contextValue = 'tiinex.outgoingWorkspaceMissing';
     else if (section === 'outgoing') contextValue = 'tiinex.outgoingWorkspace';
     const idScope = packagePath ? `${packagePath}:` : '';
+    const nodeDescription = applied ? `applied${description ? ` · ${description}` : ''}` : exact ? `qualified match${description ? ` · ${description}` : ''}` : description;
     const node = new OperatorNode({
       kind: 'workspace', section, id: `${section}:workspace:${idScope}${workspaceId}`, label,
-      description: applied ? `applied${description ? ` · ${description}` : ''}` : description,
+      description: nodeDescription,
+      tooltip: exact ? `${label}\nQualified byte-for-byte match with the open Local Workspace. Merge/Replace cannot change state.` : undefined,
       workspaceId, packagePath, contextValue, collapsible: vscode.TreeItemCollapsibleState.Collapsed
     });
-    if (applied) node.iconPath = new vscode.ThemeIcon('pass-filled', new vscode.ThemeColor('testing.iconPassed'));
+    if (applied || exact) node.iconPath = new vscode.ThemeIcon('pass-filled', new vscode.ThemeColor('testing.iconPassed'));
     return node;
   }
 

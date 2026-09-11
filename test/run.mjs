@@ -184,23 +184,24 @@ await test('extension contributes stable Discovery, Incoming and Outgoing TreeVi
   assert.equal(commands.get('tiinex.incoming.merge')?.icon, '$(git-merge)');
   assert.equal(commands.get('tiinex.incoming.replace')?.title, 'Replace');
   assert.equal(commands.get('tiinex.incoming.replace')?.icon, '$(replace-all)');
-  assert.equal(commands.get('tiinex.discovery.toggleDelta')?.icon, '$(diff)');
-  assert.equal(commands.get('tiinex.incoming.toggleDelta')?.icon, '$(diff)');
+  assert.equal(commands.get('tiinex.discovery.displayOptions')?.icon, '$(settings)');
+  assert.equal(commands.get('tiinex.incoming.displayOptions')?.icon, '$(settings)');
+  assert.equal(commands.get('tiinex.outgoing.displayOptions')?.icon, '$(settings)');
   assert.equal(commands.get('tiinex.outgoing.copyTransportText')?.icon, '$(copy)');
   const titleMenus = manifest.contributes?.menus?.['view/title'] || [];
   const titleCommands = new Set(titleMenus.map((item) => item.command));
-  for (const command of ['tiinex.discovery.toggleDelta', 'tiinex.discovery.selectFolder', 'tiinex.discovery.refresh', 'tiinex.incoming.toggleDelta', 'tiinex.incoming.refresh', 'tiinex.outgoing.new', 'tiinex.outgoing.selectWorkspaces', 'tiinex.outgoing.selectFolder', 'tiinex.outgoing.refresh']) assert.equal(titleCommands.has(command), true);
+  for (const command of ['tiinex.discovery.displayOptions', 'tiinex.discovery.selectFolder', 'tiinex.discovery.refresh', 'tiinex.incoming.displayOptions', 'tiinex.incoming.refresh', 'tiinex.outgoing.new', 'tiinex.outgoing.selectWorkspaces', 'tiinex.outgoing.displayOptions', 'tiinex.outgoing.selectFolder', 'tiinex.outgoing.refresh']) assert.equal(titleCommands.has(command), true);
+  for (const legacy of ['tiinex.discovery.toggleProjection', 'tiinex.discovery.toggleLineage', 'tiinex.discovery.toggleDelta', 'tiinex.incoming.toggleProjection', 'tiinex.incoming.toggleLineage', 'tiinex.incoming.toggleDelta', 'tiinex.outgoing.toggleProjection', 'tiinex.outgoing.toggleLineage']) assert.equal(titleCommands.has(legacy), false);
   assert.equal(titleCommands.has('tiinex.outgoing.package'), false);
   assert.equal(titleCommands.has('tiinex.incoming.mergeSelected'), false);
   assert.equal(titleCommands.has('tiinex.outgoing.newBlank'), false);
   assert.equal(titleCommands.has('tiinex.outgoing.newFromIncoming'), false);
   const groupOrder = (command) => Number(String(titleMenus.find((item) => item.command === command)?.group || '').split('@')[1]);
-  assert.ok(groupOrder('tiinex.discovery.toggleProjection') < groupOrder('tiinex.discovery.selectFolder'));
-  assert.ok(groupOrder('tiinex.discovery.toggleLineage') < groupOrder('tiinex.discovery.selectFolder'));
+  assert.ok(groupOrder('tiinex.discovery.displayOptions') < groupOrder('tiinex.discovery.selectFolder'));
   assert.ok(groupOrder('tiinex.discovery.selectFolder') < groupOrder('tiinex.discovery.refresh'));
   assert.ok(groupOrder('tiinex.outgoing.new') < groupOrder('tiinex.outgoing.selectWorkspaces'));
-  assert.ok(groupOrder('tiinex.outgoing.selectWorkspaces') < groupOrder('tiinex.outgoing.toggleProjection'));
-  assert.ok(groupOrder('tiinex.outgoing.toggleLineage') < groupOrder('tiinex.outgoing.selectFolder'));
+  assert.ok(groupOrder('tiinex.outgoing.selectWorkspaces') < groupOrder('tiinex.outgoing.displayOptions'));
+  assert.ok(groupOrder('tiinex.outgoing.displayOptions') < groupOrder('tiinex.outgoing.selectFolder'));
   assert.ok(groupOrder('tiinex.outgoing.selectFolder') < groupOrder('tiinex.outgoing.refresh'));
   const itemMenus = manifest.contributes?.menus?.['view/item/context'] || [];
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.discovery.setIncoming' && /discoveryPackage/.test(item.when || '')));
@@ -212,6 +213,10 @@ await test('extension contributes stable Discovery, Incoming and Outgoing TreeVi
   }
   assert.equal(incomingMergeMenu?.group, 'inline@1');
   assert.equal(incomingReplaceMenu?.group, 'inline@2');
+  for (const exactContext of ['tiinex.incomingWorkspaceExact', 'tiinex.incomingWorkspaceArchiveExact']) {
+    assert.doesNotMatch(incomingMergeMenu?.when || '', new RegExp(exactContext));
+    assert.doesNotMatch(incomingReplaceMenu?.when || '', new RegExp(exactContext));
+  }
   const incomingCloseMenu = itemMenus.find((item) => item.command === 'tiinex.incoming.close');
   assert.match(incomingCloseMenu?.when || '', /tiinex\.incomingPackage/);
   assert.match(incomingCloseMenu?.when || '', /tiinex\.incomingPackageLoading/);
@@ -244,6 +249,10 @@ await test('extension contributes stable Discovery, Incoming and Outgoing TreeVi
   assert.match(treeSource, /No Outgoing carrier is open\. Create one and continue attaching this Handoff\?/);
   assert.match(treeSource, /packageParentPath = await this\.pickOutgoingParent\(\)/);
   assert.match(treeSource, /this\.sortIncomingByDiscoveryOrder\(\)/);
+  assert.match(treeSource, /showDisplayOptions\('incoming'\)/);
+  assert.match(treeSource, /canPickMany: true/);
+  assert.match(treeSource, /tiinex\.incomingWorkspaceExact/);
+  assert.match(treeSource, /qualified match/);
   assert.doesNotMatch(treeSource, /chooseOutgoingCarrierParent/);
   assert.equal(Boolean(manifest.contributes?.problemMatchers), false);
   const extensionSource = await fs.readFile(path.resolve(HERE, '..', 'src', 'extension.ts'), 'utf8');
@@ -371,10 +380,12 @@ await test('native tree operator keeps projection choices separate from canonica
   const source = await fs.readFile(path.resolve(HERE, '..', 'src', 'operatorTrees.ts'), 'utf8');
   assert.match(source, /TreeProjectionMode/);
   assert.match(source, /TreeLineageMode/);
-  assert.match(source, /toggleProjection\('discovery'\)/);
-  assert.match(source, /toggleLineage\('discovery'\)/);
-  assert.match(source, /contextValue = applied \? 'tiinex\.incomingWorkspaceApplied' : 'tiinex\.incomingWorkspace'/);
+  assert.match(source, /showDisplayOptions\('discovery'\)/);
+  assert.match(source, /showDisplayOptions\('incoming'\)/);
+  assert.match(source, /showDisplayOptions\('outgoing'\)/);
+  assert.match(source, /contextValue = applied \? 'tiinex\.incomingWorkspaceApplied' : exact \? 'tiinex\.incomingWorkspaceExact' : 'tiinex\.incomingWorkspace'/);
   assert.match(source, /tiinex\.incomingWorkspaceArchiveApplied/);
+  assert.match(source, /tiinex\.incomingWorkspaceArchiveExact/);
   assert.match(source, /contextValue = 'tiinex\.outgoingWorkspace'/);
   assert.match(source, /logicalWorkspaceRootChildren/);
   assert.match(source, /fileArtifactRoots/);
@@ -402,6 +413,24 @@ await test('native tree operator keeps projection choices separate from canonica
   assert.equal(contributedCommands.has('tiinex.outgoing.new'), true);
   assert.equal(contributedCommands.has('tiinex.incoming.mergeReplace'), true);
   assert.equal(contributedCommands.has('tiinex.outgoing.selectWorkspaces'), true);
+});
+
+await test('operator README and deterministic GIF runbook describe the stabilized Major 001 surfaces', async () => {
+  const fs = await import('node:fs/promises');
+  const root = path.resolve(HERE, '..');
+  const readme = await fs.readFile(path.join(root, 'README.md'), 'utf8');
+  const capture = await fs.readFile(path.join(root, 'docs', 'GIF-CAPTURE.md'), 'utf8');
+  const manifest = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8'));
+  const lock = JSON.parse(await fs.readFile(path.join(root, 'package-lock.json'), 'utf8'));
+  assert.match(readme, /one \*\*Display Options\*\* control/);
+  assert.match(readme, /green \*\*qualified match\*\*/);
+  assert.match(readme, /docs\/GIF-CAPTURE\.md/);
+  assert.match(readme, /"@tiinex\/core": "\^0\.7\.0"/);
+  assert.equal(manifest.dependencies['@tiinex/core'], '^0.7.0');
+  assert.equal(lock.packages['node_modules/@tiinex/core'].version, '0.7.0');
+  for (const section of ['Clip 1 — Display Options', 'Clip 2 — Incoming exact qualified match', 'Clip 3 — Outgoing Handoff and Pack safety', 'Clip 4 — Staging and commit-message ergonomics']) assert.match(capture, new RegExp(section));
+  assert.match(capture, /does not replace the required Sigma Windows observation/);
+  assert.match(capture, /exact current Tiinex primary-logo bytes/);
 });
 
 await test('Discovery indexes explicit folders and auto-refresh never invokes landing', async () => {

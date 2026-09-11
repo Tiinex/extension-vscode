@@ -6,7 +6,7 @@ This checkout is a **preparatory 0.1.7 lane**. It may build and qualify candidat
 
 ## Native operator trees
 
-The Tiinex Activity Bar uses three native VS Code TreeViews with the same projection controls: **Logical / Files** and **Leaves / Lineage**. Conditional projection controls stay left of stable actions; mutation actions stay left of **Refresh**, so always-visible buttons do not move as state changes. Tree items use native ThemeIcons and keep package/workspace actions on the object they affect.
+The Tiinex Activity Bar uses three native VS Code TreeViews. Each view has one **Display Options** control instead of a row of projection buttons. The picker exposes icon + text + checked state for **Files / Logical**, **Lineage / Leaves**, and (for Discovery/Incoming) **Delta / All**. Mutation actions stay on the object they affect, and stable title actions no longer shift because a display mode changed. Tree items use native ThemeIcons throughout.
 
 ### Discovery
 
@@ -25,7 +25,7 @@ Discovery settings remain deliberately separated:
 
 **Merge / Replace** is available both on a package root and on each carried Workspace. Package-level use first opens a Workspace multi-select. Every Workspace owning a qualified Handoff route whose **To** matches `tiinex.operator.role` is preselected; multiple matches can therefore preselect multiple Workspaces, and no match leaves the selection empty. Workspace-level use scopes directly to that Workspace.
 
-Before any Merge/Replace choice, the extension asks the current shared Core `compare-source-frontiers` operation for an exact read-only byte/path comparison between the selected Incoming Workspace and its qualified Local Workspace. `exact` skips mutation, `changed` is summarized as `+added ~changed -removed` in the plan UI, and any non-qualified comparison state fails visible instead of guessing.
+Before any Merge/Replace choice, the extension asks the current shared Core `compare-source-frontiers` operation for an exact read-only byte/path comparison between the selected Incoming Workspace and its qualified Local Workspace. An `exact` Workspace is shown immediately as a green **qualified match** and its Workspace/archive rows do not offer Merge or Replace actions that cannot change state. `changed` is summarized as `+added ~changed -removed` in the plan UI, and any non-qualified comparison state fails visible instead of guessing.
 
 The apply flow is plan-first and fail-closed:
 
@@ -45,7 +45,7 @@ New then opens the same **Select Workspaces** picker immediately. Blank preselec
 **Select Workspaces** uses one compact multi-select ordered by source priority: a visually explicit `LOCAL · VS CODE` group first, then numbered `INCOMING 1`, `INCOMING 2`, ... groups newest to oldest. Workspace rows avoid secondary detail/subtitle lines so Local versus carried sources are recognizable mainly by group placement and native icons rather than dense text. If the same qualified Workspace is selected from more than one source, the highest-listed source wins; lower-priority duplicates are de-selected and the corrected picker is shown again so the operator explicitly confirms the effective selection. Outgoing does not merge sources. It carries exactly one selected source per Workspace.
 
 The lineage parent is chosen only by **New**; **Select Workspaces** changes source membership only and never opens a second lineage prompt. Workspaces may still be sourced from Local or any open Incoming package independently of that parent choice. **Bump Major** is one explicit click with no throw-away Why prompt; it immediately advances the projected major in the Outgoing root and shared Tooling still owns the qualified manufacture. The Outgoing root has inline **Close**; package construction stays behind **Package** and shared Tiinex manufacture.
-Before writing a Handoff carrier, Package requires shared Tooling preview/output to match the exact carrier dimension and visible ZIP filename projected by Outgoing. A mismatch is a shared-contract blocker: VS Code fails closed and never renames or post-edits qualified carrier bytes.
+Before writing a Handoff carrier, Package requires shared Tooling preview/output to match the exact carrier dimension and visible ZIP filename projected by Outgoing. A mismatch is a shared-contract blocker: VS Code fails closed and never renames or post-edits qualified carrier bytes. An existing destination ZIP is never silently replaced: byte-identical output may be reused, while a different payload at the same canonical filename fails closed and must be resolved explicitly.
 
 Logical projection keeps **Handoff identity** bounded to the outer Handoff-package layer: only package-level Handoff route pointers become current Handoff rows, so historical Handoffs inside a repository payload are never flattened into the carrier view. A Workspace with an embedded `.workspace.zip` additionally exposes **Files** (the complete payload file tree) and **Lineage** only when the payload actually contains Tiinex artifacts. A Workspace without a payload ZIP exposes only its package-level Handoff rows; the extension does not shadow-clone a checkout just to fill the tree. Expanding a resolved Handoff shows the outer pointer that led to it as provenance.
 
@@ -57,10 +57,10 @@ Role/identity presentation scans every qualified local Workspace plus every open
 
 ## Runtime/package boundary
 
-The historical tracked `shared-core/` snapshot and Site-coupled `sync:shared-core` path have been removed. The extension now declares the already-published exact dependency:
+The historical tracked `shared-core/` snapshot and Site-coupled `sync:shared-core` path have been removed. The extension now declares the published Core compatibility range used by this checkout; the lockfile pins qualification to `0.7.0`:
 
 ```json
-"@tiinex/core": "0.1.1"
+"@tiinex/core": "^0.7.0"
 ```
 
 VS Code resolves only the public `@tiinex/core/portable-entry` export (plus the public `package.json` export for version qualification). It does not import private Core source paths and does not ask Core to add new subpaths merely to reproduce the old copied tree.
@@ -120,6 +120,8 @@ Outgoing Workspace choices stay source descriptors until Package. Local selectio
 
 Reviewed/written Handoffs can be marked as Outgoing routes. One or more marked routes are passed through shared `--workspace-routes`; the primary route selects the human-facing route and carrier continuation. For a child carrier, the extension derives the next carrier dimension from the ordinal position of the exact continued Handoff route in the parent carrier's qualified route sequence, not from the Handoff filename number. Shared manufacture is checked against that expected dimension and fails closed if the shared contract would allocate a different lineage.
 
+An existing qualified Handoff can also be attached to Outgoing intentionally. **Attach Handoff to Outgoing** keeps the selected artifact's semantic authority unchanged; **Copy Handoff Transport Text** copies its transport representation for forwarding and does not imply recipient acceptance, Role authority or a new Handoff identity.
+
 **Bump Major** delegates the stable-checkpoint major transition to shared manufacture. Descriptor-only carriage semantics beyond the public shared Tooling contract, optional bootstrap profiles and encryption remain deferred rather than being recreated privately in VS Code.
 
 ## Git workflow
@@ -158,3 +160,7 @@ npm run validate
 ```
 
 That performs typecheck, a clean build, focused regression tests and candidate VSIX generation. VSIX is qualification/release evidence, not the normal development loop, and this preparatory lane still does not authorize 0.1.8 publication.
+
+For repeatable Marketplace/demo evidence after behavior is stable, follow [`docs/GIF-CAPTURE.md`](docs/GIF-CAPTURE.md). The runbook fixes the capture order and visible states while keeping Windows observation and human acceptance separate from technical PASS.
+
+Branding remains intentionally unchanged until the exact current Tiinex primary asset bytes are available from the qualified organization branding source; this checkout does not substitute a guessed or look-alike logo.

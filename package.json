@@ -43,7 +43,10 @@
     "onCommand:tiinex.artifact.newHandoff",
     "onCommand:tiinex.artifact.attachHandoff",
     "onCommand:tiinex.outgoing.attachHandoff",
-    "onCommand:tiinex.outgoing.detachHandoff"
+    "onCommand:tiinex.outgoing.detachHandoff",
+    "onCommand:tiinex.discovery.displayOptions",
+    "onCommand:tiinex.incoming.displayOptions",
+    "onCommand:tiinex.outgoing.displayOptions"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -52,6 +55,11 @@
         "command": "tiinex.outgoing.refresh",
         "title": "Tiinex: Refresh Outgoing",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "tiinex.outgoing.displayOptions",
+        "title": "Tiinex: Outgoing Display Options",
+        "icon": "$(settings)"
       },
       {
         "command": "tiinex.outgoing.close",
@@ -72,6 +80,11 @@
         "command": "tiinex.incoming.refresh",
         "title": "Tiinex: Refresh Incoming",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "tiinex.incoming.displayOptions",
+        "title": "Tiinex: Incoming Display Options",
+        "icon": "$(settings)"
       },
       {
         "command": "tiinex.incoming.close",
@@ -102,6 +115,11 @@
         "command": "tiinex.discovery.refresh",
         "title": "Tiinex: Refresh Discovery",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "tiinex.discovery.displayOptions",
+        "title": "Tiinex: Discovery Display Options",
+        "icon": "$(settings)"
       },
       {
         "command": "tiinex.discovery.toggleProjection",
@@ -385,21 +403,6 @@
       ],
       "view/title": [
         {
-          "command": "tiinex.discovery.toggleProjection",
-          "when": "view == tiinex.discovery && tiinex.discovery.hasPackages",
-          "group": "navigation@5"
-        },
-        {
-          "command": "tiinex.discovery.toggleLineage",
-          "when": "view == tiinex.discovery && tiinex.discovery.hasPackages",
-          "group": "navigation@6"
-        },
-        {
-          "command": "tiinex.discovery.toggleDelta",
-          "when": "view == tiinex.discovery",
-          "group": "navigation@4"
-        },
-        {
           "command": "tiinex.discovery.selectFolder",
           "when": "view == tiinex.discovery",
           "group": "navigation@7"
@@ -408,21 +411,6 @@
           "command": "tiinex.discovery.refresh",
           "when": "view == tiinex.discovery",
           "group": "navigation@9"
-        },
-        {
-          "command": "tiinex.incoming.toggleProjection",
-          "when": "view == tiinex.incoming && tiinex.incoming.hasPackage",
-          "group": "navigation@5"
-        },
-        {
-          "command": "tiinex.incoming.toggleLineage",
-          "when": "view == tiinex.incoming && tiinex.incoming.hasPackage",
-          "group": "navigation@6"
-        },
-        {
-          "command": "tiinex.incoming.toggleDelta",
-          "when": "view == tiinex.incoming",
-          "group": "navigation@4"
         },
         {
           "command": "tiinex.incoming.refresh",
@@ -450,16 +438,6 @@
           "group": "navigation@3"
         },
         {
-          "command": "tiinex.outgoing.toggleProjection",
-          "when": "view == tiinex.outgoing && tiinex.outgoing.hasContext",
-          "group": "navigation@5"
-        },
-        {
-          "command": "tiinex.outgoing.toggleLineage",
-          "when": "view == tiinex.outgoing && tiinex.outgoing.hasContext",
-          "group": "navigation@6"
-        },
-        {
           "command": "tiinex.outgoing.selectFolder",
           "when": "view == tiinex.outgoing",
           "group": "navigation@7"
@@ -468,6 +446,21 @@
           "command": "tiinex.outgoing.refresh",
           "when": "view == tiinex.outgoing",
           "group": "navigation@9"
+        },
+        {
+          "command": "tiinex.discovery.displayOptions",
+          "when": "view == tiinex.discovery",
+          "group": "navigation@4"
+        },
+        {
+          "command": "tiinex.incoming.displayOptions",
+          "when": "view == tiinex.incoming",
+          "group": "navigation@4"
+        },
+        {
+          "command": "tiinex.outgoing.displayOptions",
+          "when": "view == tiinex.outgoing && tiinex.outgoing.hasContext",
+          "group": "navigation@4"
         }
       ],
       "view/item/context": [
@@ -640,6 +633,38 @@
         },
         {
           "command": "tiinex.outgoing.copyTransportText",
+          "when": "false"
+        },
+        {
+          "command": "tiinex.discovery.toggleProjection",
+          "when": "false"
+        },
+        {
+          "command": "tiinex.discovery.toggleLineage",
+          "when": "false"
+        },
+        {
+          "command": "tiinex.discovery.toggleDelta",
+          "when": "false"
+        },
+        {
+          "command": "tiinex.incoming.toggleProjection",
+          "when": "false"
+        },
+        {
+          "command": "tiinex.incoming.toggleLineage",
+          "when": "false"
+        },
+        {
+          "command": "tiinex.incoming.toggleDelta",
+          "when": "false"
+        },
+        {
+          "command": "tiinex.outgoing.toggleProjection",
+          "when": "false"
+        },
+        {
+          "command": "tiinex.outgoing.toggleLineage",
           "when": "false"
         }
       ],
