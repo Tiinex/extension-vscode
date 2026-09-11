@@ -558,13 +558,16 @@ export async function applyIncomingWorkspaces(extensionPath: string, index: Inde
       return { affectedWorkspaceIds: [], conflictWorkspaceIds: [] };
     }
     const mutationScope = plans.map((plan) => `• ${plan.label}: ${plan.local.root}`).join('\n');
-    const confirmed = await vscode.window.showWarningMessage(
-      `Execute Incoming plan?\n\n${planSummary(plans)}\n\nMutation scope:\n${mutationScope}\n\nSafety: only these Workspace roots can change. .git is never replaced; ignored paths and symlinks are protected. Local Git state is re-checked after confirmation before mutation. Dirty work can only be preserved, stashed, or committed here — this flow never resets/cleans it. Nothing above has mutated local source.${plans.length > 1 ? '\n\nMulti-repo note: execution is guarded per repository but is not a cross-repository atomic transaction.' : ''}`,
-      { modal: true },
-      'Execute Plan',
-      'Cancel'
-    );
-    if (confirmed !== 'Execute Plan') return null;
+    const requiresFinalConfirm = plans.some((plan) => plan.strategy === 'merge');
+    if (requiresFinalConfirm) {
+      const confirmed = await vscode.window.showWarningMessage(
+        `Execute Incoming plan?\n\n${planSummary(plans)}\n\nMutation scope:\n${mutationScope}\n\nSafety: only these Workspace roots can change. .git is never replaced; ignored paths and symlinks are protected. Local Git state is re-checked after confirmation before mutation. Dirty work can only be preserved, stashed, or committed here — this flow never resets/cleans it. Nothing above has mutated local source.${plans.length > 1 ? '\n\nMulti-repo note: execution is guarded per repository but is not a cross-repository atomic transaction.' : ''}`,
+        { modal: true },
+        'Execute Plan',
+        'Cancel'
+      );
+      if (confirmed !== 'Execute Plan') return null;
+    }
     await assertMutationPreconditions(plans);
     const affectedWorkspaceIds: string[] = [];
     const conflictWorkspaceIds: string[] = [];

@@ -635,9 +635,10 @@ await test('multi-Incoming and Merge/Replace remain selection-first, dry until f
   assert.match(apply, /ignored-or-symlink-collision/);
   assert.match(apply, /mergeCommitNoCommit/);
   assert.match(apply, /workbench\.view\.scm/);
-  const finalConfirm = apply.indexOf("'Execute Plan'");
-  const execution = apply.indexOf('for (const plan of plans)', finalConfirm);
-  assert.ok(finalConfirm >= 0 && execution > finalConfirm);
+  assert.match(apply, /const requiresFinalConfirm = plans\.some\(\(plan\) => plan\.strategy === 'merge'\)/);
+  assert.match(apply, /if \(requiresFinalConfirm\) \{/);
+  assert.match(apply, /'Execute Plan'/);
+  assert.match(apply, /if \(confirmed !== 'Execute Plan'\) return null;/);
 });
 
 await test('tree errors keep compact summaries visible and full technical detail behind Show Details', async () => {
