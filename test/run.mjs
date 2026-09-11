@@ -120,8 +120,8 @@ await test('Incoming operator defaults allow multiple matching Workspaces and Ou
 });
 
 await test('Outgoing source UX inherits Incoming carrier identity and shares Discovery time ordering', async () => {
-  assert.equal(inheritedOutgoingLabel('business-001-1-2-anchor-to-anchor.handoff-package.zip', '001-1-2'), 'business-001-1-2');
-  assert.equal(inheritedOutgoingLabel('001-3-anchor-to-anchor.handoff-package.zip', '001-3'), '001-3');
+  assert.equal(inheritedOutgoingLabel('business-001-1-2-anchor-to-anchor.handoff-package.zip', '001-1-2', 2), 'business-001-1-2-2');
+  assert.equal(inheritedOutgoingLabel('001-3-anchor-to-anchor.handoff-package.zip', '001-3'), '001-3-1');
   const items = [
     { filename: 'older.handoff-package.zip', mtimeMs: 10 },
     { filename: 'newer-b.handoff-package.zip', mtimeMs: 20 },

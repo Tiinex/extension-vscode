@@ -984,8 +984,9 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       },
       ...this.incoming.map((state) => {
         const dimension = String(state.orientation?.carrierLineage?.dimension || '').trim();
+        const ordinal = this.incomingCarrierOrdinal(state.orientation);
         return {
-          label: `$(archive) ${state.index.filename}`,
+          label: `$(archive) ${this.incomingDisplayName(state, ordinal)}`,
           description: dimension ? `Continue carrier ${dimension}` : 'Continue this Incoming carrier',
           detail: timestamp(state.index.mtimeMs),
           packagePath: state.index.packagePath
@@ -1005,7 +1006,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     const state = this.incomingState(packagePath);
     if (!state) return '';
     const dimension = String(state.orientation?.carrierLineage?.dimension || '').trim();
-    return inheritedOutgoingLabel(state.index.filename, dimension);
+    return this.incomingDisplayName(state, this.incomingCarrierOrdinal(state.orientation), dimension);
   }
 
   private async newOutgoing(): Promise<void> {
@@ -1222,7 +1223,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     }
     for (const [incomingIndex, incoming] of this.incoming.entries()) {
       const dimension = String(incoming.orientation?.carrierLineage?.dimension || '').trim();
-      const sourceName = inheritedOutgoingLabel(incoming.index.filename, dimension) || incoming.index.filename.replace(/\.handoff-package\.zip$/i, '');
+      const sourceName = this.incomingDisplayName(incoming, this.incomingCarrierOrdinal(incoming.orientation), dimension) || incoming.index.filename.replace(/\.handoff-package\.zip$/i, '');
       pickerItems.push({ label: sourceName, kind: vscode.QuickPickItemKind.Separator });
       for (const workspace of incoming.index.workspaces) {
         const key = `incoming:${path.resolve(incoming.index.packagePath)}:${workspace.workspaceId}`;
@@ -1897,6 +1898,17 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     const routes = qualifiedRoutes(parent.orientation);
     const ordinal = routes.findIndex((route) => route.workspaceId === primary.draft.workspaceId && normalizePath(route.workspaceRelativeHandoffPath) === parentPath);
     return ordinal >= 0 ? `${parentDimension}-${ordinal + 1}` : '';
+  }
+
+  private incomingCarrierOrdinal(orientation: any): number {
+    const role = this.operatorRole().trim().toLocaleLowerCase();
+    if (!role) return 1;
+    const ordinal = qualifiedRoutes(orientation).findIndex((route) => String(route.to || '').trim().toLocaleLowerCase() === role);
+    return ordinal >= 0 ? ordinal + 1 : 1;
+  }
+
+  private incomingDisplayName(state: IncomingState, ordinal = this.incomingCarrierOrdinal(state.orientation), dimension = String(state.orientation?.carrierLineage?.dimension || '').trim()): string {
+    return inheritedOutgoingLabel(state.index.filename, dimension, ordinal);
   }
 
   private async refreshDiscoveryAfterPack(outputPath: string): Promise<void> {
