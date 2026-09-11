@@ -575,7 +575,7 @@ await test('multi-Incoming and Merge/Replace remain selection-first, dry until f
   assert.match(tree, /resolvePrioritizedWorkspaceDuplicates/);
   assert.match(tree, /placeHolder: this\.outgoingProjectedFilename\(\)/);
   assert.match(tree, /\$\(repo\) LOCAL · VS CODE/);
-  assert.match(tree, /\$\(archive\) INCOMING \$\{incomingIndex \+ 1\}/);
+  assert.match(tree, /pickerItems\.push\(\{ label: sourceName, kind: vscode\.QuickPickItemKind\.Separator \}\)/);
   assert.match(tree, /seed\?\.kind === 'local'/);
   assert.match(tree, /seed\?\.kind === 'incoming'/);
   assert.match(tree, /this\.selectOutgoingWorkspaces\(packageParentPath/);
@@ -972,14 +972,16 @@ await test('pointerless package builder projects exact workspace-carrier args wi
   const os = await import('node:os');
   const scratch = await fs.mkdtemp(path.join(os.tmpdir(), 'tiinex-vscode-pointerless-test-'));
   try {
+    const projectedFilename = 'tiinex-vscode-001-6-2-1-2-1-1-1-1-1-1-1-1-1-1.handoff-package.zip';
     const args = await workspaceCarrierArgs([
       { workspaceId: 'vscode', root: '/repo-vscode', workspaceTargetPath: 'extensions/tiinex' },
       { workspaceId: 'site', root: '/repo-site', workspaceTargetPath: '.' }
-    ], scratch);
+    ], scratch, projectedFilename);
     assert.deepEqual(args.slice(0, 5), ['/repo-site', '--carrier-mode', 'workspace', '--workspace-id', 'site']);
     assert.equal(args.includes('--handoff'), false);
     assert.equal(args.includes('--route'), false);
     assert.equal(args[args.indexOf('--tooling-bootstrap') + 1], 'embedded');
+    assert.equal(args[args.indexOf('--projected-filename') + 1], projectedFilename);
     const descriptor = JSON.parse(await fs.readFile(args[args.indexOf('--workspace-roots') + 1], 'utf8'));
     assert.deepEqual(descriptor, { workspaces: [{ id: 'vscode', root: '/repo-vscode', workspaceTargetPath: 'extensions/tiinex' }] });
     assert.equal(args.includes('--workspace-targets'), false);

@@ -317,7 +317,7 @@ export async function buildHandoffPackageFromForm(extensionPath: string, input: 
     if (missingWorkspaceIds.length && !input.packageParentPath) throw new Error(`tiinex.package-builder.workspace-id-unresolved:${missingWorkspaceIds.join(',')}`);
     if (!selectedSources.length) throw new Error('tiinex.package-builder.no-local-workspace-source');
     if (route.pointerless) {
-      const args = await workspaceCarrierArgs(selectedSources, scratch);
+      const args = await workspaceCarrierArgs(selectedSources, scratch, String(input.expectedCarrierFilename || ''));
       const preview = await manufactureHandoffPackage(runtime, args);
       if (preview.status !== 'ready' || preview.transportExecutable === false || preview?.carrierProjection?.mode !== 'workspace' || (preview?.carrierProjection?.routes || []).length !== 0) throw new Error(`tiinex.package-builder.workspace-preview-blocked:\n${receiptBlocker(preview)}`);
       const folder = await outputDirectory(input, 'Select Tiinex outgoing folder');

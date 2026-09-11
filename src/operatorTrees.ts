@@ -1223,7 +1223,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     for (const [incomingIndex, incoming] of this.incoming.entries()) {
       const dimension = String(incoming.orientation?.carrierLineage?.dimension || '').trim();
       const sourceName = inheritedOutgoingLabel(incoming.index.filename, dimension) || incoming.index.filename.replace(/\.handoff-package\.zip$/i, '');
-      pickerItems.push({ label: `$(archive) INCOMING ${incomingIndex + 1} · ${sourceName}`, kind: vscode.QuickPickItemKind.Separator });
+      pickerItems.push({ label: sourceName, kind: vscode.QuickPickItemKind.Separator });
       for (const workspace of incoming.index.workspaces) {
         const key = `incoming:${path.resolve(incoming.index.packagePath)}:${workspace.workspaceId}`;
         const source: OutgoingWorkspace = {
