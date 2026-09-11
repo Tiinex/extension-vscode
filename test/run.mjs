@@ -454,7 +454,7 @@ await test('generic authoring exposes only Core-executable ordinary fields and r
   assert.deepEqual(model.capabilityGaps, [{ section: 'Parties', fields: ['Optional Schema Field'], reason: 'schema-optional-fields-not-bound-for-creation' }]);
 });
 
-await test('installed Core 0.1.1 exposes Handoff reference fields as validation-only authoring gaps', async () => {
+await test('installed Core exposes Handoff reference fields as validation-only authoring gaps', async () => {
   const root = path.resolve(HERE, '..');
   const runtime = await prepareBundledRuntime(root, process.execPath);
   try {
@@ -708,11 +708,15 @@ await test('bootstrap descriptor binds exact package payload bytes and entrypoin
   assert.deepEqual(parseBootstrapDescriptor(start, trace), { packagePath: '001-2-bootstrap.zip', bytes: 42, sha256: 'a'.repeat(64), entrypoint: 'runtime/tools/tiinex-portable.mjs' });
 });
 
-await test('installed @tiinex/core 0.1.1 public portable entry replaces the tracked shared snapshot', async () => {
+await test('installed @tiinex/core public portable entry matches the lockfile-resolved runtime', async () => {
   const fs = await import('node:fs/promises');
   const root = path.resolve(HERE, '..');
   const manifest = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8'));
-  assert.equal(manifest.dependencies?.['@tiinex/core'], '0.1.1');
+  const declaredRange = String(manifest.dependencies?.['@tiinex/core'] || '').trim();
+  assert.ok(declaredRange, '@tiinex/core must remain a declared runtime dependency');
+  const lock = JSON.parse(await fs.readFile(path.join(root, 'package-lock.json'), 'utf8'));
+  const lockedVersion = String(lock?.packages?.['node_modules/@tiinex/core']?.version || '').trim();
+  assert.ok(lockedVersion, '@tiinex/core must have an exact package-lock resolution');
   assert.equal(Object.hasOwn(manifest.scripts || {}, 'sync:shared-core'), false);
   await assert.rejects(fs.access(path.join(root, 'shared-core')));
   const runtime = await prepareBundledRuntime(root, process.execPath);
@@ -721,7 +725,7 @@ await test('installed @tiinex/core 0.1.1 public portable entry replaces the trac
     assert.match(runtime.entrypoint, /node_modules[\\/]@tiinex[\\/]core[\\/]tools[\\/]tiinex-portable\.mjs$/);
     const corePackage = JSON.parse(await fs.readFile(path.join(runtime.root, 'package.json'), 'utf8'));
     assert.equal(corePackage.name, '@tiinex/core');
-    assert.equal(corePackage.version, '0.1.1');
+    assert.equal(corePackage.version, lockedVersion);
     assert.equal(corePackage.exports?.['./portable-entry'], './tools/tiinex-portable.mjs');
   } finally { await runtime.dispose(); }
 });

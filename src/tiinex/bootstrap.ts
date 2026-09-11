@@ -74,7 +74,6 @@ export async function preparePackageRuntime(packagePath: string, nodeExecutable 
 
 export async function prepareBundledRuntime(extensionPath: string, nodeExecutable = preferredNodeExecutable()): Promise<PackageRuntime> {
   const expectedName = '@tiinex/core';
-  const expectedVersion = '0.1.1';
   let packageJsonPath = '';
   let entrypoint = '';
   try {
@@ -83,14 +82,39 @@ export async function prepareBundledRuntime(extensionPath: string, nodeExecutabl
   } catch (error) {
     throw new Error(`tiinex.core-package.unavailable:${messageOf(error)}`);
   }
+
   const root = path.dirname(packageJsonPath);
-  const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf8'));
-  if (String(packageJson?.name || '') !== expectedName) throw new Error('tiinex.core-package.name-mismatch');
-  if (String(packageJson?.version || '') !== expectedVersion) throw new Error(`tiinex.core-package.version-mismatch:${String(packageJson?.version || 'unknown')}:${expectedVersion}`);
+  const corePackage = JSON.parse(await readFile(packageJsonPath, 'utf8'));
+  if (String(corePackage?.name || '') !== expectedName) throw new Error('tiinex.core-package.name-mismatch');
+
+  const extensionManifest = JSON.parse(await readFile(path.join(extensionPath, 'package.json'), 'utf8'));
+  const declaredRange = String(
+    extensionManifest?.dependencies?.[expectedName]
+      || extensionManifest?.devDependencies?.[expectedName]
+      || extensionManifest?.optionalDependencies?.[expectedName]
+      || ''
+  ).trim();
+  if (!declaredRange) throw new Error('tiinex.core-package.dependency-missing');
+
+  const lock = JSON.parse(await readFile(path.join(extensionPath, 'package-lock.json'), 'utf8'));
+  const lockedVersion = String(lock?.packages?.[`node_modules/${expectedName}`]?.version || '').trim();
+  if (!lockedVersion) throw new Error('tiinex.core-package.locked-version-missing');
+
+  const installedVersion = String(corePackage?.version || '').trim();
+  if (installedVersion !== lockedVersion) {
+    throw new Error(`tiinex.core-package.version-mismatch:${installedVersion || 'unknown'}:${lockedVersion}`);
+  }
+
   const relativeEntrypoint = path.relative(root, entrypoint);
   if (!relativeEntrypoint || relativeEntrypoint === '..' || relativeEntrypoint.startsWith(`..${path.sep}`) || path.isAbsolute(relativeEntrypoint)) throw new Error('tiinex.core-package.entrypoint-outside-package');
   await access(entrypoint);
-  return { root, entrypoint, nodeExecutable, dispose: async () => undefined };
+
+  return {
+    root,
+    entrypoint,
+    nodeExecutable,
+    dispose: async () => undefined
+  };
 }
 
 function messageOf(error: unknown): string { return error instanceof Error ? error.message : String(error); }
