@@ -637,6 +637,10 @@ await test('multi-Incoming and Merge/Replace remain selection-first, dry until f
   assert.match(apply, /workbench\.view\.scm/);
   assert.match(apply, /workbench\.view\.explorer/);
   assert.match(apply, /revealInExplorer/);
+  assert.match(apply, /let incomingApplyRunning = false;/);
+  assert.match(apply, /withIncomingApplyMutex/);
+  assert.match(apply, /Tiinex applying Incoming/);
+  assert.match(apply, /progress\.report\(\{ message:/);
   assert.match(apply, /const requiresFinalConfirm = plans\.some\(\(plan\) => plan\.strategy === 'merge'\)/);
   assert.match(apply, /if \(requiresFinalConfirm\) \{/);
   assert.match(apply, /'Execute Plan'/);

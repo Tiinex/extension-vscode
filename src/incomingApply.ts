@@ -30,6 +30,21 @@ type DirtyResolution = 'none' | 'preserve' | 'stash' | 'commit';
 type MergeMode = 'git-native' | 'file-safe';
 type WorkspaceCandidate = WorkspacePackageSourcesResult['candidates'][number];
 
+let incomingApplyRunning = false;
+
+async function withIncomingApplyMutex<T>(work: () => Promise<T>): Promise<T | null> {
+  if (incomingApplyRunning) {
+    await vscode.window.showWarningMessage('Tiinex Incoming merge/replace is already running. Wait for it to finish before starting another.');
+    return null;
+  }
+  incomingApplyRunning = true;
+  try {
+    return await work();
+  } finally {
+    incomingApplyRunning = false;
+  }
+}
+
 interface SnapshotMaterial {
   workspace: IndexedCarrierWorkspace;
   root: string;
@@ -494,103 +509,116 @@ function planSummary(plans: WorkspaceApplyPlan[]): string {
 export async function applyIncomingWorkspaces(extensionPath: string, index: IndexedCarrierPackage, workspaceIds: string[], forcedStrategy?: IncomingApplyStrategy): Promise<IncomingApplyResult | null> {
   const requested = [...new Set(workspaceIds.map((item) => String(item || '').trim()).filter(Boolean))];
   if (!requested.length) return { affectedWorkspaceIds: [], conflictWorkspaceIds: [] };
-  const scratch = await mkdtemp(path.join(os.tmpdir(), 'tiinex-vscode-incoming-apply-'));
-  const runtime = await prepareBundledRuntime(extensionPath, nodeExecutable());
-  try {
-    const locals = await loadLocalWorkspaceChoices(extensionPath);
-    const localById = new Map(locals.map((item) => [item.workspaceId, item]));
-    const plans: WorkspaceApplyPlan[] = [];
-    const exactWorkspaceIds: string[] = [];
-    let ordinal = 0;
-    for (const workspaceId of requested) {
-      const workspace = index.workspaces.find((item) => item.workspaceId === workspaceId);
-      if (!workspace) throw new Error(`tiinex.incoming-apply.workspace-missing:${workspaceId}`);
-      const local = localById.get(workspaceId);
-      if (!local) {
-        const choice = await vscode.window.showWarningMessage(`${workspace.label || workspaceId}: no qualified local VS Code Workspace with the same identity is open.`, { modal: true }, 'Skip Workspace', 'Cancel');
-        if (choice === 'Skip Workspace') continue;
-        return null;
-      }
-
-      let comparisonResult: SourceFrontierComparisonResult;
-      try {
-        comparisonResult = await vscode.window.withProgress(
-          { location: vscode.ProgressLocation.Notification, title: `Tiinex comparing ${workspace.label || workspaceId}`, cancellable: false },
-          () => compareIncomingWorkspaceToLocal(runtime, index.packagePath, local.root, workspaceId)
-        );
-      } catch (error) {
-        const detail = shortError(error);
-        if (detail.startsWith('tiinex.source-frontier.compare-blocked:')) {
-          throw new Error(`tiinex.incoming-apply.shared-compare-blocked:${detail.slice('tiinex.source-frontier.compare-blocked:'.length)}`);
-        }
-        throw new Error(`tiinex.incoming-apply.shared-compare-unavailable:${detail}`);
-      }
-      const comparison = sourceComparisonSummary(comparisonResult, workspaceId);
-      if (comparison.state === 'exact') {
-        exactWorkspaceIds.push(workspaceId);
-        continue;
-      }
-      if (comparison.state !== 'changed') {
-        const choice = await vscode.window.showWarningMessage(
-          `${workspace.label || workspaceId}: shared source comparison is ${comparison.state || 'unavailable'}. Tiinex will not choose a merge winner without qualified byte-source evidence.`,
-          { modal: true },
-          'Skip Workspace',
-          'Cancel'
-        );
-        if (choice === 'Skip Workspace') continue;
-        return null;
-      }
-
-      const strategy = forcedStrategy || await chooseStrategy(workspace.label || workspaceId, comparison);
-      if (!strategy) return null;
-      if (strategy === 'skip') continue;
-      const snapshot = await materializeSnapshot(runtime, index.packagePath, workspace, scratch, ordinal++);
-      try {
-        const plan = await preparePlan(runtime, local, snapshot, comparison, strategy, scratch);
-        if (plan) plans.push(plan);
-      } catch (error) {
-        if (shortError(error).includes('tiinex.incoming-apply.cancelled')) return null;
-        throw error;
-      }
-    }
-    if (!plans.length) {
-      if (exactWorkspaceIds.length) await vscode.window.showInformationMessage(`Tiinex comparison: ${exactWorkspaceIds.join(', ')} already match Incoming exactly.`);
-      return { affectedWorkspaceIds: [], conflictWorkspaceIds: [] };
-    }
-    const mutationScope = plans.map((plan) => `• ${plan.label}: ${plan.local.root}`).join('\n');
-    const requiresFinalConfirm = plans.some((plan) => plan.strategy === 'merge');
-    if (requiresFinalConfirm) {
-      const confirmed = await vscode.window.showWarningMessage(
-        `Execute Incoming plan?\n\n${planSummary(plans)}\n\nMutation scope:\n${mutationScope}\n\nSafety: only these Workspace roots can change. .git is never replaced; ignored paths and symlinks are protected. Local Git state is re-checked after confirmation before mutation. Dirty work can only be preserved, stashed, or committed here — this flow never resets/cleans it. Nothing above has mutated local source.${plans.length > 1 ? '\n\nMulti-repo note: execution is guarded per repository but is not a cross-repository atomic transaction.' : ''}`,
-        { modal: true },
-        'Execute Plan',
-        'Cancel'
-      );
-      if (confirmed !== 'Execute Plan') return null;
-    }
-    await assertMutationPreconditions(plans);
+  return withIncomingApplyMutex(async () => {
+    const scratch = await mkdtemp(path.join(os.tmpdir(), 'tiinex-vscode-incoming-apply-'));
+    const runtime = await prepareBundledRuntime(extensionPath, nodeExecutable());
     try {
-      await vscode.commands.executeCommand('workbench.view.explorer');
-      for (const plan of plans) await vscode.commands.executeCommand('revealInExplorer', vscode.Uri.file(plan.local.root));
-    } catch {
-      // Explorer reveal is best effort and must not block a checked mutation.
+      return await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: 'Tiinex applying Incoming',
+          cancellable: false
+        },
+        async (progress) => {
+          progress.report({ message: 'Loading local workspaces...' });
+          const locals = await loadLocalWorkspaceChoices(extensionPath);
+          const localById = new Map(locals.map((item) => [item.workspaceId, item]));
+          const plans: WorkspaceApplyPlan[] = [];
+          const exactWorkspaceIds: string[] = [];
+          let ordinal = 0;
+          for (const workspaceId of requested) {
+            const workspace = index.workspaces.find((item) => item.workspaceId === workspaceId);
+            if (!workspace) throw new Error(`tiinex.incoming-apply.workspace-missing:${workspaceId}`);
+            const local = localById.get(workspaceId);
+            if (!local) {
+              const choice = await vscode.window.showWarningMessage(`${workspace.label || workspaceId}: no qualified local VS Code Workspace with the same identity is open.`, { modal: true }, 'Skip Workspace', 'Cancel');
+              if (choice === 'Skip Workspace') continue;
+              return null;
+            }
+
+            progress.report({ message: `Comparing ${workspace.label || workspaceId}...` });
+            let comparisonResult: SourceFrontierComparisonResult;
+            try {
+              comparisonResult = await compareIncomingWorkspaceToLocal(runtime, index.packagePath, local.root, workspaceId);
+            } catch (error) {
+              const detail = shortError(error);
+              if (detail.startsWith('tiinex.source-frontier.compare-blocked:')) {
+                throw new Error(`tiinex.incoming-apply.shared-compare-blocked:${detail.slice('tiinex.source-frontier.compare-blocked:'.length)}`);
+              }
+              throw new Error(`tiinex.incoming-apply.shared-compare-unavailable:${detail}`);
+            }
+            const comparison = sourceComparisonSummary(comparisonResult, workspaceId);
+            if (comparison.state === 'exact') {
+              exactWorkspaceIds.push(workspaceId);
+              continue;
+            }
+            if (comparison.state !== 'changed') {
+              const choice = await vscode.window.showWarningMessage(
+                `${workspace.label || workspaceId}: shared source comparison is ${comparison.state || 'unavailable'}. Tiinex will not choose a merge winner without qualified byte-source evidence.`,
+                { modal: true },
+                'Skip Workspace',
+                'Cancel'
+              );
+              if (choice === 'Skip Workspace') continue;
+              return null;
+            }
+
+            const strategy = forcedStrategy || await chooseStrategy(workspace.label || workspaceId, comparison);
+            if (!strategy) return null;
+            if (strategy === 'skip') continue;
+            progress.report({ message: `Preparing ${strategy === 'merge' ? 'merge' : 'replace'} plan for ${workspace.label || workspaceId}...` });
+            const snapshot = await materializeSnapshot(runtime, index.packagePath, workspace, scratch, ordinal++);
+            try {
+              const plan = await preparePlan(runtime, local, snapshot, comparison, strategy, scratch);
+              if (plan) plans.push(plan);
+            } catch (error) {
+              if (shortError(error).includes('tiinex.incoming-apply.cancelled')) return null;
+              throw error;
+            }
+          }
+          if (!plans.length) {
+            if (exactWorkspaceIds.length) await vscode.window.showInformationMessage(`Tiinex comparison: ${exactWorkspaceIds.join(', ')} already match Incoming exactly.`);
+            return { affectedWorkspaceIds: [], conflictWorkspaceIds: [] };
+          }
+          const mutationScope = plans.map((plan) => `• ${plan.label}: ${plan.local.root}`).join('\n');
+          const requiresFinalConfirm = plans.some((plan) => plan.strategy === 'merge');
+          if (requiresFinalConfirm) {
+            const confirmed = await vscode.window.showWarningMessage(
+              `Execute Incoming plan?\n\n${planSummary(plans)}\n\nMutation scope:\n${mutationScope}\n\nSafety: only these Workspace roots can change. .git is never replaced; ignored paths and symlinks are protected. Local Git state is re-checked after confirmation before mutation. Dirty work can only be preserved, stashed, or committed here — this flow never resets/cleans it. Nothing above has mutated local source.${plans.length > 1 ? '\n\nMulti-repo note: execution is guarded per repository but is not a cross-repository atomic transaction.' : ''}`,
+              { modal: true },
+              'Execute Plan',
+              'Cancel'
+            );
+            if (confirmed !== 'Execute Plan') return null;
+          }
+          progress.report({ message: 'Re-checking mutation preconditions...' });
+          await assertMutationPreconditions(plans);
+          try {
+            await vscode.commands.executeCommand('workbench.view.explorer');
+            for (const plan of plans) await vscode.commands.executeCommand('revealInExplorer', vscode.Uri.file(plan.local.root));
+          } catch {
+            // Explorer reveal is best effort and must not block a checked mutation.
+          }
+          const affectedWorkspaceIds: string[] = [];
+          const conflictWorkspaceIds: string[] = [];
+          for (const plan of plans) {
+            progress.report({ message: `${plan.strategy === 'merge' ? 'Merging' : 'Replacing'} ${plan.label}...` });
+            const result = await executePlan(plan, scratch);
+            if (result.affected) affectedWorkspaceIds.push(plan.workspaceId);
+            if (result.conflicts) {
+              conflictWorkspaceIds.push(plan.workspaceId);
+              await vscode.commands.executeCommand('workbench.view.scm');
+            }
+          }
+          if (conflictWorkspaceIds.length) {
+            await vscode.window.showWarningMessage(`Tiinex left real Git merge conflicts in ${conflictWorkspaceIds.join(', ')}. Resolve them with VS Code Source Control / Merge Editor, then commit when ready.`);
+          }
+          return { affectedWorkspaceIds, conflictWorkspaceIds };
+        }
+      );
+    } finally {
+      await runtime.dispose();
+      await rm(scratch, { recursive: true, force: true });
     }
-    const affectedWorkspaceIds: string[] = [];
-    const conflictWorkspaceIds: string[] = [];
-    for (const plan of plans) {
-      const result = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `Tiinex ${plan.strategy === 'merge' ? 'merging' : 'replacing'} ${plan.label}`, cancellable: false }, () => executePlan(plan, scratch));
-      if (result.affected) affectedWorkspaceIds.push(plan.workspaceId);
-      if (result.conflicts) {
-        conflictWorkspaceIds.push(plan.workspaceId);
-        await vscode.commands.executeCommand('workbench.view.scm');
-      }
-    }
-    if (conflictWorkspaceIds.length) {
-      await vscode.window.showWarningMessage(`Tiinex left real Git merge conflicts in ${conflictWorkspaceIds.join(', ')}. Resolve them with VS Code Source Control / Merge Editor, then commit when ready.`);
-    }
-    return { affectedWorkspaceIds, conflictWorkspaceIds };
-  } finally {
-    await runtime.dispose();
-    await rm(scratch, { recursive: true, force: true });
-  }
+  });
 }
