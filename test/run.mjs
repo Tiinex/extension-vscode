@@ -521,6 +521,12 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(tree, /Tiinex packing Workspace carrier/);
   assert.match(tree, /Tiinex packing Handoff carrier/);
   assert.match(tree, /this\.closeOutgoing\(\);/);
+  const workspaceClose = tree.indexOf('this.closeOutgoing();', tree.indexOf("Tiinex packing Workspace carrier"));
+  const workspaceAnnounce = tree.indexOf("await announceBuiltCarrier(built.outputPath, 'Workspace carrier');");
+  const handoffClose = tree.indexOf('this.closeOutgoing();', tree.indexOf("Tiinex packing Handoff carrier"));
+  const handoffAnnounce = tree.indexOf("await announceBuiltCarrier(", tree.indexOf("Tiinex packing Handoff carrier"));
+  assert.ok(workspaceClose >= 0 && workspaceAnnounce > workspaceClose);
+  assert.ok(handoffClose >= 0 && handoffAnnounce > handoffClose);
   const previewCall = tree.indexOf("title: 'Tiinex preparing Handoff preview'");
   const writeCall = tree.indexOf('writePreparedArtifactDraft(this.extensionPath, prepared.draft)');
   assert.ok(previewCall >= 0 && writeCall > previewCall);

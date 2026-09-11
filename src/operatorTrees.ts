@@ -1941,8 +1941,8 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
         this.outgoing.lastBuilt = { outputPath: built.outputPath, routes: built.routeRoutingTexts };
         this.outgoingProvider.refresh();
         await this.refreshDiscoveryAfterPack(built.outputPath);
-        await announceBuiltCarrier(built.outputPath, 'Workspace carrier');
         this.closeOutgoing();
+        await announceBuiltCarrier(built.outputPath, 'Workspace carrier');
       } catch (error) {
         await vscode.window.showErrorMessage(`Tiinex Outgoing package blocked: ${shortMessage(error)}`, 'Show Details').then(async (choice: string | undefined) => {
           if (choice === 'Show Details') await vscode.window.showErrorMessage(String(error instanceof Error ? error.stack || error.message : error), { modal: true });
@@ -1987,12 +1987,12 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       this.outgoing.lastBuilt = { outputPath: built.outputPath, routes: built.routeRoutingTexts };
       this.outgoingProvider.refresh();
       await this.refreshDiscoveryAfterPack(built.outputPath);
+      this.closeOutgoing();
       await announceBuiltCarrier(
         built.outputPath,
         'Handoff carrier',
         built.autoCopiedTransportText ? 'Exact Handoff transport text was copied to the clipboard.' : 'Use the copy action beside an attached Handoff route to copy its exact transport text.'
       );
-      this.closeOutgoing();
     } catch (error) {
       await vscode.window.showErrorMessage(`Tiinex Outgoing package blocked: ${shortMessage(error)}`, 'Show Details').then(async (choice: string | undefined) => {
         if (choice === 'Show Details') await vscode.window.showErrorMessage(String(error instanceof Error ? error.stack || error.message : error), { modal: true });
