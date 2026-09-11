@@ -1265,7 +1265,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       const items = pickerItems.map((item) => item.kind === vscode.QuickPickItemKind.Separator ? item : ({ ...item, picked: Boolean(item.key && pickedKeys.has(item.key)) }));
       const selected = await vscode.window.showQuickPick(items, {
         title: 'Select Outgoing Workspaces',
-        placeHolder: duplicateCorrection ? 'Select the workspaces to include in Outgoing.' : 'Choose one or more workspaces to include in Outgoing.',
+        placeHolder: this.outgoingProjectedFilename(),
         canPickMany: true,
         ignoreFocusOut: true
       });

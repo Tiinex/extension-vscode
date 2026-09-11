@@ -514,7 +514,7 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(tree, /participantRoles: item\.participants/);
   assert.match(tree, /workspaceSourceOverrides/);
   assert.match(tree, /root: item\.stagedRoot \|\| item\.root/);
-  assert.match(tree, /placeHolder: duplicateCorrection \? 'Select the workspaces to include in Outgoing\.' : 'Choose one or more workspaces to include in Outgoing\.'/);
+  assert.match(tree, /placeHolder: this\.outgoingProjectedFilename\(\)/);
   assert.match(tree, /const outputDirectory = this\.outgoingFolder\(\) \|\| await this\.selectOutgoingFolder\(this\.discoveryFolder\(\) \|\| undefined, false\)/);
   assert.match(tree, /defaultUri: defaultFolder \? vscode\.Uri\.file\(path\.resolve\(defaultFolder\)\) : undefined/);
   assert.match(tree, /outputDirectory,/);
@@ -573,8 +573,7 @@ await test('multi-Incoming and Merge/Replace remain selection-first, dry until f
   assert.match(tree, /this\.incoming = \[state, \.\.\.this\.incoming\.filter/);
   assert.match(tree, /operatorMatchedWorkspaceIds/);
   assert.match(tree, /resolvePrioritizedWorkspaceDuplicates/);
-  assert.match(tree, /Select the workspaces to include in Outgoing\./);
-  assert.match(tree, /Choose one or more workspaces to include in Outgoing\./);
+  assert.match(tree, /placeHolder: this\.outgoingProjectedFilename\(\)/);
   assert.match(tree, /\$\(repo\) LOCAL · VS CODE/);
   assert.match(tree, /\$\(archive\) INCOMING \$\{incomingIndex \+ 1\}/);
   assert.match(tree, /seed\?\.kind === 'local'/);
