@@ -234,7 +234,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
   private outgoingLoading = false;
   private discoveryStartupLatestIdentity = '';
   private discoveryCutoffMs = 0;
-  private discoverySuppressedPath = '';
+  private readonly discoverySuppressedPaths = new Set<string>();
 
   constructor(private readonly context: vscode.ExtensionContext, private readonly extensionPath: string) {
     this.discoveryView = vscode.window.createTreeView('tiinex.discovery', { treeDataProvider: this.discoveryProvider, showCollapseAll: true });
@@ -532,8 +532,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       this.watcher = watch(folder, { persistent: false }, (_event, filename) => {
         if (!filename || !String(filename).toLowerCase().endsWith('.handoff-package.zip')) return;
         const resolved = path.resolve(folder, String(filename));
-        if (this.discoverySuppressedPath && path.resolve(this.discoverySuppressedPath) === resolved) {
-          this.discoverySuppressedPath = '';
+        if (this.discoverySuppressedPaths.has(resolved)) {
           return;
         }
         if (this.watcherTimer) clearTimeout(this.watcherTimer);
@@ -555,7 +554,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     }
     try {
       const before = discoveryIdentity(this.discovered[0]);
-      this.discovered = (await discoveryPackages(folder)).filter((item) => item.mtimeMs > this.discoveryCutoffMs);
+      this.discovered = (await discoveryPackages(folder)).filter((item) => item.mtimeMs > this.discoveryCutoffMs && !this.discoverySuppressedPaths.has(path.resolve(item.path)));
       this.discoveryProvider.refresh();
       const latest = this.discovered[0];
       const latestIdentity = discoveryIdentity(latest);
@@ -574,7 +573,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       ...this.incoming.map((item) => path.resolve(item.index.packagePath)),
       ...[...this.incomingPending.keys()]
     ]);
-    return this.discovered.filter((item) => !incomingPaths.has(path.resolve(item.path)));
+    return this.discovered.filter((item) => !incomingPaths.has(path.resolve(item.path)) && !this.discoverySuppressedPaths.has(path.resolve(item.path)));
   }
 
   private async discoveryChildren(node?: OperatorNode): Promise<OperatorNode[]> {
@@ -1982,8 +1981,12 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
   private async refreshDiscoveryAfterPack(outputPath: string): Promise<void> {
     const discovery = this.discoveryFolder();
     if (!discovery || path.resolve(path.dirname(outputPath)) !== path.resolve(discovery)) return;
-    this.carrierCache.delete(path.resolve(outputPath));
-    this.discoverySuppressedPath = path.resolve(outputPath);
+    const resolved = path.resolve(outputPath);
+    this.carrierCache.delete(resolved);
+    this.discoverySuppressedPaths.add(resolved);
+    this.discovered = this.discovered.filter((item) => path.resolve(item.path) !== resolved);
+    this.discoveryProvider.refresh();
+    await this.updateUiContexts();
   }
 
   private async packageOutgoing(): Promise<void> {
