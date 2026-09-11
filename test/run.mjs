@@ -635,6 +635,8 @@ await test('multi-Incoming and Merge/Replace remain selection-first, dry until f
   assert.match(apply, /ignored-or-symlink-collision/);
   assert.match(apply, /mergeCommitNoCommit/);
   assert.match(apply, /workbench\.view\.scm/);
+  assert.match(apply, /workbench\.view\.explorer/);
+  assert.match(apply, /revealInExplorer/);
   assert.match(apply, /const requiresFinalConfirm = plans\.some\(\(plan\) => plan\.strategy === 'merge'\)/);
   assert.match(apply, /if \(requiresFinalConfirm\) \{/);
   assert.match(apply, /'Execute Plan'/);

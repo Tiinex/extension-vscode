@@ -569,6 +569,12 @@ export async function applyIncomingWorkspaces(extensionPath: string, index: Inde
       if (confirmed !== 'Execute Plan') return null;
     }
     await assertMutationPreconditions(plans);
+    try {
+      await vscode.commands.executeCommand('workbench.view.explorer');
+      for (const plan of plans) await vscode.commands.executeCommand('revealInExplorer', vscode.Uri.file(plan.local.root));
+    } catch {
+      // Explorer reveal is best effort and must not block a checked mutation.
+    }
     const affectedWorkspaceIds: string[] = [];
     const conflictWorkspaceIds: string[] = [];
     for (const plan of plans) {
