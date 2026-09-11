@@ -521,6 +521,7 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(tree, /Tiinex packing Workspace carrier/);
   assert.match(tree, /Tiinex packing Handoff carrier/);
   assert.match(tree, /this\.closeOutgoing\(\);/);
+  assert.match(tree, /register\('tiinex\.outgoing\.selectFolder', \(\) => this\.selectOutgoingFolder\(this\.outgoingFolder\(\) \|\| this\.discoveryFolder\(\) \|\| undefined\)\)/);
   const workspaceClose = tree.indexOf('this.closeOutgoing();', tree.indexOf("Tiinex packing Workspace carrier"));
   const workspaceAnnounce = tree.indexOf("await announceBuiltCarrier(built.outputPath, 'Workspace carrier');");
   const handoffClose = tree.indexOf('this.closeOutgoing();', tree.indexOf("Tiinex packing Handoff carrier"));

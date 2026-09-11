@@ -320,7 +320,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     register('tiinex.outgoing.new', () => this.newOutgoing());
     register('tiinex.outgoing.selectWorkspaces', () => this.selectOutgoingWorkspaces());
     register('tiinex.outgoing.refresh', () => this.refreshOutgoing());
-    register('tiinex.outgoing.selectFolder', () => this.selectOutgoingFolder(this.discoveryFolder() || undefined));
+    register('tiinex.outgoing.selectFolder', () => this.selectOutgoingFolder(this.outgoingFolder() || this.discoveryFolder() || undefined));
     register('tiinex.outgoing.close', () => this.closeOutgoing());
     register('tiinex.outgoing.bumpMajor', () => this.bumpOutgoingMajor());
     register('tiinex.outgoing.clearMajor', () => this.clearOutgoingMajor());
