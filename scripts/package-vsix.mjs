@@ -9,7 +9,6 @@ const require = createRequire(import.meta.url);
 const packageJson = JSON.parse(await readFile(path.join(ROOT, 'package.json'), 'utf8'));
 const OUT = path.join(ROOT, 'dist', `tiinex-vscode-${packageJson.version}.vsix`);
 const CORE_NAME = '@tiinex/core';
-const CORE_VERSION = '0.1.1';
 const table=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=(c&1)?0xedb88320^(c>>>1):c>>>1;t[n]=c>>>0;}return t;})();
 
 // Remove any previous candidate before dependency qualification so a failed build
@@ -19,7 +18,13 @@ await rm(OUT, { force: true });
 const corePackageJsonPath = require.resolve(`${CORE_NAME}/package.json`, { paths: [ROOT] });
 const coreRoot = path.dirname(corePackageJsonPath);
 const corePackage = JSON.parse(await readFile(corePackageJsonPath, 'utf8'));
-if (corePackage.name !== CORE_NAME || corePackage.version !== CORE_VERSION) throw new Error(`tiinex.vsix.core-version-mismatch:${corePackage.name || 'unknown'}:${corePackage.version || 'unknown'}`);
+const declaredCoreRange = packageJson.dependencies?.[CORE_NAME] ?? packageJson.devDependencies?.[CORE_NAME] ?? null;
+if (!declaredCoreRange) throw new Error('tiinex.vsix.core-dependency-missing');
+if (corePackage.name !== CORE_NAME) throw new Error(`tiinex.vsix.core-name-mismatch:${corePackage.name || 'unknown'}`);
+const lockfile = JSON.parse(await readFile(path.join(ROOT, 'package-lock.json'), 'utf8'));
+const lockedCoreVersion = lockfile.packages?.[`node_modules/${CORE_NAME}`]?.version ?? null;
+if (!lockedCoreVersion) throw new Error('tiinex.vsix.core-lock-missing');
+if (corePackage.version !== lockedCoreVersion) throw new Error(`tiinex.vsix.core-version-mismatch:${corePackage.version || 'unknown'}:${lockedCoreVersion}`);
 const coreEntrypoint = require.resolve(`${CORE_NAME}/portable-entry`, { paths: [ROOT] });
 const coreEntrypointRelative = safeContainedRelative(coreRoot, coreEntrypoint);
 
@@ -54,7 +59,9 @@ console.log(JSON.stringify({
   entries: files.length,
   runtime: {
     package: CORE_NAME,
-    version: CORE_VERSION,
+    version: corePackage.version,
+    declaredRange: declaredCoreRange,
+    lockedVersion: lockedCoreVersion,
     portableEntrypoint: coreEntrypointRelative,
     files: coreRepresentation.files,
     bytes: coreRepresentation.bytes,
