@@ -1912,7 +1912,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       .map((item) => ({ workspaceId: item.workspaceId, packagePath: item.packagePath!, archivePath: item.archivePath! }));
     const workspaceIds = this.outgoing.workspaces.map((item) => item.workspaceId);
     const workspaceSourceOverrides = this.outgoing.workspaces
-      .filter((item) => item.source === 'local' || Boolean(item.stagedRoot))
+      .filter((item) => Boolean(item.root) || Boolean(item.stagedRoot))
       .map((item): PackageWorkspaceSourceOverride => ({ workspaceId: item.workspaceId, root: item.stagedRoot || item.root }));
 
     if (!routes.length) {
