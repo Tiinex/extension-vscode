@@ -6,17 +6,15 @@ import { preferredNodeExecutable } from './host/nodeExecutable';
 import { ignoredPathCollisions, safeRelativePath, safeTarget } from './core/paths';
 import { preferredRepositoryParent, routesPreferredForRole } from './core/receiveUx';
 import { sameRepositoryRoot } from './core/repositoryPath';
+import { normalizePostStagePolicy } from './core/gitOperator';
 import {
   commitWorkingTree,
   discardWorkingTree,
-  LandingCommitResult,
   listIgnoredFiles,
   listTrackedFiles,
   LocalRepositoryFact,
-  pushExactLandingCommit,
   repositoryFact,
   stageLandingChanges,
-  stageLandingCommit,
   stashWorkingTree,
   switchToExistingLocalBranch
 } from './host/git';
@@ -28,13 +26,12 @@ import { addRepositoryToCurrentWorkspace, repositoryRoots, setRepositoryInput } 
 
 interface PreparedWorkspace { plan: LandingWorkspace; archive: Buffer; incomingFiles: string[]; ignoredFiles: string[]; trackedFiles: string[] }
 export interface LandingResult { received: ReceivedHandoffContext | null; workspaceRoots: Record<string, string>; affectedWorkspaceIds: string[] }
-type Policy = 'no' | 'ask' | 'yes';
 type StagePolicy = 'no' | 'yes';
 type DirtyAction = 'stash' | 'commit' | 'discard' | 'skip';
 
 function nodeExecutable(): string { return preferredNodeExecutable(vscode.workspace.getConfiguration('tiinex').get('nodePath', '').toString().trim()); }
-function policy(name: 'commit' | 'push'): Policy { const value = vscode.workspace.getConfiguration('tiinex.landing').get(name, 'no').toString(); return value === 'ask' || value === 'yes' ? value : 'no'; }
 function stagePolicy(): StagePolicy { return vscode.workspace.getConfiguration('tiinex.landing').get('stage', 'yes').toString() === 'no' ? 'no' : 'yes'; }
+function postStagePolicy(): string { return normalizePostStagePolicy(vscode.workspace.getConfiguration('tiinex.git').get('postStagePolicy', 'do-nothing')); }
 function rolePreference(): string { return vscode.workspace.getConfiguration('tiinex').get('operator.role', '').toString().trim(); }
 function message(error: unknown): string { return error instanceof Error ? error.message : String(error); }
 function findingsText(plan: LandingPlan): string { return plan.findings.filter((item) => item.severity === 'error').map((item) => `${item.code}: ${item.message}`).join('\n') || `Landing plan status: ${plan.status}`; }
@@ -283,15 +280,9 @@ async function applyWorkspaceSnapshot(prepared: PreparedWorkspace): Promise<void
   } finally { await rm(temp, { recursive: true, force: true }); }
 }
 
-async function askPolicy(value: Policy, text: string, action: string): Promise<boolean> {
-  if (value === 'yes') return true;
-  if (value === 'no') return false;
-  return await vscode.window.showWarningMessage(text, { modal: true }, action) === action;
-}
-
 async function offerCommitMessage(root: string, commitMessage: string): Promise<void> {
   try { await setRepositoryInput(root, commitMessage); } catch { /* Git API may still be discovering a newly added workspace folder. */ }
-  const action = await vscode.window.showInformationMessage(`Tiinex staged the received Workspace in ${path.basename(root)}. The commit message is ready in Source Control when available.`, 'Copy Commit Message');
+  const action = await vscode.window.showInformationMessage(`Tiinex staged the received Workspace in ${path.basename(root)}. Use Tiinex Commit from Source Control to review/commit it.`, 'Copy Commit Message');
   if (action === 'Copy Commit Message') await vscode.env.clipboard.writeText(commitMessage);
 }
 
@@ -317,43 +308,22 @@ function protectedIgnoredByRoot(prepared: PreparedWorkspace[]): Map<string, stri
   return new Map([...out.entries()].map(([root, values]) => [root, [...values].sort()]));
 }
 
-async function postLandingGit(plan: LandingPlan, prepared: PreparedWorkspace[]): Promise<{ commits: Map<string, LandingCommitResult>; pushed: number; staged: number }> {
-  if (stagePolicy() === 'no') return { commits: new Map(), pushed: 0, staged: 0 };
+async function postLandingGit(plan: LandingPlan, prepared: PreparedWorkspace[]): Promise<{ staged: number }> {
+  if (stagePolicy() === 'no') return { staged: 0 };
   const roots = [...new Set(plan.affected.map((item) => item.repository?.root).filter((value): value is string => Boolean(value)))];
   const protectedByRoot = protectedIgnoredByRoot(prepared);
   const changedRoots: string[] = [];
-  const messages = new Map<string, string>();
   for (const root of roots) {
     const protectedPaths = [...protectedByRoot.entries()].find(([candidate]) => sameRepositoryRoot(candidate, root))?.[1] || [];
     if (!await stageLandingChanges(root, protectedPaths)) continue;
     changedRoots.push(root);
-    messages.set(root, trustedLandingCommitMessage(plan, root));
+    if (postStagePolicy() === 'do-nothing') await offerCommitMessage(root, trustedLandingCommitMessage(plan, root));
+    // The registered Git-state watcher normally observes index changes itself.
+    // Explicitly scheduling the same debounced path makes Receive deterministic
+    // even if VS Code's built-in Git extension has not refreshed the index yet.
+    void vscode.commands.executeCommand('tiinex.git.observePostStage', root);
   }
-
-  const commits = new Map<string, LandingCommitResult>();
-  const commitPolicy = policy('commit');
-  const commitApproved = changedRoots.length > 0 && await askPolicy(commitPolicy, `Commit the staged Tiinex Receive changes in ${changedRoots.length} repositor${changedRoots.length === 1 ? 'y' : 'ies'}?`, 'Commit Received Workspaces');
-  if (commitApproved) {
-    for (const root of changedRoots) {
-      const protectedPaths = [...protectedByRoot.entries()].find(([candidate]) => sameRepositoryRoot(candidate, root))?.[1] || [];
-      commits.set(root, await stageLandingCommit(root, messages.get(root)!, protectedPaths));
-    }
-  } else {
-    for (const root of changedRoots) await offerCommitMessage(root, messages.get(root)!);
-  }
-
-  const pushPolicy = policy('push');
-  if (!commits.size) return { commits, pushed: 0, staged: changedRoots.length };
-  const pushable = [...commits.entries()].filter(([, commit]) => commit.pushEligible && Boolean(commit.upstream));
-  if (!pushable.length) {
-    if (pushPolicy !== 'no') await vscode.window.showInformationMessage('Tiinex did not auto-push: the landing-created commit has no unchanged, pre-landing aligned upstream.');
-    return { commits, pushed: 0, staged: changedRoots.length };
-  }
-  let pushed = 0;
-  if (await askPolicy(pushPolicy, `Push exactly ${pushable.length} commit${pushable.length === 1 ? '' : 's'} created by this Receive invocation? Manual commits are never included.`, 'Push Landing Commits')) {
-    for (const [root, commit] of pushable) { await pushExactLandingCommit(root, commit); pushed += 1; }
-  }
-  return { commits, pushed, staged: changedRoots.length };
+  return { staged: changedRoots.length };
 }
 
 function routeForGrounding(orientation: OrientResult, preferred: QualifiedRouteReceipt[]): QualifiedRouteReceipt | null {
@@ -364,7 +334,7 @@ function routeForGrounding(orientation: OrientResult, preferred: QualifiedRouteR
   return routes.length === 1 ? routes[0] : null;
 }
 
-function policySummary(): string { return `Post-landing policies: stage=${stagePolicy()}, commit=${policy('commit')}, push=${policy('push')}. Handoff preview is controlled separately by Incoming. Shared Tiinex Tooling qualifies package/Workspace targeting; the VS Code host owns only explicit local UX and Git actions.`; }
+function policySummary(): string { return `Post-landing policy: stage=${stagePolicy()}, postStage=${postStagePolicy()}. Handoff preview is controlled separately by Incoming. Shared Tiinex Tooling qualifies package/Workspace targeting; the VS Code host owns only explicit local UX and Git actions.`; }
 
 export async function landHandoffPackage(packagePath: string, extensionPath: string, requestedWorkspaceIds: string[] = []): Promise<LandingResult | null> {
   const ingressRuntime = await preparePackageRuntime(packagePath, nodeExecutable());
@@ -432,7 +402,7 @@ export async function landHandoffPackage(packagePath: string, extensionPath: str
     const opened = { opened: 0, preferred: preferredRoutes };
     const qualifiedReceived = receivedBeforeLanding ? withWorkspaceRoots(receivedBeforeLanding, workspaceRoots) : null;
 
-    await vscode.window.showInformationMessage(`Tiinex received ${finalPrepared.length} Workspace${finalPrepared.length === 1 ? '' : 's'}; staged ${git.staged}, committed ${git.commits.size}, pushed ${git.pushed}, opened ${opened.opened} Handoff artifact${opened.opened === 1 ? '' : 's'}.`);
+    await vscode.window.showInformationMessage(`Tiinex received ${finalPrepared.length} Workspace${finalPrepared.length === 1 ? '' : 's'}; staged ${git.staged}; post-stage policy ${postStagePolicy()}; opened ${opened.opened} Handoff artifact${opened.opened === 1 ? '' : 's'}.`);
     return { received: qualifiedReceived, workspaceRoots, affectedWorkspaceIds: finalPlan.affected.map((item) => item.workspaceId).sort() };
   } finally {
     await sharedRuntime?.dispose();

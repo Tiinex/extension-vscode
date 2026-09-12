@@ -1,8 +1,25 @@
 import * as vscode from 'vscode';
 import { repositoryContainsPath, sameRepositoryRoot } from '../core/repositoryPath';
 
-interface GitRepository { rootUri: vscode.Uri; inputBox: { value: string } }
-interface GitApi { repositories: GitRepository[] }
+export interface GitRepositoryState {
+  readonly onDidChange?: vscode.Event<void>;
+  readonly mergeChanges?: readonly unknown[];
+  readonly indexChanges?: readonly unknown[];
+  readonly workingTreeChanges?: readonly unknown[];
+  readonly untrackedChanges?: readonly unknown[];
+}
+
+export interface GitRepository {
+  rootUri: vscode.Uri;
+  inputBox: { value: string };
+  state?: GitRepositoryState;
+}
+
+export interface GitApi {
+  repositories: GitRepository[];
+  onDidOpenRepository?: vscode.Event<GitRepository>;
+  onDidCloseRepository?: vscode.Event<GitRepository>;
+}
 
 export async function getGitApi(): Promise<GitApi> {
   const extension = vscode.extensions.getExtension('vscode.git');
@@ -24,6 +41,57 @@ export async function repositoryRoots(): Promise<string[]> {
   return roots;
 }
 
+export function scmContextRepositoryRoot(value: unknown): string {
+  const candidate = value as any;
+  for (const root of [
+    candidate?.rootUri?.fsPath,
+    candidate?.sourceControl?.rootUri?.fsPath,
+    candidate?.repository?.rootUri?.fsPath,
+    candidate?.resourceUri?.fsPath,
+    candidate?.uri?.fsPath
+  ]) {
+    const text = String(root || '').trim();
+    if (text) return text;
+  }
+  return '';
+}
+
+export async function repositoryRootFromScmContext(value: unknown, placeHolder: string): Promise<string> {
+  const hinted = scmContextRepositoryRoot(value);
+  if (hinted) {
+    const roots = await repositoryRoots();
+    const matches = roots.filter((root) => sameRepositoryRoot(root, hinted));
+    if (matches.length === 1) return matches[0];
+  }
+  return selectRepositoryRoot(placeHolder);
+}
+
+/**
+ * Observe VS Code's built-in Git repository status events without owning SCM
+ * state. The returned disposable tracks repositories opened/closed after
+ * activation as well as repositories already visible at registration time.
+ */
+export async function watchGitRepositoryStates(listener: (repository: GitRepository) => void): Promise<vscode.Disposable> {
+  const api = await getGitApi();
+  const repositorySubscriptions = new Map<GitRepository, vscode.Disposable>();
+  const bind = (repository: GitRepository): void => {
+    if (repositorySubscriptions.has(repository) || !repository.state?.onDidChange) return;
+    repositorySubscriptions.set(repository, repository.state.onDidChange(() => listener(repository)));
+  };
+  const unbind = (repository: GitRepository): void => {
+    repositorySubscriptions.get(repository)?.dispose();
+    repositorySubscriptions.delete(repository);
+  };
+  for (const repository of api.repositories) bind(repository);
+  const opened = api.onDidOpenRepository?.((repository) => bind(repository));
+  const closed = api.onDidCloseRepository?.((repository) => unbind(repository));
+  return new vscode.Disposable(() => {
+    opened?.dispose();
+    closed?.dispose();
+    for (const disposable of repositorySubscriptions.values()) disposable.dispose();
+    repositorySubscriptions.clear();
+  });
+}
 
 export interface WorkspaceFolderAdditionResult { added: boolean; workspaceFile: string; savedWorkspace: boolean }
 

@@ -95,3 +95,25 @@ export function gitOperatorResultMarkdown(outcomes: GitOperatorOutcome[]): strin
   }
   return `${lines.join('\n')}\n`;
 }
+
+export type PostStagePolicy = 'do-nothing' | 'commit' | 'commit-push';
+
+export function normalizePostStagePolicy(value: unknown): PostStagePolicy {
+  const policy = String(value || '').trim().toLowerCase();
+  if (policy === 'commit') return 'commit';
+  if (policy === 'commit-push') return 'commit-push';
+  return 'do-nothing';
+}
+
+export function gitAutomationBlockerText(error: unknown): string {
+  const text = error instanceof Error ? error.message : String(error || 'unknown');
+  if (text.startsWith('tiinex.git.no-qualified-tiinex-artifact')) return 'no qualified Tiinex artifact is staged; source-only staging is left for explicit manual commit';
+  if (text.startsWith('tiinex.git.unresolved-conflicts:')) return `unresolved Git conflicts remain (${text.slice('tiinex.git.unresolved-conflicts:'.length)})`;
+  if (text.startsWith('tiinex.git.unstaged-remainder:')) return `unstaged changes remain (${text.slice('tiinex.git.unstaged-remainder:'.length)})`;
+  if (text.startsWith('tiinex.git.working-state-changed-during-preparation') || text.startsWith('tiinex.git.staged-state-changed-during-preparation')) return 'the repository changed while Tiinex was validating/deriving the commit; a later stable Git event must re-evaluate it';
+  if (text.startsWith('tiinex.git.missing-upstream')) return 'the current branch has no upstream, so automatic Commit + Push is blocked before commit';
+  if (text.startsWith('tiinex.git.pre-operation-upstream-not-aligned:')) return `the upstream is not exactly aligned before Commit + Push (${text.slice('tiinex.git.pre-operation-upstream-not-aligned:'.length).replace(':', ' ahead / ')} behind)`;
+  if (text.startsWith('tiinex.git.push-')) return `push safety blocked publication (${text})`;
+  if (text.startsWith('tiinex.git.no-staged-changes')) return 'no staged changes remain';
+  return text;
+}

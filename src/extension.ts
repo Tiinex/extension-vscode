@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { generateCommitMessageCommand, stageCommitPushCommand, stageCommitPushManyCommand } from './commit';
 import { registerTiinexDiagnostics } from './diagnostics';
 import { TiinexOperatorTrees } from './operatorTrees';
+import { manualRepositoryCommitCommand, registerGitAutomation } from './gitAutomation';
 
 function message(error: unknown): string { return error instanceof Error ? error.message : String(error); }
 
@@ -39,6 +40,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     await vscode.window.showInformationMessage('Handoff authoring now lives on Outgoing Workspace + actions so behavior stays identical across tree projections.');
   }));
 
+  context.subscriptions.push(vscode.commands.registerCommand('tiinex.git.commitRepository', async (scmContext?: unknown) => {
+    try { await manualRepositoryCommitCommand(extensionPath, scmContext); } catch (error) { await vscode.window.showErrorMessage(`Tiinex Commit failed: ${message(error)}`, { modal: true }); }
+  }));
+
   context.subscriptions.push(vscode.commands.registerCommand('tiinex.generateCommitMessage', async () => {
     try { await generateCommitMessageCommand(extensionPath); } catch (error) { await vscode.window.showErrorMessage(`Tiinex commit-message generation failed: ${message(error)}`); }
   }));
@@ -50,6 +55,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   }));
 
   try {
+    await registerGitAutomation(context, extensionPath);
     diagnostics = await registerTiinexDiagnostics(context, extensionPath);
     await trees.start();
   } catch (error) {

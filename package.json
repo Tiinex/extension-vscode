@@ -13,6 +13,7 @@
   ],
   "activationEvents": [
     "onCommand:tiinex.landHandoffPackage",
+    "onCommand:tiinex.git.commitRepository",
     "onCommand:tiinex.generateCommitMessage",
     "onCommand:tiinex.stageCommitPush",
     "onCommand:tiinex.stageCommitPushMany",
@@ -246,8 +247,13 @@
         "title": "Tiinex: Refresh Validation"
       },
       {
+        "command": "tiinex.git.commitRepository",
+        "title": "Tiinex: Commit Repository…",
+        "icon": "$(check)"
+      },
+      {
         "command": "tiinex.stageCommitPush",
-        "title": "Tiinex: Stage, Commit & Push with Tiinex"
+        "title": "Tiinex: Stage, Commit & Push with Tiinex (Compatibility)"
       },
       {
         "command": "tiinex.stageCommitPushMany",
@@ -255,7 +261,7 @@
       },
       {
         "command": "tiinex.generateCommitMessage",
-        "title": "Tiinex: Generate Tiinex Commit Message"
+        "title": "Tiinex: Generate Commit Message (Compatibility)"
       },
       {
         "command": "tiinex.openOperator",
@@ -357,26 +363,6 @@
           "default": "",
           "description": "Optional Node executable override for Tiinex Tooling. Blank uses the current executable when it is Node; otherwise it uses node/node.exe from PATH."
         },
-        "tiinex.landing.commit": {
-          "type": "string",
-          "enum": [
-            "no",
-            "ask",
-            "yes"
-          ],
-          "default": "no",
-          "description": "After successful Incoming Workspace merges that were staged by Tiinex, Yes commits the staged changes, Ask asks after all selected merges finish, and No leaves them staged with a trusted commit message available."
-        },
-        "tiinex.landing.push": {
-          "type": "string",
-          "enum": [
-            "no",
-            "ask",
-            "yes"
-          ],
-          "default": "no",
-          "description": "Push only a commit created by the same explicit Merge invocation after staging and commit were approved. Manual commits and unstaged Receive results are never auto-pushed."
-        },
         "tiinex.landing.stage": {
           "type": "string",
           "enum": [
@@ -385,6 +371,21 @@
           ],
           "default": "yes",
           "description": "After a successful explicit Incoming Workspace merge, stage safe landed changes. No leaves the landed changes unstaged and therefore suppresses extension-driven commit/push for that merge."
+        },
+        "tiinex.git.postStagePolicy": {
+          "type": "string",
+          "enum": [
+            "do-nothing",
+            "commit",
+            "commit-push"
+          ],
+          "enumDescriptions": [
+            "Do Nothing — leave staged changes for the explicit Tiinex Commit flow.",
+            "Commit — after a stable staged-state event, auto-commit only when the exact staged closure is Core-qualified, conflict-free, contains a Tiinex artifact, and has no unstaged remainder.",
+            "Commit + Push — apply the same auto-commit gates and require an aligned upstream before committing; then push only the exact commit created by that same Tiinex operation."
+          ],
+          "default": "do-nothing",
+          "description": "Post-stage Git automation policy. Automatic evaluation is per repository and debounced; source-only staging is never auto-committed and must use the explicit Tiinex Commit action."
         },
         "tiinex.outgoing.folder": {
           "type": "string",
@@ -697,6 +698,14 @@
         {
           "command": "tiinex.outgoing.toggleLineage",
           "when": "false"
+        },
+        {
+          "command": "tiinex.stageCommitPush",
+          "when": "false"
+        },
+        {
+          "command": "tiinex.generateCommitMessage",
+          "when": "false"
         }
       ],
       "explorer/context": [
@@ -721,6 +730,13 @@
           "command": "tiinex.artifact.attachHandoff",
           "when": "!explorerResourceIsFolder && resourceExtname == .md",
           "group": "1_authoring@3"
+        }
+      ],
+      "scm/sourceControl": [
+        {
+          "command": "tiinex.git.commitRepository",
+          "when": "scmProvider == git",
+          "group": "1_tiinex@1"
         }
       ]
     },

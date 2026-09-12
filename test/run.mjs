@@ -16,10 +16,10 @@ import { operatorMatchedWorkspaceIds, resolvePrioritizedWorkspaceDuplicates } fr
 import { comparePackageRecency, inheritedOutgoingLabel } from '../dist/core/outgoingUx.js';
 import { projectArtifactAuthoringModel } from '../dist/core/artifactAuthoringModel.js';
 import { artifactCreationReady, requireArtifactCreationReady } from '../dist/core/artifactAuthoringQualification.js';
-import { gitOperatorResultMarkdown, projectGitOperatorCandidates } from '../dist/core/gitOperator.js';
+import { gitAutomationBlockerText, gitOperatorResultMarkdown, normalizePostStagePolicy, projectGitOperatorCandidates } from '../dist/core/gitOperator.js';
 import { planWorkspaceSession, validateWorkspaceTargetMapping } from '../dist/core/workspaceSession.js';
 import { representativeWorkspaceChoicesForRoot } from '../dist/core/workspaceChoice.js';
-import { checkIgnoredPaths, commitPreparedGitOperator, commitWorkingTree, dirtyWorkingTreePaths, discardWorkingTree, generateTiinexCommitMessage, listStagedPaths, mergeCommitNoCommit, payloadCheckoutEligibility, preflightExistingLocalBranch, prepareGitOperatorCommit, pushExactGitOperatorCommit, pushExactLandingCommit, stageCommitPush, stageLandingChanges, stageLandingCommit, stashWorkingTree } from '../dist/host/git.js';
+import { checkIgnoredPaths, commitPreparedGitOperator, commitPreparedReviewedStaged, commitWorkingTree, deriveGitOperatorCommitMessage, dirtyWorkingTreePaths, discardWorkingTree, generateTiinexCommitMessage, listStagedPaths, mergeCommitNoCommit, payloadCheckoutEligibility, preflightExistingLocalBranch, prepareGitOperatorCommit, prepareReviewedStagedCommit, pushExactGitOperatorCommit, pushExactLandingCommit, pushExactReviewedStagedCommit, stageCommitPush, stageLandingChanges, stageLandingCommit, stashWorkingTree } from '../dist/host/git.js';
 import { preferredNodeExecutable } from '../dist/host/nodeExecutable.js';
 import { compareIncomingWorkspaceToLocal, createArtifactDraft, inspectArtifactCreationContract, parseBootstrapDescriptor, prepareBundledRuntime, projectArtifactMaterialization, projectArtifactSchemaGuide, runTiinexJson, projectEditorAssistanceText, projectHandoffEndpoints, projectOperatorContext, projectStagedValidation, projectWorkspaceLanding, projectWorkspacePackageSources } from '../dist/tiinex/bootstrap.js';
 
@@ -378,19 +378,22 @@ await test('Receive orchestration keeps Workspace mutation explicit and makes un
   assert.match(source, /projectWorkspaceLanding\(runtime, packagePath, candidateFacts, candidateSelections, \[workspaceId\]\)/);
   assert.match(source, /stageLandingChanges\(root, protectedPaths\)/);
   assert.match(source, /function stagePolicy\(\): StagePolicy/);
+  assert.match(source, /function postStagePolicy\(\): string/);
   const postLandingStart = source.indexOf('async function postLandingGit');
   const stageDisabledGate = source.indexOf("if (stagePolicy() === 'no')", postLandingStart);
   const stageLandingCall = source.indexOf('stageLandingChanges(root, protectedPaths)', postLandingStart);
   assert.ok(stageDisabledGate >= 0 && stageLandingCall > stageDisabledGate);
-  assert.match(source, /Post-landing policies: stage=\$\{stagePolicy\(\)\}, commit=\$\{policy\('commit'\)\}, push=\$\{policy\('push'\)\}/);
+  assert.match(source, /Post-landing policy: stage=\$\{stagePolicy\(\)\}, postStage=\$\{postStagePolicy\(\)\}/);
+  assert.match(source, /tiinex\.git\.observePostStage/);
+  assert.match(source, /Use Tiinex Commit from Source Control/);
   assert.match(source, /Select every Workspace Tiinex may replace/);
   assert.match(source, /canPickMany: true/);
   assert.match(source, /trustedLandingCommitMessage/);
   assert.doesNotMatch(source, /generateTiinexCommitMessage/);
+  assert.doesNotMatch(source, /policy\('commit'\)|policy\('push'\)|pushable = \[\.\.\.commits\.entries/);
   assert.doesNotMatch(source, /requiredWorkspaceIds\.every/);
   const landingCommitBlock = gitSource.slice(gitSource.indexOf('export async function stageLandingCommit'), gitSource.indexOf('export async function pushExactLandingCommit'));
   assert.doesNotMatch(landingCommitBlock, /generateTiinexCommitMessage|tiinex-commit-message|nodeExecutable/);
-  assert.match(source, /pushable = \[\.\.\.commits\.entries\(\)\]\.filter/);
   assert.match(source, /routesPreferredForRole/);
   assert.doesNotMatch(source, /openReceivedHandoffs|landing\.openHandoff/);
   assert.doesNotMatch(source, /openTextDocument\([^\n]*pointerPath/);
@@ -643,6 +646,184 @@ await test('Git Operator result report preserves exact per-repository partial ou
   assert.match(report, /## extension-vscode[\s\S]*Result: PUSHED/);
   assert.match(report, /## site[\s\S]*Result: PUSH FAILED[\s\S]*push-head-changed/);
   assert.match(report, /## core[\s\S]*Result: BLOCKED[\s\S]*missing-upstream/);
+});
+
+await test('post-stage Git policy is singular, SCM-first, debounced and keeps legacy commands fallback-only', async () => {
+  const fs = await import('node:fs/promises');
+  const root = path.resolve(HERE, '..');
+  const manifest = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8'));
+  const automation = await fs.readFile(path.join(root, 'src', 'gitAutomation.ts'), 'utf8');
+  const extension = await fs.readFile(path.join(root, 'src', 'extension.ts'), 'utf8');
+  const gitApi = await fs.readFile(path.join(root, 'src', 'vscode', 'gitApi.ts'), 'utf8');
+  const properties = manifest.contributes?.configuration?.properties || {};
+  assert.equal(properties['tiinex.landing.commit'], undefined);
+  assert.equal(properties['tiinex.landing.push'], undefined);
+  assert.deepEqual(properties['tiinex.git.postStagePolicy']?.enum, ['do-nothing', 'commit', 'commit-push']);
+  assert.equal(properties['tiinex.git.postStagePolicy']?.default, 'do-nothing');
+  const scm = manifest.contributes?.menus?.['scm/sourceControl'] || [];
+  assert.ok(scm.some((item) => item.command === 'tiinex.git.commitRepository' && item.when === 'scmProvider == git'));
+  const palette = manifest.contributes?.menus?.commandPalette || [];
+  assert.ok(palette.some((item) => item.command === 'tiinex.stageCommitPush' && item.when === 'false'));
+  assert.ok(palette.some((item) => item.command === 'tiinex.generateCommitMessage' && item.when === 'false'));
+  assert.match(extension, /registerCommand\('tiinex\.git\.commitRepository'/);
+  assert.match(extension, /registerGitAutomation\(context, extensionPath\)/);
+  assert.match(automation, /const DEBOUNCE_MS = 750/);
+  assert.match(automation, /watchGitRepositoryStates/);
+  assert.match(automation, /stageAll:\s*false/);
+  assert.match(automation, /requireNoUnstaged:\s*true/);
+  assert.match(automation, /requireQualifiedTiinex:\s*true/);
+  assert.match(automation, /requirePushSafety:\s*policy === 'commit-push'/);
+  assert.match(automation, /auto-committed[\s\S]*locally[\s\S]*but did not push it/);
+  assert.match(automation, /requireQualifiedTiinex:\s*false/);
+  for (const label of ['Use existing staged changes', 'Stage All changes', 'Leave staged', 'Commit + Push']) assert.match(automation, new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.match(gitApi, /scmContextRepositoryRoot/);
+  assert.match(gitApi, /repository\.state\.onDidChange/);
+  assert.equal(normalizePostStagePolicy('commit'), 'commit');
+  assert.equal(normalizePostStagePolicy('commit-push'), 'commit-push');
+  assert.equal(normalizePostStagePolicy('anything-else'), 'do-nothing');
+  assert.match(gitAutomationBlockerText(new Error('tiinex.git.no-qualified-tiinex-artifact')), /source-only staging/);
+  assert.match(gitAutomationBlockerText(new Error('tiinex.git.unstaged-remainder:src\/a.ts')), /unstaged changes remain/);
+});
+
+await test('reviewed staged preparation rejects conflicts before explicit Stage All', async () => {
+  const fx = fakeRunner((key) => {
+    if (key === 'git diff --name-only --diff-filter=U -z') return { code: 0, stdout: 'conflicted.ts\0', stderr: '' };
+    return { code: 0, stdout: '', stderr: '' };
+  });
+  await rejectsCode(() => prepareReviewedStagedCommit('/repo', 'node', {
+    stageAll: true, requireNoUnstaged: false, requireQualifiedTiinex: false, requirePushSafety: false
+  }, undefined, fx.runner), 'tiinex.git.unresolved-conflicts:conflicted.ts');
+  assert.equal(fx.calls.some((call) => call.command === 'git' && call.args[0] === 'add'), false);
+});
+
+await test('automatic reviewed staging refuses source-only closure and never commits it', async () => {
+  const sha = 'a'.repeat(40);
+  const fx = fakeRunner((key) => {
+    if (key === 'git diff --name-only --diff-filter=U -z') return { code: 0, stdout: '', stderr: '' };
+    if (key === 'git symbolic-ref --quiet --short HEAD') return { code: 0, stdout: 'main\n', stderr: '' };
+    if (key === 'git rev-parse --abbrev-ref --symbolic-full-name @{u}') return { code: 0, stdout: 'origin/main\n', stderr: '' };
+    if (key === 'git rev-parse HEAD') return { code: 0, stdout: sha + '\n', stderr: '' };
+    if (key === 'git diff --cached --name-only -z') return { code: 0, stdout: 'src/a.ts\0', stderr: '' };
+    if (key === 'git diff --name-only -z' || key === 'git ls-files --others --exclude-standard -z') return { code: 0, stdout: '', stderr: '' };
+    if (key.startsWith('git rev-list --count ')) return { code: 0, stdout: '0\n', stderr: '' };
+    if (key === 'git status --porcelain=v1 -z --untracked-files=all') return { code: 0, stdout: 'M  src/a.ts\0', stderr: '' };
+    if (key === 'git diff --cached --raw -z --no-renames') return { code: 0, stdout: 'raw\0', stderr: '' };
+    return { code: 0, stdout: '', stderr: '' };
+  });
+  await rejectsCode(() => prepareReviewedStagedCommit('/repo', 'node', {
+    stageAll: false, requireNoUnstaged: true, requireQualifiedTiinex: true, requirePushSafety: false
+  }, async () => ({ state: 'ready', stagedTiinexPaths: [], ignoredStagedPaths: [] }), fx.runner), 'tiinex.git.no-qualified-tiinex-artifact');
+  assert.equal(fx.calls.some((call) => call.command === 'git' && call.args[0] === 'commit'), false);
+  assert.equal(fx.calls.some((call) => call.command === 'git' && call.args[0] === 'push'), false);
+});
+
+await test('automatic reviewed staging fails closed while relevant unstaged changes remain', async () => {
+  const sha = 'a'.repeat(40);
+  const fx = fakeRunner((key) => {
+    if (key === 'git diff --name-only --diff-filter=U -z') return { code: 0, stdout: '', stderr: '' };
+    if (key === 'git symbolic-ref --quiet --short HEAD') return { code: 0, stdout: 'main\n', stderr: '' };
+    if (key === 'git rev-parse --abbrev-ref --symbolic-full-name @{u}') return { code: 0, stdout: 'origin/main\n', stderr: '' };
+    if (key === 'git rev-parse HEAD') return { code: 0, stdout: sha + '\n', stderr: '' };
+    if (key === 'git diff --cached --name-only -z') return { code: 0, stdout: '.topics/a.trace.md\0', stderr: '' };
+    if (key === 'git diff --name-only -z') return { code: 0, stdout: 'src/pending.ts\0', stderr: '' };
+    if (key === 'git ls-files --others --exclude-standard -z') return { code: 0, stdout: '', stderr: '' };
+    return { code: 0, stdout: '', stderr: '' };
+  });
+  await rejectsCode(() => prepareReviewedStagedCommit('/repo', 'node', {
+    stageAll: false, requireNoUnstaged: true, requireQualifiedTiinex: true, requirePushSafety: false
+  }, async () => ({ state: 'ready', stagedTiinexPaths: ['.topics/a.trace.md'], ignoredStagedPaths: [] }), fx.runner), 'tiinex.git.unstaged-remainder:src/pending.ts');
+  assert.equal(fx.calls.some((call) => call.args[0] === 'commit'), false);
+});
+
+await test('reviewed staged preparation re-verifies exact working fingerprint after validation and message derivation', async () => {
+  const fs = await import('node:fs/promises');
+  const os = await import('node:os');
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tiinex-reviewed-drift-'));
+  const sha = 'a'.repeat(40);
+  let statusReads = 0;
+  const fx = fakeRunner((key) => {
+    if (key === 'git diff --name-only --diff-filter=U -z') return { code: 0, stdout: '', stderr: '' };
+    if (key === 'git symbolic-ref --quiet --short HEAD') return { code: 0, stdout: 'main\n', stderr: '' };
+    if (key === 'git rev-parse --abbrev-ref --symbolic-full-name @{u}') return { code: 0, stdout: 'origin/main\n', stderr: '' };
+    if (key === 'git rev-parse HEAD') return { code: 0, stdout: sha + '\n', stderr: '' };
+    if (key === 'git diff --cached --name-only -z') return { code: 0, stdout: '.topics/a.trace.md\0', stderr: '' };
+    if (key.startsWith('git rev-list --count ')) return { code: 0, stdout: '0\n', stderr: '' };
+    if (key === 'git status --porcelain=v1 -z --untracked-files=all') return { code: 0, stdout: (++statusReads === 1 ? 'M  .topics/a.trace.md\0' : 'MM .topics/a.trace.md\0'), stderr: '' };
+    if (key === 'git diff --cached --raw -z --no-renames') return { code: 0, stdout: 'raw\0', stderr: '' };
+    return { code: 0, stdout: '', stderr: '' };
+  });
+  try {
+    await rejectsCode(() => prepareReviewedStagedCommit(tmp, 'node', {
+      stageAll: false, requireNoUnstaged: false, requireQualifiedTiinex: true, requirePushSafety: false
+    }, async () => ({ state: 'ready', stagedTiinexPaths: ['.topics/a.trace.md'], ignoredStagedPaths: [] }), fx.runner), 'tiinex.git.working-state-changed-during-preparation');
+    assert.equal(fx.calls.some((call) => call.args[0] === 'commit'), false);
+  } finally { await fs.rm(tmp, { recursive: true, force: true }); }
+});
+
+await test('explicit reviewed source-only flow can commit locally without an upstream but cannot imply push', async () => {
+  const fs = await import('node:fs/promises');
+  const os = await import('node:os');
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tiinex-reviewed-manual-'));
+  const pre = 'a'.repeat(40);
+  const post = 'b'.repeat(40);
+  let committed = false;
+  const fx = fakeRunner((key) => {
+    if (key === 'git diff --name-only --diff-filter=U -z') return { code: 0, stdout: '', stderr: '' };
+    if (key === 'git symbolic-ref --quiet --short HEAD') return { code: 0, stdout: 'main\n', stderr: '' };
+    if (key === 'git rev-parse --abbrev-ref --symbolic-full-name @{u}') return { code: 128, stdout: '', stderr: 'no upstream' };
+    if (key === 'git rev-parse HEAD') return { code: 0, stdout: (committed ? post : pre) + '\n', stderr: '' };
+    if (key === 'git diff --cached --name-only -z') return { code: 0, stdout: 'src/a.ts\0', stderr: '' };
+    if (key === 'git status --porcelain=v1 -z --untracked-files=all') return { code: 0, stdout: 'M  src/a.ts\0', stderr: '' };
+    if (key === 'git diff --cached --raw -z --no-renames') return { code: 0, stdout: 'raw-source\0', stderr: '' };
+    if (key === 'git commit -m Tiinex: Update ' + path.basename(tmp)) { committed = true; return { code: 0, stdout: '', stderr: '' }; }
+    return { code: 0, stdout: '', stderr: '' };
+  });
+  try {
+    const prepared = await prepareReviewedStagedCommit(tmp, 'node', {
+      stageAll: false, requireNoUnstaged: false, requireQualifiedTiinex: false, requirePushSafety: false
+    }, async () => ({ state: 'ready', stagedTiinexPaths: [], ignoredStagedPaths: [] }), fx.runner);
+    assert.equal(prepared.pushEligible, false);
+    assert.equal(prepared.pushBlocker, 'tiinex.git.missing-upstream');
+    assert.equal(prepared.message, `Tiinex: Update ${path.basename(tmp)}`);
+    const commit = await commitPreparedReviewedStaged(tmp, prepared, prepared.message, fx.runner);
+    assert.equal(commit.commitSha, post);
+    await rejectsCode(() => pushExactReviewedStagedCommit(tmp, commit, fx.runner), 'tiinex.git.missing-upstream');
+    assert.equal(fx.calls.some((call) => call.args[0] === 'push'), false);
+  } finally { await fs.rm(tmp, { recursive: true, force: true }); }
+});
+
+await test('reviewed Commit + Push publishes only the exact same-operation commit', async () => {
+  const fs = await import('node:fs/promises');
+  const os = await import('node:os');
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tiinex-reviewed-push-'));
+  const pre = 'a'.repeat(40);
+  const post = 'b'.repeat(40);
+  let committed = false;
+  let pushed = false;
+  const fx = fakeRunner((key) => {
+    if (key === 'git diff --name-only --diff-filter=U -z') return { code: 0, stdout: '', stderr: '' };
+    if (key === 'git symbolic-ref --quiet --short HEAD') return { code: 0, stdout: 'main\n', stderr: '' };
+    if (key === 'git rev-parse --abbrev-ref --symbolic-full-name @{u}') return { code: 0, stdout: 'origin/main\n', stderr: '' };
+    if (key === 'git rev-parse HEAD') return { code: 0, stdout: (committed ? post : pre) + '\n', stderr: '' };
+    if (key === 'git diff --cached --name-only -z') return { code: 0, stdout: '.topics/a.trace.md\0', stderr: '' };
+    if (key === 'git rev-list --count @{u}..HEAD') return { code: 0, stdout: `${committed && !pushed ? 1 : 0}\n`, stderr: '' };
+    if (key === 'git rev-list --count HEAD..@{u}') return { code: 0, stdout: '0\n', stderr: '' };
+    if (key === 'git status --porcelain=v1 -z --untracked-files=all') return { code: 0, stdout: 'M  .topics/a.trace.md\0', stderr: '' };
+    if (key === 'git diff --cached --raw -z --no-renames') return { code: 0, stdout: 'raw-tiinex\0', stderr: '' };
+    if (key === 'git commit -m Tiinex: Update ' + path.basename(tmp)) { committed = true; return { code: 0, stdout: '', stderr: '' }; }
+    if (key === 'git push') { pushed = true; return { code: 0, stdout: '', stderr: '' }; }
+    return { code: 0, stdout: '', stderr: '' };
+  });
+  try {
+    const prepared = await prepareReviewedStagedCommit(tmp, 'node', {
+      stageAll: false, requireNoUnstaged: true, requireQualifiedTiinex: true, requirePushSafety: true
+    }, async () => ({ state: 'ready', stagedTiinexPaths: ['.topics/a.trace.md'], ignoredStagedPaths: [] }), fx.runner);
+    assert.equal(prepared.pushEligible, true);
+    const commit = await commitPreparedReviewedStaged(tmp, prepared, prepared.message, fx.runner);
+    await pushExactReviewedStagedCommit(tmp, commit, fx.runner);
+    assert.equal(pushed, true);
+    assert.equal(fx.calls.filter((call) => call.args[0] === 'push').length, 1);
+  } finally { await fs.rm(tmp, { recursive: true, force: true }); }
 });
 
 await test('multi-repository Git command stays explicit, preserves the single-repo command, and requires one final exact-push confirmation', async () => {
