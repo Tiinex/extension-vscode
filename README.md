@@ -6,7 +6,7 @@ This checkout is a **preparatory 0.1.7 lane**. It may build and qualify candidat
 
 ## Native operator trees
 
-The Tiinex Activity Bar uses three native VS Code TreeViews. Each view has one **Display Options** control instead of a row of projection buttons. The picker exposes icon + text + checked state for **Files / Logical**, **Lineage / Leaves**, and (for Discovery/Incoming) **Delta / All**. Mutation actions stay on the object they affect, and stable title actions no longer shift because a display mode changed. Tree items use native ThemeIcons throughout.
+The Tiinex Activity Bar uses four native VS Code TreeViews: **Discovery**, **Incoming**, **Outgoing**, and **Transport**. The first three artifact views use one **Display Options** control instead of a row of projection buttons. The picker exposes icon + text + checked state for **Files / Logical**, **Lineage / Leaves**, and (for Discovery/Incoming) **Delta / All**. Mutation actions stay on the object they affect, and stable title actions no longer shift because a display mode changed. Tree items use native ThemeIcons throughout.
 
 ### Discovery
 
@@ -50,6 +50,14 @@ Before writing a Handoff carrier, Package requires shared Tooling preview/output
 Logical projection keeps **Handoff identity** bounded to the outer Handoff-package layer: only package-level Handoff route pointers become current Handoff rows, so historical Handoffs inside a repository payload are never flattened into the carrier view. A Workspace with an embedded `.workspace.zip` additionally exposes **Files** (the complete payload file tree) and **Lineage** only when the payload actually contains Tiinex artifacts. A Workspace without a payload ZIP exposes only its package-level Handoff rows; the extension does not shadow-clone a checkout just to fill the tree. Expanding a resolved Handoff shows the outer pointer that led to it as provenance.
 
 The ordinary **Files** projection remains package-truthful. Outer pointer Markdown stays a real clickable pointer artifact; expanding a resolvable Handoff/endpoint pointer shows the exact target filename beneath it, and clicking that Markdown target opens the same source-backed artifact surface. `bootstrap.zip` is shown only when it physically exists in the carrier. Carrier timestamps use one deterministic visual format everywhere: `YYYY-MM-DD HH:mm:ss`.
+
+### Transport
+
+**Transport** is a host-local queue of already manufactured or discovered carrier ZIPs. It does not receive, merge, repack, rewrite, delete, deliver, or claim acceptance of those bytes. Successful **Pack** re-opens the exact finished ZIP through the package's qualified portable Core runtime and adds that immutable carrier to Transport. Discovery and Incoming package roots can likewise **Send to Transport** without changing package lineage, and a resolved Handoff row can send only that exact qualified route while retaining the same package bytes.
+
+Every queued package is re-qualified from its actual ZIP bytes when Transport is restored or refreshed. Route-less Workspace/bootstrap carriers stay one package row and use Core's exact generic Start transport text. Routed Handoff carriers show one child per selected exact Core route, with recipient presentation such as **To Sigma** coming only from Core's recipient projection. **Copy Transport Text** always copies the verbatim Core projection; a multi-route package root asks which qualified route to use rather than constructing a package-wide message.
+
+Prepared state is deliberately local UX state, keyed by package SHA-256 plus exact route id (or package-only for route-less carriers). A row becomes prepared only after both the immutable package file and its exact Core transport text have been prepared/copied. On Windows, **Copy Package** uses the real OS file-drop clipboard; where that is not safely available, Tiinex visibly falls back to **Copy Path** / **Reveal Package** and does not claim file-copy success. **Close** removes only the queue entry. No Transport state is embedded into the carrier or treated as semantic delivery/receipt authority.
 
 
 Artifact navigation is source-backed rather than preview-cache-backed. A local artifact backed by a real Workspace file opens through its actual `file:` URI in VS Code's native Markdown editor, so ordinary relative links inherit the real repository directory. Tiinex adds only `workspace::path` document links, and those resolve through Core-qualified local Workspace roots rather than host path guessing. An unopened Discovery/Incoming artifact opens as a read-only `tiinex-material:` document backed by an immutable in-memory snapshot of the exact carrier bytes; refreshing that document does not depend on a one-entry preview cache and does not unpack or mutate the carrier.

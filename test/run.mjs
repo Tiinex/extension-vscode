@@ -16,12 +16,14 @@ import { operatorMatchedWorkspaceIds, resolvePrioritizedWorkspaceDuplicates } fr
 import { comparePackageRecency, inheritedOutgoingLabel } from '../dist/core/outgoingUx.js';
 import { projectArtifactAuthoringModel } from '../dist/core/artifactAuthoringModel.js';
 import { artifactCreationReady, requireArtifactCreationReady } from '../dist/core/artifactAuthoringQualification.js';
+import { mergeTransportRouteSelection, selectedTransportRouteIds, transportPrepared, transportPreparedKey } from '../dist/core/transportQueue.js';
 import { gitAutomationBlockerText, gitOperatorResultMarkdown, normalizePostStagePolicy, projectGitOperatorCandidates } from '../dist/core/gitOperator.js';
 import { planWorkspaceSession, validateWorkspaceTargetMapping } from '../dist/core/workspaceSession.js';
 import { representativeWorkspaceChoicesForRoot } from '../dist/core/workspaceChoice.js';
 import { checkIgnoredPaths, commitPreparedGitOperator, commitPreparedReviewedStaged, commitWorkingTree, deriveGitOperatorCommitMessage, dirtyWorkingTreePaths, discardWorkingTree, generateTiinexCommitMessage, listStagedPaths, mergeCommitNoCommit, payloadCheckoutEligibility, preflightExistingLocalBranch, prepareGitOperatorCommit, prepareReviewedStagedCommit, pushExactGitOperatorCommit, pushExactLandingCommit, pushExactReviewedStagedCommit, stageCommitPush, stageLandingChanges, stageLandingCommit, stashWorkingTree } from '../dist/host/git.js';
 import { preferredNodeExecutable } from '../dist/host/nodeExecutable.js';
-import { compareIncomingWorkspaceToLocal, createArtifactDraft, inspectArtifactCreationContract, parseBootstrapDescriptor, prepareBundledRuntime, projectArtifactMaterialization, projectArtifactSchemaGuide, runTiinexJson, projectEditorAssistanceText, projectHandoffEndpoints, projectOperatorContext, projectStagedValidation, projectWorkspaceLanding, projectWorkspacePackageSources } from '../dist/tiinex/bootstrap.js';
+import { copyFileToClipboard } from '../dist/host/fileClipboard.js';
+import { compareIncomingWorkspaceToLocal, createArtifactDraft, inspectArtifactCreationContract, parseBootstrapDescriptor, prepareBundledRuntime, projectArtifactMaterialization, projectArtifactSchemaGuide, runTiinexJson, projectEditorAssistanceText, projectHandoffEndpoints, projectOperatorContext, projectPackageTransport, projectStagedValidation, projectWorkspaceLanding, projectWorkspacePackageSources } from '../dist/tiinex/bootstrap.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 let count = 0;
@@ -217,14 +219,14 @@ await test('package route identity is separate from Workspace inclusion and cont
   assert.throws(() => exactWorkspaceIds([{ workspaceId: 'site' }], ['business']), /workspace-selection-unresolved/);
 });
 
-await test('extension contributes stable Discovery, Incoming and Outgoing TreeView actions', async () => {
+await test('extension contributes stable Discovery, Incoming, Outgoing and Transport TreeView actions', async () => {
   const fs = await import('node:fs/promises');
   const manifest = JSON.parse(await fs.readFile(path.resolve(HERE, '..', 'package.json'), 'utf8'));
   const container = manifest.contributes?.viewsContainers?.activitybar?.find((item) => item.id === 'tiinex');
   assert.equal(container?.title, 'Tiinex');
   assert.equal(container?.icon, 'media/tiinex.svg');
   const views = manifest.contributes?.views?.tiinex || [];
-  assert.deepEqual(views.map((item) => item.id), ['tiinex.discovery', 'tiinex.incoming', 'tiinex.outgoing']);
+  assert.deepEqual(views.map((item) => item.id), ['tiinex.discovery', 'tiinex.incoming', 'tiinex.outgoing', 'tiinex.transport']);
   assert.equal(views.some((item) => item.type === 'webview'), false);
   const commands = new Map((manifest.contributes?.commands || []).map((item) => [item.command, item]));
   assert.equal(commands.get('tiinex.discovery.setIncoming')?.icon, '$(arrow-down)');
@@ -242,10 +244,15 @@ await test('extension contributes stable Discovery, Incoming and Outgoing TreeVi
   assert.equal(commands.get('tiinex.incoming.displayOptions')?.icon, '$(settings)');
   assert.equal(commands.get('tiinex.outgoing.displayOptions')?.icon, '$(settings)');
   assert.equal(commands.get('tiinex.outgoing.copyTransportText')?.icon, '$(copy)');
+  assert.equal(commands.get('tiinex.transport.refresh')?.icon, '$(refresh)');
+  assert.equal(commands.get('tiinex.transport.send')?.title, 'Send to Transport');
+  assert.equal(commands.get('tiinex.transport.copyPackage')?.title, 'Copy Package');
+  assert.equal(commands.get('tiinex.transport.copyText')?.title, 'Copy Transport Text');
+  assert.equal(commands.get('tiinex.transport.close')?.title, 'Close');
   assert.equal(manifest.contributes?.configuration?.properties?.['tiinex.discovery.autoClearDiscovery']?.enum?.join(','), 'no,yes');
   const titleMenus = manifest.contributes?.menus?.['view/title'] || [];
   const titleCommands = new Set(titleMenus.map((item) => item.command));
-  for (const command of ['tiinex.discovery.displayOptions', 'tiinex.discovery.selectFolder', 'tiinex.discovery.clear', 'tiinex.discovery.refresh', 'tiinex.incoming.displayOptions', 'tiinex.incoming.refresh', 'tiinex.outgoing.new', 'tiinex.outgoing.selectWorkspaces', 'tiinex.outgoing.displayOptions', 'tiinex.outgoing.selectFolder', 'tiinex.outgoing.refresh']) assert.equal(titleCommands.has(command), true);
+  for (const command of ['tiinex.discovery.displayOptions', 'tiinex.discovery.selectFolder', 'tiinex.discovery.clear', 'tiinex.discovery.refresh', 'tiinex.incoming.displayOptions', 'tiinex.incoming.refresh', 'tiinex.outgoing.new', 'tiinex.outgoing.selectWorkspaces', 'tiinex.outgoing.displayOptions', 'tiinex.outgoing.selectFolder', 'tiinex.outgoing.refresh', 'tiinex.transport.refresh']) assert.equal(titleCommands.has(command), true);
   for (const legacy of ['tiinex.discovery.toggleProjection', 'tiinex.discovery.toggleLineage', 'tiinex.discovery.toggleDelta', 'tiinex.incoming.toggleProjection', 'tiinex.incoming.toggleLineage', 'tiinex.incoming.toggleDelta', 'tiinex.outgoing.toggleProjection', 'tiinex.outgoing.toggleLineage']) assert.equal(titleCommands.has(legacy), false);
   assert.equal(titleCommands.has('tiinex.outgoing.package'), false);
   assert.equal(titleCommands.has('tiinex.incoming.mergeSelected'), false);
@@ -286,6 +293,15 @@ await test('extension contributes stable Discovery, Incoming and Outgoing TreeVi
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.copyTransportText' && /outgoingHandoffAttached/.test(item.when || '') && item.group === 'inline@1'));
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.omitWorkspacePayload' && /outgoingWorkspaceDescriptorEmbedded/.test(item.when || '')));
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.embedWorkspacePayload' && /outgoingWorkspaceDescriptorCheckout/.test(item.when || '')));
+  assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.send' && /discoveryPackage/.test(item.when || '')));
+  assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.send' && /incomingPackage/.test(item.when || '')));
+  assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.send' && /discoveryResolvedHandoff/.test(item.when || '')));
+  assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.send' && /incomingResolvedHandoff/.test(item.when || '')));
+  assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.copyPackage' && /transportPackage/.test(item.when || '') && item.group === 'inline@1'));
+  assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.copyText' && /transportPackage/.test(item.when || '') && item.group === 'inline@2'));
+  assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.close' && /transportPackage/.test(item.when || '') && item.group === 'inline@9'));
+  assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.copyPackage' && /transportRoute/.test(item.when || '')));
+  assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.copyText' && /transportRoute/.test(item.when || '')));
   const explorerMenus = manifest.contributes?.menus?.['explorer/context'] || [];
   assert.ok(explorerMenus.some((item) => item.submenu === 'tiinex.explorer.actions' && item.group === '1_tiinex@1'));
   assert.ok((manifest.contributes?.submenus || []).some((item) => item.id === 'tiinex.explorer.actions' && item.label === 'Tiinex'));
@@ -310,6 +326,11 @@ await test('extension contributes stable Discovery, Incoming and Outgoing TreeVi
   assert.match(treeSource, /canPickMany: true/);
   assert.match(treeSource, /tiinex\.incomingWorkspaceExact/);
   assert.match(treeSource, /qualified match/);
+  assert.match(treeSource, /queueTransportPackage\(built\.outputPath, '', true\)/);
+  assert.match(treeSource, /projectPackageTransport\(runtime, resolved/);
+  assert.match(treeSource, /tiinex\.transport\.queue\.v1/);
+  assert.match(treeSource, /tiinex\.transport\.prepared\.v1/);
+  assert.doesNotMatch(treeSource, /Cold start: read Start directly/);
   assert.doesNotMatch(treeSource, /chooseOutgoingCarrierParent/);
   assert.equal(Boolean(manifest.contributes?.problemMatchers), false);
   const extensionSource = await fs.readFile(path.resolve(HERE, '..', 'src', 'extension.ts'), 'utf8');
@@ -1078,6 +1099,52 @@ await test('generic materialization and draft wrappers stay schema-neutral for a
   const created = await createArtifactDraft(runtime, 'tiinex.task.v1', '/repo', '.topics/task.trace.md', 'Task proof', { Summary: 'proof' }, null, 'create-artifact', draftFx.runner);
   assert.equal(created.status, 'created-clean');
   await assert.rejects(fs.access(valuesPath));
+});
+
+await test('Transport prepared state is keyed by immutable package SHA plus exact route selection', async () => {
+  const sha = 'a'.repeat(64);
+  assert.equal(transportPreparedKey(sha), `${sha}:@package`);
+  assert.equal(transportPreparedKey(sha, 'route-2'), `${sha}:route-2`);
+  assert.equal(transportPrepared({ packagePrepared: true, textPrepared: true }), true);
+  assert.equal(transportPrepared({ packagePrepared: true, textPrepared: false }), false);
+  assert.deepEqual(mergeTransportRouteSelection(undefined, 'route-b'), ['route-b']);
+  assert.deepEqual(mergeTransportRouteSelection(['route-b'], 'route-a'), ['route-a', 'route-b']);
+  assert.equal(mergeTransportRouteSelection(['route-a'], ''), null);
+  assert.equal(mergeTransportRouteSelection(null, 'route-b'), null);
+  assert.deepEqual(selectedTransportRouteIds(['route-c', 'route-a', 'route-b'], ['route-b', 'missing']), ['route-b']);
+  assert.deepEqual(selectedTransportRouteIds(['route-c', 'route-a'], null), ['route-c', 'route-a']);
+  assert.throws(() => transportPreparedKey('not-a-sha'), /tiinex\.transport\.sha256-invalid/);
+});
+
+await test('Transport package projection delegates exact generic and route transport text to Core CLI', async () => {
+  const runtime = { root: '/runtime', entrypoint: '/runtime/tiinex-portable.mjs', nodeExecutable: 'node', dispose: async () => undefined };
+  const fx = fakeRunner((_key, index, call) => {
+    if (index === 0) {
+      assert.deepEqual(call.args, ['/runtime/tiinex-portable.mjs', 'project-handoff-carrier-output', '/packages/a.zip', '--compact']);
+      return { code: 0, stdout: JSON.stringify({ status: 'ready', humanOutput: { normalInlineRouting: { content: 'EXACT GENERIC' } } }), stderr: '' };
+    }
+    assert.deepEqual(call.args, ['/runtime/tiinex-portable.mjs', 'project-handoff-carrier-output', '/packages/a.zip', '--route', 'extension-vscode:.topics/route.trace.md', '--compact']);
+    return { code: 0, stdout: JSON.stringify({ status: 'ready', humanOutput: { normalInlineRouting: { content: 'EXACT ROUTE' }, presentation: { recipientLabel: 'Sigma' } } }), stderr: '' };
+  });
+  const generic = await projectPackageTransport(runtime, '/packages/a.zip', '', fx.runner);
+  const routed = await projectPackageTransport(runtime, '/packages/a.zip', 'extension-vscode:.topics/route.trace.md', fx.runner);
+  assert.equal(generic.humanOutput.normalInlineRouting.content, 'EXACT GENERIC');
+  assert.equal(routed.humanOutput.normalInlineRouting.content, 'EXACT ROUTE');
+  assert.equal(routed.humanOutput.presentation.recipientLabel, 'Sigma');
+});
+
+await test('Transport file clipboard never reports a text-path fallback as file-copy success', async () => {
+  const unsupported = await copyFileToClipboard('/tmp/package.zip', 'linux', async () => { throw new Error('must not run'); });
+  assert.equal(unsupported.state, 'unsupported');
+  const fx = fakeRunner((_key, _index, call) => {
+    assert.equal(call.command, 'powershell.exe');
+    assert.ok(call.args.includes('-STA'));
+    assert.ok(call.args.includes('-EncodedCommand'));
+    return { code: 0, stdout: '', stderr: '' };
+  });
+  const copied = await copyFileToClipboard('C:\\Temp\\carrier.zip', 'win32', fx.runner);
+  assert.equal(copied.state, 'copied');
+  assert.equal(fx.calls.length, 1);
 });
 
 await test('installed Core exposes Handoff reference fields as validation-only authoring gaps', async () => {

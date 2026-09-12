@@ -9,9 +9,10 @@ import { indexCarrierPackage, indexLocalWorkspace, indexLocalWorkspaceFiles, dis
 import { alphabeticalWorkspaceIds, artifactsForLineageMode, currentRoleChoices, IndexedArtifact, logicalGroupForArtifact, normalizePath, TreeLineageMode, TreeProjectionMode } from './core/artifactTree';
 import { preferredRepositoryParent } from './core/receiveUx';
 import { qualifiedRoutes, QualifiedRouteReceipt } from './core/receivedHandoff';
+import { mergeTransportRouteSelection, selectedTransportRouteIds, StoredTransportQueueItem, transportPrepared, transportPreparedKey, TransportPreparedRecord } from './core/transportQueue';
 import { loadHandoffEndpointChoices, loadLocalWorkspaceChoices, loadPackageBuilderModel, buildHandoffPackageFromForm, announceBuiltCarrier, routeChoiceKeyForHandoff, IncomingPackageWorkspaceSource, PackageWorkspaceChoice, PackageWorkspaceSourceOverride, PackageRouteRouting, qualifyLocalWorkspaceChoice } from './packageBuilder';
 import { ArtifactAuthoringCatalog, ArtifactDraftParent, loadArtifactAuthoringCatalog, loadArtifactAuthoringModel, prepareArtifactDraft, PreparedArtifactDraft, qualifyExistingHandoff, writePreparedArtifactDraft } from './authoring';
-import { compareIncomingWorkspaceToLocal, orientPackage, prepareBundledRuntime, preparePackageRuntime } from './tiinex/bootstrap';
+import { compareIncomingWorkspaceToLocal, orientPackage, prepareBundledRuntime, preparePackageRuntime, projectPackageTransport } from './tiinex/bootstrap';
 import { applyIncomingWorkspaces, IncomingApplyStrategy } from './incomingApply';
 import { operatorMatchedWorkspaceIds, resolvePrioritizedWorkspaceDuplicates } from './core/sourceSelection';
 import { comparePackageRecency, inheritedOutgoingLabel } from './core/outgoingUx';
@@ -25,6 +26,7 @@ import { artifactReferenceAvailable, markdownLinkTargets, materialTargetKey, res
 import { planWorkspaceSession, validateWorkspaceTargetMapping } from './core/workspaceSession';
 import { routeChoiceKey } from './core/operatorModel';
 import { consumeIncomingMultiRootResume, prepareIncomingMultiRootSession } from './vscode/incomingWorkspaceSession';
+import { copyFileToClipboard } from './host/fileClipboard';
 
 export type OperatorSection = 'discovery' | 'incoming' | 'outgoing';
 
@@ -109,6 +111,38 @@ interface PackageHandoffLink {
   pointerPath: string;
   from: string;
   to: string;
+}
+
+interface TransportRouteState {
+  routeId: string;
+  workspaceId: string;
+  handoffPath: string;
+  recipientLabel: string;
+  transportText: string;
+}
+
+interface TransportPackageState {
+  packagePath: string;
+  filename: string;
+  bytes: number;
+  sha256: string;
+  presentationLabel: string;
+  genericTransportText: string;
+  routes: TransportRouteState[];
+  routeIds: string[] | null;
+  addedAt: number;
+}
+
+type TransportNodeKind = 'message' | 'package' | 'route';
+interface TransportNodeData {
+  kind: TransportNodeKind;
+  id: string;
+  label: string;
+  description?: string;
+  tooltip?: string;
+  contextValue?: string;
+  packagePath?: string;
+  routeId?: string;
 }
 
 interface WorkspaceDeltaView {
@@ -198,6 +232,31 @@ class SectionProvider implements vscode.TreeDataProvider<OperatorNode> {
   getTreeItem(element: OperatorNode): vscode.TreeItem { return element; }
   getChildren(element?: OperatorNode): Thenable<OperatorNode[]> { return this.controller.children(this.section, element); }
   getParent(element: OperatorNode): vscode.ProviderResult<OperatorNode> { return this.controller.parent(this.section, element); }
+  dispose(): void { this.changed.dispose(); }
+}
+
+class TransportNode extends vscode.TreeItem {
+  readonly data: TransportNodeData;
+
+  constructor(data: TransportNodeData, collapsible = vscode.TreeItemCollapsibleState.None) {
+    super(data.label, collapsible);
+    this.data = data;
+    this.id = data.id;
+    this.description = data.description;
+    this.tooltip = data.tooltip || data.description || data.label;
+    this.contextValue = data.contextValue;
+  }
+}
+
+class TransportProvider implements vscode.TreeDataProvider<TransportNode>, vscode.Disposable {
+  private readonly changed = new vscode.EventEmitter<TransportNode | undefined | void>();
+  readonly onDidChangeTreeData = this.changed.event;
+
+  constructor(private readonly controller: TiinexOperatorTrees) {}
+
+  refresh(): void { this.changed.fire(); }
+  getTreeItem(element: TransportNode): vscode.TreeItem { return element; }
+  getChildren(element?: TransportNode): Thenable<TransportNode[]> { return this.controller.transportChildren(element); }
   dispose(): void { this.changed.dispose(); }
 }
 
@@ -356,12 +415,14 @@ export class TiinexOperatorTrees implements vscode.Disposable {
   private readonly discoveryProvider = new SectionProvider(this, 'discovery');
   private readonly incomingProvider = new SectionProvider(this, 'incoming');
   private readonly outgoingProvider = new SectionProvider(this, 'outgoing');
+  private readonly transportProvider = new TransportProvider(this);
   private readonly previewProvider = new PreviewProvider();
   private readonly materialProvider = new MaterialProvider();
   private readonly localArtifactLinkProvider: LocalArtifactLinkProvider;
   private readonly discoveryView: vscode.TreeView<OperatorNode>;
   private readonly incomingView: vscode.TreeView<OperatorNode>;
   private readonly outgoingView: vscode.TreeView<OperatorNode>;
+  private readonly transportView: vscode.TreeView<TransportNode>;
   private watcher: FSWatcher | null = null;
   private watcherTimer: NodeJS.Timeout | null = null;
   private discovered: Array<{ path: string; filename: string; mtimeMs: number; bytes: number }> = [];
@@ -377,6 +438,9 @@ export class TiinexOperatorTrees implements vscode.Disposable {
   private outgoing: OutgoingState | null = null;
   private outgoingFolderSelection = '';
   private outgoingLoading = false;
+  private transport: TransportPackageState[] = [];
+  private transportLoading = new Set<string>();
+  private transportPreparedState: Record<string, TransportPreparedRecord> = {};
   private discoveryStartupLatestIdentity = '';
   private discoveryCutoffMs = 0;
   private readonly discoverySuppressedPaths = new Set<string>();
@@ -386,7 +450,8 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     this.discoveryView = vscode.window.createTreeView('tiinex.discovery', { treeDataProvider: this.discoveryProvider, showCollapseAll: true });
     this.incomingView = vscode.window.createTreeView('tiinex.incoming', { treeDataProvider: this.incomingProvider, showCollapseAll: true });
     this.outgoingView = vscode.window.createTreeView('tiinex.outgoing', { treeDataProvider: this.outgoingProvider, showCollapseAll: true });
-    context.subscriptions.push(this.discoveryView, this.incomingView, this.outgoingView, this.discoveryProvider, this.incomingProvider, this.outgoingProvider, this.previewProvider, this.materialProvider);
+    this.transportView = vscode.window.createTreeView('tiinex.transport', { treeDataProvider: this.transportProvider, showCollapseAll: true });
+    context.subscriptions.push(this.discoveryView, this.incomingView, this.outgoingView, this.transportView, this.discoveryProvider, this.incomingProvider, this.outgoingProvider, this.transportProvider, this.previewProvider, this.materialProvider);
     context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider('tiinex-preview', this.previewProvider));
     context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider(MATERIAL_SCHEME, this.materialProvider));
     context.subscriptions.push(vscode.languages.registerDocumentLinkProvider({ scheme: MATERIAL_SCHEME }, this.materialProvider));
@@ -403,6 +468,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
 
   async start(): Promise<void> {
     await this.ensureTreePreferenceDefaults();
+    await this.restoreTransportQueue();
     this.discoveryCutoffMs = this.shouldAutoClearDiscovery() ? Date.now() : 0;
     await this.refreshDiscovery(false, false);
     this.discoveryStartupLatestIdentity = discoveryIdentity(this.discovered[0]);
@@ -459,6 +525,22 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     this.stopWatcher();
   }
 
+  async transportChildren(node?: TransportNode): Promise<TransportNode[]> {
+    if (!node) {
+      if (!this.transport.length && !this.transportLoading.size) return [transportMessageNode('No prepared carriers')];
+      const roots = this.transport.map((item) => this.transportPackageNode(item));
+      for (const packagePath of this.transportLoading) roots.unshift(new TransportNode({
+        kind: 'message', id: `transport:loading:${packagePath}`, label: `Qualifying ${path.basename(packagePath)}…`,
+        description: 'Core transport projection', tooltip: packagePath
+      }));
+      return roots;
+    }
+    if (node.data.kind !== 'package' || !node.data.packagePath) return [];
+    const item = this.transport.find((entry) => path.resolve(entry.packagePath) === path.resolve(node.data.packagePath!));
+    if (!item) return [];
+    return this.visibleTransportRoutes(item).map((route) => this.transportRouteNode(item, route));
+  }
+
   async children(section: OperatorSection, node?: OperatorNode): Promise<OperatorNode[]> {
     const children = section === 'discovery'
       ? await this.discoveryChildren(node)
@@ -497,6 +579,11 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     register('tiinex.incoming.mergeReplace', (node?: OperatorNode) => this.mergeReplaceIncoming(node));
     register('tiinex.incoming.merge', (node?: OperatorNode) => this.mergeReplaceIncoming(node, 'merge'));
     register('tiinex.incoming.replace', (node?: OperatorNode) => this.mergeReplaceIncoming(node, 'replace'));
+    register('tiinex.transport.send', (node?: OperatorNode) => this.sendNodeToTransport(node));
+    register('tiinex.transport.refresh', () => this.refreshTransportQueue(true));
+    register('tiinex.transport.copyPackage', (node?: TransportNode) => this.copyTransportPackage(node));
+    register('tiinex.transport.copyText', (node?: TransportNode) => this.copyTransportText(node));
+    register('tiinex.transport.close', (node?: TransportNode) => this.closeTransport(node));
     register('tiinex.outgoing.new', () => this.newOutgoing());
     register('tiinex.outgoing.selectWorkspaces', () => this.selectOutgoingWorkspaces());
     register('tiinex.outgoing.refresh', () => this.refreshOutgoing());
@@ -533,6 +620,256 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     register('tiinex.outgoing.newBlank', () => this.newOutgoing());
     register('tiinex.outgoing.newFromIncoming', async () => { await this.newOutgoing(); if (this.outgoing) await this.selectOutgoingWorkspaces(); });
     register('tiinex.outgoing.addWorkspace', () => this.selectOutgoingWorkspaces());
+  }
+
+  private async sendNodeToTransport(node?: OperatorNode): Promise<void> {
+    const packagePath = String(node?.data.packagePath || '').trim();
+    if (!packagePath) return;
+    let routeSelector = '';
+    const contextValue = String(node?.data.contextValue || '');
+    if (node?.data.workspaceId && /ResolvedHandoff(?:Unavailable)?$/.test(contextValue)) {
+      const pointerPath = String(node.data.groupName || '').replace(/^resolved-handoff:/, '');
+      const link = this.packageHandoffLinks(node.data.section, node.data.workspaceId, packagePath)
+        .find((item) => normalizePath(item.pointerPath) === normalizePath(pointerPath));
+      if (link?.handoffPath) routeSelector = `${link.workspaceId}:${link.handoffPath}`;
+    }
+    await this.queueTransportPackage(packagePath, routeSelector, true);
+  }
+
+  private async restoreTransportQueue(): Promise<void> {
+    this.transportPreparedState = this.context.workspaceState.get<Record<string, TransportPreparedRecord>>('tiinex.transport.prepared.v1', {}) || {};
+    const stored = this.context.workspaceState.get<StoredTransportQueueItem[]>('tiinex.transport.queue.v1', []) || [];
+    const restored: TransportPackageState[] = [];
+    for (const record of stored) {
+      const packagePath = String(record?.packagePath || '').trim();
+      if (!packagePath) continue;
+      try {
+        restored.push(await this.qualifyTransportPackage(packagePath, Array.isArray(record.routeIds) ? record.routeIds : null, Number(record.addedAt || 0) || Date.now()));
+      } catch {
+        // Queue bookkeeping is presentation state only. Missing or no-longer-
+        // qualified bytes are not retained as semantic package truth.
+      }
+    }
+    this.transport = restored.sort((a, b) => b.addedAt - a.addedAt || a.filename.localeCompare(b.filename));
+    await this.persistTransportQueue();
+    this.transportProvider.refresh();
+  }
+
+  private async refreshTransportQueue(interactive = false): Promise<void> {
+    const records = this.transport.map((item) => ({ packagePath: item.packagePath, routeIds: item.routeIds, addedAt: item.addedAt }));
+    const refreshed: TransportPackageState[] = [];
+    const failures: string[] = [];
+    for (const record of records) {
+      try { refreshed.push(await this.qualifyTransportPackage(record.packagePath, record.routeIds, record.addedAt)); }
+      catch (error) { failures.push(`${path.basename(record.packagePath)}: ${shortMessage(error)}`); }
+    }
+    this.transport = refreshed.sort((a, b) => b.addedAt - a.addedAt || a.filename.localeCompare(b.filename));
+    await this.persistTransportQueue();
+    this.transportProvider.refresh();
+    await this.updateUiContexts();
+    if (interactive && failures.length) await vscode.window.showWarningMessage(`Tiinex Transport removed unqualified or unavailable queue items:\n${failures.join('\n')}`);
+  }
+
+  private async queueTransportPackage(packagePath: string, routeSelector = '', focus = false): Promise<void> {
+    const resolved = path.resolve(String(packagePath || '').trim());
+    if (!packagePath) throw new Error('tiinex.transport.package-path-required');
+    this.transportLoading.add(resolved);
+    this.transportProvider.refresh();
+    try {
+      const existing = this.transport.find((item) => path.resolve(item.packagePath) === resolved);
+      const qualified = await this.qualifyTransportPackage(resolved, existing?.routeIds, existing?.addedAt || Date.now());
+      if (routeSelector) {
+        const route = this.transportRouteForSelector(qualified, routeSelector);
+        if (!route) throw new Error(`tiinex.transport.route-unqualified:${routeSelector}`);
+        qualified.routeIds = mergeTransportRouteSelection(existing?.routeIds, route.routeId);
+      } else {
+        qualified.routeIds = null;
+      }
+      this.transport = [qualified, ...this.transport.filter((item) => path.resolve(item.packagePath) !== resolved)]
+        .sort((a, b) => b.addedAt - a.addedAt || a.filename.localeCompare(b.filename));
+      await this.persistTransportQueue();
+      this.transportProvider.refresh();
+      await this.updateUiContexts();
+      if (focus) await vscode.commands.executeCommand('tiinex.transport.focus');
+    } finally {
+      this.transportLoading.delete(resolved);
+      this.transportProvider.refresh();
+    }
+  }
+
+  private async qualifyTransportPackage(packagePath: string, routeIds: string[] | null, addedAt: number): Promise<TransportPackageState> {
+    const resolved = path.resolve(packagePath);
+    const info = await stat(resolved);
+    if (!info.isFile()) throw new Error('tiinex.transport.package-not-file');
+    const bytes = await readFile(resolved);
+    const sha256 = createHash('sha256').update(bytes).digest('hex');
+    const runtime = await preparePackageRuntime(resolved, nodeExecutable());
+    try {
+      const base = await projectPackageTransport(runtime, resolved);
+      const routeMeta = Array.isArray(base.carrierInspection?.routes) ? base.carrierInspection!.routes! : [];
+      const routes: TransportRouteState[] = [];
+      let genericTransportText = '';
+      let presentationLabel = String(base.humanOutput?.presentation?.label || base.humanOutput?.primary?.kind || '').trim();
+
+      if (!routeMeta.length) {
+        if (base.status !== 'ready') throw new Error(`tiinex.transport.package-projection-${base.status || 'blocked'}`);
+        genericTransportText = String(base.humanOutput?.normalInlineRouting?.content || '');
+        if (!genericTransportText) throw new Error('tiinex.transport.package-transport-text-missing');
+      } else {
+        for (const item of routeMeta) {
+          const workspaceId = String(item.workspaceId || '').trim();
+          const handoffPath = normalizePath(String(item.workspaceRelativeHandoffPath || ''));
+          if (!workspaceId || !handoffPath) throw new Error('tiinex.transport.route-selector-unavailable');
+          const projection = await projectPackageTransport(runtime, resolved, `${workspaceId}:${handoffPath}`);
+          if (projection.status !== 'ready') throw new Error(`tiinex.transport.route-projection-${projection.status || 'blocked'}:${workspaceId}:${handoffPath}`);
+          const selected = projection.humanOutput?.selectedRoute;
+          const routeId = String(selected?.id || projection.humanOutput?.primary?.routeId || '').trim();
+          const transportText = String(projection.humanOutput?.normalInlineRouting?.content || '');
+          const recipientLabel = String(projection.humanOutput?.presentation?.recipientLabel || selected?.parties?.to || '').trim();
+          if (!routeId || !transportText) throw new Error(`tiinex.transport.route-output-incomplete:${workspaceId}:${handoffPath}`);
+          if (!presentationLabel) presentationLabel = String(projection.humanOutput?.primary?.kind || '').trim();
+          routes.push({ routeId, workspaceId, handoffPath, recipientLabel, transportText });
+        }
+      }
+
+      const qualifiedIds = new Set(routes.map((item) => item.routeId));
+      const retainedRouteIds = routeIds === null ? null : (routeIds || []).filter((item) => qualifiedIds.has(item));
+      return {
+        packagePath: resolved,
+        filename: path.basename(resolved),
+        bytes: info.size,
+        sha256,
+        presentationLabel: presentationLabel || 'qualified carrier',
+        genericTransportText,
+        routes,
+        routeIds: retainedRouteIds,
+        addedAt
+      };
+    } finally { await runtime.dispose(); }
+  }
+
+  private transportRouteForSelector(item: TransportPackageState, selector: string): TransportRouteState | undefined {
+    const value = String(selector || '').trim();
+    return item.routes.find((route) => route.routeId === value || `${route.workspaceId}:${normalizePath(route.handoffPath)}` === value);
+  }
+
+  private visibleTransportRoutes(item: TransportPackageState): TransportRouteState[] {
+    const ids = selectedTransportRouteIds(item.routes.map((route) => route.routeId), item.routeIds);
+    const visible = new Set(ids);
+    return item.routes.filter((route) => visible.has(route.routeId));
+  }
+
+  private transportPackageNode(item: TransportPackageState): TransportNode {
+    const routes = this.visibleTransportRoutes(item);
+    const routeLess = item.routes.length === 0;
+    const prepared = routeLess
+      ? this.transportPrepared(item, '')
+      : Boolean(routes.length && routes.every((route) => this.transportPrepared(item, route.routeId)));
+    const description = routeLess
+      ? `${item.presentationLabel}${prepared ? ' · prepared' : ''}`
+      : `${item.presentationLabel} · ${routes.length} route${routes.length === 1 ? '' : 's'}${prepared ? ' · prepared' : ''}`;
+    const node = new TransportNode({
+      kind: 'package', id: `transport:package:${item.sha256}:${item.packagePath}`, label: item.filename,
+      description, tooltip: `${item.packagePath}\nSHA-256 ${item.sha256}`, contextValue: 'tiinex.transportPackage', packagePath: item.packagePath
+    }, routes.length ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.None);
+    node.iconPath = new vscode.ThemeIcon(prepared ? 'pass-filled' : 'archive');
+    return node;
+  }
+
+  private transportRouteNode(item: TransportPackageState, route: TransportRouteState): TransportNode {
+    const prepared = this.transportPrepared(item, route.routeId);
+    const recipient = route.recipientLabel ? `To ${route.recipientLabel}` : 'Qualified route';
+    const node = new TransportNode({
+      kind: 'route', id: `transport:route:${item.sha256}:${route.routeId}`, label: recipient,
+      description: prepared ? 'prepared' : route.workspaceId,
+      tooltip: `${route.workspaceId}:${route.handoffPath}`, contextValue: 'tiinex.transportRoute', packagePath: item.packagePath, routeId: route.routeId
+    });
+    node.iconPath = new vscode.ThemeIcon(prepared ? 'pass-filled' : 'send');
+    return node;
+  }
+
+  private transportPrepared(item: TransportPackageState, routeId: string): boolean {
+    return transportPrepared(this.transportPreparedState[transportPreparedKey(item.sha256, routeId)]);
+  }
+
+  private async markTransportPrepared(item: TransportPackageState, routeId: string, field: keyof TransportPreparedRecord): Promise<void> {
+    const routeIds = item.routes.length
+      ? (routeId ? [routeId] : this.visibleTransportRoutes(item).map((route) => route.routeId))
+      : [''];
+    for (const id of routeIds) {
+      const key = transportPreparedKey(item.sha256, id);
+      const current = this.transportPreparedState[key] || { packagePrepared: false, textPrepared: false };
+      this.transportPreparedState[key] = { ...current, [field]: true };
+    }
+    await this.context.workspaceState.update('tiinex.transport.prepared.v1', this.transportPreparedState);
+    this.transportProvider.refresh();
+  }
+
+  private async copyTransportPackage(node?: TransportNode): Promise<void> {
+    const item = this.transportItemForNode(node);
+    if (!item) return;
+    const routeId = node?.data.kind === 'route' ? String(node.data.routeId || '') : '';
+    const result = await copyFileToClipboard(item.packagePath);
+    if (result.state === 'copied') {
+      await this.markTransportPrepared(item, routeId, 'packagePrepared');
+      await vscode.window.showInformationMessage(`Copied ${item.filename} to the OS file clipboard.`);
+      return;
+    }
+    const action = await vscode.window.showWarningMessage(
+      `Tiinex could not place the package file on the OS clipboard${result.detail ? `: ${result.detail}` : '.'} No file-copy success is being claimed.`,
+      'Copy Path', 'Reveal Package'
+    );
+    if (action === 'Copy Path') await vscode.env.clipboard.writeText(item.packagePath);
+    else if (action === 'Reveal Package') await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(item.packagePath));
+  }
+
+  private async copyTransportText(node?: TransportNode): Promise<void> {
+    const item = this.transportItemForNode(node);
+    if (!item) return;
+    let routeId = node?.data.kind === 'route' ? String(node.data.routeId || '') : '';
+    let text = '';
+    if (!item.routes.length) {
+      text = item.genericTransportText;
+    } else {
+      const visible = this.visibleTransportRoutes(item);
+      let route = routeId ? visible.find((entry) => entry.routeId === routeId) : undefined;
+      if (!route && visible.length === 1) route = visible[0];
+      if (!route && visible.length > 1) {
+        const selected = await vscode.window.showQuickPick(visible.map((entry) => ({
+          label: entry.recipientLabel ? `To ${entry.recipientLabel}` : 'Qualified route',
+          description: entry.workspaceId,
+          detail: entry.handoffPath,
+          route: entry
+        })), { title: 'Copy exact Tiinex transport text', canPickMany: false, ignoreFocusOut: true });
+        route = selected?.route;
+      }
+      if (!route) return;
+      routeId = route.routeId;
+      text = route.transportText;
+    }
+    if (!text) throw new Error('tiinex.transport.transport-text-missing');
+    await vscode.env.clipboard.writeText(text);
+    await this.markTransportPrepared(item, routeId, 'textPrepared');
+    await vscode.window.showInformationMessage('Copied exact Tiinex transport text.');
+  }
+
+  private closeTransport(node?: TransportNode): void {
+    const item = this.transportItemForNode(node);
+    if (!item) return;
+    this.transport = this.transport.filter((entry) => path.resolve(entry.packagePath) !== path.resolve(item.packagePath));
+    void this.persistTransportQueue().then(() => this.updateUiContexts());
+    this.transportProvider.refresh();
+  }
+
+  private transportItemForNode(node?: TransportNode): TransportPackageState | undefined {
+    const packagePath = String(node?.data.packagePath || '').trim();
+    if (!packagePath) return undefined;
+    return this.transport.find((item) => path.resolve(item.packagePath) === path.resolve(packagePath));
+  }
+
+  private async persistTransportQueue(): Promise<void> {
+    const records: StoredTransportQueueItem[] = this.transport.map((item) => ({ packagePath: item.packagePath, routeIds: item.routeIds, addedAt: item.addedAt }));
+    await this.context.workspaceState.update('tiinex.transport.queue.v1', records);
   }
 
   private config(): vscode.WorkspaceConfiguration { return vscode.workspace.getConfiguration('tiinex'); }
@@ -644,6 +981,9 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     this.discoveryView.description = this.modeLabel('discovery');
     this.incomingView.description = this.modeLabel('incoming');
     this.outgoingView.description = this.modeLabel('outgoing');
+    this.transportView.description = this.transport.length
+      ? `${this.transport.length} package${this.transport.length === 1 ? '' : 's'}`
+      : '';
   }
 
   private async ensureDiscoveryFolderOnExpand(): Promise<void> {
@@ -2203,6 +2543,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
         this.outgoing.lastBuilt = { outputPath: built.outputPath, routes: built.routeRoutingTexts };
         this.outgoingProvider.refresh();
         await this.refreshDiscoveryAfterPack(built.outputPath);
+        await this.queueTransportPackage(built.outputPath, '', true);
         this.closeOutgoing();
         await announceBuiltCarrier(built.outputPath, 'Workspace carrier');
       } catch (error) {
@@ -2249,6 +2590,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       this.outgoing.lastBuilt = { outputPath: built.outputPath, routes: built.routeRoutingTexts };
       this.outgoingProvider.refresh();
       await this.refreshDiscoveryAfterPack(built.outputPath);
+      await this.queueTransportPackage(built.outputPath, '', true);
       this.closeOutgoing();
       await announceBuiltCarrier(
         built.outputPath,
@@ -3147,6 +3489,12 @@ function projectedCarrierFileNode(section: OperatorSection, label: string, descr
 
 function messageNode(section: OperatorSection, label: string): OperatorNode {
   return new OperatorNode({ kind: 'message', section, id: `${section}:message:${label}`, label, contextValue: `tiinex.${section}Message` });
+}
+
+function transportMessageNode(label: string): TransportNode {
+  const node = new TransportNode({ kind: 'message', id: `transport:message:${label}`, label, contextValue: 'tiinex.transportMessage' });
+  node.iconPath = new vscode.ThemeIcon('info');
+  return node;
 }
 
 function discoveryIdentity(item?: { path: string; mtimeMs: number; bytes: number }): string {

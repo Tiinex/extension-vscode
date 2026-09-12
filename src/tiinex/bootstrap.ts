@@ -107,6 +107,49 @@ export async function orientPackage(runtime: PackageRuntime, packagePath: string
   return result;
 }
 
+export interface PackageTransportProjectionResult {
+  status: string;
+  carrierInspection?: {
+    status?: string;
+    format?: string;
+    entrypoint?: { path?: string; status?: string } | null;
+    routes?: Array<{ pointerPath?: string; workspaceId?: string; workspaceRelativeHandoffPath?: string }>;
+    findingSummary?: unknown;
+    findings?: Array<{ severity?: string; code?: string; message?: string }>;
+  };
+  humanOutput?: {
+    status?: string;
+    primary?: { kind?: string; filename?: string; routeId?: string; workspaceId?: string; workspaceRelativeHandoffPath?: string } | null;
+    normalInlineRouting?: { content?: string } | null;
+    sharedRouting?: { routes?: Array<{ routeId?: string; workspaceId?: string; workspaceRelativeHandoffPath?: string; transportText?: string }> } | null;
+    presentation?: { kind?: string; label?: string; recipientLabel?: string; recipientProjectionAuthority?: string } | null;
+    selectedRoute?: { id?: string; workspaceId?: string; workspaceRelativePath?: string; parties?: { from?: string; to?: string } } | null;
+    findings?: Array<{ severity?: string; code?: string; message?: string }>;
+  };
+  findings?: Array<{ severity?: string; code?: string; message?: string }>;
+  [key: string]: unknown;
+}
+
+/**
+ * Regenerate transport presentation from the exact finished carrier bytes.
+ * The caller may select one exact qualified route, but never supplies any
+ * Start/Continue text or recipient semantics itself.
+ */
+export async function projectPackageTransport(
+  runtime: PackageRuntime,
+  packagePath: string,
+  route = '',
+  runner: ProcessRunner = runProcess
+): Promise<PackageTransportProjectionResult> {
+  const target = String(packagePath || '').trim();
+  if (!target) throw new Error('tiinex.transport.package-required');
+  const args = ['project-handoff-carrier-output', target];
+  const selector = String(route || '').trim();
+  if (selector) args.push('--route', selector);
+  args.push('--compact');
+  return runTiinexJson<PackageTransportProjectionResult>(runtime, args, runner);
+}
+
 export interface GroundingResult {
   status: string;
   readiness?: { state?: string };

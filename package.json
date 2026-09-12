@@ -50,7 +50,13 @@
     "onCommand:tiinex.outgoing.detachHandoff",
     "onCommand:tiinex.discovery.displayOptions",
     "onCommand:tiinex.incoming.displayOptions",
-    "onCommand:tiinex.outgoing.displayOptions"
+    "onCommand:tiinex.outgoing.displayOptions",
+    "onView:tiinex.transport",
+    "onCommand:tiinex.transport.refresh",
+    "onCommand:tiinex.transport.send",
+    "onCommand:tiinex.transport.copyPackage",
+    "onCommand:tiinex.transport.copyText",
+    "onCommand:tiinex.transport.close"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -314,6 +320,31 @@
         "command": "tiinex.outgoing.copyTransportText",
         "title": "Copy Handoff Transport Text",
         "icon": "$(copy)"
+      },
+      {
+        "command": "tiinex.transport.refresh",
+        "title": "Tiinex: Refresh Transport",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "tiinex.transport.send",
+        "title": "Send to Transport",
+        "icon": "$(send)"
+      },
+      {
+        "command": "tiinex.transport.copyPackage",
+        "title": "Copy Package",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "tiinex.transport.copyText",
+        "title": "Copy Transport Text",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "tiinex.transport.close",
+        "title": "Close",
+        "icon": "$(close)"
       }
     ],
     "configuration": {
@@ -410,6 +441,11 @@
           "id": "tiinex.outgoing",
           "name": "Outgoing",
           "visibility": "visible"
+        },
+        {
+          "id": "tiinex.transport",
+          "name": "Transport",
+          "visibility": "visible"
         }
       ]
     },
@@ -493,6 +529,11 @@
           "command": "tiinex.outgoing.displayOptions",
           "when": "view == tiinex.outgoing && tiinex.outgoing.hasContext",
           "group": "navigation@4"
+        },
+        {
+          "command": "tiinex.transport.refresh",
+          "when": "view == tiinex.transport",
+          "group": "navigation@9"
         }
       ],
       "view/item/context": [
@@ -580,6 +621,51 @@
           "command": "tiinex.outgoing.embedBootstrapPayload",
           "when": "view == tiinex.outgoing && viewItem == tiinex.outgoingBootstrapDescriptorOmitted",
           "group": "inline@1"
+        },
+        {
+          "command": "tiinex.transport.send",
+          "when": "view == tiinex.discovery && viewItem == tiinex.discoveryPackage",
+          "group": "inline@2"
+        },
+        {
+          "command": "tiinex.transport.send",
+          "when": "view == tiinex.incoming && viewItem == tiinex.incomingPackage",
+          "group": "inline@3"
+        },
+        {
+          "command": "tiinex.transport.send",
+          "when": "view == tiinex.discovery && (viewItem == tiinex.discoveryResolvedHandoff || viewItem == tiinex.discoveryResolvedHandoffUnavailable)",
+          "group": "inline@2"
+        },
+        {
+          "command": "tiinex.transport.send",
+          "when": "view == tiinex.incoming && (viewItem == tiinex.incomingResolvedHandoff || viewItem == tiinex.incomingResolvedHandoffUnavailable)",
+          "group": "inline@3"
+        },
+        {
+          "command": "tiinex.transport.copyPackage",
+          "when": "view == tiinex.transport && viewItem == tiinex.transportPackage",
+          "group": "inline@1"
+        },
+        {
+          "command": "tiinex.transport.copyText",
+          "when": "view == tiinex.transport && viewItem == tiinex.transportPackage",
+          "group": "inline@2"
+        },
+        {
+          "command": "tiinex.transport.close",
+          "when": "view == tiinex.transport && viewItem == tiinex.transportPackage",
+          "group": "inline@9"
+        },
+        {
+          "command": "tiinex.transport.copyPackage",
+          "when": "view == tiinex.transport && viewItem == tiinex.transportRoute",
+          "group": "inline@1"
+        },
+        {
+          "command": "tiinex.transport.copyText",
+          "when": "view == tiinex.transport && viewItem == tiinex.transportRoute",
+          "group": "inline@2"
         }
       ],
       "commandPalette": [
@@ -705,6 +791,22 @@
         },
         {
           "command": "tiinex.generateCommitMessage",
+          "when": "false"
+        },
+        {
+          "command": "tiinex.transport.send",
+          "when": "false"
+        },
+        {
+          "command": "tiinex.transport.copyPackage",
+          "when": "false"
+        },
+        {
+          "command": "tiinex.transport.copyText",
+          "when": "false"
+        },
+        {
+          "command": "tiinex.transport.close",
           "when": "false"
         }
       ],
