@@ -18,9 +18,10 @@ import { projectArtifactAuthoringModel } from '../dist/core/artifactAuthoringMod
 import { artifactCreationReady, requireArtifactCreationReady } from '../dist/core/artifactAuthoringQualification.js';
 import { mergeTransportRouteSelection, selectedTransportRouteIds, transportPrepared, transportPreparedKey } from '../dist/core/transportQueue.js';
 import { gitAutomationBlockerText, gitOperatorResultMarkdown, normalizePostStagePolicy, projectGitOperatorCandidates } from '../dist/core/gitOperator.js';
+import { classifyIncomingMergeConflict, planIncomingFileUnion, renderIncomingTextConflict } from '../dist/core/incomingMerge.js';
 import { planWorkspaceSession, validateWorkspaceTargetMapping } from '../dist/core/workspaceSession.js';
 import { representativeWorkspaceChoicesForRoot } from '../dist/core/workspaceChoice.js';
-import { checkIgnoredPaths, commitPreparedGitOperator, commitPreparedReviewedStaged, commitWorkingTree, deriveGitOperatorCommitMessage, dirtyWorkingTreePaths, discardWorkingTree, generateTiinexCommitMessage, listStagedPaths, mergeCommitNoCommit, payloadCheckoutEligibility, preflightExistingLocalBranch, prepareGitOperatorCommit, prepareReviewedStagedCommit, pushExactGitOperatorCommit, pushExactLandingCommit, pushExactReviewedStagedCommit, stageCommitPush, stageLandingChanges, stageLandingCommit, stashWorkingTree } from '../dist/host/git.js';
+import { checkIgnoredPaths, commitPreparedGitOperator, commitPreparedReviewedStaged, commitWorkingTree, deriveGitOperatorCommitMessage, dirtyWorkingTreePaths, discardWorkingTree, generateTiinexCommitMessage, listStagedConflictMarkerPaths, listStagedPaths, materializeUnmergedFileConflicts, mergeCommitNoCommit, payloadCheckoutEligibility, preflightExistingLocalBranch, prepareGitOperatorCommit, prepareReviewedStagedCommit, pushExactGitOperatorCommit, pushExactLandingCommit, pushExactReviewedStagedCommit, stageCommitPush, stageLandingChanges, stageLandingCommit, stashWorkingTree } from '../dist/host/git.js';
 import { preferredNodeExecutable } from '../dist/host/nodeExecutable.js';
 import { copyFileToClipboard } from '../dist/host/fileClipboard.js';
 import { compareIncomingWorkspaceToLocal, createArtifactDraft, inspectArtifactCreationContract, parseBootstrapDescriptor, prepareBundledRuntime, projectArtifactMaterialization, projectArtifactSchemaGuide, runTiinexJson, projectEditorAssistanceText, projectHandoffEndpoints, projectOperatorContext, projectPackageTransport, projectStagedValidation, projectWorkspaceLanding, projectWorkspacePackageSources } from '../dist/tiinex/bootstrap.js';
@@ -693,6 +694,7 @@ await test('post-stage Git policy is singular, SCM-first, debounced and keeps le
   assert.match(automation, /stageAll:\s*false/);
   assert.match(automation, /requireNoUnstaged:\s*true/);
   assert.match(automation, /requireQualifiedTiinex:\s*true/);
+  assert.match(automation, /requireNoConflictMarkers:\s*true/);
   assert.match(automation, /requirePushSafety:\s*policy === 'commit-push'/);
   assert.match(automation, /auto-committed[\s\S]*locally[\s\S]*but did not push it/);
   assert.match(automation, /requireQualifiedTiinex:\s*false/);
@@ -1147,6 +1149,85 @@ await test('Transport file clipboard never reports a text-path fallback as file-
   assert.equal(fx.calls.length, 1);
 });
 
+await test('Incoming exact shared comparison remains a no-op before Merge planning', async () => {
+  const fs = await import('node:fs/promises');
+  const source = await fs.readFile(path.resolve(HERE, '..', 'src', 'incomingApply.ts'), 'utf8');
+  assert.match(source, /if \(comparison\.state === 'exact'\) \{\s*exactWorkspaceIds\.push\(workspaceId\);\s*continue;/s);
+  assert.match(source, /already match Incoming exactly/);
+});
+
+await test('file-safe Incoming union preserves local-only paths, adds incoming-only paths, and conflicts only on divergent overlaps', async () => {
+  const plan = planIncomingFileUnion({
+    localFiles: ['same.txt', 'changed.txt', 'local-only.txt', 'parent-file'],
+    localDirectories: ['directory-collision'],
+    localSymlinks: ['linked'],
+    incomingFiles: ['same.txt', 'changed.txt', 'incoming-only.txt', 'directory-collision', 'parent-file/child.txt', 'linked/child.txt', 'ignored/future.txt'],
+    ignoredPaths: ['ignored/future.txt'],
+    exactOverlapPaths: ['same.txt']
+  });
+  assert.deepEqual(plan.writes, ['incoming-only.txt']);
+  assert.deepEqual(plan.conflicts, ['changed.txt']);
+  assert.deepEqual(plan.blockedConflicts, ['directory-collision', 'linked/child.txt', 'parent-file/child.txt']);
+  assert.equal([...plan.writes, ...plan.conflicts, ...plan.blockedConflicts].includes('local-only.txt'), false);
+
+  const local = Buffer.from('local text without newline', 'utf8');
+  const incoming = Buffer.from('incoming text\n', 'utf8');
+  assert.equal(classifyIncomingMergeConflict(local, incoming).kind, 'text');
+  assert.equal(classifyIncomingMergeConflict(Buffer.from([0, 1, 2]), incoming).kind, 'binary');
+  assert.equal(renderIncomingTextConflict(local, incoming).toString('utf8'), '<<<<<<< LOCAL\nlocal text without newline\n=======\nincoming text\n>>>>>>> INCOMING\n');
+});
+
+await test('file-safe Incoming conflicts retain exact Git sides, preserve binary working bytes, and block automatic commit of staged markers', async () => {
+  const fs = await import('node:fs/promises');
+  const os = await import('node:os');
+  const { execFile } = await import('node:child_process');
+  const { promisify } = await import('node:util');
+  const run = promisify(execFile);
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tiinex-file-safe-conflict-'));
+  const git = async (...args) => (await run('git', args, { cwd: tmp })).stdout;
+  const gitBuffer = async (...args) => Buffer.from((await run('git', args, { cwd: tmp, encoding: 'buffer' })).stdout);
+  try {
+    await git('init', '-q');
+    await git('config', 'user.name', 'Tiinex Test');
+    await git('config', 'user.email', 'tiinex@example.invalid');
+    await fs.writeFile(path.join(tmp, 'text.txt'), 'base\n', 'utf8');
+    await fs.writeFile(path.join(tmp, 'binary.bin'), Buffer.from([9, 9, 9]));
+    await git('add', '-A');
+    await git('commit', '-q', '-m', 'base');
+
+    const localText = Buffer.from('local\n', 'utf8');
+    const incomingText = Buffer.from('incoming\n', 'utf8');
+    const localBinary = Buffer.from([0, 1, 2, 3]);
+    const incomingBinary = Buffer.from([0, 9, 8, 7]);
+    await fs.writeFile(path.join(tmp, 'text.txt'), localText);
+    await fs.writeFile(path.join(tmp, 'binary.bin'), localBinary);
+
+    assert.deepEqual(await materializeUnmergedFileConflicts(tmp, [
+      { path: 'text.txt', local: localText, incoming: incomingText },
+      { path: 'binary.bin', local: localBinary, incoming: incomingBinary }
+    ]), ['binary.bin', 'text.txt']);
+    await fs.writeFile(path.join(tmp, 'text.txt'), renderIncomingTextConflict(localText, incomingText));
+
+    const unresolved = (await git('diff', '--name-only', '--diff-filter=U')).trim().split(/\r?\n/).filter(Boolean).sort();
+    assert.deepEqual(unresolved, ['binary.bin', 'text.txt']);
+    assert.equal((await git('show', ':2:text.txt')), 'local\n');
+    assert.equal((await git('show', ':3:text.txt')), 'incoming\n');
+    assert.deepEqual(await gitBuffer('show', ':2:binary.bin'), localBinary);
+    assert.deepEqual(await gitBuffer('show', ':3:binary.bin'), incomingBinary);
+    assert.deepEqual(await fs.readFile(path.join(tmp, 'binary.bin')), localBinary, 'binary working bytes must remain local until explicit resolution');
+
+    await git('add', 'text.txt', 'binary.bin');
+    assert.deepEqual(await listStagedConflictMarkerPaths(tmp, ['text.txt', 'binary.bin']), ['text.txt']);
+    await rejectsCode(() => prepareReviewedStagedCommit(tmp, process.execPath, {
+      stageAll: false,
+      requireNoUnstaged: false,
+      requireQualifiedTiinex: false,
+      requirePushSafety: false,
+      requireNoConflictMarkers: true
+    }), 'tiinex.git.unresolved-conflict-markers:text.txt');
+  } finally { await fs.rm(tmp, { recursive: true, force: true }); }
+});
+
 await test('installed Core exposes Handoff reference fields as validation-only authoring gaps', async () => {
   const root = path.resolve(HERE, '..');
   const runtime = await prepareBundledRuntime(root, process.execPath);
@@ -1294,6 +1375,11 @@ await test('multi-Incoming and Merge/Replace remain selection-first, dry until f
   assert.match(apply, /check-ignore/);
   assert.match(apply, /ignored-or-symlink-collision/);
   assert.match(apply, /mergeCommitNoCommit/);
+  assert.match(apply, /materializeUnmergedFileConflicts/);
+  assert.match(apply, /renderIncomingTextConflict/);
+  assert.match(apply, /binary\/non-text conflict; local working bytes retained/);
+  assert.match(apply, /result\.affected && !result\.conflicts/);
+  assert.doesNotMatch(apply, /Use Replace/);
   assert.match(apply, /workbench\.view\.scm/);
   assert.match(apply, /workbench\.view\.explorer/);
   assert.match(apply, /revealInExplorer/);

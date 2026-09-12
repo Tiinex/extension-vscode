@@ -176,7 +176,8 @@ export async function registerGitAutomation(context: vscode.ExtensionContext, ex
           stageAll: false,
           requireNoUnstaged: true,
           requireQualifiedTiinex: true,
-          requirePushSafety: policy === 'commit-push'
+          requirePushSafety: policy === 'commit-push',
+          requireNoConflictMarkers: true
         }, async (stagedPaths) => {
           const validation = await validateStagedWithRuntime(runtime, root, stagedPaths);
           return { state: validation.state, stagedTiinexPaths: validation.stagedTiinexPaths, ignoredStagedPaths: validation.ignoredStagedPaths };

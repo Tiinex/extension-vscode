@@ -1,6 +1,6 @@
 import os from 'node:os';
 import path from 'node:path';
-import { access, copyFile, lstat, mkdir, mkdtemp, readFile, readdir, readlink, rm } from 'node:fs/promises';
+import { access, copyFile, lstat, mkdir, mkdtemp, readFile, readdir, readlink, rm, writeFile } from 'node:fs/promises';
 import * as vscode from 'vscode';
 import { preferredNodeExecutable } from './host/nodeExecutable';
 import { IndexedCarrierPackage, IndexedCarrierWorkspace } from './carrierIndex';
@@ -18,12 +18,14 @@ import {
   listIgnoredFiles,
   mergeBase,
   mergeCommitNoCommit,
+  materializeUnmergedFileConflicts,
   repositoryFact,
   resolveCommit,
   stashWorkingTree,
   switchToExistingLocalBranch
 } from './host/git';
 import { runChecked, runProcess } from './host/process';
+import { classifyIncomingMergeConflict, planIncomingFileUnion, renderIncomingTextConflict } from './core/incomingMerge';
 
 export type IncomingApplyStrategy = 'merge' | 'replace';
 type DirtyResolution = 'none' | 'preserve' | 'stash' | 'commit';
@@ -88,13 +90,22 @@ export interface IncomingApplyResult {
 
 interface TreeInventory {
   files: string[];
+  directories: string[];
   symlinks: string[];
 }
 
 interface FileMergeAnalysis {
   writes: string[];
   conflicts: string[];
+  blockedConflicts: string[];
   protectedPaths: string[];
+}
+
+interface FileMergeExecution {
+  affected: boolean;
+  conflicts: boolean;
+  textConflictPaths: string[];
+  binaryConflictPaths: string[];
 }
 
 function nodeExecutable(): string { return preferredNodeExecutable(vscode.workspace.getConfiguration('tiinex').get('nodePath', '').toString().trim()); }
@@ -187,6 +198,7 @@ async function materializeSnapshot(runtime: Awaited<ReturnType<typeof prepareBun
 
 async function walkTree(root: string, current = root, prefix = ''): Promise<TreeInventory> {
   const files: string[] = [];
+  const directories: string[] = [];
   const symlinks: string[] = [];
   const entries = await readdir(current, { withFileTypes: true });
   for (const entry of entries) {
@@ -196,11 +208,12 @@ async function walkTree(root: string, current = root, prefix = ''): Promise<Tree
     const info = await lstat(absolute);
     if (info.isSymbolicLink()) { symlinks.push(relative); continue; }
     if (info.isDirectory()) {
+      directories.push(relative);
       const nested = await walkTree(root, absolute, relative);
-      files.push(...nested.files); symlinks.push(...nested.symlinks);
+      files.push(...nested.files); directories.push(...nested.directories); symlinks.push(...nested.symlinks);
     } else if (info.isFile()) files.push(relative);
   }
-  return { files: files.sort(), symlinks: symlinks.sort() };
+  return { files: files.sort(), directories: directories.sort(), symlinks: symlinks.sort() };
 }
 
 async function ignoredPathsWithoutRepository(root: string, candidates: string[], scratch: string): Promise<string[]> {
@@ -224,20 +237,25 @@ async function fileSha(file: string): Promise<string> {
 
 async function analyzeFileMerge(localRoot: string, snapshot: SnapshotMaterial, hasGit: boolean, scratch: string, preOperationIgnoredPaths: string[] = []): Promise<FileMergeAnalysis> {
   const local = await walkTree(localRoot);
-  const allPaths = [...new Set([...local.files, ...local.symlinks, ...snapshot.files])];
+  const allPaths = [...new Set([...local.files, ...local.directories, ...local.symlinks, ...snapshot.files])];
   const ignored = new Set([...preOperationIgnoredPaths, ...await ignoredPaths(localRoot, allPaths, hasGit, scratch)]);
   const protectedPaths = [...new Set([...local.symlinks, ...allPaths.filter((item) => ignored.has(item))])].sort();
-  const localFiles = new Set(local.files.filter((item) => !ignored.has(item)));
-  const writes: string[] = [];
-  const conflicts: string[] = [];
+  const localFileSet = new Set(local.files.filter((item) => !ignored.has(item)));
+  const exactOverlapPaths: string[] = [];
   for (const relative of snapshot.files) {
-    if (ignored.has(relative)) continue;
-    if (protectedPaths.some((item) => pathOverlap(item, relative))) { conflicts.push(relative); continue; }
-    if (!localFiles.has(relative)) { writes.push(relative); continue; }
+    if (ignored.has(relative) || !localFileSet.has(relative)) continue;
     const [left, right] = await Promise.all([fileSha(safeTarget(localRoot, relative)), fileSha(safeTarget(snapshot.root, relative))]);
-    if (left !== right) conflicts.push(relative);
+    if (left === right) exactOverlapPaths.push(relative);
   }
-  return { writes: writes.sort(), conflicts: [...new Set(conflicts)].sort(), protectedPaths };
+  const union = planIncomingFileUnion({
+    localFiles: local.files,
+    localDirectories: local.directories,
+    localSymlinks: local.symlinks,
+    incomingFiles: snapshot.files,
+    ignoredPaths: [...ignored],
+    exactOverlapPaths
+  });
+  return { ...union, protectedPaths };
 }
 
 async function listGitCommitTree(root: string, commit: string): Promise<Map<string, string> | null> {
@@ -367,25 +385,11 @@ async function preparePlan(
       if (overlapAny(changedPaths, preOperationIgnoredPaths)) { incomingCommit = ''; mergeMode = 'file-safe'; changedPaths = []; }
     }
   }
-  let actualStrategy = strategy;
   let safePreserveMerge = mergeMode === 'git-native';
   if (mergeMode === 'file-safe') {
     const analysis = await analyzeFileMerge(local.root, snapshot, hasGit, scratch, preOperationIgnoredPaths);
-    safePreserveMerge = analysis.conflicts.length === 0;
-    if (safePreserveMerge) changedPaths = analysis.writes;
-    if (actualStrategy === 'merge' && analysis.conflicts.length) {
-      const sample = analysis.conflicts.slice(0, 5).join(', ');
-      const choice = await vscode.window.showWarningMessage(
-        `${snapshot.workspace.label || snapshot.workspace.workspaceId}: a common Git base is not provable and ${analysis.conflicts.length} overlapping file${analysis.conflicts.length === 1 ? '' : 's'} differ (${sample}${analysis.conflicts.length > 5 ? ', …' : ''}).\n\nTiinex will not guess a winner.`,
-        { modal: true },
-        'Use Replace',
-        'Skip Workspace',
-        'Cancel'
-      );
-      if (choice === 'Use Replace') actualStrategy = 'replace';
-      else if (choice === 'Skip Workspace') return null;
-      else throw new Error('tiinex.incoming-apply.cancelled');
-    }
+    safePreserveMerge = analysis.conflicts.length === 0 && analysis.blockedConflicts.length === 0;
+    changedPaths = [...new Set([...analysis.writes, ...analysis.conflicts, ...analysis.blockedConflicts])].sort();
   }
   const plan: WorkspaceApplyPlan = {
     workspaceId: snapshot.workspace.workspaceId,
@@ -393,7 +397,7 @@ async function preparePlan(
     local,
     snapshot,
     comparison,
-    strategy: actualStrategy,
+    strategy,
     hasGit,
     localBranch,
     incomingRef,
@@ -426,11 +430,49 @@ async function copyIncomingFiles(snapshot: SnapshotMaterial, localRoot: string, 
   }
 }
 
-async function applyFileMerge(plan: WorkspaceApplyPlan, scratch: string): Promise<boolean> {
+async function gitFileMode(file: string): Promise<'100644' | '100755'> {
+  const info = await lstat(file);
+  if (!info.isFile()) throw new Error(`tiinex.incoming-apply.conflict-not-regular-file:${file}`);
+  return (info.mode & 0o111) !== 0 ? '100755' : '100644';
+}
+
+async function applyFileMerge(plan: WorkspaceApplyPlan, scratch: string): Promise<FileMergeExecution> {
   const analysis = await analyzeFileMerge(plan.local.root, plan.snapshot, plan.hasGit, scratch, plan.preOperationIgnoredPaths);
-  if (analysis.conflicts.length) throw new Error(`tiinex.incoming-apply.merge-conflicts:${plan.workspaceId}:${analysis.conflicts.join(',')}`);
-  if (!analysis.writes.length) return false;
+  if (analysis.blockedConflicts.length) {
+    throw new Error(`tiinex.incoming-apply.protected-or-structural-conflict:${plan.workspaceId}:${analysis.blockedConflicts.join(',')}`);
+  }
+  if (!analysis.writes.length && !analysis.conflicts.length) {
+    return { affected: false, conflicts: false, textConflictPaths: [], binaryConflictPaths: [] };
+  }
+
+  const textConflictPaths: string[] = [];
+  const binaryConflictPaths: string[] = [];
+  const markerBytes = new Map<string, Buffer>();
+  const originalBytes = new Map<string, Buffer>();
+  const unmerged = [];
+  for (const relative of analysis.conflicts) {
+    const localPath = safeTarget(plan.local.root, relative);
+    const incomingPath = safeTarget(plan.snapshot.root, relative);
+    const [localBytes, incomingBytes, localMode, incomingMode] = await Promise.all([
+      readFile(localPath),
+      readFile(incomingPath),
+      gitFileMode(localPath),
+      gitFileMode(incomingPath)
+    ]);
+    const classification = classifyIncomingMergeConflict(localBytes, incomingBytes);
+    originalBytes.set(relative, localBytes);
+    unmerged.push({ path: relative, local: localBytes, incoming: incomingBytes, localMode, incomingMode });
+    if (classification.kind === 'text') {
+      textConflictPaths.push(relative);
+      markerBytes.set(relative, renderIncomingTextConflict(localBytes, incomingBytes));
+    } else {
+      binaryConflictPaths.push(relative);
+    }
+  }
+
   const written: string[] = [];
+  const marked: string[] = [];
+  let indexAttempted = false;
   try {
     for (const relative of analysis.writes) {
       const target = safeTarget(plan.local.root, relative);
@@ -438,9 +480,29 @@ async function applyFileMerge(plan: WorkspaceApplyPlan, scratch: string): Promis
       await copyFile(safeTarget(plan.snapshot.root, relative), target);
       written.push(relative);
     }
-    return true;
+    for (const relative of textConflictPaths) {
+      await writeFile(safeTarget(plan.local.root, relative), markerBytes.get(relative)!);
+      marked.push(relative);
+    }
+    if (unmerged.length) {
+      indexAttempted = true;
+      await materializeUnmergedFileConflicts(plan.local.root, unmerged);
+    }
+    return {
+      affected: analysis.writes.length > 0 || analysis.conflicts.length > 0,
+      conflicts: analysis.conflicts.length > 0,
+      textConflictPaths: textConflictPaths.sort(),
+      binaryConflictPaths: binaryConflictPaths.sort()
+    };
   } catch (error) {
-    for (const relative of written.reverse()) await rm(safeTarget(plan.local.root, relative), { recursive: true, force: true });
+    if (indexAttempted && analysis.conflicts.length) {
+      await runProcess('git', ['reset', '--', ...analysis.conflicts], { cwd: plan.local.root }).catch(() => undefined);
+    }
+    for (const relative of marked.reverse()) {
+      const original = originalBytes.get(relative);
+      if (original) await writeFile(safeTarget(plan.local.root, relative), original).catch(() => undefined);
+    }
+    for (const relative of written.reverse()) await rm(safeTarget(plan.local.root, relative), { recursive: true, force: true }).catch(() => undefined);
     throw error;
   }
 }
@@ -478,7 +540,7 @@ async function applyReplace(plan: WorkspaceApplyPlan, scratch: string): Promise<
   }
 }
 
-async function executePlan(plan: WorkspaceApplyPlan, scratch: string): Promise<{ affected: boolean; conflicts: boolean }> {
+async function executePlan(plan: WorkspaceApplyPlan, scratch: string): Promise<FileMergeExecution & { nativeConflictPaths: string[] }> {
   if (plan.hasGit) {
     if (plan.dirtyResolution === 'stash') await stashWorkingTree(plan.local.root);
     else if (plan.dirtyResolution === 'commit') {
@@ -489,10 +551,16 @@ async function executePlan(plan: WorkspaceApplyPlan, scratch: string): Promise<{
   }
   if (plan.strategy === 'merge' && plan.mergeMode === 'git-native' && plan.incomingCommit) {
     const result = await mergeCommitNoCommit(plan.local.root, plan.incomingCommit);
-    return { affected: !result.alreadyUpToDate || result.conflicts.length > 0, conflicts: result.conflicts.length > 0 };
+    return {
+      affected: !result.alreadyUpToDate || result.conflicts.length > 0,
+      conflicts: result.conflicts.length > 0,
+      textConflictPaths: [],
+      binaryConflictPaths: [],
+      nativeConflictPaths: result.conflicts
+    };
   }
-  if (plan.strategy === 'merge') return { affected: await applyFileMerge(plan, scratch), conflicts: false };
-  return { affected: await applyReplace(plan, scratch), conflicts: false };
+  if (plan.strategy === 'merge') return { ...await applyFileMerge(plan, scratch), nativeConflictPaths: [] };
+  return { affected: await applyReplace(plan, scratch), conflicts: false, textConflictPaths: [], binaryConflictPaths: [], nativeConflictPaths: [] };
 }
 
 function planSummary(plans: WorkspaceApplyPlan[]): string {
@@ -601,17 +669,25 @@ export async function applyIncomingWorkspaces(extensionPath: string, index: Inde
           }
           const affectedWorkspaceIds: string[] = [];
           const conflictWorkspaceIds: string[] = [];
+          const conflictDetails: string[] = [];
           for (const plan of plans) {
             progress.report({ message: `${plan.strategy === 'merge' ? 'Merging' : 'Replacing'} ${plan.label}...` });
             const result = await executePlan(plan, scratch);
-            if (result.affected) affectedWorkspaceIds.push(plan.workspaceId);
+            // An unresolved Workspace must remain actionable in Incoming rather than
+            // being marked as session-applied merely because some safe union bytes landed.
+            if (result.affected && !result.conflicts) affectedWorkspaceIds.push(plan.workspaceId);
             if (result.conflicts) {
               conflictWorkspaceIds.push(plan.workspaceId);
+              if (result.nativeConflictPaths.length) conflictDetails.push(`${plan.label}: native Git conflict · ${result.nativeConflictPaths.join(', ')}`);
+              if (result.textConflictPaths.length) conflictDetails.push(`${plan.label}: text conflict markers + Git unmerged stages · ${result.textConflictPaths.join(', ')}`);
+              if (result.binaryConflictPaths.length) conflictDetails.push(`${plan.label}: binary/non-text conflict; local working bytes retained, Incoming side retained as Git stage 3 and in ${path.basename(index.packagePath)} · ${result.binaryConflictPaths.join(', ')}`);
               await vscode.commands.executeCommand('workbench.view.scm');
             }
           }
           if (conflictWorkspaceIds.length) {
-            await vscode.window.showWarningMessage(`Tiinex left real Git merge conflicts in ${conflictWorkspaceIds.join(', ')}. Resolve them with VS Code Source Control / Merge Editor, then commit when ready.`);
+            await vscode.window.showWarningMessage(
+              `Tiinex left unresolved Merge conflicts in ${conflictWorkspaceIds.join(', ')}. No conflict Workspace was marked applied and automatic Git commit remains blocked while the unmerged index exists. Resolve with VS Code Source Control / Merge Editor, then commit when ready.${conflictDetails.length ? `\n\n${conflictDetails.join('\n')}` : ''}`
+            );
           }
           return { affectedWorkspaceIds, conflictWorkspaceIds };
         }

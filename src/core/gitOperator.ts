@@ -109,6 +109,7 @@ export function gitAutomationBlockerText(error: unknown): string {
   const text = error instanceof Error ? error.message : String(error || 'unknown');
   if (text.startsWith('tiinex.git.no-qualified-tiinex-artifact')) return 'no qualified Tiinex artifact is staged; source-only staging is left for explicit manual commit';
   if (text.startsWith('tiinex.git.unresolved-conflicts:')) return `unresolved Git conflicts remain (${text.slice('tiinex.git.unresolved-conflicts:'.length)})`;
+  if (text.startsWith('tiinex.git.unresolved-conflict-markers:')) return `staged files still contain ordinary conflict markers (${text.slice('tiinex.git.unresolved-conflict-markers:'.length)})`;
   if (text.startsWith('tiinex.git.unstaged-remainder:')) return `unstaged changes remain (${text.slice('tiinex.git.unstaged-remainder:'.length)})`;
   if (text.startsWith('tiinex.git.working-state-changed-during-preparation') || text.startsWith('tiinex.git.staged-state-changed-during-preparation')) return 'the repository changed while Tiinex was validating/deriving the commit; a later stable Git event must re-evaluate it';
   if (text.startsWith('tiinex.git.missing-upstream')) return 'the current branch has no upstream, so automatic Commit + Push is blocked before commit';

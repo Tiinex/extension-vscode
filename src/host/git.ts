@@ -416,6 +416,7 @@ export interface PrepareReviewedStagedCommitOptions {
   requireNoUnstaged: boolean;
   requireQualifiedTiinex: boolean;
   requirePushSafety: boolean;
+  requireNoConflictMarkers?: boolean;
 }
 
 export interface PreparedReviewedStagedCommit {
@@ -465,6 +466,24 @@ export async function listConflictPaths(root: string, runner: ProcessRunner = ru
   return splitZero(result.stdout).map((item) => item.replace(/\\/g, '/')).sort();
 }
 
+/** Automatic-only fail-closed guard for staged ordinary conflict markers. */
+export async function listStagedConflictMarkerPaths(root: string, stagedPaths: string[], runner: ProcessRunner = runProcess): Promise<string[]> {
+  const paths = [...new Set(stagedPaths.map((item) => item.replace(/\\/g, '/')).filter(Boolean))];
+  if (!paths.length) return [];
+  const matches = new Set<string>();
+  for (let offset = 0; offset < paths.length; offset += 100) {
+    const chunk = paths.slice(offset, offset + 100);
+    const result = await runner('git', [
+      'grep', '--cached', '-I', '-l', '-z',
+      '-e', '^<<<<<<< ', '-e', '^=======$', '-e', '^>>>>>>> ',
+      '--', ...chunk
+    ], { cwd: root });
+    if (result.code !== 0 && result.code !== 1) throw new Error(`tiinex.git.conflict-marker-query-failed:${result.stderr.trim() || result.stdout.trim() || result.code}`);
+    for (const item of splitZero(result.stdout)) matches.add(item.replace(/\\/g, '/'));
+  }
+  return [...matches].sort();
+}
+
 function pushSafetyBlocker(upstream: string, relation: { ahead: number; behind: number } | null): string {
   if (!upstream) return 'tiinex.git.missing-upstream';
   if (!relation) return 'tiinex.git.upstream-query-failed';
@@ -499,6 +518,10 @@ export async function prepareReviewedStagedCommit(
   if (conflicts.length) throw new Error(`tiinex.git.unresolved-conflicts:${conflicts.join(',')}`);
   const stagedPaths = await listReviewedStagedPaths(root, runner);
   if (!stagedPaths.length) throw new Error('tiinex.git.no-staged-changes');
+  if (options.requireNoConflictMarkers) {
+    const markerPaths = await listStagedConflictMarkerPaths(root, stagedPaths, runner);
+    if (markerPaths.length) throw new Error(`tiinex.git.unresolved-conflict-markers:${markerPaths.join(',')}`);
+  }
   if (options.requireNoUnstaged) {
     const unstaged = await listUnstagedPaths(root, runner);
     if (unstaged.length) throw new Error(`tiinex.git.unstaged-remainder:${unstaged.join(',')}`);
@@ -647,6 +670,58 @@ export async function commitWorkingTreeWithMessage(root: string, commitMessage: 
   if (!/^[a-f0-9]{40,64}$/.test(commitSha)) throw new Error('tiinex.git.commit-sha-invalid');
   if (!(await repositoryFact(root, runner)).clean) throw new Error('tiinex.git.local-commit-verification-failed');
   return { message, commitSha };
+}
+
+
+export interface UnmergedFileConflict {
+  path: string;
+  local: Buffer;
+  incoming: Buffer;
+  localMode?: '100644' | '100755';
+  incomingMode?: '100644' | '100755';
+}
+
+function safeUnmergedPath(value: string): string {
+  const relative = String(value || '').replace(/\\/g, '/').replace(/^\.\//, '');
+  if (!relative || relative === '.' || relative === '..' || relative.startsWith('../') || path.posix.isAbsolute(relative) || /[\0\r\n\t]/.test(relative)) {
+    throw new Error(`tiinex.git.unmerged-path-invalid:${relative || '(empty)'}`);
+  }
+  if (relative === '.git' || relative.startsWith('.git/')) throw new Error(`tiinex.git.unmerged-path-git:${relative}`);
+  return relative;
+}
+
+async function writeGitBlob(root: string, bytes: Buffer, runner: ProcessRunner): Promise<string> {
+  const result = await runChecked('git', ['hash-object', '-w', '--stdin'], { cwd: root, input: bytes }, runner);
+  const sha = result.stdout.trim().toLowerCase();
+  if (!/^[a-f0-9]{40,64}$/.test(sha)) throw new Error('tiinex.git.unmerged-blob-sha-invalid');
+  return sha;
+}
+
+/**
+ * Materialize an explicit two-sided unresolved file conflict in Git's index.
+ * Stage 2 is the exact local bytes and stage 3 is the exact Incoming bytes; no
+ * synthetic base is invented. Callers own working-tree conflict-marker bytes.
+ */
+export async function materializeUnmergedFileConflicts(root: string, conflicts: UnmergedFileConflict[], runner: ProcessRunner = runProcess): Promise<string[]> {
+  if (!conflicts.length) return [];
+  const records: string[] = [];
+  const expected: string[] = [];
+  for (const conflict of conflicts) {
+    const relative = safeUnmergedPath(conflict.path);
+    const [localSha, incomingSha] = await Promise.all([
+      writeGitBlob(root, conflict.local, runner),
+      writeGitBlob(root, conflict.incoming, runner)
+    ]);
+    records.push(`0 ${'0'.repeat(localSha.length)}\t${relative}`);
+    records.push(`${conflict.localMode || '100644'} ${localSha} 2\t${relative}`);
+    records.push(`${conflict.incomingMode || '100644'} ${incomingSha} 3\t${relative}`);
+    expected.push(relative);
+  }
+  await runChecked('git', ['update-index', '--index-info'], { cwd: root, input: `${records.join('\n')}\n` }, runner);
+  const unresolved = new Set(await listConflictPaths(root, runner));
+  const missing = expected.filter((item) => !unresolved.has(item));
+  if (missing.length) throw new Error(`tiinex.git.unmerged-materialization-verification-failed:${missing.join(',')}`);
+  return [...new Set(expected)].sort();
 }
 
 export interface MergeNoCommitResult { conflicts: string[]; alreadyUpToDate: boolean }
