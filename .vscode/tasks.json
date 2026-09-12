@@ -42,7 +42,7 @@
       "script": "dev:build",
       "dependsOrder": "sequence",
       "dependsOn": [
-        "Tiinex: Link this checkout"
+        "Tiinex: npm install"
       ],
       "group": {
         "kind": "build",

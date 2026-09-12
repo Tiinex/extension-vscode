@@ -44,6 +44,7 @@
     "onCommand:tiinex.incoming.replace",
     "onCommand:tiinex.outgoing.selectFolder",
     "onCommand:tiinex.artifact.new",
+    "onCommand:tiinex.artifact.newFeedback",
     "onCommand:tiinex.artifact.newHandoff",
     "onCommand:tiinex.artifact.attachHandoff",
     "onCommand:tiinex.outgoing.attachHandoff",
@@ -298,8 +299,14 @@
         "icon": "$(new-file)"
       },
       {
+        "command": "tiinex.artifact.newFeedback",
+        "title": "Tiinex: New Feedback",
+        "icon": "$(comment)"
+      },
+      {
         "command": "tiinex.artifact.newHandoff",
-        "title": "New Handoff"
+        "title": "Tiinex: New Handoff",
+        "icon": "$(git-pull-request-create)"
       },
       {
         "command": "tiinex.artifact.attachHandoff",
@@ -334,7 +341,7 @@
       {
         "command": "tiinex.transport.copyPackage",
         "title": "Copy Package",
-        "icon": "$(copy)"
+        "icon": "$(archive)"
       },
       {
         "command": "tiinex.transport.copyText",
@@ -465,6 +472,21 @@
         }
       ],
       "view/title": [
+        {
+          "command": "tiinex.artifact.new",
+          "when": "view == tiinex.discovery",
+          "group": "navigation@1"
+        },
+        {
+          "command": "tiinex.artifact.newFeedback",
+          "when": "view == tiinex.discovery",
+          "group": "navigation@2"
+        },
+        {
+          "command": "tiinex.artifact.newHandoff",
+          "when": "view == tiinex.discovery",
+          "group": "navigation@3"
+        },
         {
           "command": "tiinex.discovery.selectFolder",
           "when": "view == tiinex.discovery",
@@ -742,10 +764,6 @@
           "when": "false"
         },
         {
-          "command": "tiinex.artifact.newHandoff",
-          "when": "false"
-        },
-        {
           "command": "tiinex.artifact.attachHandoff",
           "when": "false"
         },
@@ -824,14 +842,19 @@
           "group": "1_authoring@1"
         },
         {
-          "command": "tiinex.artifact.newHandoff",
+          "command": "tiinex.artifact.newFeedback",
           "when": "explorerResourceIsFolder",
           "group": "1_authoring@2"
         },
         {
+          "command": "tiinex.artifact.newHandoff",
+          "when": "explorerResourceIsFolder",
+          "group": "1_authoring@3"
+        },
+        {
           "command": "tiinex.artifact.attachHandoff",
           "when": "!explorerResourceIsFolder && resourceExtname == .md",
-          "group": "1_authoring@3"
+          "group": "1_authoring@4"
         }
       ],
       "scm/sourceControl": [
@@ -865,7 +888,7 @@
     "test": "npm run build && node test/run.mjs",
     "vsix": "npm run build && node scripts/package-vsix.mjs",
     "validate": "npm run typecheck && npm test && npm run test:package && npm run vsix",
-    "dev:build": "npm run build",
+    "dev:build": "tsc -p tsconfig.json",
     "dev:setup": "npm run dev:link",
     "dev:link": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ensure-windows-main-host-dev-extension-link.ps1",
     "dev:unlink": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ensure-windows-main-host-dev-extension-link.ps1 -Unlink",

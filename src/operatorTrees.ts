@@ -499,7 +499,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     if (selected) await this.newOutgoingHandoff(selected.workspaceId);
   }
 
-  async beginArtifactAuthoring(resource?: vscode.Uri): Promise<void> {
+  async beginArtifactAuthoring(resource?: vscode.Uri, preselectedSchemaId = ''): Promise<void> {
     try {
       const choice = resource
         ? await this.localWorkspaceForResource(resource)
@@ -508,7 +508,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       const workspace = this.localOutgoingWorkspaceForChoice(choice) || this.workspaceFromLocalChoice(choice);
       const root = await this.ensureOutgoingAuthoringRoot(workspace);
       const catalog = await loadArtifactAuthoringCatalog(this.extensionPath, root);
-      const schema = await this.pickArtifactSchema(catalog);
+      const schema = await this.pickArtifactSchema(catalog, preselectedSchemaId);
       if (!schema) return;
       const parentArtifact = await this.pickArtifactParent(root, catalog);
       if (parentArtifact === undefined) return;
@@ -610,7 +610,8 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     register('tiinex.tree.openArtifact', (node: OperatorNode) => this.openArtifactNode(node));
     register('tiinex.tree.openWorkspaceMarkdown', (node: OperatorNode) => this.openWorkspaceMarkdownNode(node));
     register('tiinex.artifact.new', (resource?: vscode.Uri) => this.beginArtifactAuthoring(resource));
-    register('tiinex.artifact.newHandoff', (resource?: vscode.Uri) => this.newHandoffFromExplorer(resource));
+    register('tiinex.artifact.newFeedback', (resource?: vscode.Uri) => this.beginArtifactAuthoring(resource, 'tiinex.feedback.v1'));
+    register('tiinex.artifact.newHandoff', (resource?: vscode.Uri) => this.beginArtifactAuthoring(resource, 'tiinex.handoff.v1'));
     register('tiinex.artifact.attachHandoff', (resource?: vscode.Uri) => this.attachHandoffFromExplorer(resource));
 
     // Compatibility-only command ids from the preparatory iteration. They stay hidden.
@@ -677,7 +678,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     this.transportProvider.refresh();
     try {
       const existing = this.transport.find((item) => path.resolve(item.packagePath) === resolved);
-      const qualified = await this.qualifyTransportPackage(resolved, existing?.routeIds, existing?.addedAt || Date.now());
+      const qualified = await this.qualifyTransportPackage(resolved, existing?.routeIds ?? null, existing?.addedAt || Date.now());
       if (routeSelector) {
         const route = this.transportRouteForSelector(qualified, routeSelector);
         if (!route) throw new Error(`tiinex.transport.route-unqualified:${routeSelector}`);
@@ -2326,24 +2327,6 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       sourceLabel: 'Local',
       payloadIncluded: true
     };
-  }
-
-  private async newHandoffFromExplorer(resource?: vscode.Uri): Promise<void> {
-    if (!resource) { await this.beginHandoffAuthoring(); return; }
-    try {
-      const choice = await this.localWorkspaceForResource(resource);
-      const outgoingWorkspace = this.localOutgoingWorkspaceForChoice(choice);
-      const workspace = outgoingWorkspace || this.workspaceFromLocalChoice(choice);
-      const root = await this.ensureOutgoingAuthoringRoot(workspace);
-      const catalog = await loadArtifactAuthoringCatalog(this.extensionPath, root);
-      const schema = await this.pickArtifactSchema(catalog, 'tiinex.handoff.v1');
-      if (!schema) return;
-      const parentArtifact = await this.pickArtifactParent(root, catalog);
-      if (parentArtifact === undefined) return;
-      await this.showArtifactAuthoring(workspace, schema.schemaId, parentArtifact, { attachAvailable: Boolean(outgoingWorkspace), attachDefault: Boolean(outgoingWorkspace) });
-    } catch (error) {
-      await vscode.window.showErrorMessage(`Tiinex New Handoff blocked: ${shortMessage(error)}`);
-    }
   }
 
   private async revealOutgoingPanel(): Promise<void> {

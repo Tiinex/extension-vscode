@@ -248,7 +248,10 @@ await test('extension contributes stable Discovery, Incoming, Outgoing and Trans
   assert.equal(commands.get('tiinex.transport.refresh')?.icon, '$(refresh)');
   assert.equal(commands.get('tiinex.transport.send')?.title, 'Send to Transport');
   assert.equal(commands.get('tiinex.transport.copyPackage')?.title, 'Copy Package');
+  assert.equal(commands.get('tiinex.transport.copyPackage')?.icon, '$(archive)');
   assert.equal(commands.get('tiinex.transport.copyText')?.title, 'Copy Transport Text');
+  assert.equal(commands.get('tiinex.transport.copyText')?.icon, '$(copy)');
+  assert.notEqual(commands.get('tiinex.transport.copyPackage')?.icon, commands.get('tiinex.transport.copyText')?.icon);
   assert.equal(commands.get('tiinex.transport.close')?.title, 'Close');
   assert.equal(manifest.contributes?.configuration?.properties?.['tiinex.discovery.autoClearDiscovery']?.enum?.join(','), 'no,yes');
   const titleMenus = manifest.contributes?.menus?.['view/title'] || [];
@@ -307,8 +310,17 @@ await test('extension contributes stable Discovery, Incoming, Outgoing and Trans
   assert.ok(explorerMenus.some((item) => item.submenu === 'tiinex.explorer.actions' && item.group === '1_tiinex@1'));
   assert.ok((manifest.contributes?.submenus || []).some((item) => item.id === 'tiinex.explorer.actions' && item.label === 'Tiinex'));
   const tiinexExplorerMenus = manifest.contributes?.menus?.['tiinex.explorer.actions'] || [];
+  assert.ok(tiinexExplorerMenus.some((item) => item.command === 'tiinex.artifact.new' && /explorerResourceIsFolder/.test(item.when || '')));
+  assert.ok(tiinexExplorerMenus.some((item) => item.command === 'tiinex.artifact.newFeedback' && /explorerResourceIsFolder/.test(item.when || '')));
   assert.ok(tiinexExplorerMenus.some((item) => item.command === 'tiinex.artifact.newHandoff' && /explorerResourceIsFolder/.test(item.when || '')));
   assert.ok(tiinexExplorerMenus.some((item) => item.command === 'tiinex.artifact.attachHandoff' && item.when === '!explorerResourceIsFolder && resourceExtname == .md'));
+  const viewTitleMenus = manifest.contributes?.menus?.['view/title'] || [];
+  assert.ok(viewTitleMenus.some((item) => item.command === 'tiinex.artifact.new' && item.when === 'view == tiinex.discovery' && item.group === 'navigation@1'));
+  assert.ok(viewTitleMenus.some((item) => item.command === 'tiinex.artifact.newFeedback' && item.when === 'view == tiinex.discovery' && item.group === 'navigation@2'));
+  assert.ok(viewTitleMenus.some((item) => item.command === 'tiinex.artifact.newHandoff' && item.when === 'view == tiinex.discovery' && item.group === 'navigation@3'));
+  assert.equal(commands.get('tiinex.artifact.new')?.title, 'Tiinex: New Artifact');
+  assert.equal(commands.get('tiinex.artifact.newFeedback')?.title, 'Tiinex: New Feedback');
+  assert.equal(commands.get('tiinex.artifact.newHandoff')?.title, 'Tiinex: New Handoff');
   assert.equal(commands.get('tiinex.artifact.attachHandoff')?.title, 'Attach Handoff to Outgoing');
   assert.equal(commands.get('tiinex.artifact.attachHandoff')?.icon, '$(link)');
   const treeSource = await fs.readFile(path.resolve(HERE, '..', 'src', 'operatorTrees.ts'), 'utf8');
@@ -340,7 +352,7 @@ await test('extension contributes stable Discovery, Incoming, Outgoing and Trans
   assert.equal(Boolean(manifest.contributes?.taskDefinitions), false);
 });
 
-await test('Discovery settings are non-mutating and default build chains install -> link -> build', async () => {
+await test('Discovery settings are non-mutating and ordinary builds avoid relinking the active extension', async () => {
   const fs = await import('node:fs/promises');
   const root = path.resolve(HERE, '..');
   const manifest = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8'));
@@ -358,7 +370,8 @@ await test('Discovery settings are non-mutating and default build chains install
   assert.equal(Object.hasOwn(properties, 'tiinex.handoff.discovery'), false);
   assert.equal(Object.hasOwn(properties, 'tiinex.landing.openHandoff'), false);
   assert.match(manifest.scripts['dev:link'], /ensure-windows-main-host-dev-extension-link\.ps1/);
-  assert.match(manifest.scripts['dev:build'], /npm run build/);
+  assert.equal(manifest.scripts['dev:build'], 'tsc -p tsconfig.json');
+  assert.doesNotMatch(manifest.scripts['dev:build'], /clean|dev:link|ensure-windows-main-host-dev-extension-link/);
   assert.match(manifest.scripts['dev:unlink'], /ensure-windows-main-host-dev-extension-link\.ps1 -Unlink/);
   assert.equal(manifest.scripts['dev:setup'], 'npm run dev:link');
   const tasks = JSON.parse(await fs.readFile(path.join(root, '.vscode', 'tasks.json'), 'utf8'));
@@ -375,7 +388,7 @@ await test('Discovery settings are non-mutating and default build chains install
   assert.equal(install.command, 'npm install');
   assert.deepEqual(link.dependsOn, ['Tiinex: npm install']);
   assert.equal(link.dependsOrder, 'sequence');
-  assert.deepEqual(build.dependsOn, ['Tiinex: Link this checkout']);
+  assert.deepEqual(build.dependsOn, ['Tiinex: npm install']);
   assert.equal(build.dependsOrder, 'sequence');
   assert.equal(build.group?.isDefault, true);
   assert.ok(tasks.tasks.some((item) => item.label === 'Tiinex: Unlink this checkout' && item.args?.includes('-Unlink')));
@@ -384,10 +397,87 @@ await test('Discovery settings are non-mutating and default build chains install
   assert.match(linker, /extensionsJsonPath/);
   assert.match(linker, /New-Item -ItemType Junction/);
   assert.match(linker, /\.vscode\\link/);
+  assert.match(linker, /\$registryAlreadyLinked = \$targetEntries\.Count -eq 1 -and \$matchingDevelopmentEntries\.Count -eq 1/);
+  assert.match(linker, /if \(-not \$registryAlreadyLinked\) \{/);
+  assert.match(linker, /RegistryUpdated = \(-not \$registryAlreadyLinked\)/);
   assert.match(linker, /\[AllowEmptyCollection\(\)\]\[object\[\]\]\$PreviousEntries/);
   assert.match(linker, /\[AllowEmptyCollection\(\)\]\[object\[\]\]\$Entries/);
   const gitignore = await fs.readFile(path.join(root, '.gitignore'), 'utf8');
   assert.match(gitignore, /^\.vscode\/link\/$/m);
+});
+
+await test('extension activation synchronously registers all native Tiinex views and refresh commands before async startup', async () => {
+  const { createRequire } = await import('node:module');
+  const require = createRequire(import.meta.url);
+  const Module = require('node:module');
+  const root = path.resolve(HERE, '..');
+  const beforeCache = new Set(Object.keys(require.cache));
+  const registeredCommands = [];
+  const registeredViews = [];
+  const activationErrors = [];
+
+  class EventEmitter {
+    constructor() { this.event = () => ({ dispose() {} }); }
+    fire() {}
+    dispose() {}
+  }
+  class TreeItem {
+    constructor(label, collapsibleState) { this.label = label; this.collapsibleState = collapsibleState; }
+  }
+  class ThemeIcon { constructor(id) { this.id = id; } }
+  class Disposable {
+    constructor(dispose = () => {}) { this.disposeCallback = dispose; }
+    dispose() { this.disposeCallback(); }
+  }
+  const disposable = () => new Disposable();
+  const vscode = {
+    EventEmitter,
+    TreeItem,
+    ThemeIcon,
+    Disposable,
+    TreeItemCollapsibleState: { None: 0, Collapsed: 1, Expanded: 2 },
+    window: {
+      createTreeView(id) {
+        registeredViews.push(id);
+        return { dispose() {}, onDidChangeVisibility() { return disposable(); }, reveal: async () => {} };
+      },
+      showErrorMessage: async (value) => { activationErrors.push(String(value)); },
+      createOutputChannel() { throw new Error('activation-startup-probe-stop'); }
+    },
+    workspace: {
+      registerTextDocumentContentProvider() { return disposable(); },
+      onDidChangeConfiguration() { return disposable(); }
+    },
+    languages: { registerDocumentLinkProvider() { return disposable(); } },
+    commands: {
+      registerCommand(id) { registeredCommands.push(id); return disposable(); },
+      executeCommand: async () => undefined
+    }
+  };
+
+  const originalLoad = Module._load;
+  Module._load = function(request, parent, isMain) {
+    if (request === 'vscode') return vscode;
+    return originalLoad.call(this, request, parent, isMain);
+  };
+  try {
+    const extension = require(path.join(root, 'dist', 'extension.js'));
+    const context = {
+      extensionPath: root,
+      subscriptions: [],
+      workspaceState: { get() { return 2; }, update: async () => {} }
+    };
+    await extension.activate(context);
+  } finally {
+    Module._load = originalLoad;
+    for (const key of Object.keys(require.cache)) if (!beforeCache.has(key)) delete require.cache[key];
+  }
+
+  assert.deepEqual(registeredViews, ['tiinex.discovery', 'tiinex.incoming', 'tiinex.outgoing', 'tiinex.transport']);
+  for (const command of ['tiinex.discovery.refresh', 'tiinex.incoming.refresh', 'tiinex.outgoing.refresh', 'tiinex.transport.refresh']) {
+    assert.ok(registeredCommands.includes(command), `${command} must be registered during activation`);
+  }
+  assert.ok(activationErrors.some((value) => value.includes('Tiinex activation degraded: activation-startup-probe-stop')));
 });
 
 await test('Receive orchestration keeps Workspace mutation explicit and makes unasserted branch state visible', async () => {
@@ -1014,8 +1104,14 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(tree, /trackOutgoingHandoff/);
   assert.match(tree, /attachOutgoingHandoffNode/);
   assert.match(tree, /detachOutgoingHandoffNode/);
-  assert.match(tree, /newHandoffFromExplorer/);
+  assert.match(tree, /async beginArtifactAuthoring\(resource\?: vscode\.Uri, preselectedSchemaId = ''\)/);
+  assert.match(tree, /pickArtifactSchema\(catalog, preselectedSchemaId\)/);
+  assert.match(tree, /register\('tiinex\.artifact\.newFeedback', \(resource\?: vscode\.Uri\) => this\.beginArtifactAuthoring\(resource, 'tiinex\.feedback\.v1'\)\)/);
+  assert.match(tree, /register\('tiinex\.artifact\.newHandoff', \(resource\?: vscode\.Uri\) => this\.beginArtifactAuthoring\(resource, 'tiinex\.handoff\.v1'\)\)/);
+  assert.doesNotMatch(tree, /newHandoffFromExplorer/);
   assert.match(tree, /attachHandoffFromExplorer/);
+  assert.match(tree, /throw new Error\(`tiinex\.authoring\.schema-not-creatable:\$\{preselectedSchemaId\}`\)/);
+  assert.match(tree, /if \(accepted !== action\) throw new Error\('tiinex\.authoring\.cancelled'\)/);
   assert.match(tree, /decorateOutgoingWorkspaceFileNodes/);
   assert.match(tree, /Local Workspace source was not selected/);
   assert.match(tree, /routeId: routeChoiceKey\(\{ pointerless: true \}\)/);
@@ -1067,7 +1163,11 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(tree, /Pack Outgoing first\. Exact transport text/);
   const manifest = JSON.parse(await fs.readFile(path.resolve(HERE, '..', 'package.json'), 'utf8'));
   assert.ok(manifest.contributes.commands.some((item) => item.command === 'tiinex.artifact.new'));
+  assert.ok(manifest.contributes.commands.some((item) => item.command === 'tiinex.artifact.newFeedback'));
+  assert.ok(manifest.contributes.commands.some((item) => item.command === 'tiinex.artifact.newHandoff'));
   assert.ok(manifest.activationEvents.includes('onCommand:tiinex.artifact.new'));
+  assert.ok(manifest.activationEvents.includes('onCommand:tiinex.artifact.newFeedback'));
+  assert.ok(manifest.activationEvents.includes('onCommand:tiinex.artifact.newHandoff'));
 });
 
 await test('generic materialization and draft wrappers stay schema-neutral for a non-Handoff Task', async () => {
@@ -1135,16 +1235,27 @@ await test('Transport package projection delegates exact generic and route trans
   assert.equal(routed.humanOutput.presentation.recipientLabel, 'Sigma');
 });
 
-await test('Transport file clipboard never reports a text-path fallback as file-copy success', async () => {
+await test('Transport file clipboard publishes persistent Windows file-copy formats with the original basename', async () => {
   const unsupported = await copyFileToClipboard('/tmp/package.zip', 'linux', async () => { throw new Error('must not run'); });
   assert.equal(unsupported.state, 'unsupported');
+  const canonicalPath = 'C:\\Temp\\tiinex-carrier.handoff-package.zip';
   const fx = fakeRunner((_key, _index, call) => {
     assert.equal(call.command, 'powershell.exe');
     assert.ok(call.args.includes('-STA'));
-    assert.ok(call.args.includes('-EncodedCommand'));
+    const encodedIndex = call.args.indexOf('-EncodedCommand');
+    assert.ok(encodedIndex >= 0);
+    const script = Buffer.from(call.args[encodedIndex + 1], 'base64').toString('utf16le');
+    assert.match(script, /\$data\.SetFileDropList\(\$files\)/);
+    assert.match(script, /Preferred DropEffect/);
+    assert.match(script, /DragDropEffects]::Copy/);
+    assert.match(script, /FileNameW/);
+    assert.match(script, /SetDataObject\(\$data, \$true\)/);
+    assert.match(script, /clipboard-basename-mismatch/);
+    assert.ok(script.includes(canonicalPath));
+    assert.doesNotMatch(script, /SetText|writeText/);
     return { code: 0, stdout: '', stderr: '' };
   });
-  const copied = await copyFileToClipboard('C:\\Temp\\carrier.zip', 'win32', fx.runner);
+  const copied = await copyFileToClipboard(canonicalPath, 'win32', fx.runner);
   assert.equal(copied.state, 'copied');
   assert.equal(fx.calls.length, 1);
 });

@@ -62,6 +62,13 @@ function Get-EntryLocationStrings {
     return @($values | Where-Object { $_ })
 }
 
+function Get-EntryVersion {
+    param([Parameter(Mandatory = $true)]$Entry)
+    if ($Entry -is [System.Collections.IDictionary]) { return [string]$Entry['version'] }
+    if ($Entry.PSObject.Properties.Match('version').Count -gt 0) { return [string]$Entry.version }
+    return ''
+}
+
 function Get-VsCodeExtensionLocation {
     param([Parameter(Mandatory = $true)][string]$Path)
     $resolvedPath = (Resolve-Path $Path).Path
@@ -202,6 +209,17 @@ function Link-Checkout {
     }
 
     $registry = Read-Registry
+    $packageJson = ConvertFrom-JsonCompat -RawJson (Get-Content -LiteralPath $packageJsonPath -Raw)
+    $packageVersion = [string]$packageJson.version
+    $normalizedLink = $linkPath.Replace('\', '/').ToLowerInvariant()
+    $targetEntries = @($registry.Entries | Where-Object { (Get-EntryId -Entry $_) -eq $targetId })
+    $matchingDevelopmentEntries = @($targetEntries | Where-Object {
+        $entry = $_
+        $locations = @(Get-EntryLocationStrings -Entry $entry | ForEach-Object { $_.ToString().Replace('\', '/').ToLowerInvariant() })
+        $isOurLocation = @($locations | Where-Object { $_ -eq $normalizedLink -or $_.Contains($normalizedLink) }).Count -gt 0
+        $isOurLocation -and (Get-EntryVersion -Entry $entry) -eq $packageVersion
+    })
+    $registryAlreadyLinked = $targetEntries.Count -eq 1 -and $matchingDevelopmentEntries.Count -eq 1
     $previous = @()
     $existingState = $null
     if (Test-Path $statePath) {
@@ -219,8 +237,10 @@ function Link-Checkout {
         })
         Save-State -Registry $registry -PreviousEntries $previous
     }
-    $withoutTarget = @($registry.Entries | Where-Object { (Get-EntryId -Entry $_) -ne $targetId })
-    Write-Registry -Registry $registry -Entries @($withoutTarget + (New-RegistryEntry))
+    if (-not $registryAlreadyLinked) {
+        $withoutTarget = @($registry.Entries | Where-Object { (Get-EntryId -Entry $_) -ne $targetId })
+        Write-Registry -Registry $registry -Entries @($withoutTarget + (New-RegistryEntry))
+    }
 
     if (Test-Path $legacyMarkerRoot) { Remove-Item -LiteralPath $legacyMarkerRoot -Force -Recurse }
     if (Test-Path $legacyGlobalState) { Remove-Item -LiteralPath $legacyGlobalState -Force }
@@ -233,6 +253,7 @@ function Link-Checkout {
         Targets = (@($existing.Target | ForEach-Object { $_.ToString() }) -join '; ')
         RegistryPath = $extensionsJsonPath
         RegistryId = $targetId
+        RegistryUpdated = (-not $registryAlreadyLinked)
         LegacyVersionedLinksRemoved = $legacyRemoved
         DistEntryPresent = (Test-Path $distEntry)
         ReloadRequired = $true
