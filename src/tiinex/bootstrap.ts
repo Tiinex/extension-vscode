@@ -282,15 +282,6 @@ export interface StagedValidationResult {
   blockingFindingCount: number;
 }
 
-export interface HandoffAuthoringPlanResult {
-  status: string;
-  mode: 'root' | 'continuation' | string;
-  parentPath: string;
-  path: string;
-  pathPolicy?: unknown;
-  findings?: Array<{ severity: string; code: string; message: string }>;
-}
-
 export async function projectWorkspacePackageSources(runtime: PackageRuntime, roots: string[], repositories: unknown = null, runner: ProcessRunner = runProcess): Promise<WorkspacePackageSourcesResult> {
   if (!roots.length) throw new Error('tiinex.workspace-package-sources.workspace-required');
   if (typeof repositories === 'function') { runner = repositories as ProcessRunner; repositories = null; }
@@ -437,13 +428,6 @@ export async function projectArtifactMaterialization(
   }
 }
 
-export async function projectHandoffAuthoringPlan(runtime: PackageRuntime, root: string, title: string, parentPath = '', runner: ProcessRunner = runProcess): Promise<HandoffAuthoringPlanResult> {
-  const args = ['project-handoff-authoring-plan', root, '--title', title];
-  if (parentPath) args.push('--parent', parentPath);
-  args.push('--compact');
-  return runTiinexJson<HandoffAuthoringPlanResult>(runtime, args, runner);
-}
-
 export async function createArtifactDraft(
   runtime: PackageRuntime,
   schemaId: string,
@@ -475,19 +459,6 @@ export async function createArtifactDraft(
     args.push('--compact');
     return await runTiinexJson<any>(runtime, args, runner);
   } finally { await rm(scratch, { recursive: true, force: true }); }
-}
-
-export async function createHandoffDraft(
-  runtime: PackageRuntime,
-  materialRoot: string,
-  childPath: string,
-  title: string,
-  values: unknown,
-  parentRecord: unknown = null,
-  transition: 'create-artifact' | 'continue-from-record' = parentRecord ? 'continue-from-record' : 'create-artifact',
-  runner: ProcessRunner = runProcess
-): Promise<any> {
-  return createArtifactDraft(runtime, 'tiinex.handoff.v1', materialRoot, childPath, title, values, parentRecord, transition, runner);
 }
 
 export async function manufactureHandoffPackage(runtime: PackageRuntime, args: string[], runner: ProcessRunner = runProcess): Promise<any> {

@@ -80,7 +80,7 @@ Directory names are locality, not semantic authority. The remaining modules are 
 
 | Area | Responsibility |
 | --- | --- |
-| `artifactTree`, `findingPresentation`, `operatorError`, `operatorUx`, `operatorModel` | Native artifact-tree projection, editor/operator presentation, safe defaults and selection-state shaping. |
+| `artifactTree`, `findingPresentation`, `operatorError`, `operatorModel` | Native artifact-tree projection, editor/operator presentation and selection-state shaping. |
 | `latestWinsQueue` | Host scheduling for stale-result suppression in diagnostics. |
 | `packageArgs` | VS Code host argument shaping for the public portable Tooling entrypoint. |
 | `paths`, `repositoryPath`, `stableFile` | Local filesystem/repository normalization and stable-file/session behavior. |
@@ -119,7 +119,7 @@ A Workspace whose qualified material does not expose exactly one usable reposito
 
 For the selected schema, Core owns the creation contract, required/optional fields, repeatable shapes, rendering and validation. Core `prepare-materialization` also supplies the qualified Parent candidates and allocates the exact repository-relative filename/path for both lineage roots and continuations; the extension does not recreate Handoff naming policy for generic artifacts. Preview creation stays scratch-only, and reviewed bytes are written only after a separate explicit confirmation. The `create-local-draft` result is also the sole prospective validity/severity authority: any Core error or non-created result blocks preview/create, while warning-only results are not promoted by the host. When Core blocks a candidate—for example because its own per-field schema-reference authority reports an avoidable exact-target omission or a resolved material-identity contradiction—the panel surfaces Core's exact finding severity/code/message instead of parsing or classifying Envelope, Parent or Current schema-reference representation itself.
 
-This source tranche is qualified against the carried current Core007 runtime as a disposable/local dependency boundary. The repository lockfile still pins registry `@tiinex/core` `0.7.0`; if those installed bytes cannot prove the Core007 result/finding behavior, full live-host qualification remains blocked on an updated reviewed package boundary rather than a host-side semantic fallback.
+Prospective and historical Core007 behavior can be acceptance-tested against an exact qualified local Core source tree without publishing or changing this checkout's durable dependency declaration. `npm run test:local-core -- --core <qualified-core-root>` packs that source locally, copies this extension into a disposable harness, binds the scratch manifest/lockfile to the local Core tarball, installs the remaining locked dependencies, and runs the full `npm run validate` chain. The harness verifies the installed Core version/lock binding and confirms that the source checkout's `package.json` and `package-lock.json` hashes did not change. It fails closed if the remaining third-party dependencies are unavailable; it never substitutes registry Core for the supplied source.
 
 The existing **New Handoff** actions are compatibility shortcuts that merely preselect `tiinex.handoff.v1` through that same generic schema/model/Parent/path flow. Handoff-specific host behavior is intentionally limited to the optional **Attach to Outgoing** transport action after the exact reviewed Handoff bytes have been written and re-qualified. Attaching does not alter artifact semantics or bytes. Existing qualified Handoffs can likewise be attached intentionally; **Copy Handoff Transport Text** copies forwarding text and does not imply recipient acceptance, Role authority or a new Handoff identity.
 
@@ -166,7 +166,13 @@ With the declared dev dependencies installed, full qualification remains:
 npm run validate
 ```
 
-That performs typecheck, a clean build, focused regression tests and candidate VSIX generation. VSIX is qualification/release evidence, not the normal development loop, and this preparatory lane still does not authorize 0.1.8 publication.
+To exercise that same full qualification path against an exact qualified Core source tree rather than the registry dependency, use:
+
+```text
+npm run test:local-core -- --core <qualified-core-root>
+```
+
+The local-Core harness is disposable: it locally packs the supplied `@tiinex/core`, patches only the scratch extension manifest/lockfile, installs there, runs `npm run validate`, and verifies the durable checkout manifest/lockfile were unchanged. That performs typecheck, a clean build, focused regression tests and candidate VSIX generation. VSIX is qualification/release evidence, not the normal development loop, and this preparatory lane still does not authorize 0.1.8 publication.
 
 For repeatable Marketplace/demo evidence after behavior is stable, follow [`docs/GIF-CAPTURE.md`](docs/GIF-CAPTURE.md). The runbook fixes the capture order and visible states while keeping Windows observation and human acceptance separate from technical PASS.
 

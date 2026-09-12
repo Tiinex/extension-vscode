@@ -751,7 +751,8 @@
     "dev:setup": "npm run dev:link",
     "dev:link": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ensure-windows-main-host-dev-extension-link.ps1",
     "dev:unlink": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ensure-windows-main-host-dev-extension-link.ps1 -Unlink",
-    "test:package": "npm run build && node test/package-integration.mjs"
+    "test:package": "npm run build && node test/package-integration.mjs",
+    "test:local-core": "node scripts/test-local-core.mjs"
   },
   "dependencies": {
     "@tiinex/core": "^0.7.0"

@@ -10,7 +10,7 @@ import { alphabeticalWorkspaceIds, artifactsForLineageMode, currentRoleChoices, 
 import { preferredRepositoryParent } from './core/receiveUx';
 import { qualifiedRoutes, QualifiedRouteReceipt } from './core/receivedHandoff';
 import { loadHandoffEndpointChoices, loadLocalWorkspaceChoices, loadPackageBuilderModel, buildHandoffPackageFromForm, announceBuiltCarrier, routeChoiceKeyForHandoff, IncomingPackageWorkspaceSource, PackageWorkspaceChoice, PackageWorkspaceSourceOverride, PackageRouteRouting, qualifyLocalWorkspaceChoice } from './packageBuilder';
-import { ArtifactAuthoringCatalog, ArtifactDraftParent, loadArtifactAuthoringCatalog, loadArtifactAuthoringModel, prepareArtifactDraft, PreparedArtifactDraft, qualifyExistingHandoff, SimpleHandoffParticipant, writePreparedArtifactDraft } from './authoring';
+import { ArtifactAuthoringCatalog, ArtifactDraftParent, loadArtifactAuthoringCatalog, loadArtifactAuthoringModel, prepareArtifactDraft, PreparedArtifactDraft, qualifyExistingHandoff, writePreparedArtifactDraft } from './authoring';
 import { compareIncomingWorkspaceToLocal, orientPackage, prepareBundledRuntime, preparePackageRuntime } from './tiinex/bootstrap';
 import { applyIncomingWorkspaces, IncomingApplyStrategy } from './incomingApply';
 import { operatorMatchedWorkspaceIds, resolvePrioritizedWorkspaceDuplicates } from './core/sourceSelection';
@@ -59,12 +59,19 @@ interface OutgoingWorkspace {
   stagedRoot?: string;
 }
 
+interface CarrierRoleParticipant {
+  label: string;
+  reference: string;
+  workspaceId: string;
+  path: string;
+}
+
 interface OutgoingDraft {
   id: string;
   draft: PreparedArtifactDraft;
   writtenPath: string;
   routeIncluded: boolean;
-  participants: SimpleHandoffParticipant[];
+  participants: CarrierRoleParticipant[];
   from: string;
   to: string;
   origin: 'created' | 'existing';
@@ -1770,7 +1777,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     return root;
   }
 
-  private trackOutgoingHandoff(workspace: OutgoingWorkspace, draft: PreparedArtifactDraft, writtenPath: string, from: string, to: string, participants: SimpleHandoffParticipant[], origin: 'created' | 'existing', routeIncluded = true): OutgoingDraft {
+  private trackOutgoingHandoff(workspace: OutgoingWorkspace, draft: PreparedArtifactDraft, writtenPath: string, from: string, to: string, participants: CarrierRoleParticipant[], origin: 'created' | 'existing', routeIncluded = true): OutgoingDraft {
     if (!this.outgoing) throw new Error('tiinex.authoring.outgoing-required');
     const current = this.outgoing.workspaces.find((item) => item.workspaceId === workspace.workspaceId && item.sourceKey === workspace.sourceKey);
     if (!current) throw new Error(`tiinex.authoring.outgoing-workspace-source-changed:${workspace.workspaceId}`);
@@ -1813,7 +1820,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     };
   }
 
-  private async pickAdditionalCarrierRoles(from = '', to = '', selectedReferences: string[] = []): Promise<SimpleHandoffParticipant[] | null> {
+  private async pickAdditionalCarrierRoles(from = '', to = '', selectedReferences: string[] = []): Promise<CarrierRoleParticipant[] | null> {
     const endpoints = await this.endpointCatalog();
     const excluded = new Set([from, to].map((item) => item.trim().toLocaleLowerCase()).filter(Boolean));
     const selectedSet = new Set(selectedReferences);
@@ -1823,7 +1830,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
         label: item.label,
         description: item.reference,
         picked: selectedSet.has(item.reference),
-        participant: { label: item.label, reference: item.reference, workspaceId: item.workspaceId, path: item.path } satisfies SimpleHandoffParticipant
+        participant: { label: item.label, reference: item.reference, workspaceId: item.workspaceId, path: item.path } satisfies CarrierRoleParticipant
       }));
     if (!items.length) return [];
     const picked = await vscode.window.showQuickPick(items, {
