@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { generateCommitMessageCommand, stageCommitPushCommand } from './commit';
+import { generateCommitMessageCommand, stageCommitPushCommand, stageCommitPushManyCommand } from './commit';
 import { registerTiinexDiagnostics } from './diagnostics';
 import { TiinexOperatorTrees } from './operatorTrees';
 
@@ -44,6 +44,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   }));
   context.subscriptions.push(vscode.commands.registerCommand('tiinex.stageCommitPush', async () => {
     try { await stageCommitPushCommand(extensionPath); } catch (error) { await vscode.window.showErrorMessage(`Tiinex Stage, Commit & Push failed: ${message(error)}`, { modal: true }); }
+  }));
+  context.subscriptions.push(vscode.commands.registerCommand('tiinex.stageCommitPushMany', async () => {
+    try { await stageCommitPushManyCommand(extensionPath); } catch (error) { await vscode.window.showErrorMessage(`Tiinex multi-repository Git flow failed: ${message(error)}`, { modal: true }); }
   }));
 
   try {

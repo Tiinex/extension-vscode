@@ -15,6 +15,7 @@
     "onCommand:tiinex.landHandoffPackage",
     "onCommand:tiinex.generateCommitMessage",
     "onCommand:tiinex.stageCommitPush",
+    "onCommand:tiinex.stageCommitPushMany",
     "workspaceContains:.topics",
     "onCommand:tiinex.createHandoff",
     "onCommand:tiinex.buildHandoffPackage",
@@ -41,6 +42,7 @@
     "onCommand:tiinex.incoming.merge",
     "onCommand:tiinex.incoming.replace",
     "onCommand:tiinex.outgoing.selectFolder",
+    "onCommand:tiinex.artifact.new",
     "onCommand:tiinex.artifact.newHandoff",
     "onCommand:tiinex.artifact.attachHandoff",
     "onCommand:tiinex.outgoing.attachHandoff",
@@ -248,6 +250,10 @@
         "title": "Tiinex: Stage, Commit & Push with Tiinex"
       },
       {
+        "command": "tiinex.stageCommitPushMany",
+        "title": "Tiinex: Stage, Review, Commit & Push Repositories"
+      },
+      {
         "command": "tiinex.generateCommitMessage",
         "title": "Tiinex: Generate Tiinex Commit Message"
       },
@@ -273,6 +279,11 @@
         "command": "tiinex.outgoing.selectFolder",
         "title": "Tiinex: Select Outgoing Folder",
         "icon": "$(folder-opened)"
+      },
+      {
+        "command": "tiinex.artifact.new",
+        "title": "Tiinex: New Artifact",
+        "icon": "$(new-file)"
       },
       {
         "command": "tiinex.artifact.newHandoff",
@@ -697,14 +708,19 @@
       ],
       "tiinex.explorer.actions": [
         {
-          "command": "tiinex.artifact.newHandoff",
+          "command": "tiinex.artifact.new",
           "when": "explorerResourceIsFolder",
           "group": "1_authoring@1"
         },
         {
+          "command": "tiinex.artifact.newHandoff",
+          "when": "explorerResourceIsFolder",
+          "group": "1_authoring@2"
+        },
+        {
           "command": "tiinex.artifact.attachHandoff",
           "when": "!explorerResourceIsFolder && resourceExtname == .md",
-          "group": "1_authoring@2"
+          "group": "1_authoring@3"
         }
       ]
     },

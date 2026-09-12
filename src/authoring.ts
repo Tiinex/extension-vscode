@@ -3,8 +3,10 @@ import os from 'node:os';
 import { access, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import * as vscode from 'vscode';
 import { preferredNodeExecutable } from './host/nodeExecutable';
-import { createArtifactDraft, createHandoffDraft, inspectArtifactCreationContract, prepareBundledRuntime, projectArtifactSchemaGuide, projectAuthoringParent, projectHandoffAuthoringPlan, projectHandoffLeaves } from './tiinex/bootstrap';
+import { ArtifactMaterializationParentCandidate, ArtifactMaterializationSchemaCandidate, createArtifactDraft, createHandoffDraft, inspectArtifactCreationContract, prepareBundledRuntime, projectArtifactMaterialization, projectArtifactSchemaGuide, projectAuthoringParent, projectHandoffAuthoringPlan, projectHandoffLeaves } from './tiinex/bootstrap';
 import { ArtifactAuthoringModel, projectArtifactAuthoringModel } from './core/artifactAuthoringModel';
+import { requireArtifactCreationReady } from './core/artifactAuthoringQualification';
+import { presentSharedFindings } from './core/findingPresentation';
 import { normalizedTransferName } from './core/operatorModel';
 import { normalizePath, parentTargetFromMarkdown, titleFromMarkdown } from './core/artifactTree';
 import { safeRelativePath, safeTarget } from './core/paths';
@@ -50,35 +52,76 @@ export async function loadArtifactAuthoringModel(extensionPath: string, schemaId
   } finally { await runtime.dispose(); }
 }
 
+export interface ArtifactAuthoringCatalog {
+  schemas: ArtifactMaterializationSchemaCandidate[];
+  parents: ArtifactMaterializationParentCandidate[];
+}
+
+export async function loadArtifactAuthoringCatalog(extensionPath: string, root: string): Promise<ArtifactAuthoringCatalog> {
+  const materialRoot = required(root, 'tiinex.authoring.repository-required');
+  const runtime = await prepareBundledRuntime(extensionPath, nodeExecutable());
+  try {
+    const projected = await projectArtifactMaterialization(runtime, materialRoot);
+    if (!['needs-proposal', 'ready'].includes(String(projected.status || ''))) throw new Error(`tiinex.authoring.catalog-blocked:${projected.status || 'unknown'}`);
+    const schemas = (projected.candidateSchemas || []).filter((item) => item.status === 'ready' && item.schemaId);
+    if (!schemas.length) throw new Error('tiinex.authoring.no-creatable-schemas');
+    return { schemas, parents: projected.parentCandidates || [] };
+  } finally { await runtime.dispose(); }
+}
+
+function authoringProposal(spec: Pick<ArtifactDraftSpec, 'workspaceId' | 'schemaId' | 'title' | 'values'>, parentPath = ''): Record<string, unknown> {
+  return {
+    id: `vscode-${spec.workspaceId || 'workspace'}-artifact`,
+    schemaId: spec.schemaId,
+    title: spec.title,
+    values: spec.values,
+    ...(parentPath ? { parentRef: parentPath, mode: 'continue' } : { mode: 'root' }),
+    rationale: 'Explicit VS Code artifact authoring request.',
+    evidenceRefs: ['host:vscode-explicit-authoring']
+  };
+}
+
+function plannedArtifact(result: any, proposalId: string): any {
+  const planned = (result?.proposals || []).find((item: any) => String(item?.id || '') === proposalId) || result?.proposals?.[0];
+  if (result?.status !== 'ready' || !planned?.path || planned?.status !== 'ready') {
+    const sharedFindings = [
+      ...(planned?.findings || []),
+      ...(result?.findings || []).filter((item: any) => item?.severity === 'error')
+    ];
+    const codes = [
+      ...sharedFindings.map((item: any) => item?.code),
+      ...(result?.clarificationNeeds || []).map((item: any) => item?.code)
+    ].filter(Boolean);
+    const detail = sharedFindings.length ? `\n${presentSharedFindings(sharedFindings, result?.status || planned?.status || 'unknown')}` : '';
+    throw new Error(`tiinex.authoring.materialization-blocked:${codes.join(',') || result?.status || planned?.status || 'unknown'}${detail}`);
+  }
+  return planned;
+}
+
 export async function prepareArtifactDraft(extensionPath: string, spec: ArtifactDraftSpec): Promise<PreparedArtifactDraft> {
   const root = required(spec.root, 'tiinex.authoring.repository-required');
   const title = required(spec.title, 'tiinex.authoring.title-required');
   const schemaId = required(spec.schemaId, 'tiinex.authoring.schema-required');
-  // Current public Core exposes a qualified deterministic path planner for
-  // Handoff. The form engine is generic, but path semantics are not guessed
-  // for other artifact types in the VS Code host.
-  if (schemaId !== 'tiinex.handoff.v1') throw new Error(`tiinex.authoring.path-planner-capability-gap:${schemaId}`);
   const runtime = await prepareBundledRuntime(extensionPath, nodeExecutable());
   const scratch = await mkdtemp(path.join(os.tmpdir(), 'tiinex-vscode-artifact-preview-'));
   try {
     await copyMarkdownMaterial(root, scratch);
     const parentPath = spec.parentArtifact?.path ? safeRelativePath(spec.parentArtifact.path) : '';
-    let parentRecord: any = null;
     if (parentPath && spec.parentArtifact) {
       const target = safeTarget(scratch, parentPath);
       await mkdir(path.dirname(target), { recursive: true });
       await writeFile(target, spec.parentArtifact.markdown, 'utf8');
-      parentRecord = await projectAuthoringParent(runtime, target);
     }
-    const plan = await projectHandoffAuthoringPlan(runtime, scratch, title, parentPath);
-    if (plan.status !== 'ready' || !plan.path) throw new Error(`tiinex.authoring.path-blocked:${plan.findings?.map((f) => f.code).join(',') || plan.status}`);
-    const transition = parentRecord ? 'continue-from-record' : 'create-artifact';
-    const created = await createArtifactDraft(runtime, schemaId, scratch, plan.path, title, spec.values, parentRecord, transition);
+    const proposal = authoringProposal({ workspaceId: spec.workspaceId, schemaId, title, values: spec.values }, parentPath);
+    const plan = await projectArtifactMaterialization(runtime, scratch, [proposal]);
+    const planned = plannedArtifact(plan, String(proposal.id));
+    const transition = planned.parent ? 'continue-from-record' : 'create-artifact';
+    const created = requireArtifactCreationReady(await createArtifactDraft(runtime, schemaId, scratch, planned.path, title, spec.values, planned.parent || null, transition));
     return {
       root,
       workspaceId: spec.workspaceId,
       schemaId,
-      path: safeRelativePath(plan.path),
+      path: safeRelativePath(planned.path),
       title,
       markdown: String(created.draft.markdown),
       values: spec.values,
@@ -91,11 +134,12 @@ export async function prepareArtifactDraft(extensionPath: string, spec: Artifact
 }
 
 export async function writePreparedArtifactDraft(extensionPath: string, draft: PreparedArtifactDraft): Promise<string> {
-  if (draft.schemaId !== 'tiinex.handoff.v1') throw new Error(`tiinex.authoring.path-planner-capability-gap:${draft.schemaId}`);
   const runtime = await prepareBundledRuntime(extensionPath, nodeExecutable());
   try {
-    const plan = await projectHandoffAuthoringPlan(runtime, draft.root, draft.title, draft.parentPath);
-    if (plan.status !== 'ready' || safeRelativePath(plan.path) !== draft.path) throw new Error('tiinex.authoring.preview-stale-recreate-required');
+    const proposal = authoringProposal({ workspaceId: draft.workspaceId, schemaId: draft.schemaId, title: draft.title, values: draft.values }, draft.parentPath);
+    const plan = await projectArtifactMaterialization(runtime, draft.root, [proposal]);
+    const planned = plannedArtifact(plan, String(proposal.id));
+    if (safeRelativePath(planned.path) !== draft.path) throw new Error('tiinex.authoring.preview-stale-recreate-required');
   } finally { await runtime.dispose(); }
   const target = safeTarget(draft.root, draft.path);
   if (!await absent(target)) throw new Error(`tiinex.authoring.target-exists:${draft.path}`);
@@ -156,6 +200,12 @@ export interface AuthoringParentContext {
   schemaId: string;
 }
 
+/**
+ * Compatibility-only legacy Handoff form helpers. No active command or panel
+ * routes through these schema-specialized functions; primary authoring above is
+ * schema-generic and Core-planned. Retained only for API compatibility until a
+ * later cleanup removes downstream callers outside this active extension flow.
+ */
 export interface HandoffFormInput {
   root: string;
   parentPath?: string;
@@ -249,7 +299,7 @@ export async function createHandoffFromForm(extensionPath: string, raw: HandoffF
       'Interpretation Limits': { 'Does Not Mean': doesNotMean, 'Must Not Be Used To Claim': mustNotClaim }
     };
     const transition = parentRecord ? 'continue-from-record' : 'create-artifact';
-    const created = await createHandoffDraft(runtime, root, plan.path, title, values, parentRecord, transition);
+    const created = requireArtifactCreationReady(await createHandoffDraft(runtime, root, plan.path, title, values, parentRecord, transition));
     const parentText = parentPath || '(root Handoff — no Parent)';
     const confirmed = await vscode.window.showWarningMessage(`Create exact shared-schema Handoff?\n\nParent: ${parentText}\nArtifact: ${plan.path}\n${from} → ${to}\nTransfer: ${transferName}\n\nEnvelope, validation and integrity are owned by shared Tiinex Tooling.`, { modal: true }, 'Prepare Return Handoff');
     if (confirmed !== 'Prepare Return Handoff') throw new Error('tiinex.authoring.cancelled');
@@ -323,7 +373,7 @@ export async function prepareSimpleHandoffDraft(extensionPath: string, spec: Sim
     const plan = await projectHandoffAuthoringPlan(runtime, scratch, title, parentPath);
     if (plan.status !== 'ready' || !plan.path) throw new Error(`tiinex.authoring.path-blocked:${plan.findings?.map((f) => f.code).join(',') || plan.status}`);
     const values = simpleHandoffValues(subject, spec.intent, from, to, participants);
-    const created = await createHandoffDraft(runtime, scratch, plan.path, title, values, parentRecord, parentRecord ? 'continue-from-record' : 'create-artifact');
+    const created = requireArtifactCreationReady(await createHandoffDraft(runtime, scratch, plan.path, title, values, parentRecord, parentRecord ? 'continue-from-record' : 'create-artifact'));
     return { root, workspaceId: spec.workspaceId, path: safeRelativePath(plan.path), title, markdown: String(created.draft.markdown), subject, intent: spec.intent, from, to, participants, parentPath };
   } finally {
     await rm(scratch, { recursive: true, force: true });

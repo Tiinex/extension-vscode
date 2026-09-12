@@ -5,21 +5,23 @@ import { FSWatcher, watch } from 'node:fs';
 import { mkdir, readdir, readFile, rm, stat } from 'node:fs/promises';
 import * as vscode from 'vscode';
 import { preferredNodeExecutable } from './host/nodeExecutable';
-import { indexCarrierPackage, indexLocalWorkspace, indexLocalWorkspaceFiles, readCarrierWorkspaceFile, discoveryPackages, IndexedCarrierPackage, IndexedWorkspaceFile } from './carrierIndex';
+import { indexCarrierPackage, indexLocalWorkspace, indexLocalWorkspaceFiles, discoveryPackages, IndexedCarrierPackage, IndexedWorkspaceFile } from './carrierIndex';
 import { alphabeticalWorkspaceIds, artifactsForLineageMode, currentRoleChoices, IndexedArtifact, logicalGroupForArtifact, normalizePath, TreeLineageMode, TreeProjectionMode } from './core/artifactTree';
 import { preferredRepositoryParent } from './core/receiveUx';
 import { qualifiedRoutes, QualifiedRouteReceipt } from './core/receivedHandoff';
 import { loadHandoffEndpointChoices, loadLocalWorkspaceChoices, loadPackageBuilderModel, buildHandoffPackageFromForm, announceBuiltCarrier, routeChoiceKeyForHandoff, IncomingPackageWorkspaceSource, PackageWorkspaceChoice, PackageWorkspaceSourceOverride, PackageRouteRouting, qualifyLocalWorkspaceChoice } from './packageBuilder';
-import { ArtifactDraftParent, loadArtifactAuthoringModel, prepareArtifactDraft, PreparedArtifactDraft, qualifyExistingHandoff, SimpleHandoffParticipant, writePreparedArtifactDraft } from './authoring';
+import { ArtifactAuthoringCatalog, ArtifactDraftParent, loadArtifactAuthoringCatalog, loadArtifactAuthoringModel, prepareArtifactDraft, PreparedArtifactDraft, qualifyExistingHandoff, SimpleHandoffParticipant, writePreparedArtifactDraft } from './authoring';
 import { compareIncomingWorkspaceToLocal, orientPackage, prepareBundledRuntime, preparePackageRuntime } from './tiinex/bootstrap';
 import { applyIncomingWorkspaces, IncomingApplyStrategy } from './incomingApply';
 import { operatorMatchedWorkspaceIds, resolvePrioritizedWorkspaceDuplicates } from './core/sourceSelection';
 import { comparePackageRecency, inheritedOutgoingLabel } from './core/outgoingUx';
 import { payloadCheckoutEligibility } from './host/git';
-import { extractZipBuffer, readExactZipEntryFromFile } from './host/zip';
-import { ArtifactAuthoringSubmission, AuthoringFieldAssist, AuthoringTemplateOption, openArtifactAuthoringPanel } from './artifactAuthoringPanel';
+import { extractZipBuffer, readExactZipEntryFromBuffer, readExactZipEntryFromFile } from './host/zip';
+import { ArtifactAuthoringSubmission, openArtifactAuthoringPanel } from './artifactAuthoringPanel';
 import { repositoryRootForResource } from './vscode/gitApi';
 import { sameRepositoryRoot } from './core/repositoryPath';
+import { safeTarget } from './core/paths';
+import { artifactReferenceAvailable, markdownLinkTargets, materialTargetKey, resolveArtifactReference } from './core/artifactNavigation';
 import { planWorkspaceSession, validateWorkspaceTargetMapping } from './core/workspaceSession';
 import { routeChoiceKey } from './core/operatorModel';
 import { consumeIncomingMultiRootResume, prepareIncomingMultiRootSession } from './vscode/incomingWorkspaceSession';
@@ -145,7 +147,7 @@ class OperatorNode extends vscode.TreeItem {
     if (data.kind === 'artifact' || data.kind === 'draft') {
       this.command = {
         command: data.kind === 'draft' ? 'tiinex.outgoing.previewDraft' : 'tiinex.tree.openArtifact',
-        title: 'Open Markdown Preview',
+        title: 'Open Artifact',
         arguments: [this]
       };
       this.iconPath = new vscode.ThemeIcon(data.kind === 'draft' ? 'edit' : (data.artifact ? artifactIcon(data.artifact) : 'markdown'));
@@ -162,7 +164,7 @@ class OperatorNode extends vscode.TreeItem {
       if (/\.md$/i.test(data.label)) {
         this.command = {
           command: 'tiinex.tree.openWorkspaceMarkdown',
-          title: 'Open Markdown Preview',
+          title: 'Open Artifact',
           arguments: [this]
         };
       }
@@ -209,11 +211,147 @@ class PreviewProvider implements vscode.TextDocumentContentProvider, vscode.Disp
   dispose(): void { this.values.clear(); this.changed.dispose(); }
 }
 
+const MATERIAL_SCHEME = 'tiinex-material';
+const MATERIAL_CARRIER_SCOPE = '@carrier';
+const MATERIAL_WORKSPACE_ID = /^[A-Za-z0-9._-]+$/;
+
+interface MaterialSourceSnapshot {
+  key: string;
+  index: IndexedCarrierPackage;
+  outer: Buffer;
+  availableTargets: Set<string>;
+}
+
+class MaterialProvider implements vscode.TextDocumentContentProvider, vscode.DocumentLinkProvider, vscode.Disposable {
+  private readonly sources = new Map<string, MaterialSourceSnapshot>();
+
+  async uriFor(index: IndexedCarrierPackage, workspaceId: string, filePath: string): Promise<vscode.Uri> {
+    const source = await this.source(index);
+    return this.targetUri(source.key, workspaceId || MATERIAL_CARRIER_SCOPE, filePath);
+  }
+
+  async provideTextDocumentContent(uri: vscode.Uri): Promise<string> {
+    const target = this.parseUri(uri);
+    const source = this.sources.get(target.sourceKey);
+    if (!source) throw new Error(`tiinex.material.source-unavailable:${target.sourceKey}`);
+    if (target.workspaceId === MATERIAL_CARRIER_SCOPE) {
+      return (await readExactZipEntryFromBuffer(source.outer, target.path)).toString('utf8');
+    }
+    const workspace = source.index.workspaces.find((item) => item.workspaceId === target.workspaceId);
+    if (!workspace?.archivePath) throw new Error(`tiinex.material.workspace-unavailable:${target.workspaceId}`);
+    const archive = await readExactZipEntryFromBuffer(source.outer, workspace.archivePath);
+    return (await readExactZipEntryFromBuffer(archive, target.path)).toString('utf8');
+  }
+
+  provideDocumentLinks(document: vscode.TextDocument): vscode.DocumentLink[] {
+    let current: { sourceKey: string; workspaceId: string; path: string };
+    try { current = this.parseUri(document.uri); }
+    catch { return []; }
+    const links: vscode.DocumentLink[] = [];
+    for (const item of markdownLinkTargets(document.getText())) {
+      const resolved = resolveArtifactReference(current.workspaceId, current.path, item.target);
+      let target: vscode.Uri | undefined;
+      if (resolved.kind === 'external' && resolved.external) {
+        try { target = vscode.Uri.parse(resolved.external, true); } catch { target = undefined; }
+      } else if (resolved.kind === 'fragment') {
+        target = document.uri.with({ fragment: resolved.fragment || '' });
+      } else if ((resolved.kind === 'relative' || resolved.kind === 'workspace') && resolved.workspaceId && resolved.path) {
+        const source = this.sources.get(current.sourceKey);
+        if (source && artifactReferenceAvailable(resolved, source.availableTargets)) {
+          target = this.targetUri(current.sourceKey, resolved.workspaceId, resolved.path, resolved.fragment || '');
+        }
+      }
+      if (!target) continue;
+      const range = new vscode.Range(document.positionAt(item.start), document.positionAt(item.end));
+      links.push(new vscode.DocumentLink(range, target));
+    }
+    return links;
+  }
+
+  dispose(): void { this.sources.clear(); }
+
+  private async source(index: IndexedCarrierPackage): Promise<MaterialSourceSnapshot> {
+    const resolved = path.resolve(index.packagePath);
+    const before = await stat(resolved);
+    if (!before.isFile() || before.size !== index.bytes || before.mtimeMs !== index.mtimeMs) throw new Error('tiinex.material.source-changed');
+    const outer = await readFile(resolved);
+    const after = await stat(resolved);
+    if (!after.isFile() || after.size !== index.bytes || after.mtimeMs !== index.mtimeMs || outer.byteLength !== index.bytes) throw new Error('tiinex.material.source-changed');
+    const digest = createHash('sha256').update(outer).digest('hex');
+    const key = digest.slice(0, 32);
+    const existing = this.sources.get(key);
+    if (existing) return existing;
+    const availableTargets = new Set<string>();
+    for (const file of index.carrierFiles) if (!file.directory) availableTargets.add(materialTargetKey(MATERIAL_CARRIER_SCOPE, file.path));
+    for (const workspace of index.workspaces) {
+      for (const file of workspace.files) if (!file.directory) availableTargets.add(materialTargetKey(workspace.workspaceId, file.path));
+    }
+    const source = { key, index, outer, availableTargets };
+    this.sources.set(key, source);
+    return source;
+  }
+
+  private targetUri(sourceKey: string, workspaceId: string, filePath: string, fragment = ''): vscode.Uri {
+    const normalized = normalizePath(filePath);
+    if (!sourceKey || !workspaceId || !normalized) throw new Error('tiinex.material.target-invalid');
+    if (workspaceId !== MATERIAL_CARRIER_SCOPE && (!MATERIAL_WORKSPACE_ID.test(workspaceId) || workspaceId === '.' || workspaceId === '..')) {
+      throw new Error('tiinex.material.workspace-id-invalid');
+    }
+    const scope = workspaceId === MATERIAL_CARRIER_SCOPE ? 'carrier' : `workspace/${workspaceId}`;
+    return vscode.Uri.from({ scheme: MATERIAL_SCHEME, authority: sourceKey, path: `/${scope}/${normalized}`, fragment });
+  }
+
+  private parseUri(uri: vscode.Uri): { sourceKey: string; workspaceId: string; path: string } {
+    if (uri.scheme !== MATERIAL_SCHEME || !uri.authority) throw new Error('tiinex.material.uri-invalid');
+    const segments = normalizePath(uri.path).split('/');
+    if (segments[0] === 'carrier' && segments.length > 1) {
+      return { sourceKey: uri.authority, workspaceId: MATERIAL_CARRIER_SCOPE, path: segments.slice(1).join('/') };
+    }
+    if (segments[0] === 'workspace' && segments.length > 2 && MATERIAL_WORKSPACE_ID.test(segments[1]) && segments[1] !== '.' && segments[1] !== '..') {
+      return { sourceKey: uri.authority, workspaceId: segments[1], path: segments.slice(2).join('/') };
+    }
+    throw new Error('tiinex.material.uri-invalid');
+  }
+}
+
+
+class LocalArtifactLinkProvider implements vscode.DocumentLinkProvider {
+  constructor(private readonly extensionPath: string) {}
+
+  async provideDocumentLinks(document: vscode.TextDocument): Promise<vscode.DocumentLink[]> {
+    const candidates = markdownLinkTargets(document.getText())
+      .map((item) => ({ item, resolved: resolveArtifactReference('', 'artifact.md', item.target) }))
+      .filter((entry) => entry.resolved.kind === 'workspace' && entry.resolved.workspaceId && entry.resolved.path);
+    if (!candidates.length) return [];
+
+    let choices: PackageWorkspaceChoice[] = [];
+    try { choices = await loadLocalWorkspaceChoices(this.extensionPath); }
+    catch { return []; }
+
+    const links: vscode.DocumentLink[] = [];
+    for (const { item, resolved } of candidates) {
+      const matches = choices.filter((choice) => choice.workspaceId === resolved.workspaceId && choice.root);
+      if (matches.length !== 1) continue;
+      try {
+        const absolute = safeTarget(path.resolve(matches[0].root), resolved.path!);
+        const info = await stat(absolute);
+        if (!info.isFile()) continue;
+        const range = new vscode.Range(document.positionAt(item.start), document.positionAt(item.end));
+        links.push(new vscode.DocumentLink(range, vscode.Uri.file(absolute).with({ fragment: resolved.fragment || '' })));
+      } catch { /* exact qualified target is unavailable; do not guess */ }
+    }
+    return links;
+  }
+}
+
+
 export class TiinexOperatorTrees implements vscode.Disposable {
   private readonly discoveryProvider = new SectionProvider(this, 'discovery');
   private readonly incomingProvider = new SectionProvider(this, 'incoming');
   private readonly outgoingProvider = new SectionProvider(this, 'outgoing');
   private readonly previewProvider = new PreviewProvider();
+  private readonly materialProvider = new MaterialProvider();
+  private readonly localArtifactLinkProvider: LocalArtifactLinkProvider;
   private readonly discoveryView: vscode.TreeView<OperatorNode>;
   private readonly incomingView: vscode.TreeView<OperatorNode>;
   private readonly outgoingView: vscode.TreeView<OperatorNode>;
@@ -237,11 +375,15 @@ export class TiinexOperatorTrees implements vscode.Disposable {
   private readonly discoverySuppressedPaths = new Set<string>();
 
   constructor(private readonly context: vscode.ExtensionContext, private readonly extensionPath: string) {
+    this.localArtifactLinkProvider = new LocalArtifactLinkProvider(extensionPath);
     this.discoveryView = vscode.window.createTreeView('tiinex.discovery', { treeDataProvider: this.discoveryProvider, showCollapseAll: true });
     this.incomingView = vscode.window.createTreeView('tiinex.incoming', { treeDataProvider: this.incomingProvider, showCollapseAll: true });
     this.outgoingView = vscode.window.createTreeView('tiinex.outgoing', { treeDataProvider: this.outgoingProvider, showCollapseAll: true });
-    context.subscriptions.push(this.discoveryView, this.incomingView, this.outgoingView, this.discoveryProvider, this.incomingProvider, this.outgoingProvider, this.previewProvider);
+    context.subscriptions.push(this.discoveryView, this.incomingView, this.outgoingView, this.discoveryProvider, this.incomingProvider, this.outgoingProvider, this.previewProvider, this.materialProvider);
     context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider('tiinex-preview', this.previewProvider));
+    context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider(MATERIAL_SCHEME, this.materialProvider));
+    context.subscriptions.push(vscode.languages.registerDocumentLinkProvider({ scheme: MATERIAL_SCHEME }, this.materialProvider));
+    context.subscriptions.push(vscode.languages.registerDocumentLinkProvider({ scheme: 'file', language: 'markdown' }, this.localArtifactLinkProvider));
 
     context.subscriptions.push(this.discoveryView.onDidChangeVisibility((event: { visible: boolean }) => {
       if (event.visible) void this.ensureDiscoveryFolderOnExpand();
@@ -282,6 +424,28 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       ? choices[0]
       : await vscode.window.showQuickPick(choices, { title: 'New Handoff · Choose Workspace', canPickMany: false, ignoreFocusOut: true });
     if (selected) await this.newOutgoingHandoff(selected.workspaceId);
+  }
+
+  async beginArtifactAuthoring(resource?: vscode.Uri): Promise<void> {
+    try {
+      const choice = resource
+        ? await this.localWorkspaceForResource(resource)
+        : await this.pickLocalAuthoringWorkspace();
+      if (!choice) return;
+      const workspace = this.localOutgoingWorkspaceForChoice(choice) || this.workspaceFromLocalChoice(choice);
+      const root = await this.ensureOutgoingAuthoringRoot(workspace);
+      const catalog = await loadArtifactAuthoringCatalog(this.extensionPath, root);
+      const schema = await this.pickArtifactSchema(catalog);
+      if (!schema) return;
+      const parentArtifact = await this.pickArtifactParent(root, catalog);
+      if (parentArtifact === undefined) return;
+      await this.showArtifactAuthoring(workspace, schema.schemaId, parentArtifact, {
+        attachAvailable: schema.schemaId === 'tiinex.handoff.v1' && Boolean(this.localOutgoingWorkspaceForChoice(choice)),
+        attachDefault: false
+      });
+    } catch (error) {
+      await vscode.window.showErrorMessage(`Tiinex artifact authoring blocked: ${shortMessage(error)}`);
+    }
   }
 
   dispose(): void {
@@ -351,6 +515,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     register('tiinex.outgoing.embedBootstrapPayload', () => this.setOutgoingBootstrapPayload(true));
     register('tiinex.tree.openArtifact', (node: OperatorNode) => this.openArtifactNode(node));
     register('tiinex.tree.openWorkspaceMarkdown', (node: OperatorNode) => this.openWorkspaceMarkdownNode(node));
+    register('tiinex.artifact.new', (resource?: vscode.Uri) => this.beginArtifactAuthoring(resource));
     register('tiinex.artifact.newHandoff', (resource?: vscode.Uri) => this.newHandoffFromExplorer(resource));
     register('tiinex.artifact.attachHandoff', (resource?: vscode.Uri) => this.attachHandoffFromExplorer(resource));
 
@@ -961,7 +1126,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     const workspace = state.index.workspaces.find((item) => item.workspaceId === route.workspaceId);
     const artifact = workspace?.artifacts.find((item) => normalizePath(item.path) === normalizePath(route.workspaceRelativeHandoffPath));
     if (!artifact) return false;
-    await this.openVirtualMarkdown(`incoming/${route.workspaceId}/${artifact.path}`, artifact.markdown);
+    await this.openCarrierMarkdown(state.index, route.workspaceId, artifact.path);
     return true;
   }
 
@@ -1554,92 +1719,21 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     return nodes.sort((a, b) => String(a.label ?? '').localeCompare(String(b.label ?? ''), undefined, { numeric: true, sensitivity: 'base' }));
   }
 
-  private handoffTemplates(): AuthoringTemplateOption[] {
-    return [
-      { id: 'work', label: 'Work / Continue', description: 'Bounded work continuation. Fill the exact transfer, context and boundaries.', defaults: { 'Signal Kind': 'return' } },
-      { id: 'discussion', label: 'Discussion', description: 'Bounded discussion without implying acceptance, completion or broader authority.', defaults: { 'Signal Kind': 'disposition' } },
-      { id: 'review', label: 'Review', description: 'Request a bounded review and disposition.', defaults: { 'Signal Kind': 'disposition' } },
-      { id: 'blocked', label: 'Blocked', description: 'Transfer a blocker for explicit bounded disposition.', defaults: { 'Signal Kind': 'disposition' } },
-      { id: 'complete', label: 'Complete / Return', description: 'Return completed bounded work for acknowledgement or disposition.', defaults: { 'Signal Kind': 'acknowledgement' } },
-      { id: 'blank', label: 'Blank', description: 'No semantic defaults beyond Core schema constraints.' }
-    ];
-  }
-
-  private handoffFieldAssists(endpoints: Array<{ label: string; kind: 'role' | 'party' | 'unknown'; reference: string; workspaceId: string; path: string }>): AuthoringFieldAssist[] {
-    const suggestions = endpoints.map((item) => ({
-      label: item.label,
-      value: item.label,
-      description: `${item.kind} · ${item.reference}`,
-      fills: {
-        '__KIND__': item.kind,
-        '__REFERENCE__': item.reference ? `[${item.label.replace(/]/g, '\]')}](${item.reference})` : ''
-      }
-    }));
-    return ['From', 'To'].map((field) => ({
-      field,
-      suggestions: suggestions.map((item) => ({
-        ...item,
-        fills: {
-          [`${field} Kind`]: item.fills.__KIND__,
-          [`${field} Reference`]: item.fills.__REFERENCE__
-        }
-      }))
-    }));
-  }
-
-  private outgoingStagingBase(): string {
-    const contextAny = this.context as any;
-    const base = String(contextAny.storageUri?.fsPath || contextAny.globalStorageUri?.fsPath || path.join(os.tmpdir(), 'tiinex-vscode')).trim();
-    return path.join(base, 'outgoing-authoring');
-  }
-
-  private async ensureOutgoingAuthoringRoot(workspace: OutgoingWorkspace): Promise<string> {
-    if (workspace.source === 'local') {
-      if (!workspace.root) throw new Error(`tiinex.authoring.workspace-source-unavailable:${workspace.workspaceId}`);
-      return workspace.root;
-    }
-    if (workspace.stagedRoot) return workspace.stagedRoot;
-    if (!workspace.packagePath || !workspace.archivePath) throw new Error(`tiinex.authoring.incoming-payload-required:${workspace.workspaceId}`);
-    const key = createHash('sha256').update(workspace.sourceKey).digest('hex').slice(0, 16);
-    const root = path.join(this.outgoingStagingBase(), `${filenameToken(workspace.workspaceId)}-${key}`);
-    await rm(root, { recursive: true, force: true });
-    await mkdir(root, { recursive: true });
-    const archive = await readExactZipEntryFromFile(workspace.packagePath, workspace.archivePath);
-    await extractZipBuffer(archive, root);
-    workspace.stagedRoot = root;
-    workspace.payloadIncluded = true;
-    workspace.checkoutRepository = undefined;
-    workspace.checkoutRef = undefined;
-    return root;
-  }
-
-  private async disposeOutgoingWorkspaceStaging(workspaces: OutgoingWorkspace[]): Promise<void> {
-    await Promise.all(workspaces.map(async (workspace) => {
-      if (workspace.stagedRoot) await rm(workspace.stagedRoot, { recursive: true, force: true });
-    }));
-  }
-
-  private async prepareAuthoringSubmission(workspace: OutgoingWorkspace, submission: ArtifactAuthoringSubmission, parentOverride?: ArtifactDraftParent | null): Promise<{ draft: PreparedArtifactDraft; participants: SimpleHandoffParticipant[]; from: string; to: string }> {
+  private async prepareAuthoringSubmission(
+    workspace: OutgoingWorkspace,
+    schemaId: string,
+    submission: ArtifactAuthoringSubmission,
+    parentArtifact: ArtifactDraftParent | null
+  ): Promise<PreparedArtifactDraft> {
     const root = await this.ensureOutgoingAuthoringRoot(workspace);
-    const parent = this.defaultIncomingParent(workspace.workspaceId);
-    const parentArtifact: ArtifactDraftParent | null = parentOverride === undefined
-      ? (parent ? { path: parent.path, markdown: parent.markdown } : null)
-      : parentOverride;
-    const endpoints = await this.endpointCatalog();
-    const participantByReference = new Map(endpoints.filter((item) => item.kind === 'role' && item.reference).map((item) => [item.reference, item]));
-    const participants: SimpleHandoffParticipant[] = submission.participantReferences
-      .map((reference) => participantByReference.get(reference))
-      .filter((item): item is NonNullable<typeof item> => Boolean(item))
-      .map((item) => ({ label: item.label, reference: item.reference, workspaceId: item.workspaceId, path: item.path }));
-    const draft = await prepareArtifactDraft(this.extensionPath, {
+    return prepareArtifactDraft(this.extensionPath, {
       root,
       workspaceId: workspace.workspaceId,
-      schemaId: 'tiinex.handoff.v1',
+      schemaId,
       title: submission.title,
       values: submission.values,
       parentArtifact
     });
-    return { draft, participants, from: String(submission.values.From || '').trim(), to: String(submission.values.To || '').trim() };
   }
 
   private outgoingDraftForPath(workspaceId: string, artifactPath: string): OutgoingDraft | undefined {
@@ -1649,6 +1743,31 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
 
   private effectiveOutgoingWorkspaceRoot(workspace: OutgoingWorkspace): string {
     return workspace.stagedRoot || workspace.root;
+  }
+
+  private async ensureOutgoingAuthoringRoot(workspace: OutgoingWorkspace): Promise<string> {
+    if (workspace.stagedRoot) return workspace.stagedRoot;
+    if (workspace.source === 'local') {
+      const root = path.resolve(String(workspace.root || '').trim());
+      if (!workspace.root) throw new Error(`tiinex.authoring.workspace-root-required:${workspace.workspaceId}`);
+      return root;
+    }
+    if (!workspace.packagePath || !workspace.archivePath) throw new Error(`tiinex.authoring.incoming-workspace-source-required:${workspace.workspaceId}`);
+
+    // Carried Incoming bytes are immutable source context. Authoring gets an
+    // extension-owned staging copy and all later preview/write/package work for
+    // this Outgoing session stays bound to that exact staged root.
+    const archive = await readExactZipEntryFromFile(workspace.packagePath, workspace.archivePath);
+    const fingerprint = createHash('sha256').update(archive).digest('hex').slice(0, 24);
+    const root = path.join(os.tmpdir(), `tiinex-vscode-outgoing-${workspace.workspaceId.replace(/[^a-z0-9._-]+/gi, '-')}-${fingerprint}`);
+    await rm(root, { recursive: true, force: true });
+    await mkdir(root, { recursive: true });
+    await extractZipBuffer(archive, root);
+    workspace.stagedRoot = root;
+    workspace.payloadIncluded = true;
+    workspace.checkoutRepository = undefined;
+    workspace.checkoutRef = undefined;
+    return root;
   }
 
   private trackOutgoingHandoff(workspace: OutgoingWorkspace, draft: PreparedArtifactDraft, writtenPath: string, from: string, to: string, participants: SimpleHandoffParticipant[], origin: 'created' | 'existing', routeIncluded = true): OutgoingDraft {
@@ -1717,48 +1836,88 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     return (picked as typeof items).map((item) => item.participant);
   }
 
-  private async showHandoffAuthoring(workspace: OutgoingWorkspace, options: { attachAvailable: boolean; useIncomingParent: boolean }): Promise<void> {
+  private async pickLocalAuthoringWorkspace(): Promise<PackageWorkspaceChoice | null> {
+    const choices = await loadLocalWorkspaceChoices(this.extensionPath);
+    if (!choices.length) throw new Error('tiinex.authoring.no-qualified-local-workspaces');
+    if (choices.length === 1) return choices[0];
+    const picked = await vscode.window.showQuickPick(choices.map((choice) => ({
+      label: choice.workspaceId,
+      description: choice.repository || choice.ref || '',
+      detail: choice.root,
+      choice
+    })), { title: 'New Tiinex Artifact · Choose Workspace', canPickMany: false, ignoreFocusOut: true });
+    return picked?.choice || null;
+  }
+
+  private async pickArtifactSchema(catalog: ArtifactAuthoringCatalog, preselectedSchemaId = ''): Promise<{ schemaId: string; label: string } | null> {
+    const schemas = catalog.schemas.map((schema) => ({ schemaId: schema.schemaId, label: schema.label || schema.schemaId, description: schema.role || '' }));
+    if (preselectedSchemaId) {
+      const exact = schemas.find((item) => item.schemaId === preselectedSchemaId);
+      if (!exact) throw new Error(`tiinex.authoring.schema-not-creatable:${preselectedSchemaId}`);
+      return exact;
+    }
+    const selected = await vscode.window.showQuickPick(schemas.map((schema) => ({
+      label: schema.label,
+      description: schema.schemaId,
+      detail: schema.description,
+      schema
+    })), { title: 'New Tiinex Artifact · Choose Core-qualified schema', canPickMany: false, ignoreFocusOut: true });
+    return selected?.schema || null;
+  }
+
+  private async pickArtifactParent(root: string, catalog: ArtifactAuthoringCatalog): Promise<ArtifactDraftParent | null | undefined> {
+    if (!catalog.parents.length) return null;
+    const items: Array<{ label: string; description: string; detail: string; parent: ArtifactAuthoringCatalog['parents'][number] | null }> = [
+      { label: 'New lineage root', description: 'No Parent', detail: 'Core will allocate a schema-qualified root path.', parent: null },
+      ...catalog.parents.map((parent) => ({
+        label: parent.title || path.basename(parent.path),
+        description: parent.schemaId || '',
+        detail: parent.path,
+        parent
+      }))
+    ];
+    const selected = await vscode.window.showQuickPick(items, { title: 'New Tiinex Artifact · Choose lineage', placeHolder: 'Choose a Core-qualified Parent or create a new lineage root', canPickMany: false, ignoreFocusOut: true });
+    if (!selected) return undefined;
+    if (!selected.parent) return null;
+    const parentPath = normalizePath(selected.parent.path);
+    const markdown = await readFile(safeTarget(root, parentPath), 'utf8');
+    return { path: parentPath, markdown };
+  }
+
+  private async showArtifactAuthoring(
+    workspace: OutgoingWorkspace,
+    schemaId: string,
+    parentArtifact: ArtifactDraftParent | null,
+    options: { attachAvailable: boolean; attachDefault: boolean }
+  ): Promise<void> {
     try {
-      // Incoming payloads are materialized only into extension-owned staging.
-      // The carrier supplied by the operator remains immutable.
-      await this.ensureOutgoingAuthoringRoot(workspace);
-      const [model, endpoints] = await Promise.all([
-        loadArtifactAuthoringModel(this.extensionPath, 'tiinex.handoff.v1'),
-        this.endpointCatalog()
-      ]);
-      const defaultTo = options.useIncomingParent ? this.defaultIncomingReturnRole(workspace.workspaceId) : '';
-      const parent = options.useIncomingParent ? this.defaultIncomingParent(workspace.workspaceId) : null;
-      const parentOverride: ArtifactDraftParent | null = parent ? { path: parent.path, markdown: parent.markdown } : null;
+      const root = await this.ensureOutgoingAuthoringRoot(workspace);
+      const transition = parentArtifact ? 'continue-from-record' : 'create-artifact';
+      const model = await loadArtifactAuthoringModel(this.extensionPath, schemaId, transition);
+      const attachAvailable = schemaId === 'tiinex.handoff.v1' && options.attachAvailable;
       openArtifactAuthoringPanel({
         model,
         workspaces: [{ workspaceId: workspace.workspaceId, label: workspace.label || workspace.workspaceId, description: workspace.source === 'local' ? 'LOCAL' : `INCOMING · ${workspace.sourceLabel}` }],
         selectedWorkspaceId: workspace.workspaceId,
-        fieldAssists: this.handoffFieldAssists(endpoints),
-        carrierRoles: endpoints.filter((item) => item.kind === 'role').map((item) => ({ label: item.label, reference: item.reference })),
-        templates: this.handoffTemplates(),
-        selectedTemplateId: 'work',
-        attachAvailable: options.attachAvailable,
-        attachDefault: options.attachAvailable,
-        parentLabel: parent?.path || '',
-        initialValues: { From: this.operatorRole(), To: defaultTo }
+        attachAvailable,
+        attachDefault: attachAvailable && options.attachDefault,
+        parentLabel: parentArtifact?.path || ''
       }, {
         preview: async (submission) => {
-          const prepared = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'Tiinex preparing Handoff preview', cancellable: false }, () => this.prepareAuthoringSubmission(workspace, submission, parentOverride));
-          await this.openVirtualMarkdown(`authoring/${workspace.workspaceId}/${prepared.draft.path}`, prepared.draft.markdown);
+          const draft = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `Tiinex preparing ${model.label} preview`, cancellable: false }, () => this.prepareAuthoringSubmission(workspace, schemaId, submission, parentArtifact));
+          await this.openVirtualMarkdown(`authoring/${workspace.workspaceId}/${draft.path}`, draft.markdown);
         },
         create: async (submission) => {
-          const prepared = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'Tiinex qualifying Handoff', cancellable: false }, () => this.prepareAuthoringSubmission(workspace, submission, parentOverride));
-          await this.openVirtualMarkdown(`authoring/${workspace.workspaceId}/${prepared.draft.path}`, prepared.draft.markdown);
-          const accepted = await vscode.window.showWarningMessage(`Create exact Core-qualified Handoff?\n\n${prepared.from || '(From)'} → ${prepared.to || '(To)'}\n${prepared.draft.path}\n\nThe previewed bytes are written only after this confirmation.`, { modal: true }, 'Create Handoff', 'Cancel');
-          if (accepted !== 'Create Handoff') throw new Error('tiinex.authoring.cancelled');
-          const writtenPath = await writePreparedArtifactDraft(this.extensionPath, prepared.draft);
+          const draft = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `Tiinex qualifying ${model.label}`, cancellable: false }, () => this.prepareAuthoringSubmission(workspace, schemaId, submission, parentArtifact));
+          await this.openVirtualMarkdown(`authoring/${workspace.workspaceId}/${draft.path}`, draft.markdown);
+          const action = `Create ${model.label}`;
+          const accepted = await vscode.window.showWarningMessage(`Create exact Core-qualified ${model.label}?\n\n${draft.path}\n\nThe previewed bytes are written only after this confirmation.`, { modal: true }, action, 'Cancel');
+          if (accepted !== action) throw new Error('tiinex.authoring.cancelled');
+          const writtenPath = await writePreparedArtifactDraft(this.extensionPath, draft);
           if (submission.attachToOutgoing) {
-            if (!options.attachAvailable) throw new Error('tiinex.authoring.attach-outgoing-unavailable');
-            this.trackOutgoingHandoff(workspace, prepared.draft, writtenPath, prepared.from, prepared.to, prepared.participants, 'created', true);
-          }
-          // A newly written Handoff makes the effective source differ from any
-          // checkout-only snapshot, so transport must remain embedded.
-          if (submission.attachToOutgoing && this.outgoing?.workspaces.some((item) => item.workspaceId === workspace.workspaceId && item.sourceKey === workspace.sourceKey)) {
+            if (!attachAvailable || schemaId !== 'tiinex.handoff.v1') throw new Error('tiinex.authoring.attach-outgoing-unavailable');
+            const qualified = await qualifyExistingHandoff(this.extensionPath, root, workspace.workspaceId, draft.path);
+            this.trackOutgoingHandoff(workspace, draft, writtenPath, qualified.from, qualified.to, [], 'created', true);
             workspace.payloadIncluded = true;
             workspace.checkoutRepository = undefined;
             workspace.checkoutRef = undefined;
@@ -1770,7 +1929,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
         }
       });
     } catch (error) {
-      await vscode.window.showErrorMessage(`Tiinex Handoff authoring blocked: ${shortMessage(error)}`, 'Show Details').then(async (choice: string | undefined) => {
+      await vscode.window.showErrorMessage(`Tiinex ${schemaId} authoring blocked: ${shortMessage(error)}`, 'Show Details').then(async (choice: string | undefined) => {
         if (choice === 'Show Details') await vscode.window.showErrorMessage(String(error instanceof Error ? error.stack || error.message : error), { modal: true });
       });
     }
@@ -1780,7 +1939,13 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     if (!this.outgoing) return;
     const workspace = this.outgoing.workspaces.find((item) => item.workspaceId === workspaceId);
     if (!workspace) return;
-    await this.showHandoffAuthoring(workspace, { attachAvailable: true, useIncomingParent: true });
+    const root = await this.ensureOutgoingAuthoringRoot(workspace);
+    const catalog = await loadArtifactAuthoringCatalog(this.extensionPath, root);
+    const schema = await this.pickArtifactSchema(catalog, 'tiinex.handoff.v1');
+    if (!schema) return;
+    const parentArtifact = await this.pickArtifactParent(root, catalog);
+    if (parentArtifact === undefined) return;
+    await this.showArtifactAuthoring(workspace, schema.schemaId, parentArtifact, { attachAvailable: true, attachDefault: true });
   }
 
   private resourceInsideRoot(root: string, resourcePath: string): boolean {
@@ -1817,12 +1982,18 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
   }
 
   private async newHandoffFromExplorer(resource?: vscode.Uri): Promise<void> {
-    if (!resource) return;
+    if (!resource) { await this.beginHandoffAuthoring(); return; }
     try {
       const choice = await this.localWorkspaceForResource(resource);
       const outgoingWorkspace = this.localOutgoingWorkspaceForChoice(choice);
       const workspace = outgoingWorkspace || this.workspaceFromLocalChoice(choice);
-      await this.showHandoffAuthoring(workspace, { attachAvailable: Boolean(outgoingWorkspace), useIncomingParent: Boolean(outgoingWorkspace) });
+      const root = await this.ensureOutgoingAuthoringRoot(workspace);
+      const catalog = await loadArtifactAuthoringCatalog(this.extensionPath, root);
+      const schema = await this.pickArtifactSchema(catalog, 'tiinex.handoff.v1');
+      if (!schema) return;
+      const parentArtifact = await this.pickArtifactParent(root, catalog);
+      if (parentArtifact === undefined) return;
+      await this.showArtifactAuthoring(workspace, schema.schemaId, parentArtifact, { attachAvailable: Boolean(outgoingWorkspace), attachDefault: Boolean(outgoingWorkspace) });
     } catch (error) {
       await vscode.window.showErrorMessage(`Tiinex New Handoff blocked: ${shortMessage(error)}`);
     }
@@ -2654,7 +2825,36 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
   private async openArtifactNode(node: OperatorNode): Promise<void> {
     const artifact = node.data.artifact;
     if (!artifact) return;
-    await this.openVirtualMarkdown(`${node.data.section}/${artifact.workspaceId || 'carrier'}/${artifact.path}`, artifact.markdown);
+    try {
+      if (node.data.section === 'incoming' || node.data.section === 'discovery') {
+        const index = node.data.section === 'incoming'
+          ? this.incomingState(node.data.packagePath || '')?.index || null
+          : node.data.packagePath ? await this.carrier(node.data.packagePath) : null;
+        if (!index) throw new Error('tiinex.material.package-unavailable');
+        await this.openCarrierMarkdown(index, artifact.workspaceId, artifact.path);
+        return;
+      }
+      if (node.data.section === 'outgoing') {
+        const workspace = this.outgoing?.workspaces.find((item) => item.workspaceId === artifact.workspaceId);
+        if (!workspace) throw new Error(`tiinex.material.workspace-unavailable:${artifact.workspaceId}`);
+        if (workspace.stagedRoot) {
+          await this.openLocalMarkdown(workspace.stagedRoot, artifact.path);
+          return;
+        }
+        if (workspace.source === 'incoming' && workspace.packagePath) {
+          const index = this.incomingState(workspace.packagePath)?.index || await this.carrier(workspace.packagePath);
+          await this.openCarrierMarkdown(index, artifact.workspaceId, artifact.path);
+          return;
+        }
+        if (workspace.root) {
+          await this.openLocalMarkdown(workspace.root, artifact.path);
+          return;
+        }
+      }
+      throw new Error('tiinex.material.source-unavailable');
+    } catch (error) {
+      await vscode.window.showErrorMessage(`Tiinex artifact navigation blocked: ${shortMessage(error)}`);
+    }
   }
 
   private async openWorkspaceMarkdownNode(node: OperatorNode): Promise<void> {
@@ -2662,40 +2862,48 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     const filePath = normalizePath(node.data.filePath || '');
     if (!workspaceId || !filePath || !/\.md$/i.test(filePath)) return;
     try {
-      let markdown = '';
       if (node.data.section === 'incoming' || node.data.section === 'discovery') {
         const index = node.data.section === 'incoming'
           ? this.incomingState(node.data.packagePath || '')?.index || null
           : node.data.packagePath ? await this.carrier(node.data.packagePath) : null;
-        const workspace = index?.workspaces.find((item) => item.workspaceId === workspaceId);
-        if (!index || !workspace?.archivePath) return;
-        markdown = (await readCarrierWorkspaceFile(index.packagePath, workspace.archivePath, filePath)).toString('utf8');
-      } else {
-        const workspace = this.outgoing?.workspaces.find((item) => item.workspaceId === workspaceId);
-        if (!workspace) return;
-        if (workspace.stagedRoot) {
-          const root = path.resolve(workspace.stagedRoot);
-          const absolute = path.resolve(root, ...filePath.split('/'));
-          const relative = path.relative(root, absolute);
-          if (!relative || relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) return;
-          markdown = await readFile(absolute, 'utf8');
-        } else if (workspace.source === 'incoming' && workspace.packagePath) {
-          const state = this.incomingState(workspace.packagePath);
-          const carried = state?.index.workspaces.find((item) => item.workspaceId === workspaceId);
-          if (!state || !carried?.archivePath) return;
-          markdown = (await readCarrierWorkspaceFile(state.index.packagePath, carried.archivePath, filePath)).toString('utf8');
-        } else if (workspace.root) {
-          const root = path.resolve(workspace.root);
-          const absolute = path.resolve(root, ...filePath.split('/'));
-          const relative = path.relative(root, absolute);
-          if (!relative || relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) return;
-          markdown = await readFile(absolute, 'utf8');
-        }
+        if (!index) throw new Error('tiinex.material.package-unavailable');
+        await this.openCarrierMarkdown(index, workspaceId, filePath);
+        return;
       }
-      if (markdown) await this.openVirtualMarkdown(`${node.data.section}/${workspaceId}/${filePath}`, markdown);
+      const workspace = this.outgoing?.workspaces.find((item) => item.workspaceId === workspaceId);
+      if (!workspace) throw new Error(`tiinex.material.workspace-unavailable:${workspaceId}`);
+      if (workspace.stagedRoot) {
+        await this.openLocalMarkdown(workspace.stagedRoot, filePath);
+        return;
+      }
+      if (workspace.source === 'incoming' && workspace.packagePath) {
+        const index = this.incomingState(workspace.packagePath)?.index || await this.carrier(workspace.packagePath);
+        await this.openCarrierMarkdown(index, workspaceId, filePath);
+        return;
+      }
+      if (workspace.root) {
+        await this.openLocalMarkdown(workspace.root, filePath);
+        return;
+      }
+      throw new Error('tiinex.material.source-unavailable');
     } catch (error) {
-      await vscode.window.showErrorMessage(`Tiinex Markdown preview blocked: ${shortMessage(error)}`);
+      await vscode.window.showErrorMessage(`Tiinex artifact navigation blocked: ${shortMessage(error)}`);
     }
+  }
+
+  private async openLocalMarkdown(root: string, filePath: string): Promise<void> {
+    const absolute = safeTarget(path.resolve(root), normalizePath(filePath));
+    const info = await stat(absolute);
+    if (!info.isFile()) throw new Error(`tiinex.material.local-file-unavailable:${filePath}`);
+    const uri = vscode.Uri.file(absolute);
+    const document = await vscode.workspace.openTextDocument(uri);
+    await vscode.window.showTextDocument(document, { preview: false, preserveFocus: false });
+  }
+
+  private async openCarrierMarkdown(index: IndexedCarrierPackage, workspaceId: string, filePath: string): Promise<void> {
+    const uri = await this.materialProvider.uriFor(index, workspaceId, filePath);
+    const document = await vscode.workspace.openTextDocument(uri);
+    await vscode.window.showTextDocument(document, { preview: false, preserveFocus: false });
   }
 
   private async openVirtualMarkdown(id: string, markdown: string): Promise<void> {

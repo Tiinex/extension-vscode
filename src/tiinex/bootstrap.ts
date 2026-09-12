@@ -371,6 +371,72 @@ export async function projectArtifactSchemaGuide(runtime: PackageRuntime, schema
   return runTiinexJson<ArtifactSchemaGuideResult>(runtime, ['schema-guide', '--schema', schemaId, '--task', task, '--detail', 'compact', '--compact'], runner);
 }
 
+export interface ArtifactMaterializationSchemaCandidate {
+  schemaId: string;
+  label: string;
+  role?: string;
+  transitionType?: string;
+  status?: string;
+  binding?: unknown;
+}
+
+export interface ArtifactMaterializationParentCandidate {
+  id: string;
+  path: string;
+  title?: string;
+  schemaId?: string;
+  sourceMode?: string;
+  boundary?: string;
+  role?: string;
+  explicitOnly?: boolean;
+}
+
+export interface ArtifactMaterializationPlanResult {
+  status: string;
+  candidateSchemas?: ArtifactMaterializationSchemaCandidate[];
+  parentCandidates?: ArtifactMaterializationParentCandidate[];
+  proposals?: Array<{
+    id?: string;
+    status?: string;
+    schemaId?: string;
+    path?: string;
+    parent?: unknown;
+    parentKind?: string;
+    clarificationNeeds?: Array<{ code?: string; statement?: string }>;
+    findings?: Array<{ severity?: string; code?: string; message?: string }>;
+  }>;
+  clarificationNeeds?: Array<{ proposalId?: string; code?: string; statement?: string }>;
+  findings?: Array<{ severity?: string; code?: string; message?: string }>;
+  findingSummary?: { counts?: { error?: number; warning?: number; info?: number; total?: number } };
+}
+
+/**
+ * Ask Core to expose the currently creatable schema catalog and, when supplied,
+ * plan one or more schema-generic artifact creations including exact Parent and
+ * path allocation. VS Code never reimplements schema path/lineage policy here.
+ */
+export async function projectArtifactMaterialization(
+  runtime: PackageRuntime,
+  materialRoot: string,
+  proposals: unknown[] = [],
+  runner: ProcessRunner = runProcess
+): Promise<ArtifactMaterializationPlanResult> {
+  const args = ['prepare-materialization', materialRoot];
+  if (!proposals.length) {
+    args.push('--compact');
+    return runTiinexJson<ArtifactMaterializationPlanResult>(runtime, args, runner);
+  }
+  const scratch = await mkdtemp(path.join(os.tmpdir(), 'tiinex-vscode-materialization-'));
+  try {
+    const proposalPath = path.join(scratch, 'proposals.json');
+    await writeFile(proposalPath, JSON.stringify({ proposals }), 'utf8');
+    args.push('--proposals', proposalPath, '--compact');
+    return await runTiinexJson<ArtifactMaterializationPlanResult>(runtime, args, runner);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+}
+
 export async function projectHandoffAuthoringPlan(runtime: PackageRuntime, root: string, title: string, parentPath = '', runner: ProcessRunner = runProcess): Promise<HandoffAuthoringPlanResult> {
   const args = ['project-handoff-authoring-plan', root, '--title', title];
   if (parentPath) args.push('--parent', parentPath);
@@ -383,7 +449,7 @@ export async function createArtifactDraft(
   schemaId: string,
   materialRoot: string,
   childPath: string,
-  title: string,
+  _title: string,
   values: unknown,
   parentRecord: unknown = null,
   transition: 'create-artifact' | 'continue-from-record' = parentRecord ? 'continue-from-record' : 'create-artifact',
@@ -396,7 +462,10 @@ export async function createArtifactDraft(
     const isolatedMaterialRoot = path.join(scratch, 'material');
     await mkdir(isolatedMaterialRoot, { recursive: true });
     await writeFile(valuesPath, JSON.stringify(values), 'utf8');
-    const args = ['create-local-draft', isolatedMaterialRoot, '--schema', schemaId, '--transition', transition, '--path', childPath, '--title', title, '--values', valuesPath];
+    // Title is a materialization/path-planning hint, not a schema-generic render input.
+    // Core derives concrete artifact title/summary representation from the schema values;
+    // forcing a host title can contradict bindings such as Task Summary -> body title.
+    const args = ['create-local-draft', isolatedMaterialRoot, '--schema', schemaId, '--transition', transition, '--path', childPath, '--values', valuesPath];
     if (transition === 'continue-from-record') {
       if (!parentRecord) throw new Error('tiinex.authoring.parent-required');
       const parentPath = path.join(scratch, 'parent.json');
@@ -404,9 +473,7 @@ export async function createArtifactDraft(
       args.push('--parent', parentPath);
     }
     args.push('--compact');
-    const result = await runTiinexJson<any>(runtime, args, runner);
-    if (!String(result.status || '').startsWith('created-') || !result.draft?.markdown || Number(result.findingSummary?.counts?.error || 0) > 0) throw new Error(`tiinex.authoring.draft-blocked:${result.status || 'unknown'}`);
-    return result;
+    return await runTiinexJson<any>(runtime, args, runner);
   } finally { await rm(scratch, { recursive: true, force: true }); }
 }
 

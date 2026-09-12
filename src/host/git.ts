@@ -256,6 +256,139 @@ export async function stageCommitPush(root: string, nodeExecutable: string, runn
   return { branch, upstream, message, commitSha };
 }
 
+export interface GitOperatorValidationSummary {
+  state?: string;
+  stagedTiinexPaths?: string[];
+  ignoredStagedPaths?: string[];
+}
+
+export interface PreparedGitOperatorCommit {
+  branch: string;
+  upstream: string;
+  headBefore: string;
+  message: string;
+  stagedPaths: string[];
+  stagedTiinexPaths: string[];
+  ignoredStagedPaths: string[];
+  validationState: string;
+  statusSnapshot: string;
+  stagedDiffSnapshot: string;
+}
+
+export interface GitOperatorCommitResult {
+  branch: string;
+  upstream: string;
+  headBefore: string;
+  message: string;
+  commitSha: string;
+}
+
+async function checkedHead(root: string, runner: ProcessRunner): Promise<string> {
+  const head = await runChecked('git', ['rev-parse', 'HEAD'], { cwd: root }, runner);
+  const sha = head.stdout.trim().toLowerCase();
+  if (!/^[a-f0-9]{40,64}$/.test(sha)) throw new Error('tiinex.git.head-sha-invalid');
+  return sha;
+}
+
+async function statusSnapshot(root: string, runner: ProcessRunner): Promise<string> {
+  return (await runChecked('git', ['status', '--porcelain=v1', '-z', '--untracked-files=all'], { cwd: root }, runner)).stdout;
+}
+
+async function stagedDiffSnapshot(root: string, runner: ProcessRunner): Promise<string> {
+  return (await runChecked('git', ['diff', '--cached', '--raw', '-z', '--no-renames'], { cwd: root }, runner)).stdout;
+}
+
+/**
+ * Stage and qualify one repository for the multi-repository operator flow, but
+ * stop before creating a commit. The returned snapshots bind the later commit
+ * to the exact reviewed branch/upstream/HEAD/index state.
+ */
+export async function prepareGitOperatorCommit(
+  root: string,
+  nodeExecutable: string,
+  validateStaged?: (stagedPaths: string[]) => Promise<GitOperatorValidationSummary | void>,
+  runner: ProcessRunner = runProcess
+): Promise<PreparedGitOperatorCommit> {
+  const { branch, upstream } = await branchAndUpstream(root, runner);
+  const publication = await aheadBehind(root, runner);
+  if (publication.ahead !== 0 || publication.behind !== 0) throw new Error(`tiinex.git.pre-operation-upstream-not-aligned:${publication.ahead}:${publication.behind}`);
+  const headBefore = await checkedHead(root, runner);
+
+  await runChecked('git', ['add', '-A'], { cwd: root }, runner);
+  const diff = await runner('git', ['diff', '--cached', '--quiet'], { cwd: root });
+  if (diff.code === 0) throw new Error('tiinex.git.no-staged-changes');
+  if (diff.code !== 1) throw new Error(`tiinex.git.staged-diff-failed:${diff.stderr.trim() || diff.stdout.trim() || diff.code}`);
+
+  const stagedPaths = await listStagedPaths(root, runner);
+  const validation = await validateStaged?.(stagedPaths);
+  const message = await generateTiinexCommitMessage(root, nodeExecutable, runner);
+
+  const current = await branchAndUpstream(root, runner);
+  if (current.branch !== branch) throw new Error('tiinex.git.review-branch-changed');
+  if (current.upstream !== upstream) throw new Error('tiinex.git.review-upstream-changed');
+  if (await checkedHead(root, runner) !== headBefore) throw new Error('tiinex.git.review-head-changed');
+  const relation = await aheadBehind(root, runner);
+  if (relation.ahead !== 0 || relation.behind !== 0) throw new Error(`tiinex.git.review-upstream-not-aligned:${relation.ahead}:${relation.behind}`);
+
+  return {
+    branch,
+    upstream,
+    headBefore,
+    message,
+    stagedPaths,
+    stagedTiinexPaths: [...(validation?.stagedTiinexPaths || [])],
+    ignoredStagedPaths: [...(validation?.ignoredStagedPaths || [])],
+    validationState: String(validation?.state || 'ready'),
+    statusSnapshot: await statusSnapshot(root, runner),
+    stagedDiffSnapshot: await stagedDiffSnapshot(root, runner)
+  };
+}
+
+/** Create exactly the commit the operator reviewed; never push here. */
+export async function commitPreparedGitOperator(
+  root: string,
+  prepared: PreparedGitOperatorCommit,
+  editedMessage: string,
+  runner: ProcessRunner = runProcess
+): Promise<GitOperatorCommitResult> {
+  const message = String(editedMessage || '').trim();
+  if (!message) throw new Error('tiinex.git.commit-message-empty');
+  const current = await branchAndUpstream(root, runner);
+  if (current.branch !== prepared.branch) throw new Error('tiinex.git.commit-branch-changed');
+  if (current.upstream !== prepared.upstream) throw new Error('tiinex.git.commit-upstream-changed');
+  if (await checkedHead(root, runner) !== prepared.headBefore) throw new Error('tiinex.git.commit-head-changed');
+  const relation = await aheadBehind(root, runner);
+  if (relation.ahead !== 0 || relation.behind !== 0) throw new Error(`tiinex.git.commit-upstream-not-aligned:${relation.ahead}:${relation.behind}`);
+  if (await statusSnapshot(root, runner) !== prepared.statusSnapshot) throw new Error('tiinex.git.working-state-changed-after-review');
+  if (await stagedDiffSnapshot(root, runner) !== prepared.stagedDiffSnapshot) throw new Error('tiinex.git.staged-state-changed-after-review');
+
+  await runChecked('git', ['commit', '-m', message], { cwd: root }, runner);
+  const commitSha = await checkedHead(root, runner);
+  const after = await branchAndUpstream(root, runner);
+  if (after.branch !== prepared.branch) throw new Error('tiinex.git.commit-branch-changed-after-commit');
+  if (after.upstream !== prepared.upstream) throw new Error('tiinex.git.commit-upstream-changed-after-commit');
+  const afterRelation = await aheadBehind(root, runner);
+  if (afterRelation.ahead !== 1 || afterRelation.behind !== 0) throw new Error(`tiinex.git.commit-publication-state-unexpected:${afterRelation.ahead}:${afterRelation.behind}`);
+  return { branch: prepared.branch, upstream: prepared.upstream, headBefore: prepared.headBefore, message, commitSha };
+}
+
+/**
+ * Push only the exact commit created by the same reviewed flow. Any unrelated
+ * HEAD, branch, upstream or ahead/behind change fails closed for this repo.
+ */
+export async function pushExactGitOperatorCommit(root: string, commit: GitOperatorCommitResult, runner: ProcessRunner = runProcess): Promise<void> {
+  const current = await branchAndUpstream(root, runner);
+  if (current.branch !== commit.branch) throw new Error('tiinex.git.push-branch-changed');
+  if (current.upstream !== commit.upstream) throw new Error('tiinex.git.push-upstream-changed');
+  if (await checkedHead(root, runner) !== commit.commitSha) throw new Error('tiinex.git.push-head-changed');
+  const relation = await aheadBehind(root, runner);
+  if (relation.ahead !== 1 || relation.behind !== 0) throw new Error(`tiinex.git.push-unrelated-ahead:${relation.ahead}:${relation.behind}`);
+  await runChecked('git', ['push'], { cwd: root }, runner);
+  if (await checkedHead(root, runner) !== commit.commitSha) throw new Error('tiinex.git.push-head-changed-after-push');
+  const published = await aheadBehind(root, runner);
+  if (published.ahead !== 0 || published.behind !== 0) throw new Error(`tiinex.git.push-publication-state-unexpected:${published.ahead}:${published.behind}`);
+}
+
 export async function dirtyWorkingTreePaths(root: string, runner: ProcessRunner = runProcess): Promise<string[]> {
   const paths = new Set<string>();
   for (const args of [

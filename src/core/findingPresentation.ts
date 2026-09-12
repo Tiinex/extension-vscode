@@ -19,6 +19,16 @@ export function presentActionableFinding(finding: FindingLike): string {
   return `${actionForFinding(code)}\nUnderlying finding: ${code}: ${message}`;
 }
 
+export function presentSharedFindings(findings: FindingLike[] = [], status = 'unknown'): string {
+  if (!findings.length) return `Shared Tiinex Core returned status ${String(status || 'unknown')} without projected finding details.`;
+  return findings.map((finding) => {
+    const severity = String(finding.severity || 'finding').trim().toUpperCase() || 'FINDING';
+    const code = String(finding.code || 'finding-unidentified').trim() || 'finding-unidentified';
+    const message = String(finding.message || 'Shared Tiinex Core did not provide a finding message.').trim();
+    return `${severity} ${code}: ${message}`;
+  }).join('\n');
+}
+
 export function presentActionableFindings(findings: FindingLike[] = [], status = 'unknown'): string {
   const blocking = findings.filter((finding) => finding.severity === 'error' || finding.severity === 'warning');
   if (blocking.length) return blocking.map(presentActionableFinding).join('\n\n');

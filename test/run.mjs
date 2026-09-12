@@ -11,15 +11,18 @@ import { canonicalRepositoryRoot, relativeRepositoryPath, repositoryContainsPath
 import { ignoredPathCollisions, safeRelativePath, safeTarget } from '../dist/core/paths.js';
 import { preferredRepositoryParent, routesPreferredForRole } from '../dist/core/receiveUx.js';
 import { alphabeticalWorkspaceIds, artifactsForLineageMode, currentRoleArtifacts, currentRoleChoices, makeIndexedArtifact } from '../dist/core/artifactTree.js';
+import { artifactReferenceAvailable, markdownLinkTargets, materialTargetKey, resolveArtifactReference } from '../dist/core/artifactNavigation.js';
 import { receivedHandoffContext, withWorkspaceRoots } from '../dist/core/receivedHandoff.js';
 import { operatorMatchedWorkspaceIds, resolvePrioritizedWorkspaceDuplicates } from '../dist/core/sourceSelection.js';
 import { comparePackageRecency, inheritedOutgoingLabel } from '../dist/core/outgoingUx.js';
 import { projectArtifactAuthoringModel } from '../dist/core/artifactAuthoringModel.js';
+import { artifactCreationReady, requireArtifactCreationReady } from '../dist/core/artifactAuthoringQualification.js';
+import { gitOperatorResultMarkdown, projectGitOperatorCandidates } from '../dist/core/gitOperator.js';
 import { planWorkspaceSession, validateWorkspaceTargetMapping } from '../dist/core/workspaceSession.js';
 import { representativeWorkspaceChoicesForRoot } from '../dist/core/workspaceChoice.js';
-import { checkIgnoredPaths, commitWorkingTree, dirtyWorkingTreePaths, discardWorkingTree, generateTiinexCommitMessage, listStagedPaths, mergeCommitNoCommit, payloadCheckoutEligibility, preflightExistingLocalBranch, pushExactLandingCommit, stageCommitPush, stageLandingChanges, stageLandingCommit, stashWorkingTree } from '../dist/host/git.js';
+import { checkIgnoredPaths, commitPreparedGitOperator, commitWorkingTree, dirtyWorkingTreePaths, discardWorkingTree, generateTiinexCommitMessage, listStagedPaths, mergeCommitNoCommit, payloadCheckoutEligibility, preflightExistingLocalBranch, prepareGitOperatorCommit, pushExactGitOperatorCommit, pushExactLandingCommit, stageCommitPush, stageLandingChanges, stageLandingCommit, stashWorkingTree } from '../dist/host/git.js';
 import { preferredNodeExecutable } from '../dist/host/nodeExecutable.js';
-import { compareIncomingWorkspaceToLocal, createHandoffDraft, inspectArtifactCreationContract, parseBootstrapDescriptor, prepareBundledRuntime, projectArtifactSchemaGuide, runTiinexJson, projectEditorAssistanceText, projectHandoffAuthoringPlan, projectHandoffEndpoints, projectOperatorContext, projectStagedValidation, projectWorkspaceLanding, projectWorkspacePackageSources } from '../dist/tiinex/bootstrap.js';
+import { compareIncomingWorkspaceToLocal, createArtifactDraft, createHandoffDraft, inspectArtifactCreationContract, parseBootstrapDescriptor, prepareBundledRuntime, projectArtifactMaterialization, projectArtifactSchemaGuide, runTiinexJson, projectEditorAssistanceText, projectHandoffAuthoringPlan, projectHandoffEndpoints, projectOperatorContext, projectStagedValidation, projectWorkspaceLanding, projectWorkspacePackageSources } from '../dist/tiinex/bootstrap.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 let count = 0;
@@ -32,6 +35,56 @@ async function rejectsCode(fn, code) {
   await assert.rejects(fn, (error) => String(error?.message || error).includes(code));
 }
 
+
+await test('artifact navigation resolves relative, qualified and external links without guessing', async () => {
+  const handoffPath = '.topics/refactor/orchestration/001-3-6-4-1-1-anchor-to-kodax.trace.md';
+  const taskPath = '.topics/refactor/orchestration/001-3-6-4-1-task.trace.md';
+  const local = resolveArtifactReference('extension-vscode', handoffPath, '001-3-6-4-1-task.trace.md#objective');
+  assert.deepEqual(local, { kind: 'relative', raw: '001-3-6-4-1-task.trace.md#objective', workspaceId: 'extension-vscode', path: taskPath, fragment: 'objective' });
+  const cross = resolveArtifactReference('extension-vscode', taskPath, 'business::.topics/initiatives/root.trace.md');
+  assert.equal(cross.kind, 'workspace');
+  assert.equal(cross.workspaceId, 'business');
+  assert.equal(cross.path, '.topics/initiatives/root.trace.md');
+  const carrierRelative = resolveArtifactReference('@carrier', 'routes/001-pointer.trace.md', '../001-workspace.workspace.md');
+  assert.deepEqual(carrierRelative, { kind: 'relative', raw: '../001-workspace.workspace.md', workspaceId: '@carrier', path: '001-workspace.workspace.md', fragment: '' });
+  const http = resolveArtifactReference('extension-vscode', taskPath, 'https://github.com/Tiinex/docs/blob/abc/file.md');
+  assert.equal(http.kind, 'external');
+  assert.equal(http.external, 'https://github.com/Tiinex/docs/blob/abc/file.md');
+  assert.equal(resolveArtifactReference('extension-vscode', taskPath, 'command:workbench.action.closeActiveEditor').kind, 'invalid');
+  assert.equal(resolveArtifactReference('extension-vscode', '.topics/x.trace.md', '../../../../outside.md').kind, 'invalid');
+  const available = new Set([
+    materialTargetKey('extension-vscode', taskPath),
+    materialTargetKey('business', '.topics/initiatives/root.trace.md'),
+    materialTargetKey('@carrier', '001-workspace.workspace.md')
+  ]);
+  assert.equal(artifactReferenceAvailable(local, available), true);
+  assert.equal(artifactReferenceAvailable(cross, available), true);
+  assert.equal(artifactReferenceAvailable(carrierRelative, available), true);
+  assert.equal(artifactReferenceAvailable(resolveArtifactReference('extension-vscode', taskPath, 'missing.trace.md'), available), false);
+});
+
+await test('artifact navigation integration is source-backed instead of ephemeral-preview-backed', async () => {
+  const fs = await import('node:fs/promises');
+  const root = path.resolve(HERE, '..');
+  const tree = await fs.readFile(path.join(root, 'src', 'operatorTrees.ts'), 'utf8');
+  assert.match(tree, /const MATERIAL_SCHEME = 'tiinex-material'/);
+  assert.match(tree, /readExactZipEntryFromBuffer\(source\.outer/);
+  assert.match(tree, /availableTargets/);
+  assert.match(tree, /vscode\.Uri\.file\(absolute\)/);
+  assert.match(tree, /registerDocumentLinkProvider\(\{ scheme: 'file', language: 'markdown' \}/);
+  assert.match(tree, /loadLocalWorkspaceChoices\(this\.extensionPath\)/);
+  const openArtifact = tree.slice(tree.indexOf('private async openArtifactNode'), tree.indexOf('private async openWorkspaceMarkdownNode'));
+  assert.match(openArtifact, /openLocalMarkdown/);
+  assert.match(openArtifact, /openCarrierMarkdown/);
+  assert.doesNotMatch(openArtifact, /openVirtualMarkdown/);
+  const materialProvider = tree.slice(tree.indexOf('class MaterialProvider'), tree.indexOf('export class TiinexOperatorTrees'));
+  assert.doesNotMatch(materialProvider, /Preview content is no longer available/);
+});
+
+await test('artifact navigation extracts inline Markdown targets but ignores fenced examples and images', async () => {
+  const markdown = '# Handoff\n[Parent](../parent.trace.md) and [Business](business::.topics/root.trace.md)\n![image](ignore.png)\n```md\n[Example](ignore.trace.md)\n```\n';
+  assert.deepEqual(markdownLinkTargets(markdown).map((item) => item.target), ['../parent.trace.md', 'business::.topics/root.trace.md']);
+});
 
 await test('Windows multi-root comparison treats equivalent Git API and git.exe roots as the same repository', async () => {
   const apiRoot = 'C:\\Users\\micro\\Documents\\Repos\\Tiinex\\business';
@@ -509,23 +562,213 @@ await test('generic authoring exposes only Core-executable ordinary fields and r
   assert.deepEqual(model.capabilityGaps, [{ section: 'Parties', fields: ['Optional Schema Field'], reason: 'schema-optional-fields-not-bound-for-creation' }]);
 });
 
-await test('installed Core exposes Handoff reference fields as validation-only authoring gaps', async () => {
-  const root = path.resolve(HERE, '..');
-  const runtime = await prepareBundledRuntime(root, process.execPath);
+
+await test('generic authoring trusts shared Core draft status/severity and preserves exact finding details', async () => {
+  const omission = {
+    status: 'blocked',
+    draft: null,
+    findings: [{ severity: 'error', code: 'schema.reference.exact-target-omitted', message: 'Envelope Schema must use the qualified immutable target.' }],
+    findingSummary: { counts: { error: 1 } }
+  };
+  assert.equal(artifactCreationReady(omission), false);
+  assert.throws(() => requireArtifactCreationReady(omission), /schema\.reference\.exact-target-omitted:[^\n]*qualified immutable target/);
+
+  const contradiction = {
+    status: 'created-invalid',
+    draft: { markdown: '# candidate' },
+    findings: [{ severity: 'error', code: 'schema.reference.material-identity-contradiction', message: 'Resolved material belongs to another schema.' }],
+    findingSummary: { counts: { error: 1 } }
+  };
+  assert.equal(artifactCreationReady(contradiction), false);
+  assert.throws(() => requireArtifactCreationReady(contradiction), /schema\.reference\.material-identity-contradiction:[^\n]*another schema/);
+
+  const warningOnly = {
+    status: 'created-degraded',
+    draft: { markdown: '# preserved candidate' },
+    findings: [{ severity: 'warning', code: 'schema.reference.historical-reference-debt', message: 'Preserve existing bytes.' }],
+    findingSummary: { counts: { error: 0 } }
+  };
+  assert.equal(artifactCreationReady(warningOnly), true);
+  assert.doesNotThrow(() => requireArtifactCreationReady(warningOnly));
+
+  const fs = await import('node:fs/promises');
+  const hostGate = await fs.readFile(path.resolve(HERE, '..', 'src', 'core', 'artifactAuthoringQualification.ts'), 'utf8');
+  assert.doesNotMatch(hostGate, /schema\.reference\.(?:exact-target-omitted|material-identity-contradiction)/);
+  assert.doesNotMatch(hostGate, /markdown-link|plain-schema-id/);
+});
+
+await test('create-local-draft wrapper returns shared Core blocking findings unchanged for host presentation', async () => {
+  const runtime = { root: '/runtime', entrypoint: '/runtime/tiinex-portable.mjs', nodeExecutable: 'node', dispose: async () => undefined };
+  const fx = fakeRunner((key) => {
+    if (key.includes('create-local-draft')) return {
+      code: 2,
+      stdout: JSON.stringify({
+        status: 'blocked',
+        draft: null,
+        findings: [{ severity: 'error', code: 'schema.reference.exact-target-omitted', message: 'Current Schema exact target is required.' }],
+        findingSummary: { counts: { error: 1 } }
+      }),
+      stderr: ''
+    };
+    return undefined;
+  });
+  const result = await createArtifactDraft(runtime, 'tiinex.task.v1', '/repo', '.topics/task.trace.md', 'Task proof', { Summary: 'proof' }, null, 'create-artifact', fx.runner);
+  assert.equal(result.status, 'blocked');
+  assert.equal(result.findings[0].code, 'schema.reference.exact-target-omitted');
+  assert.equal(result.findings[0].message, 'Current Schema exact target is required.');
+  assert.throws(() => requireArtifactCreationReady(result), /ERROR schema\.reference\.exact-target-omitted: Current Schema exact target is required\./);
+});
+
+await test('Git Operator candidates come only from Core-qualified Workspace context and coalesce aliases by repository root', async () => {
+  const candidates = projectGitOperatorCandidates([
+    { workspaceId: 'vscode', localRepository: { root: '/repos/extension-vscode' } },
+    { workspaceId: 'extension-vscode', hostRoot: '/repos/extension-vscode/' },
+    { workspaceId: 'site', localRepository: { root: '/repos/site' } },
+    { workspaceId: 'unmatched', localRepository: { root: '/repos/not-open' } }
+  ], [
+    { root: '/repos/extension-vscode', repository: 'origin-vscode', branch: 'main', clean: false },
+    { root: '/repos/site', repository: 'origin-site', branch: 'refactor', clean: false },
+    { root: '/repos/unqualified-open-repo', repository: 'origin-other', branch: 'main', clean: false }
+  ]);
+  assert.deepEqual(candidates.map((item) => ({ root: item.root, ids: item.workspaceIds })), [
+    { root: '/repos/extension-vscode', ids: ['extension-vscode', 'vscode'] },
+    { root: '/repos/site', ids: ['site'] }
+  ]);
+});
+
+await test('Git Operator result report preserves exact per-repository partial outcomes', async () => {
+  const report = gitOperatorResultMarkdown([
+    { id: 'a', label: 'extension-vscode', root: '/repos/a', branch: 'main', upstream: 'origin/main', state: 'pushed', commitSha: 'a'.repeat(40), message: 'Tiinex: A' },
+    { id: 'b', label: 'site', root: '/repos/b', branch: 'main', upstream: 'origin/main', state: 'push-failed', commitSha: 'b'.repeat(40), detail: 'tiinex.git.push-head-changed' },
+    { id: 'c', label: 'core', root: '/repos/c', branch: 'main', upstream: '', state: 'blocked', detail: 'tiinex.git.missing-upstream' }
+  ]);
+  assert.match(report, /Pushed: 1 · Committed locally: 0 · Blocked\/failed: 2 · Skipped: 0/);
+  assert.match(report, /## extension-vscode[\s\S]*Result: PUSHED/);
+  assert.match(report, /## site[\s\S]*Result: PUSH FAILED[\s\S]*push-head-changed/);
+  assert.match(report, /## core[\s\S]*Result: BLOCKED[\s\S]*missing-upstream/);
+});
+
+await test('multi-repository Git command stays explicit, preserves the single-repo command, and requires one final exact-push confirmation', async () => {
+  const fs = await import('node:fs/promises');
+  const manifest = JSON.parse(await fs.readFile(path.resolve(HERE, '..', 'package.json'), 'utf8'));
+  const extension = await fs.readFile(path.resolve(HERE, '..', 'src', 'extension.ts'), 'utf8');
+  const command = await fs.readFile(path.resolve(HERE, '..', 'src', 'commit.ts'), 'utf8');
+  const ids = new Set((manifest.contributes?.commands || []).map((item) => item.command));
+  assert.equal(ids.has('tiinex.stageCommitPush'), true);
+  assert.equal(ids.has('tiinex.stageCommitPushMany'), true);
+  assert.equal(manifest.activationEvents.includes('onCommand:tiinex.stageCommitPushMany'), true);
+  assert.match(extension, /registerCommand\('tiinex\.stageCommitPushMany'/);
+  assert.match(command, /canPickMany:\s*true/);
+  assert.match(command, /Push only the exact commits created by this Tiinex flow\?/);
+  assert.match(command, /'Push Exact Commits'/);
+  assert.match(command, /pushExactGitOperatorCommit/);
+});
+
+await test('Git Operator preparation rejects unrelated ahead state before staging', async () => {
+  const fx = fakeRunner((key) => {
+    if (key === 'git symbolic-ref --quiet --short HEAD') return { code: 0, stdout: 'main\n', stderr: '' };
+    if (key === 'git rev-parse --abbrev-ref --symbolic-full-name @{u}') return { code: 0, stdout: 'origin/main\n', stderr: '' };
+    if (key === 'git rev-list --count @{u}..HEAD') return { code: 0, stdout: '2\n', stderr: '' };
+    if (key === 'git rev-list --count HEAD..@{u}') return { code: 0, stdout: '0\n', stderr: '' };
+    return { code: 0, stdout: '', stderr: '' };
+  });
+  await rejectsCode(() => prepareGitOperatorCommit('/repo', 'node', undefined, fx.runner), 'tiinex.git.pre-operation-upstream-not-aligned:2:0');
+  assert.equal(fx.calls.some((call) => call.command === 'git' && call.args[0] === 'add'), false);
+});
+
+await test('Git Operator preparation stages, validates, derives with the repository helper, and snapshots the reviewed state in order', async () => {
+  const fs = await import('node:fs/promises');
+  const os = await import('node:os');
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tiinex-git-operator-prepare-'));
+  await fs.mkdir(path.join(tmp, 'tools'), { recursive: true });
+  const helper = path.join(tmp, 'tools', 'tiinex-commit-message.mjs');
+  await fs.writeFile(helper, '// fixture');
+  const sha = 'a'.repeat(40);
+  const order = [];
+  const fx = fakeRunner((key) => {
+    if (key === 'git symbolic-ref --quiet --short HEAD') return { code: 0, stdout: 'main\n', stderr: '' };
+    if (key === 'git rev-parse --abbrev-ref --symbolic-full-name @{u}') return { code: 0, stdout: 'origin/main\n', stderr: '' };
+    if (key.startsWith('git rev-list --count ')) return { code: 0, stdout: '0\n', stderr: '' };
+    if (key === 'git rev-parse HEAD') return { code: 0, stdout: sha + '\n', stderr: '' };
+    if (key === 'git diff --cached --quiet') return { code: 1, stdout: '', stderr: '' };
+    if (key === 'git diff --cached --name-only --diff-filter=ACMR -z') return { code: 0, stdout: '.topics/a.trace.md\0notes.txt\0', stderr: '' };
+    if (key.startsWith('node ' + helper)) { order.push('helper'); return { code: 0, stdout: 'Tiinex: derived\n', stderr: '' }; }
+    if (key === 'git status --porcelain=v1 -z --untracked-files=all') return { code: 0, stdout: 'M  .topics/a.trace.md\0M  notes.txt\0', stderr: '' };
+    if (key === 'git diff --cached --raw -z --no-renames') return { code: 0, stdout: ':100644 100644 a b M\0.topics/a.trace.md\0', stderr: '' };
+    return { code: 0, stdout: '', stderr: '' };
+  });
   try {
-    const [contract, guide] = await Promise.all([
-      inspectArtifactCreationContract(runtime, 'tiinex.handoff.v1', 'create-artifact'),
-      projectArtifactSchemaGuide(runtime, 'tiinex.handoff.v1', 'create')
-    ]);
-    const model = projectArtifactAuthoringModel(contract, guide);
-    const parties = model.sections.find((section) => section.key === 'Handoff Parties');
-    assert.ok(parties);
-    assert.equal(parties.fields.some((field) => field.key === 'From Reference'), false);
-    assert.equal(parties.fields.some((field) => field.key === 'To Reference'), false);
-    const gap = model.capabilityGaps.find((item) => item.section === 'Handoff Parties');
-    assert.ok(gap?.fields.includes('From Reference'));
-    assert.ok(gap?.fields.includes('To Reference'));
-  } finally { await runtime.dispose(); }
+    const prepared = await prepareGitOperatorCommit(tmp, 'node', async (paths) => {
+      order.push('validate');
+      assert.deepEqual(paths, ['.topics/a.trace.md', 'notes.txt']);
+      return { state: 'ready', stagedTiinexPaths: ['.topics/a.trace.md'], ignoredStagedPaths: [] };
+    }, fx.runner);
+    const commands = fx.calls.map((call) => `${call.command} ${call.args.join(' ')}`);
+    assert.equal(prepared.branch, 'main');
+    assert.equal(prepared.upstream, 'origin/main');
+    assert.equal(prepared.headBefore, sha);
+    assert.equal(prepared.message, 'Tiinex: derived');
+    assert.deepEqual(prepared.stagedTiinexPaths, ['.topics/a.trace.md']);
+    assert.deepEqual(order, ['validate', 'helper']);
+    assert.ok(commands.indexOf('git add -A') < commands.indexOf('git diff --cached --name-only --diff-filter=ACMR -z'));
+    assert.ok(commands.indexOf('git diff --cached --name-only --diff-filter=ACMR -z') < commands.findIndex((item) => item.startsWith('node ')));
+  } finally { await fs.rm(tmp, { recursive: true, force: true }); }
+});
+
+await test('Git Operator commit fails closed when working state changes after review', async () => {
+  const prepared = {
+    branch: 'main', upstream: 'origin/main', headBefore: 'a'.repeat(40), message: 'Tiinex: original', stagedPaths: ['a.txt'], stagedTiinexPaths: [], ignoredStagedPaths: [], validationState: 'ready', statusSnapshot: 'M  a.txt\0', stagedDiffSnapshot: 'raw-before'
+  };
+  const fx = fakeRunner((key) => {
+    if (key === 'git symbolic-ref --quiet --short HEAD') return { code: 0, stdout: 'main\n', stderr: '' };
+    if (key === 'git rev-parse --abbrev-ref --symbolic-full-name @{u}') return { code: 0, stdout: 'origin/main\n', stderr: '' };
+    if (key === 'git rev-parse HEAD') return { code: 0, stdout: prepared.headBefore + '\n', stderr: '' };
+    if (key.startsWith('git rev-list --count ')) return { code: 0, stdout: '0\n', stderr: '' };
+    if (key === 'git status --porcelain=v1 -z --untracked-files=all') return { code: 0, stdout: 'MM a.txt\0', stderr: '' };
+    return { code: 0, stdout: '', stderr: '' };
+  });
+  await rejectsCode(() => commitPreparedGitOperator('/repo', prepared, 'Tiinex: edited', fx.runner), 'tiinex.git.working-state-changed-after-review');
+  assert.equal(fx.calls.some((call) => call.args[0] === 'commit'), false);
+});
+
+await test('Git Operator commit and push bind publication to exactly the reviewed commit', async () => {
+  const pre = 'a'.repeat(40);
+  const post = 'b'.repeat(40);
+  let committed = false;
+  let pushed = false;
+  const prepared = {
+    branch: 'main', upstream: 'origin/main', headBefore: pre, message: 'Tiinex: original', stagedPaths: ['a.txt'], stagedTiinexPaths: [], ignoredStagedPaths: [], validationState: 'ready', statusSnapshot: 'M  a.txt\0', stagedDiffSnapshot: 'raw-reviewed'
+  };
+  const fx = fakeRunner((key) => {
+    if (key === 'git symbolic-ref --quiet --short HEAD') return { code: 0, stdout: 'main\n', stderr: '' };
+    if (key === 'git rev-parse --abbrev-ref --symbolic-full-name @{u}') return { code: 0, stdout: 'origin/main\n', stderr: '' };
+    if (key === 'git rev-parse HEAD') return { code: 0, stdout: (committed ? post : pre) + '\n', stderr: '' };
+    if (key === 'git rev-list --count @{u}..HEAD') return { code: 0, stdout: `${committed && !pushed ? 1 : 0}\n`, stderr: '' };
+    if (key === 'git rev-list --count HEAD..@{u}') return { code: 0, stdout: '0\n', stderr: '' };
+    if (key === 'git status --porcelain=v1 -z --untracked-files=all') return { code: 0, stdout: prepared.statusSnapshot, stderr: '' };
+    if (key === 'git diff --cached --raw -z --no-renames') return { code: 0, stdout: prepared.stagedDiffSnapshot, stderr: '' };
+    if (key === 'git commit -m Tiinex: edited') { committed = true; return { code: 0, stdout: '', stderr: '' }; }
+    if (key === 'git push') { pushed = true; return { code: 0, stdout: '', stderr: '' }; }
+    return { code: 0, stdout: '', stderr: '' };
+  });
+  const commit = await commitPreparedGitOperator('/repo', prepared, 'Tiinex: edited', fx.runner);
+  assert.equal(commit.commitSha, post);
+  assert.equal(commit.message, 'Tiinex: edited');
+  await pushExactGitOperatorCommit('/repo', commit, fx.runner);
+  assert.equal(pushed, true);
+  assert.equal(fx.calls.filter((call) => call.args[0] === 'push').length, 1);
+});
+
+await test('Git Operator exact push rejects a changed HEAD without pushing', async () => {
+  const commit = { branch: 'main', upstream: 'origin/main', headBefore: 'a'.repeat(40), message: 'Tiinex: reviewed', commitSha: 'b'.repeat(40) };
+  const fx = fakeRunner((key) => {
+    if (key === 'git symbolic-ref --quiet --short HEAD') return { code: 0, stdout: 'main\n', stderr: '' };
+    if (key === 'git rev-parse --abbrev-ref --symbolic-full-name @{u}') return { code: 0, stdout: 'origin/main\n', stderr: '' };
+    if (key === 'git rev-parse HEAD') return { code: 0, stdout: 'c'.repeat(40) + '\n', stderr: '' };
+    return { code: 0, stdout: '', stderr: '' };
+  });
+  await rejectsCode(() => pushExactGitOperatorCommit('/repo', commit, fx.runner), 'tiinex.git.push-head-changed');
+  assert.equal(fx.calls.some((call) => call.args[0] === 'push'), false);
 });
 
 await test('generic Artifact Authoring renders Core contracts while Handoff host actions remain separate', async () => {
@@ -538,7 +781,8 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(authoring, /projectArtifactSchemaGuide/);
   assert.match(authoring, /projectArtifactAuthoringModel/);
   assert.match(authoring, /createArtifactDraft/);
-  assert.match(authoring, /path-planner-capability-gap/);
+  assert.match(authoring, /projectArtifactMaterialization/);
+  assert.doesNotMatch(authoring, /path-planner-capability-gap/);
   assert.match(model, /intentionally knows no artifact-specific field[\s\S]*semantics/);
   assert.doesNotMatch(model, /\bFrom\b|\bTo\b|Transfers|Required Context/);
   assert.match(panel, /Schema and validation are projected by Tiinex Core/);
@@ -547,15 +791,22 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(panel, /applyAssist/);
   assert.match(panel, /assistCapabilityErrors/);
   assert.match(panel, /cannot be written by the current Core creation contract/);
-  assert.match(panel, /Additional carrier Roles/);
+  assert.doesNotMatch(panel, /Additional carrier Roles/);
   assert.match(panel, /Attach to Outgoing/);
   assert.match(panel, /Preview/);
   assert.match(panel, /repeatable-section/);
   assert.match(panel, /fieldAssists/);
-  assert.match(tree, /loadArtifactAuthoringModel\(this\.extensionPath, 'tiinex\.handoff\.v1'\)/);
+  assert.match(tree, /beginArtifactAuthoring/);
+  assert.match(tree, /loadArtifactAuthoringCatalog/);
+  assert.match(tree, /pickArtifactSchema/);
+  assert.match(tree, /pickArtifactParent/);
+  assert.match(tree, /showArtifactAuthoring/);
+  assert.match(tree, /loadArtifactAuthoringModel\(this\.extensionPath, schemaId, transition\)/);
+  assert.match(tree, /schemaId === 'tiinex\.handoff\.v1' && options\.attachAvailable/);
+  assert.match(tree, /qualifyExistingHandoff/);
+  assert.doesNotMatch(tree, /handoffFieldAssists|handoffTemplates/);
   assert.match(tree, /openArtifactAuthoringPanel/);
   assert.match(tree, /ensureOutgoingAuthoringRoot/);
-  assert.match(tree, /Incoming payloads are materialized only into extension-owned staging/);
   assert.match(tree, /trackOutgoingHandoff/);
   assert.match(tree, /attachOutgoingHandoffNode/);
   assert.match(tree, /detachOutgoingHandoffNode/);
@@ -587,8 +838,8 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   const handoffAnnounce = tree.indexOf("await announceBuiltCarrier(", tree.indexOf("Tiinex packing Handoff carrier"));
   assert.ok(workspaceClose >= 0 && workspaceAnnounce > workspaceClose);
   assert.ok(handoffClose >= 0 && handoffAnnounce > handoffClose);
-  const previewCall = tree.indexOf("title: 'Tiinex preparing Handoff preview'");
-  const writeCall = tree.indexOf('writePreparedArtifactDraft(this.extensionPath, prepared.draft)');
+  const previewCall = tree.indexOf('Tiinex preparing ${model.label} preview');
+  const writeCall = tree.indexOf('writePreparedArtifactDraft(this.extensionPath, draft)');
   assert.ok(previewCall >= 0 && writeCall > previewCall);
   const packageBuilder = await fs.readFile(path.resolve(HERE, '..', 'src', 'packageBuilder.ts'), 'utf8');
   assert.match(packageBuilder, /PackageRouteInput/);
@@ -610,6 +861,61 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.doesNotMatch(packageBuilder, /Build qualified pointerless Workspace carrier\?|Build qualified Handoff carrier\?/);
   assert.match(tree, /copyOutgoingTransportText/);
   assert.match(tree, /Pack Outgoing first\. Exact transport text/);
+  const manifest = JSON.parse(await fs.readFile(path.resolve(HERE, '..', 'package.json'), 'utf8'));
+  assert.ok(manifest.contributes.commands.some((item) => item.command === 'tiinex.artifact.new'));
+  assert.ok(manifest.activationEvents.includes('onCommand:tiinex.artifact.new'));
+});
+
+await test('generic materialization and draft wrappers stay schema-neutral for a non-Handoff Task', async () => {
+  const fs = await import('node:fs/promises');
+  const runtime = { root: '/runtime', entrypoint: '/runtime/tiinex-portable.mjs', nodeExecutable: 'node', dispose: async () => undefined };
+  let proposalPath = '';
+  const planFx = fakeRunner(async (_key, _index, call) => {
+    assert.equal(call.args[1], 'prepare-materialization');
+    assert.equal(call.args[2], '/repo');
+    proposalPath = call.args[call.args.indexOf('--proposals') + 1];
+    const body = JSON.parse(await fs.readFile(proposalPath, 'utf8'));
+    assert.equal(body.proposals[0].schemaId, 'tiinex.task.v1');
+    return { code: 0, stdout: JSON.stringify({ status: 'ready', candidateSchemas: [{ schemaId: 'tiinex.task.v1', label: 'Task', status: 'ready' }], parentCandidates: [], proposals: [{ id: 'proof', schemaId: 'tiinex.task.v1', status: 'ready', path: '.topics/task.trace.md' }] }), stderr: '' };
+  });
+  const proposal = { id: 'proof', schemaId: 'tiinex.task.v1', mode: 'root', title: 'Task proof', values: { Summary: 'proof' }, rationale: 'test', evidenceRefs: ['test'] };
+  const planned = await projectArtifactMaterialization(runtime, '/repo', [proposal], planFx.runner);
+  assert.equal(planned.proposals[0].path, '.topics/task.trace.md');
+  assert.ok(planFx.calls[0].args.includes('--compact'));
+  await assert.rejects(fs.access(proposalPath));
+
+  let valuesPath = '';
+  const draftFx = fakeRunner(async (_key, _index, call) => {
+    assert.equal(call.args[1], 'create-local-draft');
+    assert.equal(call.args[call.args.indexOf('--schema') + 1], 'tiinex.task.v1');
+    assert.equal(call.args[call.args.indexOf('--path') + 1], '.topics/task.trace.md');
+    assert.equal(call.args.includes('--title'), false);
+    valuesPath = call.args[call.args.indexOf('--values') + 1];
+    assert.deepEqual(JSON.parse(await fs.readFile(valuesPath, 'utf8')), { Summary: 'proof' });
+    return { code: 0, stdout: JSON.stringify({ status: 'created-clean', draft: { path: '.topics/task.trace.md', markdown: '# Task proof\n' }, findingSummary: { counts: { error: 0 } } }), stderr: '' };
+  });
+  const created = await createArtifactDraft(runtime, 'tiinex.task.v1', '/repo', '.topics/task.trace.md', 'Task proof', { Summary: 'proof' }, null, 'create-artifact', draftFx.runner);
+  assert.equal(created.status, 'created-clean');
+  await assert.rejects(fs.access(valuesPath));
+});
+
+await test('installed Core exposes Handoff reference fields as validation-only authoring gaps', async () => {
+  const root = path.resolve(HERE, '..');
+  const runtime = await prepareBundledRuntime(root, process.execPath);
+  try {
+    const [contract, guide] = await Promise.all([
+      inspectArtifactCreationContract(runtime, 'tiinex.handoff.v1', 'create-artifact'),
+      projectArtifactSchemaGuide(runtime, 'tiinex.handoff.v1', 'create')
+    ]);
+    const model = projectArtifactAuthoringModel(contract, guide);
+    const parties = model.sections.find((section) => section.key === 'Handoff Parties');
+    assert.ok(parties);
+    assert.equal(parties.fields.some((field) => field.key === 'From Reference'), false);
+    assert.equal(parties.fields.some((field) => field.key === 'To Reference'), false);
+    const gap = model.capabilityGaps.find((item) => item.section === 'Handoff Parties');
+    assert.ok(gap?.fields.includes('From Reference'));
+    assert.ok(gap?.fields.includes('To Reference'));
+  } finally { await runtime.dispose(); }
 });
 
 await test('Discovery and Incoming delta display is shared-compare-backed and never hides unqualified differences', async () => {
