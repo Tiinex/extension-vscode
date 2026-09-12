@@ -21,7 +21,7 @@ import { gitAutomationBlockerText, gitOperatorResultMarkdown, normalizePostStage
 import { classifyIncomingMergeConflict, planIncomingFileUnion, renderIncomingTextConflict } from '../dist/core/incomingMerge.js';
 import { planWorkspaceSession, validateWorkspaceTargetMapping } from '../dist/core/workspaceSession.js';
 import { representativeWorkspaceChoicesForRoot } from '../dist/core/workspaceChoice.js';
-import { checkIgnoredPaths, commitPreparedGitOperator, commitPreparedReviewedStaged, commitWorkingTree, deriveGitOperatorCommitMessage, dirtyWorkingTreePaths, discardWorkingTree, generateTiinexCommitMessage, listStagedConflictMarkerPaths, listStagedPaths, materializeUnmergedFileConflicts, mergeCommitNoCommit, payloadCheckoutEligibility, preflightExistingLocalBranch, prepareGitOperatorCommit, prepareReviewedStagedCommit, pushExactGitOperatorCommit, pushExactLandingCommit, pushExactReviewedStagedCommit, stageCommitPush, stageLandingChanges, stageLandingCommit, stashWorkingTree } from '../dist/host/git.js';
+import { checkIgnoredPaths, commitPreparedGitOperator, commitPreparedReviewedStaged, commitWorkingTree, deriveGitOperatorCommitMessage, dirtyWorkingTreePaths, discardWorkingTree, generateTiinexCommitMessage, listStagedConflictMarkerPaths, listStagedMutationPaths, listStagedPaths, materializeUnmergedFileConflicts, mergeCommitNoCommit, payloadCheckoutEligibility, preflightExistingLocalBranch, prepareGitOperatorCommit, prepareReviewedStagedCommit, pushExactGitOperatorCommit, pushExactLandingCommit, pushExactReviewedStagedCommit, stageCommitPush, stageLandingChanges, stageLandingCommit, stashWorkingTree, unstageLandingPaths } from '../dist/host/git.js';
 import { preferredNodeExecutable } from '../dist/host/nodeExecutable.js';
 import { copyFileToClipboard } from '../dist/host/fileClipboard.js';
 import { compareIncomingWorkspaceToLocal, createArtifactDraft, inspectArtifactCreationContract, parseBootstrapDescriptor, prepareBundledRuntime, projectArtifactMaterialization, projectArtifactSchemaGuide, runTiinexJson, projectEditorAssistanceText, projectHandoffEndpoints, projectOperatorContext, projectPackageTransport, projectStagedValidation, projectWorkspaceLanding, projectWorkspacePackageSources } from '../dist/tiinex/bootstrap.js';
@@ -489,13 +489,15 @@ await test('Receive orchestration keeps Workspace mutation explicit and makes un
   assert.match(source, /preferredRepositoryParent/);
   assert.match(source, /projectWorkspaceLanding\(runtime, packagePath, candidateFacts, candidateSelections, \[workspaceId\]\)/);
   assert.match(source, /stageLandingChanges\(root, protectedPaths\)/);
-  assert.match(source, /function stagePolicy\(\): StagePolicy/);
+  assert.match(source, /landingStagePolicy\(\)/);
+  const landingStagePolicySource = await fs.readFile(path.resolve(HERE, '..', 'src', 'vscode', 'landingStagePolicy.ts'), 'utf8');
+  assert.match(landingStagePolicySource, /getConfiguration\('tiinex\.landing'\)\.get\('stage', 'yes'\)/);
   assert.match(source, /function postStagePolicy\(\): string/);
   const postLandingStart = source.indexOf('async function postLandingGit');
-  const stageDisabledGate = source.indexOf("if (stagePolicy() === 'no')", postLandingStart);
+  const stageDisabledGate = source.indexOf("if (landingStagePolicy() === 'no')", postLandingStart);
   const stageLandingCall = source.indexOf('stageLandingChanges(root, protectedPaths)', postLandingStart);
   assert.ok(stageDisabledGate >= 0 && stageLandingCall > stageDisabledGate);
-  assert.match(source, /Post-landing policy: stage=\$\{stagePolicy\(\)\}, postStage=\$\{postStagePolicy\(\)\}/);
+  assert.match(source, /Post-landing policy: stage=\$\{landingStagePolicy\(\)\}, postStage=\$\{postStagePolicy\(\)\}/);
   assert.match(source, /tiinex\.git\.observePostStage/);
   assert.match(source, /Use Tiinex Commit from Source Control/);
   assert.match(source, /Select every Workspace Tiinex may replace/);
@@ -1397,6 +1399,24 @@ await test('Discovery and Incoming delta display is shared-compare-backed and ne
   assert.doesNotMatch(tree, /delta.*source mutation/i);
 });
 
+await test('Incoming Merge/Replace shares Landing Stage policy and keeps dirty-work staging fail-closed', async () => {
+  const fs = await import('node:fs/promises');
+  const apply = await fs.readFile(path.resolve(HERE, '..', 'src', 'incomingApply.ts'), 'utf8');
+  const landing = await fs.readFile(path.resolve(HERE, '..', 'src', 'landing.ts'), 'utf8');
+  assert.match(landing, /from '\.\/vscode\/landingStagePolicy'/);
+  assert.match(apply, /from '\.\/vscode\/landingStagePolicy'/);
+  assert.match(apply, /const operationStagePolicy = landingStagePolicy\(\)/);
+  assert.match(apply, /plan\.stagePolicy === 'no'[\s\S]*safePreserveMerge/);
+  assert.match(apply, /stageLandingChanges\(plan\.local\.root, plan\.preOperationIgnoredPaths\)/);
+  assert.match(apply, /executeCommand\('tiinex\.git\.observePostStage', plan\.local\.root\)/);
+  assert.match(apply, /listStagedMutationPaths\(plan\.local\.root\)/);
+  assert.match(apply, /unstageLandingPaths\(plan\.local\.root, newlyStaged\)/);
+  const execute = apply.slice(apply.indexOf('async function executePlan'), apply.indexOf('function planSummary'));
+  assert.match(execute, /!result\.conflicts\.length/);
+  assert.match(execute, /plan\.stagePolicy === 'no'/);
+  assert.match(execute, /plan\.dirtyResolution === 'preserve'/);
+});
+
 await test('multi-Incoming and Merge/Replace remain selection-first, dry until final execute, and keep filesystem/Git safety explicit', async () => {
   const fs = await import('node:fs/promises');
   const tree = await fs.readFile(path.resolve(HERE, '..', 'src', 'operatorTrees.ts'), 'utf8');
@@ -2049,6 +2069,51 @@ await test('landing stage preserves pre-landing ignored files even when the inco
     const status = await git('status', '--porcelain=v1', '--untracked-files=all');
     assert.match(status, /\?\? \.env/);
     assert.equal(await fs.readFile(path.join(tmp, '.env'), 'utf8'), 'SECRET=preserve-me\n');
+  } finally { await fs.rm(tmp, { recursive: true, force: true }); }
+});
+
+await test('Stage=no can unstage a successful Git-native Incoming merge without absorbing preserved human dirt', async () => {
+  const fs = await import('node:fs/promises');
+  const os = await import('node:os');
+  const { execFile } = await import('node:child_process');
+  const { promisify } = await import('node:util');
+  const run = promisify(execFile);
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tiinex-incoming-unstaged-'));
+  const git = async (...args) => (await run('git', args, { cwd: tmp })).stdout;
+  try {
+    await git('init', '-q');
+    await git('config', 'user.name', 'Tiinex Test');
+    await git('config', 'user.email', 'tiinex@example.invalid');
+    await fs.writeFile(path.join(tmp, 'incoming.txt'), 'base\n', 'utf8');
+    await fs.writeFile(path.join(tmp, 'human.txt'), 'base\n', 'utf8');
+    await git('add', '-A');
+    await git('commit', '-q', '-m', 'base');
+    const baseBranch = (await git('branch', '--show-current')).trim();
+
+    await git('switch', '-q', '-c', 'incoming');
+    await fs.writeFile(path.join(tmp, 'incoming.txt'), 'incoming\n', 'utf8');
+    await fs.writeFile(path.join(tmp, 'added.txt'), 'incoming-added\n', 'utf8');
+    await git('add', '-A');
+    await git('commit', '-q', '-m', 'incoming');
+    const incomingSha = (await git('rev-parse', 'HEAD')).trim();
+
+    await git('switch', '-q', baseBranch);
+    await fs.writeFile(path.join(tmp, 'human.txt'), 'human-preserved\n', 'utf8');
+    const stagedBefore = new Set(await listStagedMutationPaths(tmp));
+    assert.equal(stagedBefore.size, 0);
+
+    const merged = await mergeCommitNoCommit(tmp, incomingSha);
+    assert.deepEqual(merged.conflicts, []);
+    const newlyStaged = (await listStagedMutationPaths(tmp)).filter((item) => !stagedBefore.has(item));
+    assert.deepEqual(newlyStaged, ['added.txt', 'incoming.txt']);
+    await unstageLandingPaths(tmp, newlyStaged);
+
+    assert.deepEqual(await listStagedMutationPaths(tmp), []);
+    const status = await git('status', '--porcelain=v1', '--untracked-files=all');
+    assert.match(status, / M human\.txt/);
+    assert.match(status, / M incoming\.txt/);
+    assert.match(status, /\?\? added\.txt/);
+    await fs.access(path.join(tmp, '.git', 'MERGE_HEAD'));
   } finally { await fs.rm(tmp, { recursive: true, force: true }); }
 });
 

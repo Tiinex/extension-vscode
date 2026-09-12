@@ -213,6 +213,28 @@ export async function stageLandingChanges(root: string, protectedPaths: string[]
   return true;
 }
 
+/**
+ * Return the exact staged path closure without rename collapsing. This is used
+ * when Incoming must distinguish Git-native merge staging from pre-existing
+ * human staging without rewriting the latter.
+ */
+export async function listStagedMutationPaths(root: string, runner: ProcessRunner = runProcess): Promise<string[]> {
+  const result = await runChecked('git', ['diff', '--cached', '--name-only', '--no-renames', '-z'], { cwd: root }, runner);
+  return splitZero(result.stdout).map((item) => item.replace(/\\/g, '/')).sort();
+}
+
+/** Unstage only the supplied relative paths, preserving all other index state. */
+export async function unstageLandingPaths(root: string, paths: string[], runner: ProcessRunner = runProcess): Promise<void> {
+  const targets = protectedLandingPaths(paths);
+  for (let offset = 0; offset < targets.length; offset += 100) {
+    await runChecked('git', ['reset', 'HEAD', '--', ...targets.slice(offset, offset + 100)], { cwd: root }, runner);
+  }
+  if (!targets.length) return;
+  const remaining = new Set(await listStagedMutationPaths(root, runner));
+  const leaked = targets.filter((item) => remaining.has(item));
+  if (leaked.length) throw new Error(`tiinex.git.incoming-unstage-failed:${leaked.join(',')}`);
+}
+
 export interface LandingCommitResult {
   branch: string;
   upstream: string;

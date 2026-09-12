@@ -16,16 +16,20 @@ import {
   generateTiinexCommitMessage,
   localBranchExists,
   listIgnoredFiles,
+  listStagedMutationPaths,
   mergeBase,
   mergeCommitNoCommit,
   materializeUnmergedFileConflicts,
   repositoryFact,
   resolveCommit,
+  stageLandingChanges,
   stashWorkingTree,
-  switchToExistingLocalBranch
+  switchToExistingLocalBranch,
+  unstageLandingPaths
 } from './host/git';
 import { runChecked, runProcess } from './host/process';
 import { classifyIncomingMergeConflict, planIncomingFileUnion, renderIncomingTextConflict } from './core/incomingMerge';
+import { landingStagePolicy, LandingStagePolicy } from './vscode/landingStagePolicy';
 
 export type IncomingApplyStrategy = 'merge' | 'replace';
 type DirtyResolution = 'none' | 'preserve' | 'stash' | 'commit';
@@ -81,6 +85,7 @@ interface WorkspaceApplyPlan {
   safePreserveMerge: boolean;
   preOperationIgnoredPaths: string[];
   mutationPrecondition: string;
+  stagePolicy: LandingStagePolicy;
 }
 
 export interface IncomingApplyResult {
@@ -313,7 +318,10 @@ async function chooseDirtyResolution(plan: WorkspaceApplyPlan): Promise<{ resolu
   const fact = await repositoryFact(plan.local.root);
   if (fact.clean) return { resolution: 'none', switchToMerge: false };
   const branchDiffers = Boolean(plan.incomingRef && fact.branch !== plan.incomingRef);
-  const canPreserve = !branchDiffers && plan.safePreserveMerge && !overlapAny(await dirtyWorkingTreePaths(plan.local.root), plan.changedPaths);
+  // Stage=yes uses the shared landing `git add -A` seam. Preserving dirty work
+  // would make that seam absorb unrelated human changes, so Preserve is only
+  // eligible when this Incoming operation is explicitly configured to remain unstaged.
+  const canPreserve = plan.stagePolicy === 'no' && !branchDiffers && plan.safePreserveMerge && !overlapAny(await dirtyWorkingTreePaths(plan.local.root), plan.changedPaths);
   const options: Array<vscode.QuickPickItem & { resolution: DirtyResolution; switchToMerge?: boolean }> = [];
   if (canPreserve) options.push({
     label: plan.strategy === 'replace' ? '$(git-merge) Preserve + Merge instead' : '$(git-merge) Preserve + Merge',
@@ -360,7 +368,8 @@ async function preparePlan(
   snapshot: SnapshotMaterial,
   comparison: WorkspaceComparisonSummary,
   strategy: IncomingApplyStrategy,
-  scratch: string
+  scratch: string,
+  stagePolicy: LandingStagePolicy
 ): Promise<WorkspaceApplyPlan | null> {
   const localCandidate = await qualifyWorkspaceRoot(runtime, local.root, snapshot.workspace.workspaceId);
   if (snapshot.candidate.repositoryIdentity && localCandidate.repositoryIdentity && snapshot.candidate.repositoryIdentity !== localCandidate.repositoryIdentity) {
@@ -409,7 +418,8 @@ async function preparePlan(
     changedPaths,
     safePreserveMerge,
     preOperationIgnoredPaths,
-    mutationPrecondition: ''
+    mutationPrecondition: '',
+    stagePolicy
   };
   const dirty = await chooseDirtyResolution(plan);
   if (!dirty) throw new Error('tiinex.incoming-apply.cancelled');
@@ -541,6 +551,12 @@ async function applyReplace(plan: WorkspaceApplyPlan, scratch: string): Promise<
 }
 
 async function executePlan(plan: WorkspaceApplyPlan, scratch: string): Promise<FileMergeExecution & { nativeConflictPaths: string[] }> {
+  // Stage=yes uses a package-wide staging closure, so a preserved dirty tree
+  // would absorb unrelated human work. Fail before any mutation if a stale or
+  // constructed plan bypasses the normal dirty-resolution UX.
+  if (plan.stagePolicy === 'yes' && plan.dirtyResolution === 'preserve') {
+    throw new Error(`tiinex.incoming-apply.stage-preserve-unsafe:${plan.workspaceId}`);
+  }
   if (plan.hasGit) {
     if (plan.dirtyResolution === 'stash') await stashWorkingTree(plan.local.root);
     else if (plan.dirtyResolution === 'commit') {
@@ -550,7 +566,12 @@ async function executePlan(plan: WorkspaceApplyPlan, scratch: string): Promise<F
     if (plan.switchBranch) await switchToExistingLocalBranch(plan.local.root, plan.incomingRef);
   }
   if (plan.strategy === 'merge' && plan.mergeMode === 'git-native' && plan.incomingCommit) {
+    const stagedBefore = plan.stagePolicy === 'no' ? new Set(await listStagedMutationPaths(plan.local.root)) : null;
     const result = await mergeCommitNoCommit(plan.local.root, plan.incomingCommit);
+    if (stagedBefore && !result.conflicts.length && !result.alreadyUpToDate) {
+      const newlyStaged = (await listStagedMutationPaths(plan.local.root)).filter((item) => !stagedBefore.has(item));
+      await unstageLandingPaths(plan.local.root, newlyStaged);
+    }
     return {
       affected: !result.alreadyUpToDate || result.conflicts.length > 0,
       conflicts: result.conflicts.length > 0,
@@ -561,6 +582,15 @@ async function executePlan(plan: WorkspaceApplyPlan, scratch: string): Promise<F
   }
   if (plan.strategy === 'merge') return { ...await applyFileMerge(plan, scratch), nativeConflictPaths: [] };
   return { affected: await applyReplace(plan, scratch), conflicts: false, textConflictPaths: [], binaryConflictPaths: [], nativeConflictPaths: [] };
+}
+
+async function applyIncomingStagePolicy(plan: WorkspaceApplyPlan, result: FileMergeExecution & { nativeConflictPaths: string[] }): Promise<void> {
+  if (!result.affected || result.conflicts || plan.stagePolicy === 'no') return;
+  if (await stageLandingChanges(plan.local.root, plan.preOperationIgnoredPaths)) {
+    // Reuse the existing post-stage observer so configured commit automation
+    // sees the same reviewed staged closure as ordinary Receive/Landing.
+    void vscode.commands.executeCommand('tiinex.git.observePostStage', plan.local.root);
+  }
 }
 
 function planSummary(plans: WorkspaceApplyPlan[]): string {
@@ -593,6 +623,7 @@ export async function applyIncomingWorkspaces(extensionPath: string, index: Inde
           const localById = new Map(locals.map((item) => [item.workspaceId, item]));
           const plans: WorkspaceApplyPlan[] = [];
           const exactWorkspaceIds: string[] = [];
+          const operationStagePolicy = landingStagePolicy();
           let ordinal = 0;
           for (const workspaceId of requested) {
             const workspace = index.workspaces.find((item) => item.workspaceId === workspaceId);
@@ -637,7 +668,7 @@ export async function applyIncomingWorkspaces(extensionPath: string, index: Inde
             progress.report({ message: `Preparing ${strategy === 'merge' ? 'merge' : 'replace'} plan for ${workspace.label || workspaceId}...` });
             const snapshot = await materializeSnapshot(runtime, index.packagePath, workspace, scratch, ordinal++);
             try {
-              const plan = await preparePlan(runtime, local, snapshot, comparison, strategy, scratch);
+              const plan = await preparePlan(runtime, local, snapshot, comparison, strategy, scratch, operationStagePolicy);
               if (plan) plans.push(plan);
             } catch (error) {
               if (shortError(error).includes('tiinex.incoming-apply.cancelled')) return null;
@@ -673,6 +704,7 @@ export async function applyIncomingWorkspaces(extensionPath: string, index: Inde
           for (const plan of plans) {
             progress.report({ message: `${plan.strategy === 'merge' ? 'Merging' : 'Replacing'} ${plan.label}...` });
             const result = await executePlan(plan, scratch);
+            await applyIncomingStagePolicy(plan, result);
             // An unresolved Workspace must remain actionable in Incoming rather than
             // being marked as session-applied merely because some safe union bytes landed.
             if (result.affected && !result.conflicts) affectedWorkspaceIds.push(plan.workspaceId);
