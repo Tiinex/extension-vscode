@@ -677,7 +677,8 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     this.transportProvider.refresh();
     try {
       const existing = this.transport.find((item) => path.resolve(item.packagePath) === resolved);
-      const qualified = await this.qualifyTransportPackage(resolved, existing?.routeIds, existing?.addedAt || Date.now());
+      const existingRouteIds = this.normalizeTransportRouteIds(existing?.routeIds);
+      const qualified = await this.qualifyTransportPackage(resolved, existingRouteIds, existing?.addedAt || Date.now());
       if (routeSelector) {
         const route = this.transportRouteForSelector(qualified, routeSelector);
         if (!route) throw new Error(`tiinex.transport.route-unqualified:${routeSelector}`);
@@ -697,7 +698,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     }
   }
 
-  private async qualifyTransportPackage(packagePath: string, routeIds: string[] | null, addedAt: number): Promise<TransportPackageState> {
+  private async qualifyTransportPackage(packagePath: string, routeIds: string[] | null | undefined, addedAt: number): Promise<TransportPackageState> {
     const resolved = path.resolve(packagePath);
     const info = await stat(resolved);
     if (!info.isFile()) throw new Error('tiinex.transport.package-not-file');
@@ -733,7 +734,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       }
 
       const qualifiedIds = new Set(routes.map((item) => item.routeId));
-      const retainedRouteIds = routeIds === null ? null : (routeIds || []).filter((item) => qualifiedIds.has(item));
+      const retainedRouteIds = routeIds == null ? null : routeIds.filter((item) => qualifiedIds.has(item));
       return {
         packagePath: resolved,
         filename: path.basename(resolved),
@@ -2607,6 +2608,10 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
   }
 
   private operatorRole(): string { return String(this.config().get('operator.role', '') || '').trim(); }
+
+  private normalizeTransportRouteIds(routeIds: string[] | null | undefined): string[] | null {
+    return Array.isArray(routeIds) ? routeIds : null;
+  }
 
   private shouldAutoClearDiscovery(): boolean {
     return String(this.config().get('discovery.autoClearDiscovery', 'no') || '').trim().toLowerCase() === 'yes';
