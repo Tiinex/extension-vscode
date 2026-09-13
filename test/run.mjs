@@ -1289,7 +1289,7 @@ await test('Transport package projection delegates exact generic and route trans
   assert.equal(routed.humanOutput.presentation.recipientLabel, 'Sigma');
 });
 
-await test('Transport file clipboard publishes persistent Windows file-copy formats with the original basename', async () => {
+await test('Transport file clipboard publishes an Explorer-style Windows Shell data object with the original basename', async () => {
   const unsupported = await copyFileToClipboard('/tmp/package.zip', 'linux', async () => { throw new Error('must not run'); });
   assert.equal(unsupported.state, 'unsupported');
   const canonicalPath = 'C:\\Temp\\tiinex-carrier.handoff-package.zip';
@@ -1299,14 +1299,20 @@ await test('Transport file clipboard publishes persistent Windows file-copy form
     const encodedIndex = call.args.indexOf('-EncodedCommand');
     assert.ok(encodedIndex >= 0);
     const script = Buffer.from(call.args[encodedIndex + 1], 'base64').toString('utf16le');
-    assert.match(script, /\$data\.SetFileDropList\(\$files\)/);
+    assert.match(script, /SHCreateDataObject/);
+    assert.match(script, /SHParseDisplayName/);
+    assert.match(script, /OleSetClipboard/);
+    assert.match(script, /OleFlushClipboard/);
+    assert.match(script, /Shell IDList Array/);
     assert.match(script, /Preferred DropEffect/);
-    assert.match(script, /DragDropEffects]::Copy/);
-    assert.match(script, /FileNameW/);
-    assert.match(script, /SetDataObject\(\$data, \$true\)/);
+    assert.match(script, /CF_HDROP/);
+    assert.match(script, /OpenClipboard/);
+    assert.match(script, /CloseClipboard/);
+    assert.match(script, /DragQueryFile/);
     assert.match(script, /clipboard-basename-mismatch/);
+    assert.match(script, /OpenClipboard\(IntPtr\.Zero\)[\s\S]*DropFileName\(\)[\s\S]*CloseClipboard\(\)/);
     assert.ok(script.includes(canonicalPath));
-    assert.doesNotMatch(script, /SetText|writeText/);
+    assert.doesNotMatch(script, /SetFileDropList|SetText|writeText/);
     return { code: 0, stdout: '', stderr: '' };
   });
   const copied = await copyFileToClipboard(canonicalPath, 'win32', fx.runner);
