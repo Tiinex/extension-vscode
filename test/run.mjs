@@ -17,7 +17,7 @@ import { comparePackageRecency, inheritedOutgoingLabel } from '../dist/core/outg
 import { projectArtifactAuthoringModel } from '../dist/core/artifactAuthoringModel.js';
 import { artifactCreationReady, requireArtifactCreationReady } from '../dist/core/artifactAuthoringQualification.js';
 import { mergeTransportRouteSelection, selectedTransportRouteIds, transportPrepared, transportPreparedKey } from '../dist/core/transportQueue.js';
-import { gitAutomationBlockerText, gitOperatorResultMarkdown, normalizePostStagePolicy, projectGitOperatorCandidates } from '../dist/core/gitOperator.js';
+import { gitAutomationBlockerText, gitOperatorResultMarkdown, isTiinexArtifactPath, normalizePostStagePolicy, projectGitOperatorCandidates } from '../dist/core/gitOperator.js';
 import { classifyIncomingMergeConflict, planIncomingFileUnion, renderIncomingTextConflict } from '../dist/core/incomingMerge.js';
 import { planWorkspaceSession, validateWorkspaceTargetMapping } from '../dist/core/workspaceSession.js';
 import { representativeWorkspaceChoicesForRoot } from '../dist/core/workspaceChoice.js';
@@ -772,8 +772,8 @@ await test('post-stage Git policy is singular, SCM-first, debounced and keeps le
   const properties = manifest.contributes?.configuration?.properties || {};
   assert.equal(properties['tiinex.landing.commit'], undefined);
   assert.equal(properties['tiinex.landing.push'], undefined);
-  assert.deepEqual(properties['tiinex.git.postStagePolicy']?.enum, ['do-nothing', 'commit', 'commit-push']);
-  assert.equal(properties['tiinex.git.postStagePolicy']?.default, 'do-nothing');
+  assert.deepEqual(properties['tiinex.git.postStagePolicy']?.enum, ['do-nothing', 'ask', 'commit', 'commit-push']);
+  assert.equal(properties['tiinex.git.postStagePolicy']?.default, 'ask');
   const scm = manifest.contributes?.menus?.['scm/sourceControl'] || [];
   assert.ok(scm.some((item) => item.command === 'tiinex.git.commitRepository' && item.when === 'scmProvider == git'));
   const palette = manifest.contributes?.menus?.commandPalette || [];
@@ -783,21 +783,73 @@ await test('post-stage Git policy is singular, SCM-first, debounced and keeps le
   assert.match(extension, /registerGitAutomation\(context, extensionPath\)/);
   assert.match(automation, /const DEBOUNCE_MS = 750/);
   assert.match(automation, /watchGitRepositoryStates/);
-  assert.match(automation, /stageAll:\s*false/);
-  assert.match(automation, /requireNoUnstaged:\s*true/);
-  assert.match(automation, /requireQualifiedTiinex:\s*true/);
-  assert.match(automation, /requireNoConflictMarkers:\s*true/);
-  assert.match(automation, /requirePushSafety:\s*policy === 'commit-push'/);
+  const automatic = automation.slice(automation.indexOf('const evaluate = async'), automation.indexOf('const schedule ='));
+  assert.match(automatic, /stageAll:\s*false/);
+  assert.match(automatic, /requireNoUnstaged:\s*true/);
+  assert.match(automatic, /requireQualifiedTiinex:\s*false/);
+  assert.match(automatic, /requireNoConflictMarkers:\s*true/);
+  assert.match(automatic, /requirePushSafety:\s*policy === 'commit-push'/);
+  assert.match(automatic, /staged\.some\(isTiinexArtifactPath\)/);
+  assert.doesNotMatch(automatic, /validateStagedWithRuntime|projectStagedValidation|prepareBundledRuntime/);
+  assert.match(automation, /policy === 'ask'/);
+  assert.match(automation, /lastPromptedAsk/);
+  assert.match(automation, /Choose the Git outcome/);
+  assert.match(automation, /'Commit',\s*\n\s*'Commit \+ Push',\s*\n\s*'Cancel'/);
+  assert.doesNotMatch(automatic, /'Leave Staged'/);
+  assert.match(automatic, /accepted === 'Commit \+ Push' && !prepared\.pushEligible/);
+  assert.match(automatic, /pushExactReviewedStagedCommit\(root, commit\)/);
+  assert.match(automatic, /accepted !== 'Commit' && accepted !== 'Commit \+ Push'/);
+  assert.match(automation, /beginPostStageBatch/);
+  assert.match(automation, /completePostStageBatch/);
+  assert.match(automation, /Choose one Git outcome for this entire Merge\/Replace operation/);
+  assert.match(automation, /post-stage \${batch\.policy} completed silently/);
+  assert.doesNotMatch(automation, /tiinex\.landing\.stage/);
   assert.match(automation, /auto-committed[\s\S]*locally[\s\S]*but did not push it/);
   assert.match(automation, /requireQualifiedTiinex:\s*false/);
+  assert.equal(isTiinexArtifactPath('.topics/current.trace.md'), true);
+  assert.equal(isTiinexArtifactPath('./.topics/refactor/task.md'), true);
+  assert.equal(isTiinexArtifactPath('.topics/current.trace.txt'), false);
+  assert.equal(isTiinexArtifactPath('src/current.trace.md'), false);
   for (const label of ['Use existing staged changes', 'Stage All changes', 'Leave staged', 'Commit + Push']) assert.match(automation, new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   assert.match(gitApi, /scmContextRepositoryRoot/);
   assert.match(gitApi, /repository\.state\.onDidChange/);
+  assert.equal(normalizePostStagePolicy('ask'), 'ask');
   assert.equal(normalizePostStagePolicy('commit'), 'commit');
   assert.equal(normalizePostStagePolicy('commit-push'), 'commit-push');
   assert.equal(normalizePostStagePolicy('anything-else'), 'do-nothing');
   assert.match(gitAutomationBlockerText(new Error('tiinex.git.no-qualified-tiinex-artifact')), /source-only staging/);
   assert.match(gitAutomationBlockerText(new Error('tiinex.git.unstaged-remainder:src\/a.ts')), /unstaged changes remain/);
+});
+
+await test('post-stage reviewed preparation does not require Tiinex qualification', async () => {
+  const fs = await import('node:fs/promises');
+  const os = await import('node:os');
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tiinex-poststage-selection-test-'));
+  await fs.mkdir(path.join(tmp, 'tools'), { recursive: true });
+  const helper = path.join(tmp, 'tools', 'tiinex-commit-message.mjs');
+  await fs.writeFile(helper, '// fixture');
+  const sha = 'a'.repeat(40);
+  const fx = fakeRunner((key) => {
+    if (key === 'git diff --name-only --diff-filter=U -z') return { code: 0, stdout: '', stderr: '' };
+    if (key === 'git symbolic-ref --quiet --short HEAD') return { code: 0, stdout: 'main\n', stderr: '' };
+    if (key === 'git rev-parse --abbrev-ref --symbolic-full-name @{u}') return { code: 1, stdout: '', stderr: '' };
+    if (key === 'git rev-parse HEAD') return { code: 0, stdout: sha + '\n', stderr: '' };
+    if (key === 'git diff --cached --name-only -z') return { code: 0, stdout: '.topics/001-unqualified.trace.md\0', stderr: '' };
+    if (key === 'git diff --name-only -z' || key === 'git ls-files --others --exclude-standard -z') return { code: 0, stdout: '', stderr: '' };
+    if (key === 'git status --porcelain=v1 -z --untracked-files=all') return { code: 0, stdout: 'A  .topics/001-unqualified.trace.md\0', stderr: '' };
+    if (key === 'git diff --cached --raw -z --no-renames') return { code: 0, stdout: 'raw\0', stderr: '' };
+    if (key.startsWith('node ' + helper)) return { code: 0, stdout: '.topics/001 [task] unresolved Parent is allowed in ordinary Git history\n', stderr: '' };
+    return { code: 0, stdout: '', stderr: '' };
+  });
+  try {
+    const prepared = await prepareReviewedStagedCommit(tmp, 'node', {
+      stageAll: false, requireNoUnstaged: true, requireQualifiedTiinex: false, requirePushSafety: false, requireNoConflictMarkers: true
+    }, undefined, fx.runner);
+    assert.deepEqual(prepared.stagedPaths, ['.topics/001-unqualified.trace.md']);
+    assert.equal(prepared.validationState, 'ready');
+    assert.deepEqual(prepared.stagedTiinexPaths, []);
+    assert.match(prepared.message, /unresolved Parent is allowed/);
+  } finally { await fs.rm(tmp, { recursive: true, force: true }); }
 });
 
 await test('reviewed staged preparation rejects conflicts before explicit Stage All', async () => {
@@ -1408,7 +1460,9 @@ await test('Incoming Merge/Replace shares Landing Stage policy and keeps dirty-w
   assert.match(apply, /const operationStagePolicy = landingStagePolicy\(\)/);
   assert.match(apply, /plan\.stagePolicy === 'no'[\s\S]*safePreserveMerge/);
   assert.match(apply, /stageLandingChanges\(plan\.local\.root, plan\.preOperationIgnoredPaths\)/);
-  assert.match(apply, /executeCommand\('tiinex\.git\.observePostStage', plan\.local\.root\)/);
+  assert.match(apply, /executeCommand<string>\('tiinex\.git\.beginPostStageBatch', operationRoots\)/);
+  assert.match(apply, /executeCommand\('tiinex\.git\.completePostStageBatch', postStageBatchId, \[\.\.\.new Set\(stagedRoots\)\]\)/);
+  assert.match(apply, /executeCommand\('tiinex\.git\.cancelPostStageBatch', postStageBatchId\)/);
   assert.match(apply, /listStagedMutationPaths\(plan\.local\.root\)/);
   assert.match(apply, /unstageLandingPaths\(plan\.local\.root, newlyStaged\)/);
   const execute = apply.slice(apply.indexOf('async function executePlan'), apply.indexOf('function planSummary'));

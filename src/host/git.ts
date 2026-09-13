@@ -516,10 +516,10 @@ function pushSafetyBlocker(upstream: string, relation: { ahead: number; behind: 
 /**
  * Prepare the exact staged index for either the per-repository SCM flow or the
  * debounced post-stage automation. Unlike the legacy batch helper this function
- * never assumes Stage All: callers must opt into staging explicitly. Automatic
- * callers additionally require no unstaged remainder and at least one Core-
- * qualified Tiinex artifact. Every observable Git fact is re-read after shared
- * validation and message derivation before a commit can be returned as reviewable.
+ * never assumes Stage All: callers must opt into staging explicitly. Callers also
+ * choose whether an unstaged remainder or shared qualification is allowed. Every
+ * observable Git fact is re-read after any requested shared validation and message
+ * derivation before a commit can be returned as reviewable.
  */
 export async function prepareReviewedStagedCommit(
   root: string,

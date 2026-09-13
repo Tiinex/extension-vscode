@@ -584,13 +584,9 @@ async function executePlan(plan: WorkspaceApplyPlan, scratch: string): Promise<F
   return { affected: await applyReplace(plan, scratch), conflicts: false, textConflictPaths: [], binaryConflictPaths: [], nativeConflictPaths: [] };
 }
 
-async function applyIncomingStagePolicy(plan: WorkspaceApplyPlan, result: FileMergeExecution & { nativeConflictPaths: string[] }): Promise<void> {
-  if (!result.affected || result.conflicts || plan.stagePolicy === 'no') return;
-  if (await stageLandingChanges(plan.local.root, plan.preOperationIgnoredPaths)) {
-    // Reuse the existing post-stage observer so configured commit automation
-    // sees the same reviewed staged closure as ordinary Receive/Landing.
-    void vscode.commands.executeCommand('tiinex.git.observePostStage', plan.local.root);
-  }
+async function applyIncomingStagePolicy(plan: WorkspaceApplyPlan, result: FileMergeExecution & { nativeConflictPaths: string[] }): Promise<boolean> {
+  if (!result.affected || result.conflicts || plan.stagePolicy === 'no') return false;
+  return stageLandingChanges(plan.local.root, plan.preOperationIgnoredPaths);
 }
 
 function planSummary(plans: WorkspaceApplyPlan[]): string {
@@ -701,20 +697,34 @@ export async function applyIncomingWorkspaces(extensionPath: string, index: Inde
           const affectedWorkspaceIds: string[] = [];
           const conflictWorkspaceIds: string[] = [];
           const conflictDetails: string[] = [];
-          for (const plan of plans) {
-            progress.report({ message: `${plan.strategy === 'merge' ? 'Merging' : 'Replacing'} ${plan.label}...` });
-            const result = await executePlan(plan, scratch);
-            await applyIncomingStagePolicy(plan, result);
-            // An unresolved Workspace must remain actionable in Incoming rather than
-            // being marked as session-applied merely because some safe union bytes landed.
-            if (result.affected && !result.conflicts) affectedWorkspaceIds.push(plan.workspaceId);
-            if (result.conflicts) {
-              conflictWorkspaceIds.push(plan.workspaceId);
-              if (result.nativeConflictPaths.length) conflictDetails.push(`${plan.label}: native Git conflict · ${result.nativeConflictPaths.join(', ')}`);
-              if (result.textConflictPaths.length) conflictDetails.push(`${plan.label}: text conflict markers + Git unmerged stages · ${result.textConflictPaths.join(', ')}`);
-              if (result.binaryConflictPaths.length) conflictDetails.push(`${plan.label}: binary/non-text conflict; local working bytes retained, Incoming side retained as Git stage 3 and in ${path.basename(index.packagePath)} · ${result.binaryConflictPaths.join(', ')}`);
-              await vscode.commands.executeCommand('workbench.view.scm');
+          const operationRoots = [...new Set(plans.map((plan) => plan.local.root))];
+          let postStageBatchId: string | undefined;
+          const stagedRoots: string[] = [];
+          if (operationStagePolicy === 'yes') {
+            postStageBatchId = await vscode.commands.executeCommand<string>('tiinex.git.beginPostStageBatch', operationRoots);
+          }
+          try {
+            for (const plan of plans) {
+              progress.report({ message: `${plan.strategy === 'merge' ? 'Merging' : 'Replacing'} ${plan.label}...` });
+              const result = await executePlan(plan, scratch);
+              if (await applyIncomingStagePolicy(plan, result)) stagedRoots.push(plan.local.root);
+              // An unresolved Workspace must remain actionable in Incoming rather than
+              // being marked as session-applied merely because some safe union bytes landed.
+              if (result.affected && !result.conflicts) affectedWorkspaceIds.push(plan.workspaceId);
+              if (result.conflicts) {
+                conflictWorkspaceIds.push(plan.workspaceId);
+                if (result.nativeConflictPaths.length) conflictDetails.push(`${plan.label}: native Git conflict · ${result.nativeConflictPaths.join(', ')}`);
+                if (result.textConflictPaths.length) conflictDetails.push(`${plan.label}: text conflict markers + Git unmerged stages · ${result.textConflictPaths.join(', ')}`);
+                if (result.binaryConflictPaths.length) conflictDetails.push(`${plan.label}: binary/non-text conflict; local working bytes retained, Incoming side retained as Git stage 3 and in ${path.basename(index.packagePath)} · ${result.binaryConflictPaths.join(', ')}`);
+                await vscode.commands.executeCommand('workbench.view.scm');
+              }
             }
+            if (postStageBatchId) {
+              await vscode.commands.executeCommand('tiinex.git.completePostStageBatch', postStageBatchId, [...new Set(stagedRoots)]);
+              postStageBatchId = undefined;
+            }
+          } finally {
+            if (postStageBatchId) await vscode.commands.executeCommand('tiinex.git.cancelPostStageBatch', postStageBatchId);
           }
           if (conflictWorkspaceIds.length) {
             await vscode.window.showWarningMessage(

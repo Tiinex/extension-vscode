@@ -96,10 +96,16 @@ export function gitOperatorResultMarkdown(outcomes: GitOperatorOutcome[]): strin
   return `${lines.join('\n')}\n`;
 }
 
-export type PostStagePolicy = 'do-nothing' | 'commit' | 'commit-push';
+export function isTiinexArtifactPath(filePath: string): boolean {
+  const normalized = String(filePath || '').trim().replace(/\\/g, '/').replace(/^\.\//, '').replace(/^\/+/, '');
+  return normalized.startsWith('.topics/') && /\.md$/i.test(normalized);
+}
+
+export type PostStagePolicy = 'do-nothing' | 'ask' | 'commit' | 'commit-push';
 
 export function normalizePostStagePolicy(value: unknown): PostStagePolicy {
   const policy = String(value || '').trim().toLowerCase();
+  if (policy === 'ask') return 'ask';
   if (policy === 'commit') return 'commit';
   if (policy === 'commit-push') return 'commit-push';
   return 'do-nothing';
