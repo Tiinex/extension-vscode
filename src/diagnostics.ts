@@ -34,6 +34,29 @@ function eligible(document: vscode.TextDocument): boolean {
 function digest(text: string): string { return createHash('sha256').update(Buffer.from(text, 'utf8')).digest('hex'); }
 function message(error: unknown): string { return error instanceof Error ? error.message : String(error); }
 
+function diagnosticCode(value: unknown): string {
+  if (value && typeof value === 'object' && 'value' in value) return String((value as { value?: unknown }).value || '');
+  return String(value || '');
+}
+
+function projectedDiagnosticRange(document: vscode.TextDocument, item: { line?: unknown; sourceRange?: any }): vscode.Range {
+  const sourceRange = item.sourceRange;
+  if (sourceRange && Number.isInteger(sourceRange.startLine) && Number.isInteger(sourceRange.endLine)) {
+    const startLine = Math.min(Math.max(0, Number(sourceRange.startLine) - 1), Math.max(0, document.lineCount - 1));
+    const endLine = Math.min(Math.max(startLine, Number(sourceRange.endLine) - 1), Math.max(0, document.lineCount - 1));
+    const startText = document.lineAt(startLine).text;
+    const endText = document.lineAt(endLine).text;
+    const startColumn = Math.min(Math.max(0, Number(sourceRange.startColumn || 1) - 1), startText.length);
+    const endColumn = Math.min(Math.max(0, Number(sourceRange.endColumn || endText.length + 1) - 1), endText.length);
+    return new vscode.Range(new vscode.Position(startLine, startColumn), new vscode.Position(endLine, Math.max(startColumn, endColumn)));
+  }
+  if (Number.isInteger(item.line) && Number(item.line) > 0) {
+    const line = Math.min(Math.max(0, Number(item.line) - 1), Math.max(0, document.lineCount - 1));
+    return document.lineAt(line).range;
+  }
+  return new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 0));
+}
+
 export class TiinexDiagnosticsController implements vscode.Disposable {
   private readonly collection = vscode.languages.createDiagnosticCollection('tiinex');
   private readonly actions = new Map<string, any[]>();
@@ -56,7 +79,11 @@ export class TiinexDiagnosticsController implements vscode.Disposable {
     this.disposables.push(vscode.workspace.onDidChangeTextDocument((event: { document: vscode.TextDocument }) => { if (eligible(event.document)) this.scheduleInMemoryRefresh(event.document); }));
     this.disposables.push(vscode.workspace.onDidCloseTextDocument((document: vscode.TextDocument) => this.forget(document)));
     this.disposables.push(vscode.window.onDidChangeActiveTextEditor(() => this.updateActiveStatus()));
-    this.disposables.push(vscode.languages.registerCodeActionsProvider({ scheme: 'file', language: 'markdown' }, {
+    this.disposables.push(vscode.languages.registerCodeActionsProvider([
+      { scheme: 'file', language: 'markdown' },
+      { scheme: 'file', pattern: '**/*.md' },
+      { scheme: 'file', pattern: '**/*.markdown' }
+    ], {
       provideCodeActions: (document: vscode.TextDocument, _range: vscode.Range | vscode.Selection, context: vscode.CodeActionContext) => this.codeActions(document, context)
     }, { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] }));
     for (const document of vscode.workspace.textDocuments) void this.refresh(document);
@@ -169,12 +196,10 @@ export class TiinexDiagnosticsController implements vscode.Disposable {
         return snapshot;
       }
       const diagnostics = projected.diagnostics.map((item) => {
-        const hasLine = Number.isInteger(item.line) && Number(item.line) > 0;
-        const line = hasLine ? Math.min(Math.max(0, document.lineCount - 1), Number(item.line) - 1) : 0;
-        const range = hasLine ? document.lineAt(line).range : new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 0));
+        const range = projectedDiagnosticRange(document, item);
         const suffix = item.locationState === 'deterministic'
           ? ''
-          : item.locationState === 'deterministic-anchor' && hasLine
+          : item.locationState === 'deterministic-anchor' && Number.isInteger(item.line) && Number(item.line) > 0
             ? ` [anchored by shared validator: ${item.locationBasis}; exact source line unavailable]`
             : ' [location unresolved by shared validator]';
         const diagnostic = new vscode.Diagnostic(range, `${item.message}${suffix}`, item.severity === 'error' ? vscode.DiagnosticSeverity.Error : vscode.DiagnosticSeverity.Warning);
@@ -226,11 +251,17 @@ export class TiinexDiagnosticsController implements vscode.Disposable {
     return document && !document.isClosed ? this.refresh(document) : null;
   }
 
-  private codeActions(document: vscode.TextDocument, context: vscode.CodeActionContext): vscode.CodeAction[] {
-    if (document.isClosed) return [];
-    return (this.actions.get(document.uri.toString()) || []).filter((item) => item.kind === 'replace-document' && item.qualification === 'deterministic-shared-core').map((item) => {
+  private async codeActions(document: vscode.TextDocument, context: vscode.CodeActionContext): Promise<vscode.CodeAction[]> {
+    if (document.isClosed || !eligible(document)) return [];
+    const key = document.uri.toString();
+    let projectedActions = this.actions.get(key) || [];
+    if (!projectedActions.some((item) => item.kind === 'replace-document' && item.qualification === 'deterministic-shared-core')) {
+      await this.refresh(document);
+      projectedActions = this.actions.get(key) || [];
+    }
+    return projectedActions.filter((item) => item.kind === 'replace-document' && item.qualification === 'deterministic-shared-core').map((item) => {
       const diagnosticCodes = new Set((item.diagnosticCodes || []).map((value: unknown) => String(value)));
-      const matchingDiagnostics = context.diagnostics.filter((diagnostic: vscode.Diagnostic) => !diagnosticCodes.size || diagnosticCodes.has(String(typeof diagnostic.code === 'object' ? diagnostic.code.value : diagnostic.code || '')));
+      const matchingDiagnostics = context.diagnostics.filter((diagnostic: vscode.Diagnostic) => !diagnosticCodes.size || diagnosticCodes.has(diagnosticCode(diagnostic.code)));
       if (diagnosticCodes.size && !matchingDiagnostics.length) return null;
       const action = new vscode.CodeAction(item.title, vscode.CodeActionKind.QuickFix);
       if (matchingDiagnostics.length) action.diagnostics = matchingDiagnostics;

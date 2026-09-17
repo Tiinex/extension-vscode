@@ -22,9 +22,19 @@ const corePackage = JSON.parse(await readFile(binding.packageJsonPath, 'utf8'));
 const declaredCoreRange = binding.declaredRange;
 const lockedCoreVersion = binding.lockedVersion;
 const coreEntrypointRelative = safeContainedRelative(coreRoot, binding.entrypoint);
+const packagedManifest = structuredClone(packageJson);
+const packagedLock = JSON.parse(await readFile(path.join(ROOT, 'package-lock.json'), 'utf8'));
+if (binding.bindingMode === 'sibling-source') {
+  packagedManifest.dependencies = { ...(packagedManifest.dependencies || {}), [CORE_NAME]: corePackage.version };
+  if (!packagedLock.packages?.['']) throw new Error('tiinex.vsix.lock-root-missing');
+  packagedLock.packages[''].dependencies = { ...(packagedLock.packages[''].dependencies || {}), [CORE_NAME]: corePackage.version };
+  packagedLock.packages[`node_modules/${CORE_NAME}`] = { version: corePackage.version };
+}
 
 const files = [];
-for (const relative of ['LICENSE', 'NOTICE', 'README.md', 'package.json', 'package-lock.json']) files.push([`extension/${relative}`, await readFile(path.join(ROOT, relative))]);
+for (const relative of ['LICENSE', 'NOTICE', 'README.md']) files.push([`extension/${relative}`, await readFile(path.join(ROOT, relative))]);
+files.push(['extension/package.json', Buffer.from(`${JSON.stringify(packagedManifest, null, 2)}\n`, 'utf8')]);
+files.push(['extension/package-lock.json', Buffer.from(`${JSON.stringify(packagedLock, null, 2)}\n`, 'utf8')]);
 for (const relative of await walk(path.join(ROOT, 'dist'))) {
   if (relative.endsWith('.vsix')) continue;
   files.push([`extension/dist/${relative}`, await readFile(path.join(ROOT, 'dist', relative))]);
@@ -55,8 +65,9 @@ console.log(JSON.stringify({
   runtime: {
     package: CORE_NAME,
     version: corePackage.version,
-    declaredRange: declaredCoreRange,
-    lockedVersion: lockedCoreVersion,
+    bindingMode: binding.bindingMode,
+    declaredRange: binding.bindingMode === 'sibling-source' ? corePackage.version : declaredCoreRange,
+    lockedVersion: binding.bindingMode === 'sibling-source' ? corePackage.version : lockedCoreVersion,
     portableEntrypoint: coreEntrypointRelative,
     files: coreRepresentation.files,
     bytes: coreRepresentation.bytes,

@@ -1936,14 +1936,36 @@ await test('diagnostics controller captures unsaved bytes before debounce and di
   assert.doesNotMatch(source, /Save the artifact to run exact shared Tiinex validation/);
 });
 
-await test('native Quick Fixes are diagnostic-scoped and preserve deterministic shared-core replacement bytes', async () => {
+await test('native Quick Fixes are a thin projection of shared-Core diagnostics, ranges and replacement bytes', async () => {
   const fs = await import('node:fs/promises');
   const source = await fs.readFile(path.resolve(HERE, '..', 'src', 'diagnostics.ts'), 'utf8');
+  assert.match(source, /projectedDiagnosticRange/);
+  assert.match(source, /item\.sourceRange/);
+  assert.doesNotMatch(source, /workspaceCompatibilityRepair/);
+  assert.doesNotMatch(source, /normalizeWorkspaceSchemaReference/);
+  assert.doesNotMatch(source, /sealWorkspaceWithInstalledCore/);
   assert.match(source, /item\.diagnosticCodes/);
   assert.match(source, /action\.diagnostics = matchingDiagnostics/);
   assert.match(source, /Document bytes changed after Tiinex qualification/);
   assert.match(source, /item\.replacementMarkdown/);
   assert.match(source, /deterministic-anchor/);
+  assert.ok(source.includes("pattern: '**/*.md'"));
+  assert.ok(source.includes("pattern: '**/*.markdown'"));
+  assert.match(source, /await this\.refresh\(document\)/);
+  assert.match(source, /projectedActions\.some/);
+});
+
+
+await test('linked Tiinex checkout binds directly to sibling Core while VSIX packaging rewrites only packaged dependency receipts', async () => {
+  const fs = await import('node:fs/promises');
+  const binding = await fs.readFile(path.resolve(HERE, '..', 'src', 'host', 'corePackageBinding.ts'), 'utf8');
+  const packager = await fs.readFile(path.resolve(HERE, '..', 'scripts', 'package-vsix.mjs'), 'utf8');
+  assert.match(binding, /bindingMode: 'sibling-source'/);
+  assert.match(binding, /path\.resolve\(extensionPath, '\.\.', 'core'\)/);
+  assert.match(binding, /path\.join\(root, 'tools', 'tiinex-portable\.mjs'\)/);
+  assert.match(packager, /binding\.bindingMode === 'sibling-source'/);
+  assert.match(packager, /packagedManifest\.dependencies/);
+  assert.match(packager, /packagedLock\.packages\[`node_modules\/\$\{CORE_NAME\}`\]/);
 });
 
 await test('pointerless package builder projects exact workspace-carrier args without route semantics', async () => {

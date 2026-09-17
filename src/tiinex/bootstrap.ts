@@ -259,7 +259,7 @@ export interface EditorAssistanceResult {
     path: string;
     schemaId: string;
     validator: { state: string; authorityState?: string; authorityBasis?: string; authorityFindings?: string[] };
-    diagnostics: Array<{ severity: string; code: string; message: string; line: number | null; locationState: string; locationBasis: string }>;
+    diagnostics: Array<{ severity: string; code: string; message: string; line: number | null; sourceRange?: { startLine: number; startColumn: number; endLine: number; endColumn: number } | null; locationState: string; locationBasis: string }>;
     actions: Array<{ id: string; title: string; kind: string; qualification: string; sourceSha256: string; replacementMarkdown: string; diagnosticCodes?: string[] }>;
   }>;
 }
