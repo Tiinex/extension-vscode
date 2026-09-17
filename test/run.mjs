@@ -1263,6 +1263,7 @@ await test('Transport prepared state is keyed by immutable package SHA plus exac
   assert.equal(transportPreparedKey(sha, 'route-2'), `${sha}:route-2`);
   assert.equal(transportPrepared({ packagePrepared: true, textPrepared: true }), true);
   assert.equal(transportPrepared({ packagePrepared: true, textPrepared: false }), false);
+  assert.equal(transportPrepared({ packagePrepared: true, textPrepared: false }, false), true);
   assert.deepEqual(mergeTransportRouteSelection(undefined, 'route-b'), ['route-b']);
   assert.deepEqual(mergeTransportRouteSelection(['route-b'], 'route-a'), ['route-a', 'route-b']);
   assert.equal(mergeTransportRouteSelection(['route-a'], ''), null);
@@ -1270,6 +1271,17 @@ await test('Transport prepared state is keyed by immutable package SHA plus exac
   assert.deepEqual(selectedTransportRouteIds(['route-c', 'route-a', 'route-b'], ['route-b', 'missing']), ['route-b']);
   assert.deepEqual(selectedTransportRouteIds(['route-c', 'route-a'], null), ['route-c', 'route-a']);
   assert.throws(() => transportPreparedKey('not-a-sha'), /tiinex\.transport\.sha256-invalid/);
+});
+
+await test('Pointerless transport queue tolerates package-only carriers without Handoff transport text', async () => {
+  const fs = await import('node:fs/promises');
+  const root = path.resolve(HERE, '..');
+  const tree = await fs.readFile(path.join(root, 'src', 'operatorTrees.ts'), 'utf8');
+  assert.doesNotMatch(tree, /tiinex\.transport\.package-transport-text-missing/);
+  assert.match(tree, /const orientation = await orientPackage\(runtime, resolved\)/);
+  assert.match(tree, /presentationLabel = presentationLabel \|\| 'Workspace carrier'/);
+  assert.match(tree, /This Workspace carrier has no Handoff route-specific transport text/);
+  assert.match(tree, /const textRequired = Boolean\(item\.routes\.length \|\| item\.genericTransportText\)/);
 });
 
 await test('Transport package projection delegates exact generic and route transport text to Core CLI', async () => {

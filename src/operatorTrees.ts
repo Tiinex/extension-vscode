@@ -706,17 +706,19 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     const sha256 = createHash('sha256').update(bytes).digest('hex');
     const runtime = await preparePackageRuntime(resolved, nodeExecutable());
     try {
-      const base = await projectPackageTransport(runtime, resolved);
-      const routeMeta = Array.isArray(base.carrierInspection?.routes) ? base.carrierInspection!.routes! : [];
+      const orientation = await orientPackage(runtime, resolved);
+      const orientationRoutes = Array.isArray(orientation.routes) ? orientation.routes : [];
+      const base = orientationRoutes.length ? await projectPackageTransport(runtime, resolved) : null;
+      const routeMeta = Array.isArray(base?.carrierInspection?.routes) ? base!.carrierInspection!.routes! : [];
       const routes: TransportRouteState[] = [];
       let genericTransportText = '';
-      let presentationLabel = String(base.humanOutput?.presentation?.label || base.humanOutput?.primary?.kind || '').trim();
+      let presentationLabel = String(base?.humanOutput?.presentation?.label || base?.humanOutput?.primary?.kind || '').trim();
 
-      if (!routeMeta.length) {
-        if (base.status !== 'ready') throw new Error(`tiinex.transport.package-projection-${base.status || 'blocked'}`);
-        genericTransportText = String(base.humanOutput?.normalInlineRouting?.content || '');
-        if (!genericTransportText) throw new Error('tiinex.transport.package-transport-text-missing');
+      if (!orientationRoutes.length) {
+        presentationLabel = presentationLabel || 'Workspace carrier';
       } else {
+        if (!base || base.status !== 'ready') throw new Error(`tiinex.transport.package-projection-${base?.status || 'blocked'}`);
+        if (routeMeta.length !== orientationRoutes.length) throw new Error('tiinex.transport.route-projection-count-mismatch');
         for (const item of routeMeta) {
           const workspaceId = String(item.workspaceId || '').trim();
           const handoffPath = normalizePath(String(item.workspaceRelativeHandoffPath || ''));
@@ -790,7 +792,8 @@ export class TiinexOperatorTrees implements vscode.Disposable {
   }
 
   private transportPrepared(item: TransportPackageState, routeId: string): boolean {
-    return transportPrepared(this.transportPreparedState[transportPreparedKey(item.sha256, routeId)]);
+    const textRequired = Boolean(item.routes.length || item.genericTransportText);
+    return transportPrepared(this.transportPreparedState[transportPreparedKey(item.sha256, routeId)], textRequired);
   }
 
   private async markTransportPrepared(item: TransportPackageState, routeId: string, field: keyof TransportPreparedRecord): Promise<void> {
@@ -848,7 +851,10 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       routeId = route.routeId;
       text = route.transportText;
     }
-    if (!text) throw new Error('tiinex.transport.transport-text-missing');
+    if (!text) {
+      await vscode.window.showInformationMessage('This Workspace carrier has no Handoff route-specific transport text. Copy the package itself to transfer the Workspace carrier.');
+      return;
+    }
     await vscode.env.clipboard.writeText(text);
     await this.markTransportPrepared(item, routeId, 'textPrepared');
     await vscode.window.showInformationMessage('Copied exact Tiinex transport text.');
@@ -2530,8 +2536,9 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
         this.closeOutgoing();
         await announceBuiltCarrier(built.outputPath, 'Workspace carrier');
       } catch (error) {
-        await vscode.window.showErrorMessage(`Tiinex Outgoing package blocked: ${shortMessage(error)}`, 'Show Details').then(async (choice: string | undefined) => {
-          if (choice === 'Show Details') await vscode.window.showErrorMessage(String(error instanceof Error ? error.stack || error.message : error), { modal: true });
+        await vscode.window.showErrorMessage(`Tiinex Outgoing package blocked: ${shortMessage(error)}`, 'Open Workspace', 'Show Details').then(async (choice: string | undefined) => {
+          if (choice === 'Open Workspace') await this.openOutgoingWorkspaceArtifactForRepair();
+          else if (choice === 'Show Details') await vscode.window.showErrorMessage(String(error instanceof Error ? error.stack || error.message : error), { modal: true });
         });
       } finally {
         this.setOutgoingLoading(false);
@@ -2587,6 +2594,21 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     } finally {
       this.setOutgoingLoading(false);
     }
+  }
+
+  private async openOutgoingWorkspaceArtifactForRepair(): Promise<void> {
+    if (!this.outgoing) return;
+    for (const workspace of this.outgoing.workspaces) {
+      if (workspace.source !== 'local' || !workspace.root || !workspace.workspaceId) continue;
+      const qualified = await qualifyLocalWorkspaceChoice(this.extensionPath, workspace.root, workspace.workspaceId);
+      if (!qualified?.workspaceTargetPath) continue;
+      const target = safeTarget(workspace.root, qualified.workspaceTargetPath);
+      const document = await vscode.workspace.openTextDocument(vscode.Uri.file(target));
+      await vscode.window.showTextDocument(document, { preview: false });
+      await vscode.window.showInformationMessage('Tiinex opened the blocked Workspace artifact. Use Quick Fix on the reported schema/integrity diagnostic, save, then Pack again.');
+      return;
+    }
+    await vscode.window.showWarningMessage('Tiinex could not resolve a unique local Workspace artifact for repair. Refresh the Outgoing Workspace selection and retry.');
   }
 
   private operatorRole(): string { return String(this.config().get('operator.role', '') || '').trim(); }

@@ -17,8 +17,8 @@ export function transportPreparedKey(packageSha256: string, routeId = ''): strin
   return `${digest}:${route}`;
 }
 
-export function transportPrepared(record: TransportPreparedRecord | undefined): boolean {
-  return Boolean(record?.packagePrepared && record?.textPrepared);
+export function transportPrepared(record: TransportPreparedRecord | undefined, textRequired = true): boolean {
+  return Boolean(record?.packagePrepared && (!textRequired || record?.textPrepared));
 }
 
 export function mergeTransportRouteSelection(existing: string[] | null | undefined, routeId = ''): string[] | null {
