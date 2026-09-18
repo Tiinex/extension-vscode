@@ -139,7 +139,17 @@ export async function preparePackageRuntimeWithRecovery(
     if (recovery?.state === 'eligible' && recovery?.eligibleWithQualifiedHostBootstrap === true) {
       return { runtime: bundled, orientation, recovery: { state: 'host-bootstrap-recovery', detail: packageFailure || 'package bootstrap unavailable' } };
     }
-    throw new Error(`tiinex.bootstrap.recovery-ineligible:${packageFailure || String(orientation.status || 'blocked')}:${String(recovery?.state || 'unavailable')}`);
+    const blocking = Array.isArray(recovery?.blockingFindingCodes) ? recovery.blockingFindingCodes.join(',') : '';
+    const ignored = Array.isArray(recovery?.ignoredFindingCodes) ? recovery.ignoredFindingCodes.join(',') : '';
+    const artifact = String(recovery?.packageBootstrap?.artifactPath || '');
+    const detail = [
+      `package=${packageFailure || String(orientation.status || 'blocked')}`,
+      `recovery=${String(recovery?.state || 'unavailable')}`,
+      artifact ? `bootstrap=${artifact}` : '',
+      blocking ? `blocking=${blocking}` : '',
+      ignored ? `ignored=${ignored}` : ''
+    ].filter(Boolean).join(';');
+    throw new Error(`tiinex.bootstrap.recovery-ineligible:${detail}`);
   } catch (error) {
     await bundled.dispose();
     throw error;
