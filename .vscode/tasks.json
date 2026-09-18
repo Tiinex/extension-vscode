@@ -16,22 +16,15 @@
     {
       "label": "Tiinex: Pack Core locally",
       "type": "shell",
-      "command": "powershell",
+      "command": "npm",
       "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "scripts/manage-npm-dependency.ps1",
-        "-Mode",
-        "PackLocal",
-        "-PackageName",
-        "@tiinex/core",
-        "-LocalPath",
-        "../core",
-        "-CacheKey",
-        "core"
+        "pack",
+        "--dry-run",
+        "${workspaceFolder}/../core"
       ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
       "problemMatcher": [],
       "presentation": {
         "reveal": "always",
@@ -43,20 +36,17 @@
     {
       "label": "Tiinex: Use local Core",
       "type": "shell",
-      "command": "powershell",
+      "command": "npm",
       "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "scripts/manage-npm-dependency.ps1",
-        "-Mode",
-        "UseLocal",
-        "-PackageName",
-        "@tiinex/core",
-        "-CacheKey",
-        "core"
+        "install",
+        "--no-save",
+        "--package-lock=false",
+        "--install-links",
+        "file:${workspaceFolder}/../core"
       ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
       "dependsOrder": "sequence",
       "dependsOn": [
         "Tiinex: Pack Core locally"
@@ -72,20 +62,14 @@
     {
       "label": "Tiinex: Switch Core to Latest",
       "type": "shell",
-      "command": "powershell",
+      "command": "npm",
       "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "scripts/manage-npm-dependency.ps1",
-        "-Mode",
-        "Latest",
-        "-PackageName",
-        "@tiinex/core",
-        "-CacheKey",
-        "core"
+        "install",
+        "@tiinex/core@latest"
       ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
       "problemMatcher": [],
       "presentation": {
         "reveal": "always",
