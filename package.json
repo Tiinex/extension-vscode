@@ -908,7 +908,7 @@
     "test:local-core": "node scripts/test-local-core.mjs"
   },
   "dependencies": {
-    "@tiinex/core": "^0.24.0"
+    "@tiinex/core": "^0.25.0"
   },
   "devDependencies": {
     "@types/node": "22.10.2",
