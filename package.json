@@ -193,6 +193,11 @@
         "icon": "$(add)"
       },
       {
+        "command": "tiinex.outgoing.newHandoffFromArtifact",
+        "title": "Tiinex: New Handoff from Artifact",
+        "icon": "$(git-pull-request-create)"
+      },
+      {
         "command": "tiinex.outgoing.previewDraft",
         "title": "Tiinex: Preview Handoff Draft",
         "icon": "$(preview)"
@@ -260,7 +265,7 @@
       },
       {
         "command": "tiinex.git.commitRepository",
-        "title": "Tiinex: Commit Repository…",
+        "title": "Tiinex: Commit Repository\u2026",
         "icon": "$(check)"
       },
       {
@@ -424,10 +429,10 @@
             "commit-push"
           ],
           "enumDescriptions": [
-            "Do Nothing — leave staged changes staged; no Tiinex commit or push is initiated.",
-            "Ask — after a stable staged Tiinex state passes the Git safety gates, ask once for that exact staged state: Commit creates the local commit, Commit + Push creates then publishes only that exact commit through the existing push-safety gates, and Cancel leaves staging unchanged.",
-            "Commit — after a stable staged-state event, auto-commit only the exact staged selection when it contains Tiinex Markdown material and passes the Git safety gates; Tiinex qualification is not re-run here.",
-            "Commit + Push — apply the same staged-selection Git safety gates and require an aligned upstream before committing; then push only the exact commit created by that same Tiinex operation."
+            "Do Nothing \u2014 leave staged changes staged; no Tiinex commit or push is initiated.",
+            "Ask \u2014 after a stable staged Tiinex state passes the Git safety gates, ask once for that exact staged state: Commit creates the local commit, Commit + Push creates then publishes only that exact commit through the existing push-safety gates, and Cancel leaves staging unchanged.",
+            "Commit \u2014 after a stable staged-state event, auto-commit only the exact staged selection when it contains Tiinex Markdown material and passes the Git safety gates; Tiinex qualification is not re-run here.",
+            "Commit + Push \u2014 apply the same staged-selection Git safety gates and require an aligned upstream before committing; then push only the exact commit created by that same Tiinex operation."
           ],
           "default": "ask",
           "description": "Post-stage Git policy over a stable staged Tiinex selection. It is independent of tiinex.landing.stage, never performs Stage All, and does not re-run Tiinex qualification before ordinary commit/push."
@@ -617,19 +622,9 @@
           "group": "inline@2"
         },
         {
-          "command": "tiinex.outgoing.attachHandoff",
-          "when": "view == tiinex.outgoing && viewItem == tiinex.outgoingHandoffUnattached",
-          "group": "inline@2"
-        },
-        {
           "command": "tiinex.outgoing.copyTransportText",
           "when": "view == tiinex.outgoing && viewItem == tiinex.outgoingHandoffAttached",
           "group": "inline@1"
-        },
-        {
-          "command": "tiinex.outgoing.detachHandoff",
-          "when": "view == tiinex.outgoing && viewItem == tiinex.outgoingHandoffAttached",
-          "group": "inline@2"
         },
         {
           "command": "tiinex.outgoing.omitWorkspacePayload",
@@ -694,6 +689,21 @@
         {
           "command": "tiinex.transport.copyText",
           "when": "view == tiinex.transport && viewItem == tiinex.transportRoute",
+          "group": "inline@2"
+        },
+        {
+          "command": "tiinex.outgoing.newHandoffFromArtifact",
+          "when": "view == tiinex.outgoing && (viewItem == tiinex.outgoingLocalArtifactLeaf || viewItem == tiinex.outgoingLocalHandoffUnattached || viewItem == tiinex.outgoingLocalHandoffAttached)",
+          "group": "inline@1"
+        },
+        {
+          "command": "tiinex.outgoing.attachHandoff",
+          "when": "view == tiinex.outgoing && (viewItem == tiinex.outgoingLocalHandoffUnattached || viewItem == tiinex.outgoingIncomingHandoffUnattached)",
+          "group": "inline@2"
+        },
+        {
+          "command": "tiinex.outgoing.detachHandoff",
+          "when": "view == tiinex.outgoing && (viewItem == tiinex.outgoingLocalHandoffAttached || viewItem == tiinex.outgoingIncomingHandoffAttached)",
           "group": "inline@2"
         }
       ],
@@ -832,6 +842,10 @@
         },
         {
           "command": "tiinex.transport.close",
+          "when": "false"
+        },
+        {
+          "command": "tiinex.outgoing.newHandoffFromArtifact",
           "when": "false"
         }
       ],

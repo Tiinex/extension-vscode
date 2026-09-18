@@ -4,7 +4,7 @@ import { makeIndexedArtifact, IndexedArtifact, normalizePath } from './core/arti
 import { comparePackageRecency } from './core/outgoingUx';
 import { inspectZipBuffer, readExactZipEntryFromBuffer, readZipEntriesFromBuffer } from './host/zip';
 
-export interface IndexedWorkspaceFile { path: string; bytes: number; directory: boolean }
+export interface IndexedWorkspaceFile { path: string; bytes: number; directory: boolean; mtimeMs: number }
 
 export interface IndexedCarrierWorkspace {
   workspaceId: string;
@@ -43,20 +43,21 @@ export async function indexCarrierPackage(packagePath: string): Promise<IndexedC
   const carrierFiles: IndexedWorkspaceFile[] = outerEntries.map((entry) => ({
     path: normalizePath(entry.path),
     bytes: entry.bytes,
-    directory: entry.directory
+    directory: entry.directory,
+    mtimeMs: entry.mtimeMs
   }));
   const carrierArtifacts: IndexedArtifact[] = [];
   const descriptorEntries = outerEntries.filter((entry) => !entry.directory && /\.workspace\.md$/i.test(entry.path));
   const workspaces: IndexedCarrierWorkspace[] = [];
 
   for (const entry of await readZipEntriesFromBuffer(outer, (item) => /\.md$/i.test(item.path) && !/\.workspace\.md$/i.test(item.path))) {
-    const artifact = makeIndexedArtifact({ path: entry.path, carrierPath: entry.path, markdown: entry.data.toString('utf8') });
+    const artifact = makeIndexedArtifact({ path: entry.path, carrierPath: entry.path, markdown: entry.data.toString('utf8'), mtimeMs: entry.mtimeMs });
     if (artifact) carrierArtifacts.push(artifact);
   }
 
   for (const descriptorEntry of descriptorEntries) {
     const descriptorMarkdown = (await readExactZipEntryFromBuffer(outer, descriptorEntry.path)).toString('utf8');
-    const descriptorArtifact = makeIndexedArtifact({ path: descriptorEntry.path, carrierPath: descriptorEntry.path, markdown: descriptorMarkdown });
+    const descriptorArtifact = makeIndexedArtifact({ path: descriptorEntry.path, carrierPath: descriptorEntry.path, markdown: descriptorMarkdown, mtimeMs: descriptorEntry.mtimeMs });
     if (descriptorArtifact) carrierArtifacts.push(descriptorArtifact);
     const prefix = descriptorEntry.path.replace(/\.workspace\.md$/i, '');
     const archivePath = `${prefix}.workspace.zip`;
@@ -71,7 +72,7 @@ export async function indexCarrierPackage(packagePath: string): Promise<IndexedC
       const nested = await readExactZipEntryFromBuffer(outer, archivePath);
       files = await inspectZipBuffer(nested);
       for (const entry of await readZipEntriesFromBuffer(nested, (item) => /\.md$/i.test(item.path))) {
-        const artifact = makeIndexedArtifact({ workspaceId, path: entry.path, carrierPath: `${archivePath}::${entry.path}`, markdown: entry.data.toString('utf8') });
+        const artifact = makeIndexedArtifact({ workspaceId, path: entry.path, carrierPath: `${archivePath}::${entry.path}`, markdown: entry.data.toString('utf8'), mtimeMs: entry.mtimeMs });
         if (artifact) artifacts.push(artifact);
       }
     }
@@ -101,8 +102,8 @@ export async function indexLocalWorkspace(root: string, workspaceId: string): Pr
   }
   // The Tiinex tree is not a general Explorer. Restrict local indexing to the
   // canonical artifact namespace so expanding a large repository stays cheap.
-  await walkMarkdown(resolved, topicsRoot, async (relative, markdown) => {
-    const artifact = makeIndexedArtifact({ workspaceId, path: relative, carrierPath: relative, markdown });
+  await walkMarkdown(resolved, topicsRoot, async (relative, markdown, mtimeMs) => {
+    const artifact = makeIndexedArtifact({ workspaceId, path: relative, carrierPath: relative, markdown, mtimeMs });
     if (artifact) artifacts.push(artifact);
   });
   artifacts.sort((a, b) => a.path.localeCompare(b.path));
@@ -128,13 +129,13 @@ async function walkWorkspaceFiles(root: string, current: string, out: IndexedWor
     const relative = normalizePath(path.relative(root, absolute));
     if (!relative) continue;
     if (entry.isDirectory()) {
-      out.push({ path: relative, bytes: 0, directory: true });
+      out.push({ path: relative, bytes: 0, directory: true, mtimeMs: 0 });
       await walkWorkspaceFiles(root, absolute, out);
       continue;
     }
     if (!entry.isFile()) continue;
     const info = await stat(absolute);
-    out.push({ path: relative, bytes: info.size, directory: false });
+    out.push({ path: relative, bytes: info.size, directory: false, mtimeMs: info.mtimeMs });
   }
 }
 
@@ -169,7 +170,7 @@ function field(markdown: string, name: string): string {
   return String(match?.[1] || '').trim().replace(/^`|`$/g, '');
 }
 
-async function walkMarkdown(root: string, current: string, visit: (relative: string, markdown: string) => Promise<void>): Promise<void> {
+async function walkMarkdown(root: string, current: string, visit: (relative: string, markdown: string, mtimeMs: number) => Promise<void>): Promise<void> {
   const entries = await readdir(current, { withFileTypes: true });
   entries.sort((a, b) => a.name.localeCompare(b.name));
   for (const entry of entries) {
@@ -181,7 +182,7 @@ async function walkMarkdown(root: string, current: string, visit: (relative: str
     }
     if (!entry.isFile() || !/\.md$/i.test(entry.name)) continue;
     const relative = normalizePath(path.relative(root, absolute));
-    const markdown = await readFile(absolute, 'utf8');
-    await visit(relative, markdown);
+    const [markdown, info] = await Promise.all([readFile(absolute, 'utf8'), stat(absolute)]);
+    await visit(relative, markdown, info.mtimeMs);
   }
 }

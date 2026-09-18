@@ -11,7 +11,7 @@ const EOCD_SIG = 0x06054b50;
 const CENTRAL_SIG = 0x02014b50;
 const LOCAL_SIG = 0x04034b50;
 
-export interface ZipEntryInfo { path: string; bytes: number; directory: boolean }
+export interface ZipEntryInfo { path: string; bytes: number; directory: boolean; mtimeMs: number }
 interface CentralEntry extends ZipEntryInfo {
   compressedBytes: number;
   compression: number;
@@ -36,7 +36,7 @@ export async function readExactZipEntryFromBuffer(buffer: Buffer, entryName: str
 }
 
 export async function inspectZipBuffer(buffer: Buffer): Promise<ZipEntryInfo[]> {
-  return parseCentralDirectory(buffer).map(({ path: entryPath, bytes, directory }) => ({ path: entryPath, bytes, directory }));
+  return parseCentralDirectory(buffer).map(({ path: entryPath, bytes, directory, mtimeMs }) => ({ path: entryPath, bytes, directory, mtimeMs }));
 }
 
 export interface ZipTextEntry extends ZipEntryInfo { data: Buffer }
@@ -45,7 +45,7 @@ export async function readZipEntriesFromBuffer(buffer: Buffer, predicate: (entry
   const entries = parseCentralDirectory(buffer);
   const out: ZipTextEntry[] = [];
   for (const entry of entries) {
-    const info: ZipEntryInfo = { path: entry.path, bytes: entry.bytes, directory: entry.directory };
+    const info: ZipEntryInfo = { path: entry.path, bytes: entry.bytes, directory: entry.directory, mtimeMs: entry.mtimeMs };
     if (entry.directory || !predicate(info)) continue;
     if (isSymlink(entry)) throw new Error(`tiinex.zip.symlink-unsupported:${entry.rawName}`);
     out.push({ ...info, data: extractEntry(buffer, entry) });
@@ -66,7 +66,7 @@ export async function extractZipBuffer(buffer: Buffer, outputDir: string): Promi
       await writeFile(target, data);
     }
   }
-  return entries.map(({ path: entryPath, bytes, directory }) => ({ path: entryPath, bytes, directory }));
+  return entries.map(({ path: entryPath, bytes, directory, mtimeMs }) => ({ path: entryPath, bytes, directory, mtimeMs }));
 }
 
 export function sha256Hex(data: Buffer): string { return createHash('sha256').update(data).digest('hex'); }
@@ -92,6 +92,9 @@ function parseCentralDirectory(buffer: Buffer): CentralEntry[] {
     if (buffer.readUInt32LE(cursor) !== CENTRAL_SIG) throw new Error('tiinex.zip.central-entry-invalid');
     const flags = buffer.readUInt16LE(cursor + 8);
     const compression = buffer.readUInt16LE(cursor + 10);
+    const dosTime = buffer.readUInt16LE(cursor + 12);
+    const dosDate = buffer.readUInt16LE(cursor + 14);
+    const mtimeMs = dosDateTimeToEpochMs(dosDate, dosTime);
     const crc32 = buffer.readUInt32LE(cursor + 16);
     const compressedBytes = buffer.readUInt32LE(cursor + 20);
     const bytes = buffer.readUInt32LE(cursor + 24);
@@ -116,7 +119,7 @@ function parseCentralDirectory(buffer: Buffer): CentralEntry[] {
       total += bytes;
       if (total > MAX_TOTAL_BYTES) throw new Error('tiinex.zip.total-size-limit');
     }
-    entries.push({ path: entryPath, bytes, directory, compressedBytes, compression, crc32, flags, localOffset, externalAttributes, rawName });
+    entries.push({ path: entryPath, bytes, directory, mtimeMs, compressedBytes, compression, crc32, flags, localOffset, externalAttributes, rawName });
     cursor += 46 + nameBytes + extraBytes + commentBytes;
   }
   if (cursor !== centralOffset + centralBytes) throw new Error('tiinex.zip.central-directory-size-mismatch');
@@ -147,6 +150,20 @@ function findEocd(buffer: Buffer): number {
     if (offset + minimum + commentBytes === buffer.byteLength) return offset;
   }
   throw new Error('tiinex.zip.eocd-missing');
+}
+
+
+function dosDateTimeToEpochMs(date: number, time: number): number {
+  if (!date) return 0;
+  const year = 1980 + ((date >>> 9) & 0x7f);
+  const month = (date >>> 5) & 0x0f;
+  const day = date & 0x1f;
+  const hour = (time >>> 11) & 0x1f;
+  const minute = (time >>> 5) & 0x3f;
+  const second = (time & 0x1f) * 2;
+  if (!month || !day) return 0;
+  const value = new Date(year, month - 1, day, hour, minute, second).getTime();
+  return Number.isFinite(value) ? value : 0;
 }
 
 function requireRange(buffer: Buffer, offset: number, bytes: number): void {

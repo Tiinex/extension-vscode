@@ -16,6 +16,7 @@ export interface IndexedArtifact {
   parentTarget: string;
   createdAt: string;
   roleLabel: string;
+  mtimeMs: number;
 }
 
 export interface CurrentRoleArtifact {
@@ -88,6 +89,7 @@ export function makeIndexedArtifact(input: {
   path: string;
   carrierPath?: string;
   markdown: string;
+  mtimeMs?: number;
 }): IndexedArtifact | null {
   const artifactPath = normalizePath(input.path);
   const schemaId = schemaIdFromMarkdown(input.markdown);
@@ -104,7 +106,8 @@ export function makeIndexedArtifact(input: {
     kind: artifactKind(schemaId, artifactPath),
     parentTarget: parentTargetFromMarkdown(input.markdown),
     createdAt: createdAtFromMarkdown(input.markdown),
-    roleLabel: roleLabelFromMarkdown(input.markdown)
+    roleLabel: roleLabelFromMarkdown(input.markdown),
+    mtimeMs: Number.isFinite(Number(input.mtimeMs)) ? Number(input.mtimeMs) : 0
   };
 }
 
@@ -118,6 +121,19 @@ export function leafArtifacts(artifacts: IndexedArtifact[]): IndexedArtifact[] {
     if (byPath.has(key)) parentIds.add(key);
   }
   return artifacts.filter((artifact) => !parentIds.has(`${artifact.workspaceId}::${normalizePath(artifact.path)}`));
+}
+
+
+export function artifactsByModifiedNewest(artifacts: IndexedArtifact[]): IndexedArtifact[] {
+  return [...artifacts].sort((a, b) => {
+    const modified = Number(b.mtimeMs || 0) - Number(a.mtimeMs || 0);
+    if (modified) return modified;
+    return a.path.localeCompare(b.path);
+  });
+}
+
+export function leafArtifactPathSet(artifacts: IndexedArtifact[]): Set<string> {
+  return new Set(leafArtifacts(artifacts).map((artifact) => normalizePath(artifact.path)));
 }
 
 export function artifactsForLineageMode(artifacts: IndexedArtifact[], mode: TreeLineageMode): IndexedArtifact[] {

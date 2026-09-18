@@ -101,6 +101,51 @@ export async function runTiinexJson<T>(runtime: PackageRuntime, args: string[], 
   throw new Error('tiinex.bootstrap.empty-output');
 }
 
+
+export interface PreparedPackageRuntimeResult {
+  runtime: PackageRuntime;
+  orientation: OrientResult;
+  recovery: { state: 'package-bootstrap' | 'host-bootstrap-recovery'; detail: string };
+}
+
+export async function inspectPackageOrientation(runtime: PackageRuntime, packagePath: string, runner: ProcessRunner = runProcess): Promise<OrientResult> {
+  return runTiinexJson<OrientResult>(runtime, ['orient-handoff-package', packagePath, '--full'], runner);
+}
+
+export async function preparePackageRuntimeWithRecovery(
+  packagePath: string,
+  extensionPath: string,
+  nodeExecutable = preferredNodeExecutable(),
+  runner: ProcessRunner = runProcess
+): Promise<PreparedPackageRuntimeResult> {
+  let packageRuntime: PackageRuntime | null = null;
+  let packageFailure = '';
+  try {
+    packageRuntime = await preparePackageRuntime(packagePath, nodeExecutable);
+    const orientation = await inspectPackageOrientation(packageRuntime, packagePath, runner);
+    if (String(orientation.status || '').toLowerCase() === 'ready') {
+      return { runtime: packageRuntime, orientation, recovery: { state: 'package-bootstrap', detail: 'qualified package bootstrap' } };
+    }
+    packageFailure = `tiinex.package.not-ready:${String(orientation.status || 'unknown')}`;
+  } catch (error) {
+    packageFailure = messageOf(error);
+  }
+  if (packageRuntime) await packageRuntime.dispose();
+
+  const bundled = await prepareBundledRuntime(extensionPath, nodeExecutable);
+  try {
+    const orientation = await inspectPackageOrientation(bundled, packagePath, runner);
+    const recovery = (orientation as any)?.bootstrapRecovery || null;
+    if (recovery?.state === 'eligible' && recovery?.eligibleWithQualifiedHostBootstrap === true) {
+      return { runtime: bundled, orientation, recovery: { state: 'host-bootstrap-recovery', detail: packageFailure || 'package bootstrap unavailable' } };
+    }
+    throw new Error(`tiinex.bootstrap.recovery-ineligible:${packageFailure || String(orientation.status || 'blocked')}:${String(recovery?.state || 'unavailable')}`);
+  } catch (error) {
+    await bundled.dispose();
+    throw error;
+  }
+}
+
 export async function orientPackage(runtime: PackageRuntime, packagePath: string, runner: ProcessRunner = runProcess): Promise<OrientResult> {
   const result = await runTiinexJson<OrientResult>(runtime, ['orient-handoff-package', packagePath, '--full'], runner);
   if (String(result.status || '').toLowerCase() !== 'ready') throw new Error(`tiinex.package.not-ready:${String(result.status || 'unknown')}`);
