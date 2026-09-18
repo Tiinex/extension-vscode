@@ -22,7 +22,7 @@ import { payloadCheckoutEligibility } from './host/git';
 import { extractZipBuffer, readExactZipEntryFromBuffer, readExactZipEntryFromFile } from './host/zip';
 import { ArtifactAuthoringSubmission, openArtifactAuthoringPanel } from './artifactAuthoringPanel';
 import { sameRepositoryRoot } from './core/repositoryPath';
-import { safeTarget } from './core/paths';
+import { safeRelativePath, safeTarget } from './core/paths';
 import { artifactReferenceAvailable, markdownLinkTargets, materialTargetKey, resolveArtifactReference } from './core/artifactNavigation';
 import { planWorkspaceSession, validateWorkspaceTargetMapping } from './core/workspaceSession';
 import { routeChoiceKey } from './core/operatorModel';
@@ -520,13 +520,30 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     }
   }
 
-  private async parentArtifactForResource(root: string, catalog: ArtifactAuthoringCatalog, resource?: vscode.Uri): Promise<ArtifactDraftParent | null | undefined> {
-    if (!resource || resource.scheme !== 'file' || !/\.trace\.md$/i.test(path.basename(resource.fsPath))) return this.pickArtifactParent(root, catalog);
+  private async parentArtifactForResource(
+    choice: PackageWorkspaceChoice,
+    catalog: ArtifactAuthoringCatalog,
+    resource?: vscode.Uri
+  ): Promise<ArtifactDraftParent | null | undefined> {
+    const root = choice.root;
+    if (!resource || resource.scheme !== 'file') return this.pickArtifactParent(choice.workspaceId);
+    const info = await stat(resource.fsPath);
+    if (info.isDirectory()) return this.pickArtifactParent(choice.workspaceId);
+    if (!info.isFile() || !/\.trace\.md$/i.test(path.basename(resource.fsPath))) return this.pickArtifactParent(choice.workspaceId);
     const relative = normalizePath(path.relative(root, resource.fsPath));
-    if (!relative || relative.startsWith('../')) return this.pickArtifactParent(root, catalog);
+    if (!relative || relative.startsWith('../')) throw new Error('tiinex.authoring.selected-parent-outside-workspace');
     const exact = catalog.parents.find((item) => normalizePath(item.path) === relative);
-    if (!exact) return this.pickArtifactParent(root, catalog);
-    return { path: relative, markdown: await readFile(safeTarget(root, relative), 'utf8') };
+    if (!exact) throw new Error(`tiinex.authoring.selected-parent-unqualified:${relative}`);
+    return { path: relative, markdown: await readFile(safeTarget(root, relative), 'utf8'), workspaceId: choice.workspaceId, root, reference: relative };
+  }
+
+  private async targetDirectoryForResource(root: string, resource?: vscode.Uri): Promise<string> {
+    if (!resource || resource.scheme !== 'file') return '';
+    const info = await stat(resource.fsPath);
+    const targetPath = info.isDirectory() ? resource.fsPath : path.dirname(resource.fsPath);
+    const relative = normalizePath(path.relative(root, targetPath));
+    if (relative.startsWith('../')) throw new Error('tiinex.authoring.target-directory-outside-workspace');
+    return relative && relative !== '.' ? safeRelativePath(relative) : '.';
   }
 
   private async handoffAuthoringPresentation(): Promise<{ fieldAssists: any[]; templates: any[]; selectedTemplateId: string }> {
@@ -582,9 +599,11 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       const catalog = await loadArtifactAuthoringCatalog(this.extensionPath, root);
       const schema = await this.pickArtifactSchema(catalog, preselectedSchemaId);
       if (!schema) return;
-      const parentArtifact = await this.parentArtifactForResource(root, catalog, resource);
+      const parentArtifact = await this.parentArtifactForResource(choice, catalog, resource);
       if (parentArtifact === undefined) return;
+      const targetDirectory = await this.targetDirectoryForResource(root, resource);
       await this.showArtifactAuthoring(workspace, schema.schemaId, parentArtifact, {
+        targetDirectory,
         attachAvailable: schema.schemaId === 'tiinex.handoff.v1' && Boolean(this.localOutgoingWorkspaceForChoice(choice)),
         attachDefault: false
       });
@@ -2252,7 +2271,8 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     workspace: OutgoingWorkspace,
     schemaId: string,
     submission: ArtifactAuthoringSubmission,
-    parentArtifact: ArtifactDraftParent | null
+    parentArtifact: ArtifactDraftParent | null,
+    targetDirectory = ''
   ): Promise<PreparedArtifactDraft> {
     const root = await this.ensureOutgoingAuthoringRoot(workspace);
     return prepareArtifactDraft(this.extensionPath, {
@@ -2261,7 +2281,8 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       schemaId,
       title: submission.title,
       values: submission.values,
-      parentArtifact
+      parentArtifact,
+      targetDirectory
     });
   }
 
@@ -2338,7 +2359,9 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       title: item.title,
       markdown: item.markdown,
       values: {},
-      parentPath: item.parentPath
+      parentPath: item.parentPath,
+      targetDirectory: item.targetDirectory,
+      parentArtifact: item.parentArtifact
     };
   }
 
@@ -2394,30 +2417,57 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     return selected?.schema || null;
   }
 
-  private async pickArtifactParent(root: string, catalog: ArtifactAuthoringCatalog): Promise<ArtifactDraftParent | null | undefined> {
-    if (!catalog.parents.length) return null;
-    const items: Array<{ label: string; description: string; detail: string; parent: ArtifactAuthoringCatalog['parents'][number] | null }> = [
-      { label: 'New lineage root', description: 'No Parent', detail: 'Core will allocate a schema-qualified root path.', parent: null },
-      ...catalog.parents.map((parent) => ({
-        label: parent.title || path.basename(parent.path),
-        description: parent.schemaId || '',
-        detail: parent.path,
-        parent
-      }))
+  private async pickArtifactParent(targetWorkspaceId: string): Promise<ArtifactDraftParent | null | undefined> {
+    const choices = await loadLocalWorkspaceChoices(this.extensionPath);
+    const parentItems: Array<{
+      label: string; description: string; detail: string; modified: number;
+      choice: PackageWorkspaceChoice; parent: ArtifactAuthoringCatalog['parents'][number];
+    }> = [];
+    await Promise.all(choices.map(async (choice) => {
+      try {
+        const catalog = await loadArtifactAuthoringCatalog(this.extensionPath, choice.root);
+        for (const parent of catalog.parents) {
+          const parentPath = normalizePath(parent.path);
+          if (!parentPath) continue;
+          let modified = 0;
+          try { modified = (await stat(safeTarget(choice.root, parentPath))).mtimeMs; } catch {}
+          parentItems.push({
+            label: parent.title || path.basename(parentPath),
+            description: `${choice.workspaceId} · ${parent.schemaId || ''}`.replace(/ · $/, ''),
+            detail: `${modified > 0 ? new Date(modified).toLocaleString() : 'Modified time unavailable'} · ${parentPath}`,
+            modified, choice, parent
+          });
+        }
+      } catch {
+        // A Workspace that no longer qualifies is omitted from authoring choices;
+        // final Parent projection still requalifies exact selected bytes in Core.
+      }
+    }));
+    parentItems.sort((a, b) => b.modified - a.modified || a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
+    if (!parentItems.length) return null;
+    const items = [
+      { label: 'New lineage root', description: 'No Parent', detail: 'Core allocates a new root in the selected target directory.', modified: Number.POSITIVE_INFINITY, choice: null as PackageWorkspaceChoice | null, parent: null as ArtifactAuthoringCatalog['parents'][number] | null },
+      ...parentItems
     ];
-    const selected = await vscode.window.showQuickPick(items, { title: 'New Tiinex Artifact · Choose lineage', placeHolder: 'Choose a Core-qualified Parent or create a new lineage root', canPickMany: false, ignoreFocusOut: true });
+    const selected = await vscode.window.showQuickPick(items, { title: 'New Tiinex Artifact · Choose Parent', placeHolder: 'Newest modified artifacts are shown first across all qualified Local Workspaces', canPickMany: false, ignoreFocusOut: true });
     if (!selected) return undefined;
-    if (!selected.parent) return null;
+    if (!selected.parent || !selected.choice) return null;
     const parentPath = normalizePath(selected.parent.path);
-    const markdown = await readFile(safeTarget(root, parentPath), 'utf8');
-    return { path: parentPath, markdown };
+    const reference = selected.choice.workspaceId === targetWorkspaceId ? parentPath : `${selected.choice.workspaceId}::${parentPath}`;
+    return {
+      path: parentPath,
+      markdown: await readFile(safeTarget(selected.choice.root, parentPath), 'utf8'),
+      workspaceId: selected.choice.workspaceId,
+      root: selected.choice.root,
+      reference
+    };
   }
 
   private async showArtifactAuthoring(
     workspace: OutgoingWorkspace,
     schemaId: string,
     parentArtifact: ArtifactDraftParent | null,
-    options: { attachAvailable: boolean; attachDefault: boolean }
+    options: { attachAvailable: boolean; attachDefault: boolean; targetDirectory?: string }
   ): Promise<void> {
     try {
       const root = await this.ensureOutgoingAuthoringRoot(workspace);
@@ -2437,11 +2487,11 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
         parentLabel: parentArtifact?.path || ''
       }, {
         preview: async (submission) => {
-          const draft = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `Tiinex preparing ${model.label} preview`, cancellable: false }, () => this.prepareAuthoringSubmission(workspace, schemaId, submission, parentArtifact));
+          const draft = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `Tiinex preparing ${model.label} preview`, cancellable: false }, () => this.prepareAuthoringSubmission(workspace, schemaId, submission, parentArtifact, options.targetDirectory || ''));
           await this.openVirtualMarkdown(`authoring/${workspace.workspaceId}/${draft.path}`, draft.markdown);
         },
         create: async (submission) => {
-          const draft = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `Tiinex qualifying ${model.label}`, cancellable: false }, () => this.prepareAuthoringSubmission(workspace, schemaId, submission, parentArtifact));
+          const draft = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `Tiinex qualifying ${model.label}`, cancellable: false }, () => this.prepareAuthoringSubmission(workspace, schemaId, submission, parentArtifact, options.targetDirectory || ''));
           await this.openVirtualMarkdown(`authoring/${workspace.workspaceId}/${draft.path}`, draft.markdown);
           const action = `Create ${model.label}`;
           const accepted = await vscode.window.showWarningMessage(`Create exact Core-qualified ${model.label}?\n\n${draft.path}\n\nThe previewed bytes are written only after this confirmation.`, { modal: true }, action, 'Cancel');
@@ -2511,7 +2561,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     const catalog = await loadArtifactAuthoringCatalog(this.extensionPath, root);
     const schema = await this.pickArtifactSchema(catalog, 'tiinex.handoff.v1');
     if (!schema) return;
-    const parentArtifact = await this.pickArtifactParent(root, catalog);
+    const parentArtifact = await this.pickArtifactParent(workspace.workspaceId);
     if (parentArtifact === undefined) return;
     await this.showArtifactAuthoring(workspace, schema.schemaId, parentArtifact, { attachAvailable: true, attachDefault: true });
   }

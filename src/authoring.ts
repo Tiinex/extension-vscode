@@ -3,7 +3,7 @@ import os from 'node:os';
 import { access, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import * as vscode from 'vscode';
 import { preferredNodeExecutable } from './host/nodeExecutable';
-import { ArtifactMaterializationParentCandidate, ArtifactMaterializationSchemaCandidate, createArtifactDraft, inspectArtifactCreationContract, prepareBundledRuntime, projectArtifactMaterialization, projectArtifactSchemaGuide, projectHandoffLeaves } from './tiinex/bootstrap';
+import { ArtifactMaterializationParentCandidate, ArtifactMaterializationSchemaCandidate, createArtifactDraft, inspectArtifactCreationContract, prepareBundledRuntime, projectArtifactMaterialization, projectArtifactSchemaGuide, projectAuthoringParent, projectHandoffLeaves } from './tiinex/bootstrap';
 import { ArtifactAuthoringModel, projectArtifactAuthoringModel } from './core/artifactAuthoringModel';
 import { requireArtifactCreationReady } from './core/artifactAuthoringQualification';
 import { presentSharedFindings } from './core/findingPresentation';
@@ -14,6 +14,9 @@ import { safeRelativePath, safeTarget } from './core/paths';
 export interface ArtifactDraftParent {
   path: string;
   markdown: string;
+  workspaceId?: string;
+  root?: string;
+  reference?: string;
 }
 
 export interface ArtifactDraftSpec {
@@ -23,6 +26,7 @@ export interface ArtifactDraftSpec {
   title: string;
   values: Record<string, unknown>;
   parentArtifact?: ArtifactDraftParent | null;
+  targetDirectory?: string;
 }
 
 export interface PreparedArtifactDraft {
@@ -34,6 +38,8 @@ export interface PreparedArtifactDraft {
   markdown: string;
   values: Record<string, unknown>;
   parentPath: string;
+  targetDirectory: string;
+  parentArtifact: ArtifactDraftParent | null;
 }
 
 export async function loadArtifactAuthoringModel(extensionPath: string, schemaId: string, transitionType: 'create-artifact' | 'continue-from-record' = 'create-artifact'): Promise<ArtifactAuthoringModel> {
@@ -66,13 +72,18 @@ export async function loadArtifactAuthoringCatalog(extensionPath: string, root: 
   } finally { await runtime.dispose(); }
 }
 
-function authoringProposal(spec: Pick<ArtifactDraftSpec, 'workspaceId' | 'schemaId' | 'title' | 'values'>, parentPath = ''): Record<string, unknown> {
+function authoringProposal(
+  spec: Pick<ArtifactDraftSpec, 'workspaceId' | 'schemaId' | 'title' | 'values' | 'targetDirectory'>,
+  parentReference = '',
+  parentRecord: Record<string, unknown> | null = null
+): Record<string, unknown> {
   return {
     id: `vscode-${spec.workspaceId || 'workspace'}-artifact`,
     schemaId: spec.schemaId,
     title: spec.title,
     values: spec.values,
-    ...(parentPath ? { parentRef: parentPath, mode: 'continue' } : { mode: 'root' }),
+    ...(spec.targetDirectory ? { targetDirectory: spec.targetDirectory === '.' ? '.' : safeRelativePath(spec.targetDirectory) } : {}),
+    ...(parentReference ? { parentRef: parentReference, parentRecord: parentRecord || undefined, mode: 'continue' } : { mode: 'root' }),
     rationale: 'Explicit VS Code artifact authoring request.',
     evidenceRefs: ['host:vscode-explicit-authoring']
   };
@@ -103,17 +114,27 @@ export async function prepareArtifactDraft(extensionPath: string, spec: Artifact
   const scratch = await mkdtemp(path.join(os.tmpdir(), 'tiinex-vscode-artifact-preview-'));
   try {
     await copyMarkdownMaterial(root, scratch);
-    const parentPath = spec.parentArtifact?.path ? safeRelativePath(spec.parentArtifact.path) : '';
-    if (parentPath && spec.parentArtifact) {
+    const parentArtifact = spec.parentArtifact || null;
+    const sameWorkspaceParent = Boolean(parentArtifact?.path && (!parentArtifact.workspaceId || parentArtifact.workspaceId === spec.workspaceId));
+    const parentPath = sameWorkspaceParent && parentArtifact?.path ? safeRelativePath(parentArtifact.path) : '';
+    if (parentPath && parentArtifact) {
       const target = safeTarget(scratch, parentPath);
       await mkdir(path.dirname(target), { recursive: true });
-      await writeFile(target, spec.parentArtifact.markdown, 'utf8');
+      await writeFile(target, parentArtifact.markdown, 'utf8');
     }
-    const proposal = authoringProposal({ workspaceId: spec.workspaceId, schemaId, title, values: spec.values }, parentPath);
+    let parentRecord: Record<string, unknown> | null = null;
+    let parentReference = '';
+    if (parentArtifact) {
+      parentReference = String(parentArtifact.reference || (parentArtifact.workspaceId && parentArtifact.workspaceId !== spec.workspaceId ? `${parentArtifact.workspaceId}::${safeRelativePath(parentArtifact.path)}` : safeRelativePath(parentArtifact.path)));
+      const parentSourcePath = parentArtifact.root ? safeTarget(parentArtifact.root, safeRelativePath(parentArtifact.path)) : parentPath ? safeTarget(scratch, parentPath) : '';
+      if (!parentSourcePath) throw new Error('tiinex.authoring.parent-source-required');
+      parentRecord = await projectAuthoringParent(runtime, parentSourcePath, parentReference);
+    }
+    const proposal = authoringProposal({ workspaceId: spec.workspaceId, schemaId, title, values: spec.values, targetDirectory: spec.targetDirectory || '' }, parentReference, parentRecord);
     const plan = await projectArtifactMaterialization(runtime, scratch, [proposal]);
     const planned = plannedArtifact(plan, String(proposal.id));
     const transition = planned.parent ? 'continue-from-record' : 'create-artifact';
-    const created = requireArtifactCreationReady(await createArtifactDraft(runtime, schemaId, scratch, planned.path, title, spec.values, planned.parent || null, transition));
+    const created = requireArtifactCreationReady(await createArtifactDraft(runtime, schemaId, scratch, planned.path, title, spec.values, planned.parent || parentRecord, transition));
     return {
       root,
       workspaceId: spec.workspaceId,
@@ -122,7 +143,9 @@ export async function prepareArtifactDraft(extensionPath: string, spec: Artifact
       title,
       markdown: String(created.draft.markdown),
       values: spec.values,
-      parentPath
+      parentPath: parentReference,
+      targetDirectory: spec.targetDirectory === '.' ? '.' : spec.targetDirectory ? safeRelativePath(spec.targetDirectory) : '',
+      parentArtifact
     };
   } finally {
     await rm(scratch, { recursive: true, force: true });
@@ -133,7 +156,14 @@ export async function prepareArtifactDraft(extensionPath: string, spec: Artifact
 export async function writePreparedArtifactDraft(extensionPath: string, draft: PreparedArtifactDraft): Promise<string> {
   const runtime = await prepareBundledRuntime(extensionPath, nodeExecutable());
   try {
-    const proposal = authoringProposal({ workspaceId: draft.workspaceId, schemaId: draft.schemaId, title: draft.title, values: draft.values }, draft.parentPath);
+    let parentRecord: Record<string, unknown> | null = null;
+    if (draft.parentArtifact) {
+      const parentSourcePath = draft.parentArtifact.root
+        ? safeTarget(draft.parentArtifact.root, safeRelativePath(draft.parentArtifact.path))
+        : safeTarget(draft.root, safeRelativePath(draft.parentArtifact.path));
+      parentRecord = await projectAuthoringParent(runtime, parentSourcePath, draft.parentPath);
+    }
+    const proposal = authoringProposal({ workspaceId: draft.workspaceId, schemaId: draft.schemaId, title: draft.title, values: draft.values, targetDirectory: draft.targetDirectory }, draft.parentPath, parentRecord);
     const plan = await projectArtifactMaterialization(runtime, draft.root, [proposal]);
     const planned = plannedArtifact(plan, String(proposal.id));
     if (safeRelativePath(planned.path) !== draft.path) throw new Error('tiinex.authoring.preview-stale-recreate-required');
@@ -156,6 +186,8 @@ export interface QualifiedHandoffArtifact {
   to: string;
   purpose: string;
   parentPath: string;
+  targetDirectory: string;
+  parentArtifact: ArtifactDraftParent | null;
 }
 
 function resolvedParentPath(artifactPath: string, markdown: string): string {
@@ -182,7 +214,9 @@ export async function qualifyExistingHandoff(extensionPath: string, root: string
       from: candidate.from,
       to: candidate.to,
       purpose: candidate.purpose,
-      parentPath: resolvedParentPath(safePath, markdown)
+      parentPath: resolvedParentPath(safePath, markdown),
+      targetDirectory: normalizePath(path.posix.dirname(safePath)) === '.' ? '.' : normalizePath(path.posix.dirname(safePath)),
+      parentArtifact: null
     };
   } finally { await runtime.dispose(); }
 }

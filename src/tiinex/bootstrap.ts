@@ -347,8 +347,11 @@ export async function projectHandoffLeaves(runtime: PackageRuntime, roots: strin
   return runTiinexJson<HandoffLeavesResult>(runtime, ['project-handoff-leaves', ...roots, '--compact'], runner);
 }
 
-export async function projectAuthoringParent(runtime: PackageRuntime, parentPath: string, runner: ProcessRunner = runProcess): Promise<any> {
-  const result = await runTiinexJson<any>(runtime, ['project-authoring-parent', parentPath, '--compact'], runner);
+export async function projectAuthoringParent(runtime: PackageRuntime, parentPath: string, reference = '', runner: ProcessRunner = runProcess): Promise<any> {
+  const args = ['project-authoring-parent', parentPath];
+  if (reference) args.push('--reference', reference);
+  args.push('--compact');
+  const result = await runTiinexJson<any>(runtime, args, runner);
   if (result.status !== 'ready' || !result.parentRecord) throw new Error(`tiinex.authoring.parent-blocked:${result.status || 'unknown'}`);
   return result.parentRecord;
 }
