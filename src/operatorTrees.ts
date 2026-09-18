@@ -2450,18 +2450,26 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
 
   private async attachHandoffFromExplorer(resource?: vscode.Uri): Promise<void> {
     if (!resource || resource.scheme !== 'file') return;
-    if (!this.outgoing) {
-      const action = await vscode.window.showInformationMessage(
-        'No Outgoing carrier is open. Create one and continue attaching this Handoff?',
-        'Create Outgoing',
-        'Cancel'
-      );
-      if (action !== 'Create Outgoing') return;
-      await this.newOutgoing();
-      if (!this.outgoing) return;
-    }
     try {
+      // Qualify the selected artifact before offering any Outgoing mutation.
+      // A Topic/Task/etc. must never cause the operator to create/select an
+      // Outgoing carrier only to discover afterwards that it was not a Handoff.
       const choice = await this.localWorkspaceForResource(resource);
+      const relative = normalizePath(path.relative(choice.root, resource.fsPath));
+      if (!relative || relative.startsWith('../')) throw new Error('tiinex.authoring.artifact-path-outside-workspace');
+      await qualifyExistingHandoff(this.extensionPath, choice.root, choice.workspaceId, relative);
+
+      if (!this.outgoing) {
+        const action = await vscode.window.showInformationMessage(
+          'No Outgoing carrier is open. Create one and continue attaching this Handoff?',
+          'Create Outgoing',
+          'Cancel'
+        );
+        if (action !== 'Create Outgoing') return;
+        await this.newOutgoing();
+        if (!this.outgoing) return;
+      }
+
       let workspace = this.localOutgoingWorkspaceForChoice(choice);
       if (!workspace) {
         const accepted = await vscode.window.showInformationMessage(
@@ -2474,8 +2482,6 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
         workspace = this.localOutgoingWorkspaceForChoice(choice);
         if (!workspace) throw new Error('tiinex.authoring.outgoing-local-source-required: Local Workspace source was not selected');
       }
-      const relative = normalizePath(path.relative(choice.root, resource.fsPath));
-      if (!relative || relative.startsWith('../')) throw new Error('tiinex.authoring.artifact-path-outside-workspace');
       await this.attachQualifiedHandoff(workspace, relative);
     } catch (error) {
       const message = shortMessage(error);
@@ -2596,12 +2602,19 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
           { location: vscode.ProgressLocation.Notification, title: 'Tiinex packing Workspace carrier', cancellable: false },
           async (progress) => {
             progress.report({ message: 'Preparing outgoing sources...' });
+            const parentDimension = this.incomingCarrierDimension();
+            const expectedCarrierDimension = this.outgoing?.packageParentPath
+              ? (this.outgoing.packageMajorReason ? nextMajorDimension(parentDimension) : (parentDimension ? `${parentDimension}-1` : ''))
+              : '001';
             return buildHandoffPackageFromForm(this.extensionPath, {
               routeId: routeChoiceKey({ pointerless: true }),
               workspaceIds,
+              packageParentPath: this.outgoing?.packageParentPath || '',
+              packageMajorReason: this.outgoing?.packageMajorReason || '',
               incomingWorkspaceSources,
               workspaceSourceOverrides,
               outputDirectory,
+              expectedCarrierDimension,
               expectedCarrierFilename: this.outgoingProjectedFilename()
             });
           }

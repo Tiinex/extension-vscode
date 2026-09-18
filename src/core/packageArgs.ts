@@ -8,7 +8,7 @@ export type WorkspaceCarrierSource = {
   workspaceTargetPath: string;
 };
 
-export async function workspaceCarrierArgs(selected: WorkspaceCarrierSource[], scratch: string, projectedFilename = ''): Promise<string[]> {
+export async function workspaceCarrierArgs(selected: WorkspaceCarrierSource[], scratch: string, projectedFilename = '', packageParentPath = '', packageMajorReason = ''): Promise<string[]> {
   const ordered = [...selected].sort((a, b) => a.workspaceId.localeCompare(b.workspaceId));
   const primary = ordered[0];
   if (!primary) throw new Error('tiinex.package-builder.workspace-selection-empty');
@@ -19,5 +19,12 @@ export async function workspaceCarrierArgs(selected: WorkspaceCarrierSource[], s
   const args = [primary.root, '--carrier-mode', 'workspace', '--workspace-id', primary.workspaceId, '--workspace-target', primary.workspaceTargetPath, '--workspace-roots', descriptorsPath, '--workspace-targets', targetsPath, '--tooling-bootstrap', 'embedded'];
   const filename = String(projectedFilename || '').trim();
   if (filename) args.push('--projected-filename', checkedCarrierFilename(filename));
+  const parent = String(packageParentPath || '').trim();
+  if (parent) args.push('--package-parent', path.resolve(parent));
+  const majorReason = String(packageMajorReason || '').trim();
+  if (majorReason) {
+    if (!parent) throw new Error('tiinex.package-builder.package-major-parent-required');
+    args.push('--package-major', '--major-reason', majorReason);
+  }
   return args;
 }

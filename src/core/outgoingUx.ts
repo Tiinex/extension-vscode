@@ -21,6 +21,11 @@ export function inheritedOutgoingLabel(filename: string, carrierDimension: strin
   if (stem === dimension || stem.startsWith(`${dimension}-`)) return `${dimension}${suffix}`.toLocaleLowerCase();
   const marker = `-${dimension}-`;
   const markerIndex = stem.indexOf(marker);
-  const prefix = markerIndex >= 0 ? stem.slice(0, markerIndex) : '';
+  const trailingMarker = `-${dimension}`;
+  const prefix = markerIndex >= 0
+    ? stem.slice(0, markerIndex)
+    : stem.endsWith(trailingMarker)
+      ? stem.slice(0, -trailingMarker.length)
+      : '';
   return `${prefix ? `${prefix}-` : ''}${dimension}${suffix}`.toLocaleLowerCase();
 }
