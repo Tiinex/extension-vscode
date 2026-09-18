@@ -63,6 +63,11 @@
   "contributes": {
     "commands": [
       {
+        "command": "tiinex.workspace.initialize",
+        "title": "Tiinex: Initialize Workspace",
+        "icon": "$(root-folder-opened)"
+      },
+      {
         "command": "tiinex.outgoing.refresh",
         "title": "Tiinex: Refresh Outgoing",
         "icon": "$(refresh)"
@@ -839,23 +844,28 @@
       ],
       "tiinex.explorer.actions": [
         {
-          "command": "tiinex.artifact.new",
+          "command": "tiinex.workspace.initialize",
           "when": "explorerResourceIsFolder",
+          "group": "0_workspace@1"
+        },
+        {
+          "command": "tiinex.artifact.new",
+          "when": "explorerResourceIsFolder || (!explorerResourceIsFolder && resourceFilename =~ /\\.trace\\.md$/)",
           "group": "1_authoring@1"
         },
         {
           "command": "tiinex.artifact.newFeedback",
-          "when": "explorerResourceIsFolder",
+          "when": "explorerResourceIsFolder || (!explorerResourceIsFolder && resourceFilename =~ /\\.trace\\.md$/)",
           "group": "1_authoring@2"
         },
         {
           "command": "tiinex.artifact.newHandoff",
-          "when": "explorerResourceIsFolder",
+          "when": "explorerResourceIsFolder || (!explorerResourceIsFolder && resourceFilename =~ /\\.trace\\.md$/)",
           "group": "1_authoring@3"
         },
         {
           "command": "tiinex.artifact.attachHandoff",
-          "when": "!explorerResourceIsFolder && resourceExtname == .md",
+          "when": "!explorerResourceIsFolder && resourceFilename =~ /\\.trace\\.md$/",
           "group": "1_authoring@4"
         }
       ],
@@ -898,7 +908,7 @@
     "test:local-core": "node scripts/test-local-core.mjs"
   },
   "dependencies": {
-    "@tiinex/core": "^0.22.0"
+    "@tiinex/core": "^0.24.0"
   },
   "devDependencies": {
     "@types/node": "22.10.2",

@@ -12,6 +12,8 @@ import { qualifiedRoutes, QualifiedRouteReceipt } from './core/receivedHandoff';
 import { mergeTransportRouteSelection, selectedTransportRouteIds, StoredTransportQueueItem, transportPrepared, transportPreparedKey, TransportPreparedRecord } from './core/transportQueue';
 import { loadHandoffEndpointChoices, loadLocalWorkspaceChoices, loadPackageBuilderModel, buildHandoffPackageFromForm, announceBuiltCarrier, routeChoiceKeyForHandoff, IncomingPackageWorkspaceSource, PackageWorkspaceChoice, PackageWorkspaceSourceOverride, PackageRouteRouting, qualifyLocalWorkspaceChoice } from './packageBuilder';
 import { ArtifactAuthoringCatalog, ArtifactDraftParent, loadArtifactAuthoringCatalog, loadArtifactAuthoringModel, prepareArtifactDraft, PreparedArtifactDraft, qualifyExistingHandoff, writePreparedArtifactDraft } from './authoring';
+import { initializeRepositoryWorkspace } from './workspaceInitialization';
+import { repositoryRootForResource } from './vscode/gitApi';
 import { compareIncomingWorkspaceToLocal, orientPackage, prepareBundledRuntime, preparePackageRuntime, projectPackageTransport } from './tiinex/bootstrap';
 import { applyIncomingWorkspaces, IncomingApplyStrategy } from './incomingApply';
 import { operatorMatchedWorkspaceIds, resolvePrioritizedWorkspaceDuplicates } from './core/sourceSelection';
@@ -19,7 +21,6 @@ import { comparePackageRecency, inheritedOutgoingLabel } from './core/outgoingUx
 import { payloadCheckoutEligibility } from './host/git';
 import { extractZipBuffer, readExactZipEntryFromBuffer, readExactZipEntryFromFile } from './host/zip';
 import { ArtifactAuthoringSubmission, openArtifactAuthoringPanel } from './artifactAuthoringPanel';
-import { repositoryRootForResource } from './vscode/gitApi';
 import { sameRepositoryRoot } from './core/repositoryPath';
 import { safeTarget } from './core/paths';
 import { artifactReferenceAvailable, markdownLinkTargets, materialTargetKey, resolveArtifactReference } from './core/artifactNavigation';
@@ -499,6 +500,75 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     if (selected) await this.newOutgoingHandoff(selected.workspaceId);
   }
 
+  async initializeWorkspace(resource?: vscode.Uri): Promise<void> {
+    try {
+      if (!resource || resource.scheme !== 'file') throw new Error('tiinex.workspace-init.file-resource-required');
+      const root = await repositoryRootForResource(resource.fsPath);
+      const result = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'Tiinex initializing Workspace', cancellable: false }, () => initializeRepositoryWorkspace(this.extensionPath, root));
+      if (result.status !== 'ready' || !result.writeReceipt?.path) {
+        const detail = (result.findings || []).map((item) => `${item.code || 'finding'}: ${item.message || ''}`).join('\n');
+        throw new Error(`tiinex.workspace-init.blocked:${result.status}${detail ? `\n${detail}` : ''}`);
+      }
+      await this.refreshDiscovery(false, false);
+      const uri = vscode.Uri.file(result.writeReceipt.path);
+      await vscode.window.showTextDocument(uri, { preview: false });
+      await vscode.window.showInformationMessage(`Tiinex Workspace initialized: ${result.writeReceipt.workspaceRelativePath || result.path || path.basename(result.writeReceipt.path)}`);
+    } catch (error) {
+      await vscode.window.showErrorMessage(`Tiinex Workspace initialization blocked: ${shortMessage(error)}`);
+    }
+  }
+
+  private async parentArtifactForResource(root: string, catalog: ArtifactAuthoringCatalog, resource?: vscode.Uri): Promise<ArtifactDraftParent | null | undefined> {
+    if (!resource || resource.scheme !== 'file' || !/\.trace\.md$/i.test(path.basename(resource.fsPath))) return this.pickArtifactParent(root, catalog);
+    const relative = normalizePath(path.relative(root, resource.fsPath));
+    if (!relative || relative.startsWith('../')) return this.pickArtifactParent(root, catalog);
+    const exact = catalog.parents.find((item) => normalizePath(item.path) === relative);
+    if (!exact) return this.pickArtifactParent(root, catalog);
+    return { path: relative, markdown: await readFile(safeTarget(root, relative), 'utf8') };
+  }
+
+  private async handoffAuthoringPresentation(): Promise<{ fieldAssists: any[]; templates: any[]; selectedTemplateId: string }> {
+    const endpoints = await this.endpointCatalog();
+    const suggestions = (field: 'From' | 'To') => endpoints.map((item) => ({
+      label: item.label,
+      value: item.label,
+      description: item.kind === 'role' ? `Role · ${item.reference}` : item.kind === 'party' ? `Party · ${item.reference}` : item.kind,
+      fills: { [`${field} Kind`]: item.kind }
+    }));
+    return {
+      fieldAssists: [
+        { field: 'From', suggestions: suggestions('From') },
+        { field: 'To', suggestions: suggestions('To') }
+      ],
+      templates: [
+        {
+          id: 'work', label: 'Perform bounded work',
+          description: 'Prefill purpose, completion expectation and interpretation limits for an execution-oriented Handoff. Transfer declarations stay explicit.',
+          defaults: {
+            Purpose: 'Perform the bounded work described by this Handoff and return the result.',
+            'Signal Kind': 'return',
+            'Signal Meaning': 'Return the completed result, qualification evidence, and any blockers.',
+            'Does Not Mean': 'This Handoff does not grant authority beyond the explicit transfer and carried context.',
+            'Must Not Be Used To Claim': 'Do not infer acceptance, completion, or authority beyond the explicit Handoff content.'
+          }
+        },
+        {
+          id: 'discuss', label: 'Discuss / review',
+          description: 'Prefill a bounded discussion/review Handoff without implying implementation authority. Transfer declarations stay explicit.',
+          defaults: {
+            Purpose: 'Discuss or review the bounded subject described by this Handoff and return a disposition.',
+            'Signal Kind': 'disposition',
+            'Signal Meaning': 'Return the discussion outcome, relevant findings, and unresolved questions.',
+            'Does Not Mean': 'This Handoff does not by itself transfer implementation authority.',
+            'Must Not Be Used To Claim': 'Do not infer implementation, acceptance, or broader authority from discussion alone.'
+          }
+        },
+        { id: 'blank', label: 'Blank / explicit', description: 'No preset values. Fill the Core-required contract directly.', defaults: {} }
+      ],
+      selectedTemplateId: 'work'
+    };
+  }
+
   async beginArtifactAuthoring(resource?: vscode.Uri, preselectedSchemaId = ''): Promise<void> {
     try {
       const choice = resource
@@ -510,7 +580,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       const catalog = await loadArtifactAuthoringCatalog(this.extensionPath, root);
       const schema = await this.pickArtifactSchema(catalog, preselectedSchemaId);
       if (!schema) return;
-      const parentArtifact = await this.pickArtifactParent(root, catalog);
+      const parentArtifact = await this.parentArtifactForResource(root, catalog, resource);
       if (parentArtifact === undefined) return;
       await this.showArtifactAuthoring(workspace, schema.schemaId, parentArtifact, {
         attachAvailable: schema.schemaId === 'tiinex.handoff.v1' && Boolean(this.localOutgoingWorkspaceForChoice(choice)),
@@ -609,6 +679,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     register('tiinex.outgoing.embedBootstrapPayload', () => this.setOutgoingBootstrapPayload(true));
     register('tiinex.tree.openArtifact', (node: OperatorNode) => this.openArtifactNode(node));
     register('tiinex.tree.openWorkspaceMarkdown', (node: OperatorNode) => this.openWorkspaceMarkdownNode(node));
+    register('tiinex.workspace.initialize', (resource?: vscode.Uri) => this.initializeWorkspace(resource));
     register('tiinex.artifact.new', (resource?: vscode.Uri) => this.beginArtifactAuthoring(resource));
     register('tiinex.artifact.newFeedback', (resource?: vscode.Uri) => this.beginArtifactAuthoring(resource, 'tiinex.feedback.v1'));
     register('tiinex.artifact.newHandoff', (resource?: vscode.Uri) => this.beginArtifactAuthoring(resource, 'tiinex.handoff.v1'));
@@ -2249,10 +2320,14 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       const transition = parentArtifact ? 'continue-from-record' : 'create-artifact';
       const model = await loadArtifactAuthoringModel(this.extensionPath, schemaId, transition);
       const attachAvailable = schemaId === 'tiinex.handoff.v1' && options.attachAvailable;
+      const handoffPresentation = schemaId === 'tiinex.handoff.v1' ? await this.handoffAuthoringPresentation() : null;
       openArtifactAuthoringPanel({
         model,
         workspaces: [{ workspaceId: workspace.workspaceId, label: workspace.label || workspace.workspaceId, description: workspace.source === 'local' ? 'LOCAL' : `INCOMING · ${workspace.sourceLabel}` }],
         selectedWorkspaceId: workspace.workspaceId,
+        fieldAssists: handoffPresentation?.fieldAssists || [],
+        templates: handoffPresentation?.templates || [],
+        selectedTemplateId: handoffPresentation?.selectedTemplateId || '',
         attachAvailable,
         attachDefault: attachAvailable && options.attachDefault,
         parentLabel: parentArtifact?.path || ''
@@ -2403,7 +2478,9 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       if (!relative || relative.startsWith('../')) throw new Error('tiinex.authoring.artifact-path-outside-workspace');
       await this.attachQualifiedHandoff(workspace, relative);
     } catch (error) {
-      await vscode.window.showErrorMessage(`Tiinex Attach Handoff blocked: ${shortMessage(error)}`);
+      const message = shortMessage(error);
+      if (message.includes('handoff-unqualified')) await vscode.window.showWarningMessage('Tiinex: selected artifact is not a qualified Handoff. Only tiinex.handoff.v1 artifacts can be attached to Outgoing as routes.');
+      else await vscode.window.showErrorMessage(`Tiinex Attach Handoff blocked: ${message}`);
     }
   }
 
