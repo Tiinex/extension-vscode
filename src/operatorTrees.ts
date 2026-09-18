@@ -6,7 +6,7 @@ import { mkdir, readdir, readFile, rm, stat } from 'node:fs/promises';
 import * as vscode from 'vscode';
 import { preferredNodeExecutable } from './host/nodeExecutable';
 import { indexCarrierPackage, indexLocalWorkspace, indexLocalWorkspaceFiles, discoveryPackages, IndexedCarrierPackage, IndexedWorkspaceFile } from './carrierIndex';
-import { alphabeticalWorkspaceIds, artifactFeedTime, artifactsByModifiedNewest, artifactsForLineageMode, currentRoleChoices, IndexedArtifact, leafArtifactPathSet, logicalGroupForArtifact, normalizePath, TreeLineageMode, TreeProjectionMode } from './core/artifactTree';
+import { alphabeticalWorkspaceIds, artifactFeedTime, artifactsByModifiedNewest, artifactsForLineageMode, currentRoleChoices, IndexedArtifact, leafArtifactPathSet, logicalGroupForArtifact, normalizePath, schemaDisplayLabel, TreeLineageMode, TreeProjectionMode } from './core/artifactTree';
 import { preferredRepositoryParent } from './core/receiveUx';
 import { qualifiedRoutes, QualifiedRouteReceipt } from './core/receivedHandoff';
 import { mergeTransportRouteSelection, selectedTransportRouteIds, StoredTransportQueueItem, transportPrepared, transportPreparedKey, TransportPreparedRecord } from './core/transportQueue';
@@ -430,6 +430,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
   private discovered: Array<{ path: string; filename: string; mtimeMs: number; bytes: number }> = [];
   private readonly carrierCache = new Map<string, IndexedCarrierPackage>();
   private readonly deltaCache = new Map<string, Promise<PackageDeltaView>>();
+  private readonly localLeafContextCache = new Map<string, { at: number; value: Promise<{ choice: PackageWorkspaceChoice; byPath: Map<string, IndexedArtifact>; leaves: Set<string> } | null> }>();
   private readonly parentNodes: Record<OperatorSection, Map<string, OperatorNode>> = {
     discovery: new Map(),
     incoming: new Map(),
@@ -1191,15 +1192,18 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     }
     if (index && node.data.kind === 'workspaceArchive') {
       const workspace = index.workspaces.find((item) => item.workspaceId === node.data.workspaceId);
-      const artifacts = artifactsForLineageMode(workspace?.artifacts || [], this.lineage('discovery'));
-      return this.fileArtifactRoots('discovery', workspace?.workspaceId || '', await this.filterDeltaArtifacts('discovery', index, workspace?.workspaceId || '', artifacts), index.packagePath);
+      const rawArtifacts = await this.filterDeltaArtifacts('discovery', index, workspace?.workspaceId || '', workspace?.artifacts || []);
+      const artifacts = artifactsForLineageMode(rawArtifacts, this.lineage('discovery'));
+      return this.decoratePortableLeafNodes('discovery', this.fileArtifactRoots('discovery', workspace?.workspaceId || '', artifacts, index.packagePath), workspace?.workspaceId || '', index.packagePath, rawArtifacts);
     }
     if (index && node.data.kind === 'directory' && node.data.pathPrefix?.startsWith('outer:')) {
       return this.outerCarrierFileChildren('discovery', index, node.data.pathPrefix.slice('outer:'.length));
     }
     const logical = await this.logicalWorkspaceProjectionChildren('discovery', node);
     if (logical) return logical;
-    return this.artifactProjectionChildren('discovery', node, await this.artifactsForNode('discovery', node));
+    const sourceArtifacts = await this.artifactsForNode('discovery', node);
+    const projected = this.artifactProjectionChildren('discovery', node, sourceArtifacts);
+    return node.data.workspaceId ? this.decoratePortableLeafNodes('discovery', projected, node.data.workspaceId, node.data.packagePath || '', await this.rawWorkspaceArtifacts('discovery', node.data.workspaceId, node.data.packagePath || '')) : projected;
   }
 
   private incomingState(packagePath = ''): IncomingState | null {
@@ -1353,13 +1357,16 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     if (pointerChildren) return pointerChildren;
     if (node.data.kind === 'workspaceArchive') {
       const workspace = index.workspaces.find((item) => item.workspaceId === node.data.workspaceId);
-      const artifacts = artifactsForLineageMode(workspace?.artifacts || [], this.lineage('incoming'));
-      return this.fileArtifactRoots('incoming', workspace?.workspaceId || '', await this.filterDeltaArtifacts('incoming', index, workspace?.workspaceId || '', artifacts), index.packagePath);
+      const rawArtifacts = await this.filterDeltaArtifacts('incoming', index, workspace?.workspaceId || '', workspace?.artifacts || []);
+      const artifacts = artifactsForLineageMode(rawArtifacts, this.lineage('incoming'));
+      return this.decoratePortableLeafNodes('incoming', this.fileArtifactRoots('incoming', workspace?.workspaceId || '', artifacts, index.packagePath), workspace?.workspaceId || '', index.packagePath, rawArtifacts);
     }
     if (node.data.kind === 'directory' && node.data.pathPrefix?.startsWith('outer:')) return this.outerCarrierFileChildren('incoming', index, node.data.pathPrefix.slice('outer:'.length), await this.packageDeltaView(index));
     const logical = await this.logicalWorkspaceProjectionChildren('incoming', node);
     if (logical) return logical;
-    return this.artifactProjectionChildren('incoming', node, await this.artifactsForNode('incoming', node));
+    const sourceArtifacts = await this.artifactsForNode('incoming', node);
+    const projected = this.artifactProjectionChildren('incoming', node, sourceArtifacts);
+    return node.data.workspaceId ? this.decoratePortableLeafNodes('incoming', projected, node.data.workspaceId, node.data.packagePath || '', await this.rawWorkspaceArtifacts('incoming', node.data.workspaceId, node.data.packagePath || '')) : projected;
   }
 
   private async resolveIncomingTargetChoices(state: IncomingState, workspaceIds: string[]): Promise<PackageWorkspaceChoice[] | null> {
@@ -2055,6 +2062,79 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
   }
 
 
+  private async localLeafContext(workspaceId: string): Promise<{ choice: PackageWorkspaceChoice; byPath: Map<string, IndexedArtifact>; leaves: Set<string> } | null> {
+    const key = String(workspaceId || '').trim();
+    if (!key) return null;
+    const cached = this.localLeafContextCache.get(key);
+    if (cached && Date.now() - cached.at < 5000) return cached.value;
+    const value = (async () => {
+      try {
+        const matches = (await loadLocalWorkspaceChoices(this.extensionPath)).filter((item) => item.workspaceId === key && item.root);
+        if (matches.length !== 1) return null;
+        const choice = matches[0];
+        const indexed = await indexLocalWorkspace(choice.root, key);
+        return {
+          choice,
+          byPath: new Map(indexed.artifacts.map((artifact) => [normalizePath(artifact.path), artifact])),
+          leaves: leafArtifactPathSet(indexed.artifacts)
+        };
+      } catch {
+        return null;
+      }
+    })();
+    this.localLeafContextCache.set(key, { at: Date.now(), value });
+    return value;
+  }
+
+  private async decoratePortableLeafNodes(section: OperatorSection, nodes: OperatorNode[], workspaceId: string, packagePath: string, sourceArtifacts: IndexedArtifact[]): Promise<OperatorNode[]> {
+    if (section === 'outgoing') {
+      const workspace = this.outgoing?.workspaces.find((item) => item.workspaceId === workspaceId);
+      return workspace ? this.decorateOutgoingNodes(nodes, workspace, sourceArtifacts) : nodes;
+    }
+    const sourceLeaves = leafArtifactPathSet(sourceArtifacts);
+    const local = await this.localLeafContext(workspaceId);
+    for (const node of nodes) {
+      const artifact = node.data.artifact;
+      if (!artifact || !sourceLeaves.has(normalizePath(artifact.path))) continue;
+      const artifactPath = normalizePath(artifact.path);
+      const localArtifact = local?.byPath.get(artifactPath);
+      const localExactLeaf = Boolean(localArtifact && local?.leaves.has(artifactPath) && localArtifact.markdown === artifact.markdown);
+      const isHandoff = artifact.schemaId === 'tiinex.handoff.v1';
+      const contextValue = localExactLeaf
+        ? `tiinex.${section}${isHandoff ? 'LocalHandoffLeaf' : 'LocalArtifactLeaf'}`
+        : isHandoff ? `tiinex.${section}HandoffLeaf` : node.data.contextValue || '';
+      if (!contextValue) continue;
+      node.data.contextValue = contextValue;
+      node.contextValue = contextValue;
+    }
+    return nodes;
+  }
+
+  private async decorateWorkspaceFileNodes(section: OperatorSection, nodes: OperatorNode[], workspaceId: string, packagePath = ''): Promise<OperatorNode[]> {
+    const artifacts = await this.rawWorkspaceArtifacts(section, workspaceId, packagePath);
+    const byPath = new Map(artifacts.map((artifact) => [normalizePath(artifact.path), artifact]));
+    for (const node of nodes) {
+      if (node.data.kind !== 'file' || !node.data.filePath) continue;
+      const artifact = byPath.get(normalizePath(node.data.filePath));
+      if (!artifact) continue;
+      node.data.artifact = artifact;
+      node.data.workspaceId = workspaceId;
+    }
+    return this.decoratePortableLeafNodes(section, nodes, workspaceId, packagePath, artifacts);
+  }
+
+  private async workspaceFilesForLineage(section: OperatorSection, workspaceId: string, packagePath = ''): Promise<IndexedWorkspaceFile[]> {
+    const files = await this.workspaceFiles(section, workspaceId, packagePath);
+    if (this.lineage(section) === 'lineage') return files;
+    const artifacts = await this.rawWorkspaceArtifacts(section, workspaceId, packagePath);
+    const artifactPaths = new Set(artifacts.map((artifact) => normalizePath(artifact.path)));
+    const leaves = leafArtifactPathSet(artifacts);
+    return files.filter((file) => {
+      const filePath = normalizePath(file.path);
+      return !artifactPaths.has(filePath) || leaves.has(filePath);
+    });
+  }
+
   private async decorateOutgoingWorkspaceFileNodes(nodes: OperatorNode[], workspaceId: string): Promise<OperatorNode[]> {
     const workspace = this.outgoing?.workspaces.find((item) => item.workspaceId === workspaceId);
     if (!workspace) return nodes;
@@ -2367,6 +2447,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
           const accepted = await vscode.window.showWarningMessage(`Create exact Core-qualified ${model.label}?\n\n${draft.path}\n\nThe previewed bytes are written only after this confirmation.`, { modal: true }, action, 'Cancel');
           if (accepted !== action) throw new Error('tiinex.authoring.cancelled');
           const writtenPath = await writePreparedArtifactDraft(this.extensionPath, draft);
+          this.localLeafContextCache.delete(workspace.workspaceId);
           if (submission.attachToOutgoing) {
             if (!attachAvailable || schemaId !== 'tiinex.handoff.v1') throw new Error('tiinex.authoring.attach-outgoing-unavailable');
             const qualified = await qualifyExistingHandoff(this.extensionPath, root, workspace.workspaceId, draft.path);
@@ -2375,7 +2456,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
             workspace.checkoutRepository = undefined;
             workspace.checkoutRef = undefined;
           }
-          this.outgoingProvider.refresh();
+          this.refresh();
           await this.updateUiContexts();
           if (submission.attachToOutgoing) await this.revealOutgoingPanel();
           await vscode.commands.executeCommand('markdown.showPreview', vscode.Uri.file(writtenPath));
@@ -2389,20 +2470,37 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
   }
 
   private async newOutgoingHandoffFromArtifact(node?: OperatorNode): Promise<void> {
-    if (!this.outgoing || !node?.data.workspaceId || !node.data.artifact) return;
-    const workspace = this.outgoing.workspaces.find((item) => item.workspaceId === node.data.workspaceId);
-    if (!workspace || workspace.source !== 'local') {
-      await vscode.window.showInformationMessage('Tiinex: New Handoff is available only from a Local Workspace artifact. Incoming material is read-only authoring context.');
+    if (!node?.data.workspaceId || !node.data.artifact) return;
+
+    if (node.data.section === 'outgoing') {
+      if (!this.outgoing) return;
+      const workspace = this.outgoing.workspaces.find((item) => item.workspaceId === node.data.workspaceId);
+      if (!workspace || workspace.source !== 'local') {
+        await vscode.window.showInformationMessage('Tiinex: New Handoff is available only from a Local Workspace artifact. Incoming material is read-only authoring context.');
+        return;
+      }
+      const rawArtifacts = await this.rawWorkspaceArtifacts('outgoing', workspace.workspaceId, workspace.packagePath || '');
+      const leaves = leafArtifactPathSet(rawArtifacts);
+      if (!leaves.has(normalizePath(node.data.artifact.path))) {
+        await vscode.window.showInformationMessage('Tiinex: New Handoff leaf action is available only on a current lineage leaf.');
+        return;
+      }
+      const parentArtifact: ArtifactDraftParent = { path: node.data.artifact.path, markdown: node.data.artifact.markdown };
+      await this.showArtifactAuthoring(workspace, 'tiinex.handoff.v1', parentArtifact, { attachAvailable: true, attachDefault: true });
       return;
     }
-    const rawArtifacts = await this.rawWorkspaceArtifacts('outgoing', workspace.workspaceId, workspace.packagePath || '');
-    const leaves = leafArtifactPathSet(rawArtifacts);
-    if (!leaves.has(normalizePath(node.data.artifact.path))) {
-      await vscode.window.showInformationMessage('Tiinex: New Handoff leaf action is available only on a current lineage leaf.');
+
+    const local = await this.localLeafContext(node.data.workspaceId);
+    const localArtifact = local?.byPath.get(normalizePath(node.data.artifact.path));
+    const exactLocalLeaf = Boolean(localArtifact && local?.leaves.has(normalizePath(node.data.artifact.path)) && localArtifact.markdown === node.data.artifact.markdown);
+    if (!local || !localArtifact || !exactLocalLeaf) {
+      await vscode.window.showInformationMessage('Tiinex: New Handoff is available only when this carried leaf has one exact qualified Local Workspace counterpart.');
       return;
     }
-    const parentArtifact: ArtifactDraftParent = { path: node.data.artifact.path, markdown: node.data.artifact.markdown };
-    await this.showArtifactAuthoring(workspace, 'tiinex.handoff.v1', parentArtifact, { attachAvailable: true, attachDefault: true });
+    const selectedOutgoing = this.localOutgoingWorkspaceForChoice(local.choice);
+    const workspace = selectedOutgoing || this.workspaceFromLocalChoice(local.choice);
+    const parentArtifact: ArtifactDraftParent = { path: localArtifact.path, markdown: localArtifact.markdown };
+    await this.showArtifactAuthoring(workspace, 'tiinex.handoff.v1', parentArtifact, { attachAvailable: Boolean(selectedOutgoing), attachDefault: Boolean(selectedOutgoing) });
   }
 
   private async newOutgoingHandoff(workspaceId: string): Promise<void> {
@@ -2473,10 +2571,36 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
 
   private async attachOutgoingHandoffNode(node?: OperatorNode): Promise<void> {
     if (!this.outgoing || !node?.data.workspaceId || node.data.artifact?.schemaId !== 'tiinex.handoff.v1') return;
-    const workspace = this.outgoing.workspaces.find((item) => item.workspaceId === node.data.workspaceId);
-    if (!workspace) return;
-    try { await this.attachQualifiedHandoff(workspace, node.data.artifact.path); }
-    catch (error) { await vscode.window.showErrorMessage(`Tiinex Attach blocked: ${shortMessage(error)}`); }
+    try {
+      let workspace: OutgoingWorkspace | undefined;
+      if (node.data.section === 'outgoing') {
+        workspace = this.outgoing.workspaces.find((item) => item.workspaceId === node.data.workspaceId);
+      } else {
+        const packagePath = String(node.data.packagePath || '').trim();
+        workspace = this.outgoing.workspaces.find((item) =>
+          item.workspaceId === node.data.workspaceId && item.source === 'incoming' && Boolean(packagePath) && Boolean(item.packagePath) && path.resolve(item.packagePath!) === path.resolve(packagePath)
+        );
+        if (!workspace) {
+          const local = await this.localLeafContext(node.data.workspaceId);
+          const localArtifact = local?.byPath.get(normalizePath(node.data.artifact.path));
+          const exactLocalLeaf = Boolean(localArtifact && local?.leaves.has(normalizePath(node.data.artifact.path)) && localArtifact.markdown === node.data.artifact.markdown);
+          if (local && exactLocalLeaf) workspace = this.localOutgoingWorkspaceForChoice(local.choice);
+        }
+        if (!workspace && node.data.section === 'incoming' && packagePath) {
+          const accepted = await vscode.window.showInformationMessage('This Handoff Workspace is not selected in Outgoing. Select its source now?', 'Select Outgoing Workspaces', 'Cancel');
+          if (accepted !== 'Select Outgoing Workspaces') return;
+          if (!await this.selectOutgoingWorkspaces({ kind: 'incoming', packagePath })) return;
+          workspace = this.outgoing?.workspaces.find((item) => item.workspaceId === node.data.workspaceId && item.source === 'incoming' && Boolean(item.packagePath) && path.resolve(item.packagePath!) === path.resolve(packagePath));
+        }
+      }
+      if (!workspace) {
+        await vscode.window.showInformationMessage('Tiinex: select a matching Local or Incoming Workspace source in Outgoing before attaching this Handoff.');
+        return;
+      }
+      await this.attachQualifiedHandoff(workspace, node.data.artifact.path);
+    } catch (error) {
+      await vscode.window.showErrorMessage(`Tiinex Attach blocked: ${shortMessage(error)}`);
+    }
   }
 
   private async detachOutgoingHandoffNode(node?: OperatorNode): Promise<void> {
@@ -3097,13 +3221,15 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
 
     if (node.data.kind === 'directory' && node.data.pathPrefix?.startsWith('logical-files:')) {
       const prefix = node.data.pathPrefix.slice('logical-files:'.length);
-      const children = workspaceFileTreeChildren(section, workspaceId, await this.workspaceFiles(section, workspaceId, node.data.packagePath || ''), prefix, node.data.packagePath || '');
-      return section === 'outgoing' ? this.decorateOutgoingWorkspaceFileNodes(children, workspaceId) : children;
+      const children = workspaceFileTreeChildren(section, workspaceId, await this.workspaceFilesForLineage(section, workspaceId, node.data.packagePath || ''), prefix, node.data.packagePath || '');
+      return this.decorateWorkspaceFileNodes(section, children, workspaceId, node.data.packagePath || '');
     }
     if (node.data.kind === 'directory' && node.data.pathPrefix?.startsWith('logical-lineage:')) {
       const prefix = node.data.pathPrefix.slice('logical-lineage:'.length);
-      const artifacts = artifactsForLineageMode(await this.rawWorkspaceArtifacts(section, workspaceId, node.data.packagePath || ''), this.lineage(section));
-      return logicalLineageChildren(section, workspaceId, artifacts, prefix, node.data.packagePath || '');
+      const rawArtifacts = await this.rawWorkspaceArtifacts(section, workspaceId, node.data.packagePath || '');
+      const artifacts = artifactsForLineageMode(rawArtifacts, this.lineage(section));
+      const children = logicalLineageChildren(section, workspaceId, artifacts, prefix, node.data.packagePath || '');
+      return this.decoratePortableLeafNodes(section, children, workspaceId, node.data.packagePath || '', rawArtifacts);
     }
 
     if ((node.data.kind === 'artifact' || node.data.kind === 'projectedFile') && node.data.groupName?.startsWith('resolved-handoff:')) {
@@ -3113,17 +3239,18 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     const logicalGroup = parseLogicalWorkspaceGroup(node.data.groupName || '');
     if (node.data.kind !== 'group' || !logicalGroup || logicalGroup.workspaceId !== workspaceId) return null;
     if (logicalGroup.kind === 'files') {
-      const children = workspaceFileTreeChildren(section, workspaceId, await this.workspaceFiles(section, workspaceId, node.data.packagePath || ''), '', node.data.packagePath || '');
-      return section === 'outgoing' ? this.decorateOutgoingWorkspaceFileNodes(children, workspaceId) : children;
+      const children = workspaceFileTreeChildren(section, workspaceId, await this.workspaceFilesForLineage(section, workspaceId, node.data.packagePath || ''), '', node.data.packagePath || '');
+      return this.decorateWorkspaceFileNodes(section, children, workspaceId, node.data.packagePath || '');
     }
     const rawArtifacts = await this.rawWorkspaceArtifacts(section, workspaceId, node.data.packagePath || '');
     if (logicalGroup.kind === 'feed') {
-      const children = artifactsByModifiedNewest(rawArtifacts).map((artifact) => feedArtifactNode(section, artifact, node.data.packagePath || ''));
-      return children;
+      const visibleArtifacts = artifactsForLineageMode(rawArtifacts, this.lineage(section));
+      const children = artifactsByModifiedNewest(visibleArtifacts).map((artifact) => feedArtifactNode(section, artifact, node.data.packagePath || ''));
+      return this.decoratePortableLeafNodes(section, children, workspaceId, node.data.packagePath || '', rawArtifacts);
     }
     const artifacts = artifactsForLineageMode(rawArtifacts, this.lineage(section));
     const children = logicalLineageChildren(section, workspaceId, artifacts, '', node.data.packagePath || '');
-    return children;
+    return this.decoratePortableLeafNodes(section, children, workspaceId, node.data.packagePath || '', rawArtifacts);
   }
 
   private async logicalCarrierIndex(section: OperatorSection, packagePath: string): Promise<IndexedCarrierPackage | null> {
@@ -3539,7 +3666,7 @@ function shortRef(value: string): string {
 function artifactNode(section: OperatorSection, artifact: IndexedArtifact, packagePath = ''): OperatorNode {
   const node = new OperatorNode({
     kind: 'artifact', section, id: `${section}:artifact:${packagePath}:${artifact.id}`,
-    label: artifact.title || path.posix.basename(artifact.path), description: artifact.kind, tooltip: artifact.path,
+    label: artifact.title || path.posix.basename(artifact.path), description: schemaDisplayLabel(artifact.schemaId), tooltip: artifact.path,
     contextValue: `tiinex.${section}Artifact`, artifact, packagePath, workspaceId: artifact.workspaceId
   });
   node.iconPath = new vscode.ThemeIcon(artifactIcon(artifact));
@@ -3549,12 +3676,12 @@ function artifactNode(section: OperatorSection, artifact: IndexedArtifact, packa
 function feedArtifactNode(section: OperatorSection, artifact: IndexedArtifact, packagePath = ''): OperatorNode {
   const feedTime = artifactFeedTime(artifact);
   const timeText = feedTime.timestampMs > 0 ? formatArtifactFeedTime(feedTime.timestampMs) : '';
-  const basisText = timeText ? `${feedTime.basis} ${timeText}` : '';
+  const typeText = schemaDisplayLabel(artifact.schemaId);
   const node = new OperatorNode({
     kind: 'artifact', section, id: `${section}:feed-artifact:${packagePath}:${artifact.id}`,
     label: artifact.title || path.posix.basename(artifact.path),
-    description: [artifact.kind, basisText].filter(Boolean).join(' · '),
-    tooltip: [artifact.path, basisText ? `${feedTime.basis === 'modified' ? 'Modified' : 'Created'} ${timeText}` : 'Source modification time unavailable'].filter(Boolean).join('\n'),
+    description: [typeText, timeText].filter(Boolean).join(' · '),
+    tooltip: [artifact.path, timeText ? `${feedTime.basis === 'modified' ? 'Modified' : 'Created'} ${new Date(feedTime.timestampMs).toLocaleString()}` : 'Source time unavailable'].filter(Boolean).join('\n'),
     contextValue: `tiinex.${section}Artifact`, artifact, packagePath, workspaceId: artifact.workspaceId
   });
   node.iconPath = new vscode.ThemeIcon(artifactIcon(artifact));
@@ -3565,14 +3692,17 @@ function formatArtifactFeedTime(value: number): string {
   if (!Number.isFinite(value) || value <= 0) return '';
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return '';
+  const now = new Date();
   const pad = (part: number) => String(part).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  const time = `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  const sameLocalDay = date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && date.getDate() === now.getDate();
+  return sameLocalDay ? time : `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${time}`;
 }
 
 function fileArtifactNode(section: OperatorSection, artifact: IndexedArtifact, packagePath = ''): OperatorNode {
   const node = new OperatorNode({
     kind: 'artifact', section, id: `${section}:file-artifact:${packagePath}:${artifact.id}`,
-    label: path.posix.basename(artifact.path), description: artifact.kind, tooltip: artifact.path,
+    label: path.posix.basename(artifact.path), description: schemaDisplayLabel(artifact.schemaId), tooltip: artifact.path,
     contextValue: `tiinex.${section}Artifact`, artifact, packagePath, workspaceId: artifact.workspaceId,
     collapsible: artifact.kind === 'pointer' ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None
   });

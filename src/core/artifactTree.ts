@@ -71,6 +71,20 @@ export function roleLabelFromMarkdown(markdown: string): string {
   return String(markdown.match(/^\s*-\s+Role Label:\s*(.+?)\s*$/m)?.[1] || '').trim();
 }
 
+export function schemaDisplayLabel(schemaId: string): string {
+  let value = cleanSchemaId(schemaId)
+    .replace(/^tiinex\./i, '')
+    .replace(/\.v1$/i, '')
+    .replace(/\./g, ' ')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!value) return 'Artifact';
+  value = value.split(' ').filter(Boolean).map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
+  return value || 'Artifact';
+}
+
 export function artifactKind(schemaId: string, artifactPath = ''): ArtifactKind {
   const schema = cleanSchemaId(schemaId).toLowerCase();
   if (schema === 'tiinex.handoff.v1') return 'handoff';
@@ -162,8 +176,11 @@ function parseArtifactCreatedAtMs(value: string): number {
   const match = text.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?$/);
   if (match) {
     const [, year, month, day, hour, minute, second, millis = '0'] = match;
-    const date = new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second), Number(millis.padEnd(3, '0')));
-    return Number.isFinite(date.getTime()) ? date.getTime() : 0;
+    // Tiinex continuity timestamps are UTC even when the legacy textual form
+    // omits an explicit timezone suffix. Convert that UTC instant to local time
+    // only at the host presentation layer.
+    const timestamp = Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second), Number(millis.padEnd(3, '0')));
+    return Number.isFinite(timestamp) ? timestamp : 0;
   }
   const parsed = Date.parse(text);
   return Number.isFinite(parsed) ? parsed : 0;
