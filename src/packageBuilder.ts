@@ -5,7 +5,7 @@ import path from 'node:path';
 import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
 import * as vscode from 'vscode';
 import { preferredNodeExecutable } from './host/nodeExecutable';
-import { manufactureHandoffPackage, OperatorContextResult, prepareBundledRuntime, projectHandoffLeaves, projectOperatorContext, projectWorkspacePackageSources, WorkspacePackageSourcesResult } from './tiinex/bootstrap';
+import { manufactureHandoffPackage, OperatorContextResult, prepareBundledRuntime, prepareWorkspaceCoreRuntime, projectHandoffLeaves, projectOperatorContext, projectWorkspacePackageSources, WorkspacePackageSourcesResult } from './tiinex/bootstrap';
 import { repositoryRoots } from './vscode/gitApi';
 import { repositoryFact } from './host/git';
 import { workspaceCarrierArgs } from './core/packageArgs';
@@ -332,7 +332,13 @@ async function handoffArgs(selected: WorkspaceSource[], primaryRoute: RouteChoic
 }
 
 export async function buildHandoffPackageFromForm(extensionPath: string, input: PackageBuildInput): Promise<PackageBuildResult> {
-  const runtime = await prepareBundledRuntime(extensionPath, nodeExecutable());
+  const selectedLocalCoreRoot = String((input.workspaceSourceOverrides || []).find((item) => String(item.workspaceId || '').trim() === 'core')?.root || '').trim();
+  // Manufacture must execute the exact explicitly selected Local Core source when
+  // Core itself is part of the Outgoing source set. Core deliberately fails closed
+  // when runtime bytes differ from the carried Core source; do not weaken that gate.
+  const runtime = selectedLocalCoreRoot
+    ? await prepareWorkspaceCoreRuntime(selectedLocalCoreRoot, nodeExecutable())
+    : await prepareBundledRuntime(extensionPath, nodeExecutable());
   const scratch = await mkdtemp(path.join(os.tmpdir(), 'tiinex-vscode-package-builder-'));
   try {
     const current = await loadModelWithRuntime(runtime);

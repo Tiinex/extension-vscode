@@ -13,7 +13,7 @@ import { alphabeticalWorkspaceIds, artifactsForLineageMode, currentRoleArtifacts
 import { artifactReferenceAvailable, markdownLinkTargets, materialTargetKey, resolveArtifactReference } from '../dist/core/artifactNavigation.js';
 import { receivedHandoffContext, withWorkspaceRoots } from '../dist/core/receivedHandoff.js';
 import { operatorMatchedWorkspaceIds, resolvePrioritizedWorkspaceDuplicates } from '../dist/core/sourceSelection.js';
-import { comparePackageRecency, inheritedOutgoingLabel } from '../dist/core/outgoingUx.js';
+import { comparePackageRecency, inheritedOutgoingLabel, majorOutgoingLabel } from '../dist/core/outgoingUx.js';
 import { projectArtifactAuthoringModel } from '../dist/core/artifactAuthoringModel.js';
 import { artifactCreationReady, requireArtifactCreationReady } from '../dist/core/artifactAuthoringQualification.js';
 import { mergeTransportRouteSelection, selectedTransportRouteIds, transportPrepared, transportPreparedKey } from '../dist/core/transportQueue.js';
@@ -178,6 +178,9 @@ await test('Incoming operator defaults allow multiple matching Workspaces and Ou
 await test('Outgoing source UX inherits Incoming carrier identity and shares Discovery time ordering', async () => {
   assert.equal(inheritedOutgoingLabel('business-001-1-2-anchor-to-anchor.handoff-package.zip', '001-1-2', 2), 'business-001-1-2-2');
   assert.equal(inheritedOutgoingLabel('001-3-anchor-to-anchor.handoff-package.zip', '001-3'), '001-3-1');
+  assert.equal(majorOutgoingLabel('tiinex-core-004-1', '004', '005'), 'tiinex-core-005');
+  assert.equal(majorOutgoingLabel('docs-003-2-2-1-anchor-to-anchor.handoff-package.zip', '003-2-2', '004'), 'docs-004');
+  assert.equal(majorOutgoingLabel('004-1', '004', '005'), '005');
   const items = [
     { filename: 'older.handoff-package.zip', mtimeMs: 10 },
     { filename: 'newer-b.handoff-package.zip', mtimeMs: 20 },
@@ -1196,6 +1199,9 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   const writeCall = tree.indexOf('writePreparedArtifactDraft(this.extensionPath, draft)');
   assert.ok(previewCall >= 0 && writeCall > previewCall);
   const packageBuilder = await fs.readFile(path.resolve(HERE, '..', 'src', 'packageBuilder.ts'), 'utf8');
+  assert.match(packageBuilder, /prepareWorkspaceCoreRuntime/);
+  assert.match(packageBuilder, /selectedLocalCoreRoot/);
+  assert.match(packageBuilder, /runtime bytes differ from the carried Core source/);
   assert.match(packageBuilder, /PackageRouteInput/);
   assert.match(packageBuilder, /workspace-routes\.json/);
   assert.match(packageBuilder, /workspace-targets\.json/);

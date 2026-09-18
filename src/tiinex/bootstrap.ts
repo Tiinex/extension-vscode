@@ -73,6 +73,20 @@ export async function preparePackageRuntime(packagePath: string, nodeExecutable 
 }
 
 
+export async function prepareWorkspaceCoreRuntime(rootValue: string, nodeExecutable = preferredNodeExecutable()): Promise<PackageRuntime> {
+  const root = path.resolve(String(rootValue || '').trim());
+  if (!root) throw new Error('tiinex.core-source-runtime.root-required');
+  let manifest: any;
+  try { manifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8')); }
+  catch (error) { throw new Error(`tiinex.core-source-runtime.package-invalid:${error instanceof Error ? error.message : String(error)}`); }
+  if (String(manifest?.name || '') !== '@tiinex/core') throw new Error('tiinex.core-source-runtime.package-name-mismatch');
+  const entrypoint = path.resolve(root, 'tools', 'tiinex-portable.mjs');
+  const relative = path.relative(root, entrypoint);
+  if (!relative || relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) throw new Error('tiinex.core-source-runtime.entrypoint-outside-root');
+  await access(entrypoint);
+  return { root, entrypoint, nodeExecutable, dispose: async () => undefined };
+}
+
 export async function prepareBundledRuntime(extensionPath: string, nodeExecutable = preferredNodeExecutable()): Promise<PackageRuntime> {
   const binding = await qualifyInstalledCore(extensionPath);
   return { root: binding.root, entrypoint: binding.entrypoint, nodeExecutable, dispose: async () => undefined };
@@ -564,7 +578,12 @@ export async function createArtifactDraft(
 
 export async function manufactureHandoffPackage(runtime: PackageRuntime, args: string[], runner: ProcessRunner = runProcess): Promise<any> {
   const result = await runner(runtime.nodeExecutable, [runtime.entrypoint, 'manufacture-handoff-package', ...args, '--compact'], { env: nodeProcessEnvironment() });
-  if (![0, 2].includes(result.code)) throw new Error(`tiinex.manufacture.process-failed:${result.stderr.trim() || result.stdout.trim() || result.code}`);
+  if (![0, 2].includes(result.code)) {
+    const raw = result.stderr.trim() || result.stdout.trim() || String(result.code);
+    let reason = raw;
+    try { reason = String(JSON.parse(raw)?.error || raw); } catch { /* preserve raw process detail */ }
+    throw new Error(`tiinex.manufacture.process-failed:${reason}`);
+  }
   let parsed: any;
   try { parsed = JSON.parse(result.stdout.trim()); } catch { throw new Error('tiinex.manufacture.invalid-json'); }
   return parsed;

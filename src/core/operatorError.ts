@@ -31,6 +31,9 @@ export function presentOperatorError(error: unknown): OperatorErrorPresentation 
   if (/core-package\.(?:lock|version|dependency)/.test(message)) {
     return { cancelled: false, summary: 'The Core dependency, lockfile and installed runtime do not match. Restore the reviewed package files and run npm ci before rebuilding.', detail, code };
   }
+  if (/tooling-bootstrap\.runtime-source\.mismatch|core-source-runtime/i.test(message)) {
+    return { cancelled: false, summary: 'The selected Local Core source and the Tooling runtime do not match. Tiinex will not manufacture mixed Core bytes; refresh the selected Local Core source or rebuild/reload the extension runtime.', detail, code };
+  }
   if (/endpoint-(?:unqualified|ambiguous)|endpoint-reference/i.test(message)) {
     return { cancelled: false, summary: 'The selected Handoff endpoint is no longer uniquely qualified. Refresh the endpoint choices and select it again.', detail, code };
   }

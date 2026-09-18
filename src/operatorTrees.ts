@@ -17,7 +17,7 @@ import { repositoryRootForResource } from './vscode/gitApi';
 import { compareIncomingWorkspaceToLocal, orientPackage, prepareBundledRuntime, preparePackageRuntime, preparePackageRuntimeWithRecovery, projectPackageTransport } from './tiinex/bootstrap';
 import { applyIncomingWorkspaces, IncomingApplyStrategy } from './incomingApply';
 import { operatorMatchedWorkspaceIds, resolvePrioritizedWorkspaceDuplicates } from './core/sourceSelection';
-import { comparePackageRecency, inheritedOutgoingLabel } from './core/outgoingUx';
+import { comparePackageRecency, inheritedOutgoingLabel, majorOutgoingLabel } from './core/outgoingUx';
 import { payloadCheckoutEligibility } from './host/git';
 import { extractZipBuffer, readExactZipEntryFromBuffer, readExactZipEntryFromFile } from './host/zip';
 import { ArtifactAuthoringSubmission, openArtifactAuthoringPanel } from './artifactAuthoringPanel';
@@ -2180,27 +2180,31 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     // so show the user-visible carrier label. A major bump is independent of
     // route selection and therefore updates the displayed carrier identity
     // immediately. Shared Tooling remains final authority.
+    const parentDimension = this.incomingCarrierDimension();
+    const selectedMajor = Boolean(this.outgoing.packageParentPath && this.outgoing.packageMajorReason);
+    const majorDimension = selectedMajor ? nextMajorDimension(parentDimension) : '';
+
     if (!primary) {
-      let stem = this.outgoing.name.replace(/\.handoff-package\.zip$/i, '').trim().toLocaleLowerCase();
-      const parentDimension = this.incomingCarrierDimension();
-      if (this.outgoing.packageParentPath && this.outgoing.packageMajorReason && parentDimension) {
-        const major = nextMajorDimension(parentDimension);
-        if (major && stem.endsWith(parentDimension)) stem = `${stem.slice(0, -parentDimension.length)}${major}`;
-      }
+      const stem = selectedMajor && majorDimension
+        ? majorOutgoingLabel(this.outgoing.name, parentDimension, majorDimension)
+        : this.outgoing.name.replace(/\.handoff-package\.zip$/i, '').trim().toLocaleLowerCase();
       return `${stem}.handoff-package.zip`;
     }
 
-    const parentDimension = this.incomingCarrierDimension();
     const dimension = this.outgoing.packageParentPath
-      ? (this.outgoing.packageMajorReason ? nextMajorDimension(parentDimension) : this.expectedOutgoingCarrierDimension(primary))
+      ? (selectedMajor ? majorDimension : this.expectedOutgoingCarrierDimension(primary))
       : '001';
     if (!dimension) return `${this.outgoing.name.replace(/\.handoff-package\.zip$/i, '').trim().toLocaleLowerCase()}.handoff-package.zip`;
 
-    let stem = this.outgoing.name.replace(/\.handoff-package\.zip$/i, '').trim().toLocaleLowerCase();
-    if (this.outgoing.packageParentPath && parentDimension && stem.endsWith(parentDimension)) {
-      stem = `${stem.slice(0, -parentDimension.length)}${dimension}`;
-    } else if (!stem.endsWith(dimension)) {
-      stem = `${stem}-${dimension}`;
+    let stem = selectedMajor
+      ? majorOutgoingLabel(this.outgoing.name, parentDimension, dimension)
+      : this.outgoing.name.replace(/\.handoff-package\.zip$/i, '').trim().toLocaleLowerCase();
+    if (!selectedMajor) {
+      if (this.outgoing.packageParentPath && parentDimension && stem.endsWith(parentDimension)) {
+        stem = `${stem.slice(0, -parentDimension.length)}${dimension}`;
+      } else if (!stem.endsWith(dimension)) {
+        stem = `${stem}-${dimension}`;
+      }
     }
     const from = filenameToken(primary.from);
     const to = filenameToken(primary.to);

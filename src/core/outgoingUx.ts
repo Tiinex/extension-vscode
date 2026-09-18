@@ -29,3 +29,27 @@ export function inheritedOutgoingLabel(filename: string, carrierDimension: strin
       : '';
   return `${prefix ? `${prefix}-` : ''}${dimension}${suffix}`.toLocaleLowerCase();
 }
+
+/** Project a new explicit carrier Major from a user-visible inherited Outgoing label.
+ * Transport-only identity: this does not declare semantic/artifact lineage.
+ */
+export function majorOutgoingLabel(filename: string, parentCarrierDimension: string, nextMajorCarrierDimension: string): string {
+  const parent = String(parentCarrierDimension || '').trim();
+  const major = String(nextMajorCarrierDimension || '').trim();
+  const stem = String(filename || '').trim().replace(/\.handoff-package\.zip$/i, '').toLocaleLowerCase();
+  if (!stem || !major) return stem;
+  if (!parent) return major;
+
+  if (stem === parent || stem.startsWith(`${parent}-`)) return major;
+  const marker = `-${parent}`;
+  let index = stem.lastIndexOf(marker);
+  while (index >= 0) {
+    const after = stem.slice(index + marker.length);
+    if (!after || after.startsWith('-')) {
+      const prefix = stem.slice(0, index);
+      return `${prefix ? `${prefix}-` : ''}${major}`;
+    }
+    index = stem.lastIndexOf(marker, index - 1);
+  }
+  return `${stem}-${major}`;
+}
