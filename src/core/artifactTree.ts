@@ -124,12 +124,49 @@ export function leafArtifacts(artifacts: IndexedArtifact[]): IndexedArtifact[] {
 }
 
 
+export type ArtifactFeedTimeBasis = 'modified' | 'created' | 'unknown';
+
+export interface ArtifactFeedTime {
+  timestampMs: number;
+  basis: ArtifactFeedTimeBasis;
+}
+
+export function artifactFeedTime(artifact: IndexedArtifact): ArtifactFeedTime {
+  const modified = Number(artifact.mtimeMs || 0);
+  if (isMeaningfulArtifactMtime(modified)) return { timestampMs: modified, basis: 'modified' };
+  const created = parseArtifactCreatedAtMs(artifact.createdAt);
+  if (created > 0) return { timestampMs: created, basis: 'created' };
+  return { timestampMs: 0, basis: 'unknown' };
+}
+
 export function artifactsByModifiedNewest(artifacts: IndexedArtifact[]): IndexedArtifact[] {
   return [...artifacts].sort((a, b) => {
-    const modified = Number(b.mtimeMs || 0) - Number(a.mtimeMs || 0);
-    if (modified) return modified;
+    const newest = artifactFeedTime(b).timestampMs - artifactFeedTime(a).timestampMs;
+    if (newest) return newest;
     return a.path.localeCompare(b.path);
   });
+}
+
+function isMeaningfulArtifactMtime(value: number): boolean {
+  if (!Number.isFinite(value) || value <= 0) return false;
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return false;
+  // Tiinex deterministic ZIP serialization deliberately writes the DOS epoch.
+  // It is transport normalization, not source-file modification evidence.
+  if (date.getFullYear() === 1980 && date.getMonth() === 0 && date.getDate() === 1) return false;
+  return true;
+}
+
+function parseArtifactCreatedAtMs(value: string): number {
+  const text = String(value || '').trim();
+  const match = text.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?$/);
+  if (match) {
+    const [, year, month, day, hour, minute, second, millis = '0'] = match;
+    const date = new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second), Number(millis.padEnd(3, '0')));
+    return Number.isFinite(date.getTime()) ? date.getTime() : 0;
+  }
+  const parsed = Date.parse(text);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 export function leafArtifactPathSet(artifacts: IndexedArtifact[]): Set<string> {

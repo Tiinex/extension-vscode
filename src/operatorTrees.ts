@@ -6,7 +6,7 @@ import { mkdir, readdir, readFile, rm, stat } from 'node:fs/promises';
 import * as vscode from 'vscode';
 import { preferredNodeExecutable } from './host/nodeExecutable';
 import { indexCarrierPackage, indexLocalWorkspace, indexLocalWorkspaceFiles, discoveryPackages, IndexedCarrierPackage, IndexedWorkspaceFile } from './carrierIndex';
-import { alphabeticalWorkspaceIds, artifactsByModifiedNewest, artifactsForLineageMode, currentRoleChoices, IndexedArtifact, leafArtifactPathSet, logicalGroupForArtifact, normalizePath, TreeLineageMode, TreeProjectionMode } from './core/artifactTree';
+import { alphabeticalWorkspaceIds, artifactFeedTime, artifactsByModifiedNewest, artifactsForLineageMode, currentRoleChoices, IndexedArtifact, leafArtifactPathSet, logicalGroupForArtifact, normalizePath, TreeLineageMode, TreeProjectionMode } from './core/artifactTree';
 import { preferredRepositoryParent } from './core/receiveUx';
 import { qualifiedRoutes, QualifiedRouteReceipt } from './core/receivedHandoff';
 import { mergeTransportRouteSelection, selectedTransportRouteIds, StoredTransportQueueItem, transportPrepared, transportPreparedKey, TransportPreparedRecord } from './core/transportQueue';
@@ -3547,22 +3547,24 @@ function artifactNode(section: OperatorSection, artifact: IndexedArtifact, packa
 }
 
 function feedArtifactNode(section: OperatorSection, artifact: IndexedArtifact, packagePath = ''): OperatorNode {
-  const modified = formatArtifactModified(artifact.mtimeMs);
+  const feedTime = artifactFeedTime(artifact);
+  const timeText = feedTime.timestampMs > 0 ? formatArtifactFeedTime(feedTime.timestampMs) : '';
+  const basisText = timeText ? `${feedTime.basis} ${timeText}` : '';
   const node = new OperatorNode({
     kind: 'artifact', section, id: `${section}:feed-artifact:${packagePath}:${artifact.id}`,
     label: artifact.title || path.posix.basename(artifact.path),
-    description: [artifact.kind, modified].filter(Boolean).join(' · '),
-    tooltip: [artifact.path, modified ? `Modified ${modified}` : ''].filter(Boolean).join('\n'),
+    description: [artifact.kind, basisText].filter(Boolean).join(' · '),
+    tooltip: [artifact.path, basisText ? `${feedTime.basis === 'modified' ? 'Modified' : 'Created'} ${timeText}` : 'Source modification time unavailable'].filter(Boolean).join('\n'),
     contextValue: `tiinex.${section}Artifact`, artifact, packagePath, workspaceId: artifact.workspaceId
   });
   node.iconPath = new vscode.ThemeIcon(artifactIcon(artifact));
   return node;
 }
 
-function formatArtifactModified(value: number): string {
-  if (!Number.isFinite(value) || value <= 0) return 'modified unknown';
+function formatArtifactFeedTime(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return '';
   const date = new Date(value);
-  if (!Number.isFinite(date.getTime())) return 'modified unknown';
+  if (!Number.isFinite(date.getTime())) return '';
   const pad = (part: number) => String(part).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
