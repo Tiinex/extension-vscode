@@ -1,8 +1,23 @@
 import path from 'node:path';
 import { constants } from 'node:fs';
-import { copyFile, link, lstat, mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { copyFile, link, lstat, mkdir, mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { checkedCarrierFilename } from '../core/carrierFilename';
+import { carrierFilenameForCollisionInstance } from '../core/outgoingUx';
+
+
+/** Select a free human-output collision instance without changing carrier lineage. */
+export async function nextCarrierCollisionInstance(folder: string, baseFilename: string): Promise<number> {
+  const targetFolder = path.resolve(String(folder || '').trim());
+  const base = checkedCarrierFilename(baseFilename);
+  let names = new Set<string>();
+  try { names = new Set((await readdir(targetFolder)).map((item) => item.toLocaleLowerCase())); }
+  catch (error) { if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') throw error; }
+  for (let instance = 1; instance < 1000; instance += 1) {
+    if (!names.has(carrierFilenameForCollisionInstance(base, instance).toLocaleLowerCase())) return instance;
+  }
+  throw new Error('tiinex.package-builder.output-collision-instance-exhausted');
+}
 
 /** Complete the file in destination-local staging, then link it into place.
  * No overwrite, no partially copied final filename, no silent fallback to clobber.

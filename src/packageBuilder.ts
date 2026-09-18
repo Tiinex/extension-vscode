@@ -25,7 +25,7 @@ export interface PackageWorkspaceSourceOverride { workspaceId: string; root: str
 export interface PackageBuilderModel { workspaces: PackageWorkspaceChoice[]; routes: RouteChoice[] }
 export interface PackageParticipantRole { label: string; reference: string; workspaceId: string; path: string }
 export interface PackageRouteInput { routeId: string; participantRoles?: PackageParticipantRole[] }
-export interface PackageBuildInput { routeId: string; routeInputs?: PackageRouteInput[]; workspaceIds: string[]; packageParentPath?: string; packageMajorReason?: string; participantRoles?: PackageParticipantRole[]; incomingWorkspaceSources?: IncomingPackageWorkspaceSource[]; workspaceSourceOverrides?: PackageWorkspaceSourceOverride[]; outputDirectory?: string; expectedCarrierDimension?: string; expectedCarrierFilename?: string }
+export interface PackageBuildInput { routeId: string; routeInputs?: PackageRouteInput[]; workspaceIds: string[]; packageParentPath?: string; packageMajorReason?: string; participantRoles?: PackageParticipantRole[]; incomingWorkspaceSources?: IncomingPackageWorkspaceSource[]; workspaceSourceOverrides?: PackageWorkspaceSourceOverride[]; outputDirectory?: string; expectedCarrierDimension?: string; expectedCarrierFilename?: string; collisionInstance?: number }
 export interface PackageRouteRouting { routeId: string; workspaceId: string; handoffPath: string; text: string }
 export interface PackageBuildResult { outputPath: string; routingText: string; routeRoutingTexts: PackageRouteRouting[]; autoCopiedTransportText: boolean; routeId: string; routeIds: string[]; workspaceIds: string[] }
 export interface HandoffEndpointChoice { id: string; target: string; reference: string; kind: 'role' | 'party'; label: string; workspaceId: string; artifactPath: string; schemaId: string; qualification: string }
@@ -331,15 +331,28 @@ async function handoffArgs(selected: WorkspaceSource[], primaryRoute: RouteChoic
   return args;
 }
 
+async function prepareSelectedCoreManufactureRuntime(extensionPath: string, input: PackageBuildInput, scratch: string): Promise<Awaited<ReturnType<typeof prepareBundledRuntime>>> {
+  const override = (input.workspaceSourceOverrides || []).find((item) => String(item.workspaceId || '').trim() === 'core');
+  const incoming = (input.incomingWorkspaceSources || []).find((item) => String(item.workspaceId || '').trim() === 'core');
+  if (override?.root && incoming?.packagePath) throw new Error('tiinex.package-builder.core-source-ambiguous');
+  if (override?.root) return prepareWorkspaceCoreRuntime(String(override.root), nodeExecutable());
+  if (incoming?.packagePath && incoming?.archivePath) {
+    const archive = await readExactZipEntryFromFile(path.resolve(incoming.packagePath), String(incoming.archivePath));
+    const root = path.join(scratch, 'selected-core-runtime');
+    await mkdir(root, { recursive: true });
+    await extractZipBuffer(archive, root);
+    return prepareWorkspaceCoreRuntime(root, nodeExecutable());
+  }
+  return prepareBundledRuntime(extensionPath, nodeExecutable());
+}
+
 export async function buildHandoffPackageFromForm(extensionPath: string, input: PackageBuildInput): Promise<PackageBuildResult> {
-  const selectedLocalCoreRoot = String((input.workspaceSourceOverrides || []).find((item) => String(item.workspaceId || '').trim() === 'core')?.root || '').trim();
-  // Manufacture must execute the exact explicitly selected Local Core source when
-  // Core itself is part of the Outgoing source set. Core deliberately fails closed
-  // when runtime bytes differ from the carried Core source; do not weaken that gate.
-  const runtime = selectedLocalCoreRoot
-    ? await prepareWorkspaceCoreRuntime(selectedLocalCoreRoot, nodeExecutable())
-    : await prepareBundledRuntime(extensionPath, nodeExecutable());
   const scratch = await mkdtemp(path.join(os.tmpdir(), 'tiinex-vscode-package-builder-'));
+  // Manufacture must execute the exact explicitly selected Core source, whether
+  // that source is Local or carried by an Incoming package. Core deliberately
+  // fails closed when runtime bytes differ from the carried Core source; the host
+  // must bind the selected source instead of weakening that gate.
+  const runtime = await prepareSelectedCoreManufactureRuntime(extensionPath, input, scratch);
   try {
     const current = await loadModelWithRuntime(runtime);
     const incomingSources = await qualifyIncomingWorkspaceSources(runtime, scratch, input.incomingWorkspaceSources || []);
@@ -388,6 +401,8 @@ export async function buildHandoffPackageFromForm(extensionPath: string, input: 
       if (!selectedSources.some((source) => source.workspaceId === item.route.workspaceId) && !input.packageParentPath) throw new Error(`tiinex.package-builder.route-workspace-not-selected:${item.route.workspaceId}`);
     }
     const args = await handoffArgs(selectedSources, route, routeInputs, scratch, String(input.packageParentPath || ''), String(input.packageMajorReason || '').trim());
+    const collisionInstance = Math.max(1, Math.trunc(Number(input.collisionInstance || 1)));
+    if (collisionInstance > 1) args.push('--collision-instance', String(collisionInstance));
     const preview = await manufactureHandoffPackage(runtime, args);
     if (preview.status !== 'ready' || preview.transportExecutable === false) throw new Error(`tiinex.package-builder.preview-blocked:\n${receiptBlocker(preview)}`);
     assertExpectedCarrierDimension(preview, String(input.expectedCarrierDimension || ''));

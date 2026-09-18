@@ -53,3 +53,14 @@ export function majorOutgoingLabel(filename: string, parentCarrierDimension: str
   }
   return `${stem}-${major}`;
 }
+
+/** Human-output collision suffix only. This never changes carrier lineage. */
+export function carrierFilenameForCollisionInstance(filename: string, instance = 1): string {
+  const value = String(filename || '').trim();
+  const ordinal = Number.isFinite(Number(instance)) && Number(instance) > 1 ? Math.trunc(Number(instance)) : 1;
+  if (ordinal <= 1) return value;
+  const suffix = '.handoff-package.zip';
+  return value.toLocaleLowerCase().endsWith(suffix)
+    ? `${value.slice(0, -suffix.length)}--${ordinal}${suffix}`
+    : `${value}--${ordinal}`;
+}

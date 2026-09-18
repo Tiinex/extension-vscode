@@ -13,7 +13,7 @@ import { alphabeticalWorkspaceIds, artifactsForLineageMode, currentRoleArtifacts
 import { artifactReferenceAvailable, markdownLinkTargets, materialTargetKey, resolveArtifactReference } from '../dist/core/artifactNavigation.js';
 import { receivedHandoffContext, withWorkspaceRoots } from '../dist/core/receivedHandoff.js';
 import { operatorMatchedWorkspaceIds, resolvePrioritizedWorkspaceDuplicates } from '../dist/core/sourceSelection.js';
-import { comparePackageRecency, inheritedOutgoingLabel, majorOutgoingLabel } from '../dist/core/outgoingUx.js';
+import { carrierFilenameForCollisionInstance, comparePackageRecency, inheritedOutgoingLabel, majorOutgoingLabel } from '../dist/core/outgoingUx.js';
 import { projectArtifactAuthoringModel } from '../dist/core/artifactAuthoringModel.js';
 import { artifactCreationReady, requireArtifactCreationReady } from '../dist/core/artifactAuthoringQualification.js';
 import { mergeTransportRouteSelection, selectedTransportRouteIds, transportPrepared, transportPreparedKey } from '../dist/core/transportQueue.js';
@@ -24,6 +24,7 @@ import { representativeWorkspaceChoicesForRoot } from '../dist/core/workspaceCho
 import { checkIgnoredPaths, commitPreparedGitOperator, commitPreparedReviewedStaged, commitWorkingTree, deriveGitOperatorCommitMessage, dirtyWorkingTreePaths, discardWorkingTree, generateTiinexCommitMessage, listStagedConflictMarkerPaths, listStagedMutationPaths, listStagedPaths, materializeUnmergedFileConflicts, mergeCommitNoCommit, payloadCheckoutEligibility, preflightExistingLocalBranch, prepareGitOperatorCommit, prepareReviewedStagedCommit, pushExactGitOperatorCommit, pushExactLandingCommit, pushExactReviewedStagedCommit, stageCommitPush, stageLandingChanges, stageLandingCommit, stashWorkingTree, unstageLandingPaths } from '../dist/host/git.js';
 import { preferredNodeExecutable } from '../dist/host/nodeExecutable.js';
 import { copyFileToClipboard } from '../dist/host/fileClipboard.js';
+import { nextCarrierCollisionInstance } from '../dist/host/carrierPublish.js';
 import { compareIncomingWorkspaceToLocal, createArtifactDraft, inspectArtifactCreationContract, parseBootstrapDescriptor, prepareBundledRuntime, projectArtifactMaterialization, projectArtifactSchemaGuide, runTiinexJson, projectEditorAssistanceText, projectHandoffEndpoints, projectOperatorContext, projectPackageTransport, projectStagedValidation, projectWorkspaceLanding, projectWorkspacePackageSources } from '../dist/tiinex/bootstrap.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -181,6 +182,21 @@ await test('Outgoing source UX inherits Incoming carrier identity and shares Dis
   assert.equal(majorOutgoingLabel('tiinex-core-004-1', '004', '005'), 'tiinex-core-005');
   assert.equal(majorOutgoingLabel('docs-003-2-2-1-anchor-to-anchor.handoff-package.zip', '003-2-2', '004'), 'docs-004');
   assert.equal(majorOutgoingLabel('004-1', '004', '005'), '005');
+  assert.equal(carrierFilenameForCollisionInstance('tiinex-core-005.handoff-package.zip', 1), 'tiinex-core-005.handoff-package.zip');
+  assert.equal(carrierFilenameForCollisionInstance('tiinex-core-005.handoff-package.zip', 2), 'tiinex-core-005--2.handoff-package.zip');
+});
+
+await test('outgoing collision allocation stays transport-only and chooses a free filename instance', async () => {
+  const fs = await import('node:fs/promises');
+  const os = await import('node:os');
+  const folder = await fs.mkdtemp(path.join(os.tmpdir(), 'tiinex-collision-test-'));
+  try {
+    await fs.writeFile(path.join(folder, 'tiinex-core-005.handoff-package.zip'), 'x');
+    await fs.writeFile(path.join(folder, 'tiinex-core-005--2.handoff-package.zip'), 'y');
+    assert.equal(await nextCarrierCollisionInstance(folder, 'tiinex-core-005.handoff-package.zip'), 3);
+    assert.equal(carrierFilenameForCollisionInstance('tiinex-core-005.handoff-package.zip', 3), 'tiinex-core-005--3.handoff-package.zip');
+  } finally { await fs.rm(folder, { recursive: true, force: true }); }
+
   const items = [
     { filename: 'older.handoff-package.zip', mtimeMs: 10 },
     { filename: 'newer-b.handoff-package.zip', mtimeMs: 20 },
@@ -1200,8 +1216,10 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.ok(previewCall >= 0 && writeCall > previewCall);
   const packageBuilder = await fs.readFile(path.resolve(HERE, '..', 'src', 'packageBuilder.ts'), 'utf8');
   assert.match(packageBuilder, /prepareWorkspaceCoreRuntime/);
-  assert.match(packageBuilder, /selectedLocalCoreRoot/);
+  assert.match(packageBuilder, /prepareSelectedCoreManufactureRuntime/);
   assert.match(packageBuilder, /runtime bytes differ from the carried Core source/);
+  assert.match(packageBuilder, /selected-core-runtime/);
+  assert.match(packageBuilder, /--collision-instance/);
   assert.match(packageBuilder, /PackageRouteInput/);
   assert.match(packageBuilder, /workspace-routes\.json/);
   assert.match(packageBuilder, /workspace-targets\.json/);
