@@ -310,7 +310,16 @@ await test('extension contributes stable Discovery, Incoming, Outgoing and Trans
   assert.equal(incomingCloseMenu?.group, 'inline@9');
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.package' && /outgoingRoot/.test(item.when || '') && !/canPackage/.test(item.when || '') && item.group === 'inline@1'));
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.close' && /outgoingRoot/.test(item.when || '')));
-  assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.newHandoff' && /outgoingWorkspace/.test(item.when || '') && /outgoingWorkspaceArchive/.test(item.when || '') && item.group === 'inline@1'));
+  const newHandoffMenu = itemMenus.find((item) => item.command === 'tiinex.outgoing.newHandoff');
+  assert.match(newHandoffMenu?.when || '', /outgoingWorkspaceDescriptorEmbedded/);
+  assert.match(newHandoffMenu?.when || '', /outgoingWorkspaceDescriptorCheckout/);
+  assert.doesNotMatch(newHandoffMenu?.when || '', /outgoingWorkspaceArchive/);
+  assert.equal(newHandoffMenu?.group, 'inline@1');
+  const attachFromWorkspaceMenu = itemMenus.find((item) => item.command === 'tiinex.outgoing.attachHandoffFromWorkspace');
+  assert.match(attachFromWorkspaceMenu?.when || '', /outgoingWorkspaceDescriptorEmbedded/);
+  assert.match(attachFromWorkspaceMenu?.when || '', /outgoingWorkspaceDescriptorCheckout/);
+  assert.doesNotMatch(attachFromWorkspaceMenu?.when || '', /outgoingWorkspaceArchive/);
+  assert.equal(attachFromWorkspaceMenu?.group, 'inline@2');
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.attachHandoff' && /outgoing(Local|Incoming)HandoffUnattached/.test(item.when || '')));
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.detachHandoff' && /outgoing(Local|Incoming)HandoffAttached/.test(item.when || '')));
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.copyTransportText' && /outgoingHandoffAttached/.test(item.when || '') && item.group === 'inline@1'));
@@ -342,6 +351,7 @@ await test('extension contributes stable Discovery, Incoming, Outgoing and Trans
   assert.equal(commands.get('tiinex.artifact.newHandoff')?.title, 'Tiinex: New Handoff');
   assert.equal(commands.get('tiinex.artifact.attachHandoff')?.title, 'Attach Handoff to Outgoing');
   assert.equal(commands.get('tiinex.artifact.attachHandoff')?.icon, '$(link)');
+  assert.equal(commands.get('tiinex.outgoing.attachHandoffFromWorkspace')?.title, 'Attach Handoff to Outgoing');
   const treeSource = await fs.readFile(path.resolve(HERE, '..', 'src', 'operatorTrees.ts'), 'utf8');
   assert.match(treeSource, /label: '\$\(add\) Blank'/);
   assert.doesNotMatch(treeSource, /actionNode\('incoming'[\s\S]*Review Merge Plan/);
@@ -360,6 +370,9 @@ await test('extension contributes stable Discovery, Incoming, Outgoing and Trans
   assert.match(treeSource, /qualified match/);
   assert.match(treeSource, /queueTransportPackage\(built\.outputPath, '', true\)/);
   assert.match(treeSource, /projectPackageTransport\(runtime, resolved/);
+  assert.match(treeSource, /for \(const item of orientationRoutes\)/);
+  assert.match(treeSource, /projectPackageTransport\(runtime, resolved, `\$\{workspaceId\}:\$\{handoffPath\}`\)/);
+  assert.doesNotMatch(treeSource, /const base = orientationRoutes\.length \? await projectPackageTransport\(runtime, resolved\) : null/);
   assert.match(treeSource, /tiinex\.transport\.queue\.v1/);
   assert.match(treeSource, /tiinex\.transport\.prepared\.v1/);
   assert.doesNotMatch(treeSource, /Cold start: read Start directly/);
@@ -608,7 +621,7 @@ await test('operator README and deterministic GIF runbook describe the stabilize
   assert.match(readme, /one \*\*Display Options\*\* control/);
   assert.match(readme, /green \*\*qualified match\*\*/);
   assert.match(readme, /docs\/GIF-CAPTURE\.md/);
-  assert.match(readme, /"@tiinex\/core": "\^0\.31\.0"/);
+  assert.match(readme, /"@tiinex\/core": "\^0\.34\.0"/);
   if (process.env.TIINEX_LOCAL_CORE_ACCEPTANCE === '1') {
     assert.match(manifest.dependencies['@tiinex/core'], /^file:/);
     assert.equal(lock.packages[''].dependencies['@tiinex/core'], manifest.dependencies['@tiinex/core']);
@@ -616,8 +629,8 @@ await test('operator README and deterministic GIF runbook describe the stabilize
     const installedCore = JSON.parse(await fs.readFile(path.join(root, 'node_modules', '@tiinex', 'core', 'package.json'), 'utf8'));
     assert.equal(lock.packages['node_modules/@tiinex/core'].version, installedCore.version);
   } else {
-    assert.equal(manifest.dependencies['@tiinex/core'], '^0.31.0');
-    assert.equal(lock.packages['node_modules/@tiinex/core'].version, '0.31.0');
+    assert.equal(manifest.dependencies['@tiinex/core'], '^0.34.0');
+    assert.equal(lock.packages['node_modules/@tiinex/core'].version, '0.34.0');
   }
   for (const section of ['Clip 1 — Display Options', 'Clip 2 — Incoming exact qualified match', 'Clip 3 — Outgoing Handoff and Pack safety', 'Clip 4 — Staging and commit-message ergonomics']) assert.match(capture, new RegExp(section));
   assert.match(capture, /does not replace the required Sigma Windows observation/);
@@ -1174,6 +1187,10 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(panel, /panel\.dispose\(\)/);
   assert.match(panel, /fieldAssists/);
   assert.match(tree, /beginArtifactAuthoring/);
+  assert.match(tree, /attachHandoffFromWorkspace/);
+  assert.match(tree, /Handoff artifacts only; newest modified first/);
+  assert.match(tree, /indexed\.artifacts\.filter\(\(artifact\) => artifact\.schemaId === 'tiinex\.handoff\.v1'\)/);
+  assert.match(tree, /const participants = await this\.pickAdditionalCarrierRoles\(qualified\.from, qualified\.to\)/);
   assert.match(tree, /loadArtifactAuthoringCatalog/);
   assert.match(tree, /pickArtifactSchema/);
   assert.match(tree, /pickArtifactParent/);
@@ -1335,7 +1352,7 @@ await test('Pointerless transport queue tolerates package-only carriers without 
   const tree = await fs.readFile(path.join(root, 'src', 'operatorTrees.ts'), 'utf8');
   assert.doesNotMatch(tree, /tiinex\.transport\.package-transport-text-missing/);
   assert.match(tree, /const orientation = await orientPackage\(runtime, resolved\)/);
-  assert.match(tree, /presentationLabel = presentationLabel \|\| 'Workspace carrier'/);
+  assert.match(tree, /presentationLabel = 'Workspace carrier'/);
   assert.match(tree, /This Workspace carrier has no Handoff route-specific transport text/);
   assert.match(tree, /const textRequired = Boolean\(item\.routes\.length \|\| item\.genericTransportText\)/);
 });
@@ -1580,6 +1597,13 @@ await test('multi-Incoming and Merge/Replace remain selection-first, dry until f
   assert.match(tree, /routes\.findIndex/);
   assert.match(tree, /this\.projection\('outgoing'\) === 'files'/);
   assert.match(tree, /outgoingCarrierFileChildren\(\)/);
+  assert.match(tree, /const workspaceHasCache = routeDrafts\.some\(\(draft\) => outgoingDraftNeedsExternalCache\(draft, selectedWorkspaceIds\)\)/);
+  assert.match(tree, /if \(workspaceHasCache && fullLineage\)/);
+  assert.match(tree, /`\$\{prefix\}-1-cache\.trace\.md`/);
+  assert.match(tree, /hasCache: workspaceHasCache/);
+  assert.match(tree, /participant Role pointer · pending Pack/);
+  assert.match(tree, /endpoint Role pointer · pending Pack/);
+  assert.match(tree, /Handoff pointer · pending Pack/);
   assert.match(tree, /001-1-READ-BEFORE-PROCEEDING\.trace\.md/);
   assert.match(tree, /001-2-bootstrap\.zip/);
   assert.match(tree, /001-tiinex-handoff-package\.trace\.md/);
@@ -1668,12 +1692,17 @@ await test('multi-Incoming and Merge/Replace remain selection-first, dry until f
   assert.match(apply, /if \(confirmed !== 'Execute Plan'\) return null;/);
 });
 
-await test('tree errors keep compact summaries visible and full technical detail behind Show Details', async () => {
+await test('tree errors keep compact summaries visible and blocked Incoming carriers stay visible without raw stack modals', async () => {
   const fs = await import('node:fs/promises');
   const tree = await fs.readFile(path.resolve(HERE, '..', 'src', 'operatorTrees.ts'), 'utf8');
   assert.match(tree, /shortMessage\(error\)/);
   assert.match(tree, /'Show Details'/);
-  assert.match(tree, /error\.stack \|\| error\.message/);
+  assert.match(tree, /phase\?: 'loading' \| 'blocked'/);
+  assert.match(tree, /contextValue: item\.state \? 'tiinex\.incomingPackage' : blocked \? 'tiinex\.incomingPackageBlocked'/);
+  assert.match(tree, /This carrier was rejected before Incoming activation/);
+  assert.match(tree, /No Handoff route was accepted and no Workspace bytes were applied/);
+  assert.match(tree, /incomingBlockedDetail\(error, presentation\.detail\)/);
+  assert.doesNotMatch(tree, /Tiinex Incoming blocked:[\s\S]{0,800}error\.stack \|\| error\.message/);
   const extension = await fs.readFile(path.resolve(HERE, '..', 'src', 'extension.ts'), 'utf8');
   assert.doesNotMatch(extension, /runManualLanding|executeLanding|HandoffInboxWatcher/);
 });
@@ -1831,6 +1860,7 @@ await test('title extraction skips the integrity footer and fenced examples', as
 await test('package collision and runtime drift errors suggest a non-destructive next step', async () => {
   assert.match(presentOperatorError(new Error('tiinex.package-builder.output-exists-different')).summary, /different package/);
   assert.match(presentOperatorError(new Error('tiinex.core-package.lockfile-missing')).summary, /npm ci/);
+  assert.match(presentOperatorError(new Error('tiinex.bootstrap.recovery-ineligible:blocking=x')).summary, /remains visible as Blocked/);
 });
 
 await test('public Core portable entry exposes every VS Code-used shared operation', async () => {

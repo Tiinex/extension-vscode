@@ -29,6 +29,7 @@ import { routeChoiceKey } from './core/operatorModel';
 import { consumeIncomingMultiRootResume, prepareIncomingMultiRootSession } from './vscode/incomingWorkspaceSession';
 import { copyFileToClipboard } from './host/fileClipboard';
 import { nextCarrierCollisionInstance } from './host/carrierPublish';
+import { presentOperatorError } from './core/operatorError';
 
 export type OperatorSection = 'discovery' | 'incoming' | 'outgoing';
 
@@ -100,6 +101,9 @@ interface IncomingPendingState {
   filename: string;
   mtimeMs: number;
   bytes: number;
+  phase?: 'loading' | 'blocked';
+  blockedSummary?: string;
+  blockedDetail?: string;
 }
 
 interface IncomingState {
@@ -745,6 +749,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     register('tiinex.outgoing.includeRoute', (node?: OperatorNode) => this.setDraftRoute(node?.data.draftId || '', true));
     register('tiinex.outgoing.excludeRoute', (node?: OperatorNode) => this.setDraftRoute(node?.data.draftId || '', false));
     register('tiinex.outgoing.attachHandoff', (node?: OperatorNode) => this.attachOutgoingHandoffNode(node));
+    register('tiinex.outgoing.attachHandoffFromWorkspace', (node?: OperatorNode) => this.attachHandoffFromWorkspace(node?.data.workspaceId || ''));
     register('tiinex.outgoing.detachHandoff', (node?: OperatorNode) => this.detachOutgoingHandoffNode(node));
     register('tiinex.outgoing.copyTransportText', (node?: OperatorNode) => this.copyOutgoingTransportText(node));
     register('tiinex.outgoing.package', () => this.packageOutgoing());
@@ -854,18 +859,20 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     try {
       const orientation = await orientPackage(runtime, resolved);
       const orientationRoutes = Array.isArray(orientation.routes) ? orientation.routes : [];
-      const base = orientationRoutes.length ? await projectPackageTransport(runtime, resolved) : null;
-      const routeMeta = Array.isArray(base?.carrierInspection?.routes) ? base!.carrierInspection!.routes! : [];
       const routes: TransportRouteState[] = [];
       let genericTransportText = '';
-      let presentationLabel = String(base?.humanOutput?.presentation?.label || base?.humanOutput?.primary?.kind || '').trim();
+      let presentationLabel = '';
 
       if (!orientationRoutes.length) {
-        presentationLabel = presentationLabel || 'Workspace carrier';
+        // Route-less workspace carriers have no Handoff selector. Keep this
+        // bounded to orientation rather than forcing a Handoff projection.
+        presentationLabel = 'Workspace carrier';
       } else {
-        if (!base || base.status !== 'ready') throw new Error(`tiinex.transport.package-projection-${base?.status || 'blocked'}`);
-        if (routeMeta.length !== orientationRoutes.length) throw new Error('tiinex.transport.route-projection-count-mismatch');
-        for (const item of routeMeta) {
+        // Orientation already qualifies the exact carried routes. Project each
+        // explicit route directly. An unselected package-wide Handoff projection
+        // may legitimately be blocked/ambiguous for multi-route carriers and must
+        // not prevent Send to Transport from qualifying the exact route set.
+        for (const item of orientationRoutes) {
           const workspaceId = String(item.workspaceId || '').trim();
           const handoffPath = normalizePath(String(item.workspaceRelativeHandoffPath || ''));
           if (!workspaceId || !handoffPath) throw new Error('tiinex.transport.route-selector-unavailable');
@@ -1325,10 +1332,11 @@ export class TiinexOperatorTrees implements vscode.Disposable {
         packagePath: resolved,
         filename: discovered?.filename || path.basename(resolved),
         mtimeMs: discovered?.mtimeMs ?? info?.mtimeMs ?? Date.now(),
-        bytes: discovered?.bytes ?? info?.size ?? 0
+        bytes: discovered?.bytes ?? info?.size ?? 0,
+        phase: 'loading'
       };
     } catch {
-      metadata = { packagePath: resolved, filename: path.basename(resolved), mtimeMs: Date.now(), bytes: 0 };
+      metadata = { packagePath: resolved, filename: path.basename(resolved), mtimeMs: Date.now(), bytes: 0, phase: 'loading' };
     }
 
     // Move first, qualify second: the package immediately leaves Discovery and
@@ -1356,12 +1364,21 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       await this.updateUiContexts();
       await this.autoShowIncomingRoleHandoff(state);
     } catch (error) {
-      this.incomingPending.delete(resolved);
+      const presentation = presentOperatorError(error);
+      // Keep the rejected carrier visible in Incoming. Qualification failure is
+      // useful operator state, not a reason to silently move the card back to
+      // Discovery or dump an implementation stack into a modal dialog.
+      this.incomingPending.set(resolved, {
+        ...metadata,
+        phase: 'blocked',
+        blockedSummary: presentation.summary,
+        blockedDetail: incomingBlockedDetail(error, presentation.detail)
+      });
       this.incomingProvider.refresh();
       this.discoveryProvider.refresh();
       await this.updateUiContexts();
-      await vscode.window.showErrorMessage(`Tiinex Incoming blocked: ${shortMessage(error)}`, 'Show Details').then(async (choice: string | undefined) => {
-        if (choice === 'Show Details') await vscode.window.showErrorMessage(String(error instanceof Error ? error.stack || error.message : error), { modal: true });
+      await vscode.window.showErrorMessage(`Tiinex Incoming blocked: ${presentation.summary}`, 'Show Details').then(async (choice: string | undefined) => {
+        if (choice === 'Show Details') await vscode.window.showErrorMessage(incomingBlockedDetail(error, presentation.detail), { modal: true });
       });
     }
   }
@@ -1408,19 +1425,31 @@ export class TiinexOperatorTrees implements vscode.Disposable {
   private async incomingChildren(node?: OperatorNode): Promise<OperatorNode[]> {
     if (!this.incoming.length && !this.incomingPending.size) return [messageNode('incoming', 'No Incoming Handoff packages')];
     if (!node) {
-      const ready = this.incoming.map((state) => ({
+      const ready: Array<IncomingPendingState & { state: IncomingState }> = this.incoming.map((state) => ({
         packagePath: state.index.packagePath, filename: state.index.filename, mtimeMs: state.index.mtimeMs, bytes: state.index.bytes, state
       }));
-      const pending = [...this.incomingPending.values()].map((item) => ({ ...item, state: null as IncomingState | null }));
-      const roots = [...ready, ...pending].sort(comparePackageRecency);
-      return roots.map((item, index) => new OperatorNode({
-        kind: 'package', section: 'incoming', id: `incoming:package:${item.packagePath}`, label: item.filename,
-        description: item.state ? `${timestamp(item.mtimeMs)} · ${this.modeLabel('incoming')}${item.state.bootstrapRecovery?.state === 'host-bootstrap-recovery' ? ' · recovered bootstrap' : ''}` : 'Loading…',
-        tooltip: item.packagePath, packagePath: item.packagePath, contextValue: item.state ? 'tiinex.incomingPackage' : 'tiinex.incomingPackageLoading',
-        collapsible: index === 0 ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.Collapsed
-      }));
+      const pending: Array<IncomingPendingState & { state: null }> = [...this.incomingPending.values()].map((item) => ({ ...item, state: null }));
+      const roots: Array<IncomingPendingState & { state: IncomingState | null }> = [...ready, ...pending].sort(comparePackageRecency);
+      return roots.map((item, index) => {
+        const blocked = !item.state && item.phase === 'blocked';
+        const description = item.state
+          ? `${timestamp(item.mtimeMs)} · ${this.modeLabel('incoming')}${item.state.bootstrapRecovery?.state === 'host-bootstrap-recovery' ? ' · recovered bootstrap' : ''}`
+          : blocked ? `Blocked · ${item.blockedSummary || 'carrier qualification failed'}` : 'Loading…';
+        return new OperatorNode({
+          kind: 'package', section: 'incoming', id: `incoming:package:${item.packagePath}`, label: item.filename,
+          description,
+          tooltip: blocked ? `${item.packagePath}\n${item.blockedSummary || 'Carrier qualification failed.'}` : item.packagePath,
+          packagePath: item.packagePath,
+          contextValue: item.state ? 'tiinex.incomingPackage' : blocked ? 'tiinex.incomingPackageBlocked' : 'tiinex.incomingPackageLoading',
+          collapsible: index === 0 || blocked ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.Collapsed
+        });
+      });
     }
     const pending = this.incomingPending.get(path.resolve(node.data.packagePath || ''));
+    if (pending?.phase === 'blocked') return [
+      messageNode('incoming', pending.blockedSummary || 'Carrier qualification failed.'),
+      messageNode('incoming', 'No Handoff route was accepted and no Workspace bytes were applied.')
+    ];
     if (pending) return [messageNode('incoming', 'Qualifying Handoff package…')];
     const state = this.incomingState(node.data.packagePath || '');
     if (!state) return [];
@@ -2335,6 +2364,33 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       }
     }
 
+    const fullLineage = this.lineage('outgoing') === 'lineage';
+    const selectedWorkspaceIds = new Set(this.outgoing.workspaces.map((item) => item.workspaceId));
+    const draftsByWorkspace = new Map<string, OutgoingDraft[]>();
+    for (const draft of this.outgoing.drafts.filter((item) => item.writtenPath && item.routeIncluded)) {
+      draftsByWorkspace.set(draft.draft.workspaceId, [...(draftsByWorkspace.get(draft.draft.workspaceId) || []), draft]);
+    }
+    for (const [workspaceIndex, workspace] of ordered.entries()) {
+      const routeDrafts = draftsByWorkspace.get(workspace.workspaceId) || [];
+      const workspaceOrdinal = workspaceIndex + 3;
+      const workspaceHasCache = routeDrafts.some((draft) => outgoingDraftNeedsExternalCache(draft, selectedWorkspaceIds));
+      if (workspaceHasCache && fullLineage) {
+        const prefix = `001-${workspaceOrdinal}`;
+        nodes.push(projectedPendingCarrierFileNode(`${prefix}-1-cache.trace.md`, 'cache pointer · pending Pack', workspace.workspaceId));
+        nodes.push(projectedPendingCarrierFileNode(`${prefix}-1-cache.zip`, 'cache · pending Pack', workspace.workspaceId));
+      }
+      for (const [routeIndex, draft] of routeDrafts.entries()) {
+        const projected = projectedOutgoingRoutePointerFiles({
+          workspaceOrdinal,
+          routeOrdinal: routeIndex + 1,
+          draft,
+          hasCache: workspaceHasCache,
+          fullLineage
+        });
+        nodes.push(...projected);
+      }
+    }
+
     nodes.push(projectedCarrierFileNode('outgoing', '001-tiinex-handoff-package.trace.md', 'artifact'));
     return nodes.sort((a, b) => String(a.label ?? '').localeCompare(String(b.label ?? ''), undefined, { numeric: true, sensitivity: 'base' }));
   }
@@ -2607,10 +2663,15 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
             if (submission.attachToOutgoing) {
               if (!attachAvailable || schemaId !== 'tiinex.handoff.v1') throw new Error('tiinex.authoring.attach-outgoing-unavailable');
               const qualified = await qualifyExistingHandoff(this.extensionPath, root, workspace.workspaceId, draft.path);
-              this.trackOutgoingHandoff(workspace, draft, writtenPath, qualified.from, qualified.to, [], 'created', true);
-              workspace.payloadIncluded = true;
-              workspace.checkoutRepository = undefined;
-              workspace.checkoutRef = undefined;
+              const participants = await this.pickAdditionalCarrierRoles(qualified.from, qualified.to);
+              if (participants !== null) {
+                this.trackOutgoingHandoff(workspace, draft, writtenPath, qualified.from, qualified.to, participants, 'created', true);
+                workspace.payloadIncluded = true;
+                workspace.checkoutRepository = undefined;
+                workspace.checkoutRef = undefined;
+              } else {
+                followUpError = 'Attach to Outgoing was cancelled; the Handoff artifact was still created.';
+              }
             }
             this.refresh();
             await this.updateUiContexts();
@@ -2742,6 +2803,52 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     this.outgoingProvider.refresh();
     await this.updateUiContexts();
     await this.revealOutgoingPanel();
+  }
+
+  private async attachHandoffFromWorkspace(workspaceId: string): Promise<void> {
+    if (!this.outgoing || !workspaceId) return;
+    const workspace = this.outgoing.workspaces.find((item) => item.workspaceId === workspaceId);
+    if (!workspace) return;
+    try {
+      const root = await this.ensureOutgoingAuthoringRoot(workspace);
+      const indexed = await indexLocalWorkspace(root, workspace.workspaceId);
+      const handoffs = indexed.artifacts.filter((artifact) => artifact.schemaId === 'tiinex.handoff.v1');
+      if (!handoffs.length) {
+        await vscode.window.showInformationMessage(`No qualified Handoff artifacts are available in ${workspace.workspaceId}.`);
+        return;
+      }
+      const mode = await vscode.window.showQuickPick([
+        { label: 'Leaves', description: 'Recommended', detail: 'Only current Handoff lineage leaves in this Workspace.', value: 'leaves' as const },
+        { label: 'Full lineage', description: 'All Handoff artifacts', detail: 'Browse the complete indexed Handoff lineage for this Workspace.', value: 'full' as const }
+      ], {
+        title: `Attach Handoff · ${workspace.workspaceId} Scope`,
+        placeHolder: 'Choose the amount of Handoff lineage to browse',
+        canPickMany: false,
+        ignoreFocusOut: true
+      });
+      if (!mode) return;
+      const leaves = leafArtifactPathSet(indexed.artifacts);
+      const candidates = artifactsByModifiedNewest(handoffs.filter((artifact) => mode.value === 'full' || leaves.has(normalizePath(artifact.path))));
+      if (!candidates.length) {
+        await vscode.window.showInformationMessage(`No ${mode.value === 'leaves' ? 'leaf ' : ''}Handoff artifacts are available in ${workspace.workspaceId}.`);
+        return;
+      }
+      const picked = await vscode.window.showQuickPick(candidates.map((artifact) => ({
+        label: artifact.title || path.basename(artifact.path),
+        description: this.outgoingDraftForPath(workspace.workspaceId, artifact.path)?.routeIncluded ? 'attached' : 'handoff',
+        detail: `${artifactFeedTime(artifact).timestampMs ? new Date(artifactFeedTime(artifact).timestampMs).toLocaleString() : 'Modified time unavailable'} · ${normalizePath(artifact.path)}`,
+        artifact
+      })), {
+        title: `Attach Handoff · ${workspace.workspaceId}`,
+        placeHolder: `${mode.label}; Handoff artifacts only; newest modified first.`,
+        canPickMany: false,
+        ignoreFocusOut: true
+      });
+      if (!picked) return;
+      await this.attachQualifiedHandoff(workspace, picked.artifact.path);
+    } catch (error) {
+      await vscode.window.showErrorMessage(`Tiinex Attach Handoff blocked: ${shortMessage(error)}`);
+    }
   }
 
   private async attachOutgoingHandoffNode(node?: OperatorNode): Promise<void> {
@@ -4038,6 +4145,61 @@ async function nextOutgoingSeriesLabel(prefix: string, folder = ''): Promise<str
   return `${normalizedPrefix}-999`;
 }
 
+function projectedOutgoingRoutePointerFiles(input: {
+  workspaceOrdinal: number;
+  routeOrdinal: number;
+  draft: OutgoingDraft;
+  hasCache: boolean;
+  fullLineage: boolean;
+}): OperatorNode[] {
+  const { workspaceOrdinal, routeOrdinal, draft, hasCache, fullLineage } = input;
+  const nodes: OperatorNode[] = [];
+  const prefix = `001-${workspaceOrdinal}`;
+  let dimension = hasCache ? `${prefix}-1-${routeOrdinal}` : `${prefix}-${routeOrdinal}`;
+  for (const participant of draft.participants) {
+    if (fullLineage) nodes.push(projectedPendingCarrierFileNode(`${dimension}-${filenameToken(participant.label)}-role-pointer.trace.md`, 'participant Role pointer · pending Pack', draft.draft.workspaceId));
+    dimension = `${dimension}-1`;
+  }
+  const endpoints = [
+    { party: 'from', label: draft.from || 'from' },
+    { party: 'to', label: draft.to || 'to' }
+  ];
+  for (const endpoint of endpoints) {
+    if (fullLineage) nodes.push(projectedPendingCarrierFileNode(`${dimension}-${endpoint.party}-${filenameToken(endpoint.label)}-endpoint-role-pointer.trace.md`, 'endpoint Role pointer · pending Pack', draft.draft.workspaceId));
+    dimension = `${dimension}-1`;
+  }
+  nodes.push(projectedPendingCarrierFileNode(`${dimension}-handoff-pointer.trace.md`, fullLineage ? 'Handoff pointer · pending Pack' : 'Handoff pointer · pending Pack', draft.draft.workspaceId));
+  return nodes;
+}
+
+function outgoingDraftNeedsExternalCache(draft: OutgoingDraft, selectedWorkspaceIds: Set<string>): boolean {
+  const refs = [
+    ...draft.participants.map((item) => item.reference),
+    handoffRoleReference(draft.draft.markdown, 'From Reference'),
+    handoffRoleReference(draft.draft.markdown, 'To Reference')
+  ].filter(Boolean);
+  return refs.some((reference) => {
+    const separator = reference.indexOf('::');
+    return separator > 0 && !selectedWorkspaceIds.has(reference.slice(0, separator));
+  });
+}
+
+function projectedPendingCarrierFileNode(label: string, description: string, workspaceId: string): OperatorNode {
+  return new OperatorNode({
+    kind: 'projectedFile', section: 'outgoing', id: `outgoing:pending-carrier:${workspaceId}:${label}`,
+    label, description,
+    tooltip: `${label}\nProjected from the current Outgoing route. Shared Core manufacture owns the final carrier bytes and requalifies this path before Pack.`,
+    workspaceId,
+    contextValue: 'tiinex.outgoingPendingCarrierPointer'
+  });
+}
+
+function handoffRoleReference(markdown: string, field: 'From Reference' | 'To Reference'): string {
+  const escaped = field.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = String(markdown || '').match(new RegExp(`^\\s*-\\s+${escaped}:\\s*(?:\\[[^\\]]+\\]\\()?([^\\s)]+::[^\\s)]+)`, 'mi'));
+  return String(match?.[1] || '').trim();
+}
+
 function filenameToken(value: string): string {
   return String(value || '')
     .trim()
@@ -4059,6 +4221,20 @@ function payloadCheckoutReason(reason: string): string {
     'not-a-qualified-git-repository': 'no qualified Git checkout is available'
   };
   return labels[reason] || reason;
+}
+
+function incomingBlockedDetail(error: unknown, fallback = ''): string {
+  const raw = error instanceof Error ? error.message : String(error);
+  const code = raw.match(/\btiinex\.[a-z0-9._-]+/i)?.[0] || '';
+  const blocking = raw.match(/(?:^|;)blocking=([^;]+)/i)?.[1]?.split(',').map((item) => item.trim()).filter(Boolean) || [];
+  const parts = [
+    'This carrier was rejected before Incoming activation.',
+    code ? `Code: ${code}` : '',
+    blocking.length ? `Blocking findings: ${blocking.join(', ')}` : '',
+    'No Handoff route was accepted and no Workspace bytes were applied.',
+    !code && fallback ? fallback : ''
+  ].filter(Boolean);
+  return parts.join('\n');
 }
 
 function shortMessage(error: unknown): string {

@@ -43,6 +43,9 @@ export function presentOperatorError(error: unknown): OperatorErrorPresentation 
   if (/authoring\.target-exists/i.test(message)) {
     return { cancelled: false, summary: 'A Handoff already exists at the proposed path. Change the title or inspect the existing artifact before retrying.', detail, code };
   }
+  if (/bootstrap\.recovery-ineligible|package\.not-ready|routes-unqualified|route-count-invalid/i.test(message)) {
+    return { cancelled: false, summary: 'This Handoff package did not qualify. It remains visible as Blocked; no route or Workspace bytes were accepted.', detail, code };
+  }
   if (/process-failed|bootstrap|core-package|invalid-json|spawn|ENOENT/i.test(message)) {
     return { cancelled: false, summary: 'Shared Tiinex Tooling could not complete the operation. No result was accepted; technical details are available in the Tiinex output.', detail, code };
   }
