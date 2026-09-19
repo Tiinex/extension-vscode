@@ -366,7 +366,11 @@ export async function projectAuthoringParent(runtime: PackageRuntime, parentPath
   if (reference) args.push('--reference', reference);
   args.push('--compact');
   const result = await runTiinexJson<any>(runtime, args, runner);
-  if (result.status !== 'ready' || !result.parentRecord) throw new Error(`tiinex.authoring.parent-blocked:${result.status || 'unknown'}`);
+  if (result.status !== 'ready' || !result.parentRecord) {
+    const findings = (result.findings || []).map((item: any) => `${item.code || 'finding'}: ${item.message || ''}`.trim()).filter(Boolean);
+    const detail = findings.length ? `\n${findings.join('\n')}` : '';
+    throw new Error(`tiinex.authoring.parent-blocked:${result.status || 'unknown'}${detail}`);
+  }
   return result.parentRecord;
 }
 

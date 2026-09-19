@@ -22,6 +22,29 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     } catch (error) { await vscode.window.showErrorMessage(`Tiinex validation failed: ${message(error)}`); }
   }));
   context.subscriptions.push(vscode.commands.registerCommand('tiinex.showProblems', async () => vscode.commands.executeCommand('workbench.actions.view.problems')));
+  context.subscriptions.push(vscode.commands.registerCommand('tiinex.artifact.repair', async (resource?: vscode.Uri) => {
+    try {
+      if (!diagnostics) diagnostics = await registerTiinexDiagnostics(context, extensionPath);
+      const uri = resource?.scheme === 'file' ? resource : vscode.window.activeTextEditor?.document.uri;
+      if (!uri || uri.scheme !== 'file') throw new Error('tiinex.repair.file-resource-required');
+      const document = await vscode.workspace.openTextDocument(uri);
+      await vscode.window.showTextDocument(document, { preview: false });
+      const snapshot = await diagnostics.refresh(document);
+      if (snapshot?.actions) {
+        await vscode.commands.executeCommand('editor.action.quickFix');
+        return;
+      }
+      const choice = await vscode.window.showWarningMessage(
+        snapshot?.state === 'clean'
+          ? 'Tiinex Core reports this artifact as clean; no repair is needed.'
+          : 'Tiinex Core has no deterministic repair for the current artifact bytes. Historical/reference debt is not rewritten by the VS Code host.',
+        'Show Problems'
+      );
+      if (choice === 'Show Problems') await vscode.commands.executeCommand('workbench.actions.view.problems');
+    } catch (error) {
+      await vscode.window.showErrorMessage(`Tiinex artifact repair blocked: ${message(error)}`);
+    }
+  }));
 
   // Compatibility commands now route into the native tree model rather than the retired webview workflow.
   context.subscriptions.push(vscode.commands.registerCommand('tiinex.landHandoffPackage', async () => {

@@ -71,10 +71,10 @@ Role/identity presentation scans every qualified local Workspace plus every open
 
 ## Runtime/package boundary
 
-The historical tracked `shared-core/` snapshot and Site-coupled `sync:shared-core` path have been removed. The extension now declares the published Core compatibility range used by this checkout; the lockfile pins qualification to `0.7.0`:
+The historical tracked `shared-core/` snapshot and Site-coupled `sync:shared-core` path have been removed. The extension now declares the published Core compatibility range used by this checkout; the lockfile pins qualification to `0.31.0`:
 
 ```json
-"@tiinex/core": "^0.7.0"
+"@tiinex/core": "^0.31.0"
 ```
 
 VS Code resolves only the public `@tiinex/core/portable-entry` export (plus the public `package.json` export for version qualification). It does not import private Core source paths and does not ask Core to add new subpaths merely to reproduce the old copied tree.

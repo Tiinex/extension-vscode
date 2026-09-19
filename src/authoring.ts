@@ -17,6 +17,7 @@ export interface ArtifactDraftParent {
   workspaceId?: string;
   root?: string;
   reference?: string;
+  qualifiedRecord?: Record<string, unknown>;
 }
 
 export interface ArtifactDraftSpec {
@@ -106,6 +107,19 @@ function plannedArtifact(result: any, proposalId: string): any {
   return planned;
 }
 
+export async function qualifyArtifactDraftParent(extensionPath: string, parentArtifact: ArtifactDraftParent): Promise<Record<string, unknown>> {
+  const sourcePath = parentArtifact.root
+    ? safeTarget(parentArtifact.root, safeRelativePath(parentArtifact.path))
+    : '';
+  if (!sourcePath) throw new Error('tiinex.authoring.parent-source-required');
+  const runtime = await prepareBundledRuntime(extensionPath, nodeExecutable());
+  try {
+    return await projectAuthoringParent(runtime, sourcePath, String(parentArtifact.reference || parentArtifact.path));
+  } finally {
+    await runtime.dispose();
+  }
+}
+
 export async function prepareArtifactDraft(extensionPath: string, spec: ArtifactDraftSpec): Promise<PreparedArtifactDraft> {
   const root = required(spec.root, 'tiinex.authoring.repository-required');
   const title = required(spec.title, 'tiinex.authoring.title-required');
@@ -126,9 +140,12 @@ export async function prepareArtifactDraft(extensionPath: string, spec: Artifact
     let parentReference = '';
     if (parentArtifact) {
       parentReference = String(parentArtifact.reference || (parentArtifact.workspaceId && parentArtifact.workspaceId !== spec.workspaceId ? `${parentArtifact.workspaceId}::${safeRelativePath(parentArtifact.path)}` : safeRelativePath(parentArtifact.path)));
-      const parentSourcePath = parentArtifact.root ? safeTarget(parentArtifact.root, safeRelativePath(parentArtifact.path)) : parentPath ? safeTarget(scratch, parentPath) : '';
-      if (!parentSourcePath) throw new Error('tiinex.authoring.parent-source-required');
-      parentRecord = await projectAuthoringParent(runtime, parentSourcePath, parentReference);
+      if (parentArtifact.qualifiedRecord) parentRecord = parentArtifact.qualifiedRecord;
+      else {
+        const parentSourcePath = parentArtifact.root ? safeTarget(parentArtifact.root, safeRelativePath(parentArtifact.path)) : parentPath ? safeTarget(scratch, parentPath) : '';
+        if (!parentSourcePath) throw new Error('tiinex.authoring.parent-source-required');
+        parentRecord = await projectAuthoringParent(runtime, parentSourcePath, parentReference);
+      }
     }
     const proposal = authoringProposal({ workspaceId: spec.workspaceId, schemaId, title, values: spec.values, targetDirectory: spec.targetDirectory || '' }, parentReference, parentRecord);
     const plan = await projectArtifactMaterialization(runtime, scratch, [proposal]);
@@ -158,10 +175,13 @@ export async function writePreparedArtifactDraft(extensionPath: string, draft: P
   try {
     let parentRecord: Record<string, unknown> | null = null;
     if (draft.parentArtifact) {
-      const parentSourcePath = draft.parentArtifact.root
-        ? safeTarget(draft.parentArtifact.root, safeRelativePath(draft.parentArtifact.path))
-        : safeTarget(draft.root, safeRelativePath(draft.parentArtifact.path));
-      parentRecord = await projectAuthoringParent(runtime, parentSourcePath, draft.parentPath);
+      if (draft.parentArtifact.qualifiedRecord) parentRecord = draft.parentArtifact.qualifiedRecord;
+      else {
+        const parentSourcePath = draft.parentArtifact.root
+          ? safeTarget(draft.parentArtifact.root, safeRelativePath(draft.parentArtifact.path))
+          : safeTarget(draft.root, safeRelativePath(draft.parentArtifact.path));
+        parentRecord = await projectAuthoringParent(runtime, parentSourcePath, draft.parentPath);
+      }
     }
     const proposal = authoringProposal({ workspaceId: draft.workspaceId, schemaId: draft.schemaId, title: draft.title, values: draft.values, targetDirectory: draft.targetDirectory }, draft.parentPath, parentRecord);
     const plan = await projectArtifactMaterialization(runtime, draft.root, [proposal]);

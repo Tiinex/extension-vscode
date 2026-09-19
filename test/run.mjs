@@ -311,8 +311,8 @@ await test('extension contributes stable Discovery, Incoming, Outgoing and Trans
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.package' && /outgoingRoot/.test(item.when || '') && !/canPackage/.test(item.when || '') && item.group === 'inline@1'));
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.close' && /outgoingRoot/.test(item.when || '')));
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.newHandoff' && /outgoingWorkspace/.test(item.when || '') && /outgoingWorkspaceArchive/.test(item.when || '') && item.group === 'inline@1'));
-  assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.attachHandoff' && /outgoingHandoffUnattached/.test(item.when || '')));
-  assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.detachHandoff' && /outgoingHandoffAttached/.test(item.when || '')));
+  assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.attachHandoff' && /outgoing(Local|Incoming)HandoffUnattached/.test(item.when || '')));
+  assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.detachHandoff' && /outgoing(Local|Incoming)HandoffAttached/.test(item.when || '')));
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.copyTransportText' && /outgoingHandoffAttached/.test(item.when || '') && item.group === 'inline@1'));
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.omitWorkspacePayload' && /outgoingWorkspaceDescriptorEmbedded/.test(item.when || '')));
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.embedWorkspacePayload' && /outgoingWorkspaceDescriptorCheckout/.test(item.when || '')));
@@ -332,7 +332,7 @@ await test('extension contributes stable Discovery, Incoming, Outgoing and Trans
   assert.ok(tiinexExplorerMenus.some((item) => item.command === 'tiinex.artifact.new' && /explorerResourceIsFolder/.test(item.when || '')));
   assert.ok(tiinexExplorerMenus.some((item) => item.command === 'tiinex.artifact.newFeedback' && /explorerResourceIsFolder/.test(item.when || '')));
   assert.ok(tiinexExplorerMenus.some((item) => item.command === 'tiinex.artifact.newHandoff' && /explorerResourceIsFolder/.test(item.when || '')));
-  assert.ok(tiinexExplorerMenus.some((item) => item.command === 'tiinex.artifact.attachHandoff' && item.when === '!explorerResourceIsFolder && resourceExtname == .md'));
+  assert.ok(tiinexExplorerMenus.some((item) => item.command === 'tiinex.artifact.attachHandoff' && /resourceFilename\s*=~\s*\/\\\.trace\\\.md\$\//.test(item.when || '')));
   const viewTitleMenus = manifest.contributes?.menus?.['view/title'] || [];
   assert.ok(viewTitleMenus.some((item) => item.command === 'tiinex.artifact.new' && item.when === 'view == tiinex.discovery' && item.group === 'navigation@1'));
   assert.ok(viewTitleMenus.some((item) => item.command === 'tiinex.artifact.newFeedback' && item.when === 'view == tiinex.discovery' && item.group === 'navigation@2'));
@@ -608,7 +608,7 @@ await test('operator README and deterministic GIF runbook describe the stabilize
   assert.match(readme, /one \*\*Display Options\*\* control/);
   assert.match(readme, /green \*\*qualified match\*\*/);
   assert.match(readme, /docs\/GIF-CAPTURE\.md/);
-  assert.match(readme, /"@tiinex\/core": "\^0\.7\.0"/);
+  assert.match(readme, /"@tiinex\/core": "\^0\.31\.0"/);
   if (process.env.TIINEX_LOCAL_CORE_ACCEPTANCE === '1') {
     assert.match(manifest.dependencies['@tiinex/core'], /^file:/);
     assert.equal(lock.packages[''].dependencies['@tiinex/core'], manifest.dependencies['@tiinex/core']);
@@ -616,8 +616,8 @@ await test('operator README and deterministic GIF runbook describe the stabilize
     const installedCore = JSON.parse(await fs.readFile(path.join(root, 'node_modules', '@tiinex', 'core', 'package.json'), 'utf8'));
     assert.equal(lock.packages['node_modules/@tiinex/core'].version, installedCore.version);
   } else {
-    assert.equal(manifest.dependencies['@tiinex/core'], '^0.7.0');
-    assert.equal(lock.packages['node_modules/@tiinex/core'].version, '0.7.0');
+    assert.equal(manifest.dependencies['@tiinex/core'], '^0.31.0');
+    assert.equal(lock.packages['node_modules/@tiinex/core'].version, '0.31.0');
   }
   for (const section of ['Clip 1 — Display Options', 'Clip 2 — Incoming exact qualified match', 'Clip 3 — Outgoing Handoff and Pack safety', 'Clip 4 — Staging and commit-message ergonomics']) assert.match(capture, new RegExp(section));
   assert.match(capture, /does not replace the required Sigma Windows observation/);
@@ -802,7 +802,7 @@ await test('post-stage Git policy is singular, SCM-first, debounced and keeps le
   assert.match(extension, /registerGitAutomation\(context, extensionPath\)/);
   assert.match(automation, /const DEBOUNCE_MS = 750/);
   assert.match(automation, /watchGitRepositoryStates/);
-  const automatic = automation.slice(automation.indexOf('const evaluate = async'), automation.indexOf('const schedule ='));
+  const automatic = automation.slice(automation.indexOf('const prepareAutomatic = async'), automation.indexOf('const schedule ='));
   assert.match(automatic, /stageAll:\s*false/);
   assert.match(automatic, /requireNoUnstaged:\s*true/);
   assert.match(automatic, /requireQualifiedTiinex:\s*false/);
@@ -1162,11 +1162,23 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(panel, /Attach to Outgoing/);
   assert.match(panel, /Preview/);
   assert.match(panel, /repeatable-section/);
+  assert.match(panel, /__tiinexSetTemplateValue/);
+  assert.match(panel, /addEventListener\('change',applyTemplate\)/);
+  assert.match(panel, /addEventListener\('input',applyTemplate\)/);
+  assert.match(panel, /applyTemplate\(\);/);
+  assert.match(panel, /Array\.isArray\(value\)/);
+  assert.match(panel, /panel\.dispose\(\)/);
   assert.match(panel, /fieldAssists/);
   assert.match(tree, /beginArtifactAuthoring/);
   assert.match(tree, /loadArtifactAuthoringCatalog/);
   assert.match(tree, /pickArtifactSchema/);
   assert.match(tree, /pickArtifactParent/);
+  assert.match(tree, /Parent Workspace/);
+  assert.match(tree, /label: 'Leaves'/);
+  assert.match(tree, /label: 'Full lineage'/);
+  assert.match(tree, /parent\.role === 'loaded-leaf-candidate'/);
+  assert.match(tree, /stat\(safeTarget\(choice\.root, normalizePath\(parent\.path\)\)\)/);
+  assert.match(tree, /qualifyArtifactDraftParent/);
   assert.match(tree, /showArtifactAuthoring/);
   assert.match(tree, /loadArtifactAuthoringModel\(this\.extensionPath, schemaId, transition\)/);
   assert.match(tree, /schemaId === 'tiinex\.handoff\.v1' && options\.attachAvailable/);
@@ -1181,10 +1193,15 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(tree, /pickArtifactSchema\(catalog, preselectedSchemaId\)/);
   assert.match(tree, /register\('tiinex\.artifact\.newFeedback', \(resource\?: vscode\.Uri\) => this\.beginArtifactAuthoring\(resource, 'tiinex\.feedback\.v1'\)\)/);
   assert.match(tree, /register\('tiinex\.artifact\.newHandoff', \(resource\?: vscode\.Uri\) => this\.beginArtifactAuthoring\(resource, 'tiinex\.handoff\.v1'\)\)/);
+  assert.match(tree, /bounded-work/);
+  assert.match(tree, /'Required Context': 'none'/);
   assert.doesNotMatch(tree, /newHandoffFromExplorer/);
   assert.match(tree, /attachHandoffFromExplorer/);
-  assert.match(tree, /throw new Error\(`tiinex\.authoring\.schema-not-creatable:\$\{preselectedSchemaId\}`\)/);
-  assert.match(tree, /if \(accepted !== action\) throw new Error\('tiinex\.authoring\.cancelled'\)/);
+  assert.match(tree, /return exact \|\| null/);
+  assert.match(tree, /authoring is not currently qualified by Core\. No artifact was written/);
+  assert.match(tree, /preselectedSchemaId/);
+  assert.doesNotMatch(tree, /Create exact Core-qualified/);
+  assert.doesNotMatch(tree, /tiinex\.authoring\.cancelled/);
   assert.match(tree, /decorateOutgoingWorkspaceFileNodes/);
   assert.match(tree, /Local Workspace source was not selected/);
   assert.match(tree, /routeId: routeChoiceKey\(\{ pointerless: true \}\)/);
@@ -1427,6 +1444,25 @@ await test('file-safe Incoming conflicts retain exact Git sides, preserve binary
       requireNoConflictMarkers: true
     }), 'tiinex.git.unresolved-conflict-markers:text.txt');
   } finally { await fs.rm(tmp, { recursive: true, force: true }); }
+});
+
+
+await test('Artifact Authoring host UX keeps repair and direct-create behavior bounded by Core', async () => {
+  const fs = await import('node:fs/promises');
+  const root = path.resolve(HERE, '..');
+  const extension = await fs.readFile(path.join(root, 'src', 'extension.ts'), 'utf8');
+  const bootstrap = await fs.readFile(path.join(root, 'src', 'tiinex', 'bootstrap.ts'), 'utf8');
+  const panel = await fs.readFile(path.join(root, 'src', 'artifactAuthoringPanel.ts'), 'utf8');
+  const manifest = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8'));
+  assert.match(extension, /tiinex\.artifact\.repair/);
+  assert.match(extension, /Core has no deterministic repair/);
+  assert.match(extension, /editor\.action\.quickFix/);
+  assert.ok(manifest.contributes.commands.some((item) => item.command === 'tiinex.artifact.repair'));
+  assert.ok(manifest.contributes.menus['tiinex.explorer.actions'].some((item) => item.command === 'tiinex.artifact.repair'));
+  assert.match(bootstrap, /findings\.join\('\\n'\)/);
+  assert.match(bootstrap, /tiinex\.authoring\.parent-blocked/);
+  assert.match(panel, /await handlers\.create/);
+  assert.match(panel, /panel\.dispose\(\)/);
 });
 
 await test('installed Core exposes Handoff reference fields as validation-only authoring gaps', async () => {
@@ -1817,7 +1853,7 @@ await test('installed Core editor assistance withholds mixed-revision schema lin
     const organization = await projectEditorAssistanceText(runtime, root, organizationPath, organizationMarkdown);
     const orgDocument = organization.documents[0];
     assert.equal(orgDocument.validator.authorityState, 'unavailable');
-    assert.equal(orgDocument.validator.authorityBasis, 'declared-current-schema-exact-source-target');
+    assert.equal(orgDocument.validator.authorityBasis, 'unavailable');
     assert.ok(orgDocument.validator.authorityFindings?.some((item) => /substitutes source authority/.test(item)));
     assert.ok(orgDocument.diagnostics.some((item) => item.code === 'audit.schema-authority.unqualified'));
 
@@ -1825,8 +1861,10 @@ await test('installed Core editor assistance withholds mixed-revision schema lin
     const roleMarkdown = '# Continuity Context\n\n- Envelope Schema: [tiinex.root.v1](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.schemas/tiinex.root.v1.schema.md)\n- Current\n  - Current Schema: [tiinex.party.role.v1](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.schemas/party/role/tiinex.party.role.v1.schema.md)\n  - Created At: 2026-09-06 20:00:00\n  - Summary: fixture\n  - Status: accepted/local\n  - Why: fixture\n\n---\n\n# Role\n';
     await fs.writeFile(path.join(root, rolePath), roleMarkdown, 'utf8');
     const role = await projectEditorAssistanceText(runtime, root, rolePath, roleMarkdown);
-    assert.equal(role.documents[0].validator.authorityState, 'qualified');
-    assert.equal(role.documents[0].validator.authorityBasis, 'qualified-workspace-local-authority');
+    assert.equal(role.documents[0].validator.authorityState, 'unavailable');
+    assert.equal(role.documents[0].validator.authorityBasis, 'unavailable');
+    assert.ok(role.documents[0].validator.authorityFindings?.some((item) => /substitutes source authority/.test(item)));
+    assert.ok(role.documents[0].diagnostics.some((item) => item.code === 'audit.schema-authority.unqualified'));
 
     const legacyIntegrityTarget = 'https://github.com/Tiinex/docs/blob/4cb7046454f1cf75333097fc1a3d4562838afc26/.topics/.validators/sha256-base64url-c14n-v2.validator.md';
     const preferredIntegrityTarget = 'https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md';
