@@ -2025,6 +2025,13 @@ await test('diagnostics controller captures unsaved bytes before debounce and di
   assert.doesNotMatch(source, /Save the artifact to run exact shared Tiinex validation/);
 });
 
+await test('native Quick Fixes include deterministic shared-Core actions qualified with explicit host resolution evidence', async () => {
+  const fs = await import('node:fs/promises');
+  const source = await fs.readFile(path.resolve(HERE, '..', 'src', 'diagnostics.ts'), 'utf8');
+  assert.match(source, /startsWith\('deterministic-shared-core'\)/);
+  assert.doesNotMatch(source, /qualification === 'deterministic-shared-core'/);
+});
+
 await test('native Quick Fixes are a thin projection of shared-Core diagnostics, ranges and replacement bytes', async () => {
   const fs = await import('node:fs/promises');
   const source = await fs.readFile(path.resolve(HERE, '..', 'src', 'diagnostics.ts'), 'utf8');

@@ -281,11 +281,11 @@ export class TiinexDiagnosticsController implements vscode.Disposable {
     if (document.isClosed || !eligible(document)) return [];
     const key = document.uri.toString();
     let projectedActions = this.actions.get(key) || [];
-    if (!projectedActions.some((item) => item.kind === 'replace-document' && item.qualification === 'deterministic-shared-core')) {
+    if (!projectedActions.some((item) => item.kind === 'replace-document' && String(item.qualification || '').startsWith('deterministic-shared-core'))) {
       await this.refresh(document);
       projectedActions = this.actions.get(key) || [];
     }
-    return projectedActions.filter((item) => item.kind === 'replace-document' && item.qualification === 'deterministic-shared-core').map((item) => {
+    return projectedActions.filter((item) => item.kind === 'replace-document' && String(item.qualification || '').startsWith('deterministic-shared-core')).map((item) => {
       const diagnosticCodes = new Set((item.diagnosticCodes || []).map((value: unknown) => String(value)));
       const matchingDiagnostics = context.diagnostics.filter((diagnostic: vscode.Diagnostic) => !diagnosticCodes.size || diagnosticCodes.has(diagnosticCode(diagnostic.code)));
       if (diagnosticCodes.size && !matchingDiagnostics.length) return null;
