@@ -1160,6 +1160,10 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(panel, /cannot be written by the current Core creation contract/);
   assert.doesNotMatch(panel, /Additional carrier Roles/);
   assert.match(panel, /Attach to Outgoing/);
+  assert.match(panel, /Close when done/);
+  assert.match(panel, /closeWhenDone/);
+  assert.match(panel, /submission\.closeWhenDone !== false/);
+  assert.match(panel, /type: 'created'/);
   assert.match(panel, /Preview/);
   assert.match(panel, /repeatable-section/);
   assert.match(panel, /__tiinexSetTemplateValue/);
@@ -1187,6 +1191,11 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(tree, /openArtifactAuthoringPanel/);
   assert.match(tree, /ensureOutgoingAuthoringRoot/);
   assert.match(tree, /trackOutgoingHandoff/);
+  assert.match(tree, /root: parentRoot/);
+  assert.match(tree, /root: local\.choice\.root/);
+  assert.match(tree, /Participant Role ·/);
+  assert.match(tree, /pointer pending Pack/);
+  assert.match(tree, /participant pointer/);
   assert.match(tree, /attachOutgoingHandoffNode/);
   assert.match(tree, /detachOutgoingHandoffNode/);
   assert.match(tree, /async beginArtifactAuthoring\(resource\?: vscode\.Uri, preselectedSchemaId = ''\)/);
@@ -1211,6 +1220,7 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(tree, /Local Workspace source was not selected/);
   assert.match(tree, /routeId: routeChoiceKey\(\{ pointerless: true \}\)/);
   assert.doesNotMatch(tree, /This Outgoing continues an Incoming Handoff carrier, so Pack needs at least one attached Handoff route/);
+  assert.match(tree, /void vscode\.window\.showInformationMessage\(`Created \${draft\.path}`\)/);
   assert.match(tree, /refreshDiscoveryAfterPack/);
   assert.match(tree, /participantRoles: item\.participants/);
   assert.match(tree, /workspaceSourceOverrides/);

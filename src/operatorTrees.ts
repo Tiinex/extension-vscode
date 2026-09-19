@@ -2618,8 +2618,8 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
           } catch (error) {
             followUpError = shortMessage(error);
           }
-          await vscode.window.showInformationMessage(`Created ${draft.path}`);
-          if (followUpError) await vscode.window.showWarningMessage(`Artifact was created, but post-create UI/Outgoing follow-up was incomplete: ${followUpError}`);
+          void vscode.window.showInformationMessage(`Created ${draft.path}`);
+          if (followUpError) void vscode.window.showWarningMessage(`Artifact was created, but post-create UI/Outgoing follow-up was incomplete: ${followUpError}`);
         }
       });
     } catch (error) {
@@ -2645,7 +2645,15 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
         await vscode.window.showInformationMessage('Tiinex: New Handoff leaf action is available only on a current lineage leaf.');
         return;
       }
-      const parentArtifact: ArtifactDraftParent = { path: node.data.artifact.path, markdown: node.data.artifact.markdown };
+      const parentPath = normalizePath(node.data.artifact.path);
+      const parentRoot = this.effectiveOutgoingWorkspaceRoot(workspace);
+      const parentArtifact: ArtifactDraftParent = {
+        path: parentPath,
+        markdown: node.data.artifact.markdown,
+        workspaceId: workspace.workspaceId,
+        root: parentRoot,
+        reference: parentPath
+      };
       await this.showArtifactAuthoring(workspace, 'tiinex.handoff.v1', parentArtifact, { attachAvailable: true, attachDefault: true });
       return;
     }
@@ -2659,7 +2667,14 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     }
     const selectedOutgoing = this.localOutgoingWorkspaceForChoice(local.choice);
     const workspace = selectedOutgoing || this.workspaceFromLocalChoice(local.choice);
-    const parentArtifact: ArtifactDraftParent = { path: localArtifact.path, markdown: localArtifact.markdown };
+    const parentPath = normalizePath(localArtifact.path);
+    const parentArtifact: ArtifactDraftParent = {
+      path: parentPath,
+      markdown: localArtifact.markdown,
+      workspaceId: local.choice.workspaceId,
+      root: local.choice.root,
+      reference: parentPath
+    };
     await this.showArtifactAuthoring(workspace, 'tiinex.handoff.v1', parentArtifact, { attachAvailable: Boolean(selectedOutgoing), attachDefault: Boolean(selectedOutgoing) });
   }
 
@@ -3383,6 +3398,18 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     const workspaceId = node.data.workspaceId || '';
     if (!workspaceId) return null;
     if (node.data.kind === 'workspace') return this.logicalWorkspaceRootChildren(section, workspaceId, node.data.packagePath || '');
+    if (section === 'outgoing' && node.data.kind === 'draft' && node.data.draftId) {
+      const tracked = this.outgoing?.drafts.find((item) => item.id === node.data.draftId);
+      if (!tracked) return [];
+      return tracked.participants.map((participant, index) => new OperatorNode({
+        kind: 'projectedFile', section: 'outgoing', id: `outgoing:participant-role:${tracked.id}:${index + 1}`,
+        label: `Participant Role · ${participant.label}`,
+        description: 'pointer pending Pack',
+        tooltip: `${participant.reference}
+Core will materialize the participant Role pointer during carrier manufacture.`,
+        contextValue: 'tiinex.outgoingParticipantRolePointerPreview', workspaceId
+      }));
+    }
 
     if (node.data.kind === 'directory' && node.data.pathPrefix?.startsWith('logical-files:')) {
       const prefix = node.data.pathPrefix.slice('logical-files:'.length);
@@ -3462,8 +3489,15 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
         .filter((item) => item.draft.workspaceId === workspaceId && Boolean(item.writtenPath) && item.routeIncluded)
         .map((item) => new OperatorNode({
           kind: 'draft', section: 'outgoing', id: `outgoing:draft:${item.id}`, label: item.draft.title,
-          description: item.writtenPath ? (item.routeIncluded ? 'handoff · route included' : 'handoff · written') : 'handoff · preview only',
+          description: item.writtenPath
+            ? `${item.routeIncluded ? 'handoff · route included' : 'handoff · written'}${item.participants.length ? ` · ${item.participants.length} participant pointer${item.participants.length === 1 ? '' : 's'} pending` : ''}`
+            : 'handoff · preview only',
+          tooltip: item.participants.length
+            ? `${item.draft.path}
+${item.participants.map((participant) => `Participant Role: ${participant.label} → ${participant.reference}`).join('\n')}`
+            : item.draft.path,
           contextValue: item.writtenPath ? (item.routeIncluded ? 'tiinex.outgoingDraftRoute' : 'tiinex.outgoingDraftWritten') : 'tiinex.outgoingDraft',
+          collapsible: item.participants.length ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None,
           draftId: item.id, workspaceId
         }));
     }
