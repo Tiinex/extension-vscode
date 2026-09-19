@@ -340,17 +340,36 @@ export interface HandoffLeavesResult {
   pointerless: { selectionLabel: string; packageRole: string; manufactureState: string; blockerCode: string; consequence: string };
 }
 
-export async function projectEditorAssistance(runtime: PackageRuntime, materialRoot: string, focusPath: string, runner: ProcessRunner = runProcess): Promise<EditorAssistanceResult> {
+export async function projectEditorAssistance(runtime: PackageRuntime, materialRoot: string, focusPath: string, referenceResolutionsOrRunner: any[] | ProcessRunner = [], runner: ProcessRunner = runProcess): Promise<EditorAssistanceResult> {
   if (!materialRoot || !focusPath) throw new Error('tiinex.editor-assistance.material-root-or-focus-missing');
-  return runTiinexJson<EditorAssistanceResult>(runtime, ['project-editor-assistance', materialRoot, '--focus', focusPath, '--compact'], runner);
+  const referenceResolutions = typeof referenceResolutionsOrRunner === 'function' ? [] : referenceResolutionsOrRunner;
+  const effectiveRunner = typeof referenceResolutionsOrRunner === 'function' ? referenceResolutionsOrRunner : runner;
+  if (!referenceResolutions.length) return runTiinexJson<EditorAssistanceResult>(runtime, ['project-editor-assistance', materialRoot, '--focus', focusPath, '--compact'], effectiveRunner);
+  const scratch = await mkdtemp(path.join(os.tmpdir(), 'tiinex-vscode-editor-'));
+  const resolutions = path.join(scratch, 'reference-resolutions.json');
+  try {
+    await writeFile(resolutions, JSON.stringify(referenceResolutions), 'utf8');
+    return await runTiinexJson<EditorAssistanceResult>(runtime, ['project-editor-assistance', materialRoot, '--focus', focusPath, '--reference-resolutions', resolutions, '--compact'], effectiveRunner);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
 }
 
-export async function projectEditorAssistanceText(runtime: PackageRuntime, materialRoot: string, focusPath: string, markdown: string, runner: ProcessRunner = runProcess): Promise<EditorAssistanceResult> {
+export async function projectEditorAssistanceText(runtime: PackageRuntime, materialRoot: string, focusPath: string, markdown: string, referenceResolutionsOrRunner: any[] | ProcessRunner = [], runner: ProcessRunner = runProcess): Promise<EditorAssistanceResult> {
+  const referenceResolutions = typeof referenceResolutionsOrRunner === 'function' ? [] : referenceResolutionsOrRunner;
+  const effectiveRunner = typeof referenceResolutionsOrRunner === 'function' ? referenceResolutionsOrRunner : runner;
   const scratch = await mkdtemp(path.join(os.tmpdir(), 'tiinex-vscode-editor-'));
   const overlay = path.join(scratch, 'overlay.md');
+  const resolutions = path.join(scratch, 'reference-resolutions.json');
   try {
     await writeFile(overlay, String(markdown ?? ''), 'utf8');
-    return await runTiinexJson<EditorAssistanceResult>(runtime, ['project-editor-assistance', materialRoot, '--focus', focusPath, '--overlay', overlay, '--compact'], runner);
+    const args = ['project-editor-assistance', materialRoot, '--focus', focusPath, '--overlay', overlay];
+    if (referenceResolutions.length) {
+      await writeFile(resolutions, JSON.stringify(referenceResolutions), 'utf8');
+      args.push('--reference-resolutions', resolutions);
+    }
+    args.push('--compact');
+    return await runTiinexJson<EditorAssistanceResult>(runtime, args, effectiveRunner);
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }

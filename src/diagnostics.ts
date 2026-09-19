@@ -1,10 +1,12 @@
 import { createHash } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import * as vscode from 'vscode';
 import { preferredNodeExecutable } from './host/nodeExecutable';
-import { prepareBundledRuntime, projectEditorAssistance, projectEditorAssistanceText } from './tiinex/bootstrap';
+import { prepareBundledRuntime, prepareWorkspaceCoreRuntime, projectEditorAssistance, projectEditorAssistanceText } from './tiinex/bootstrap';
 import { relativeRepositoryPath } from './core/repositoryPath';
 import { repositoryRootForResource } from './vscode/gitApi';
 import { LatestWinsKeyedQueue } from './core/latestWinsQueue';
+import { resolveVersionBearingPermalinks } from './permalinkResolution';
 
 export interface DiagnosticsSnapshot {
   uri: string;
@@ -57,6 +59,21 @@ function projectedDiagnosticRange(document: vscode.TextDocument, item: { line?: 
   return new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 0));
 }
 
+async function prepareDiagnosticsRuntime(extensionPath: string) {
+  const nodeExecutable = preferredNodeExecutable(vscode.workspace.getConfiguration('tiinex').get('nodePath', '').toString().trim());
+  for (const folder of vscode.workspace.workspaceFolders || []) {
+    let manifest: { name?: string } | null = null;
+    try { manifest = JSON.parse(await readFile(vscode.Uri.joinPath(folder.uri, 'package.json').fsPath, 'utf8')) as { name?: string }; }
+    catch { continue; }
+    if (String(manifest?.name || '') !== '@tiinex/core') continue;
+    // If a Local Core Workspace is explicitly open, diagnostics must execute
+    // that exact source runtime. Falling back to a stale bundled Core would
+    // make source locations and Quick Fixes disagree with the visible source.
+    return prepareWorkspaceCoreRuntime(folder.uri.fsPath, nodeExecutable);
+  }
+  return prepareBundledRuntime(extensionPath, nodeExecutable);
+}
+
 export class TiinexDiagnosticsController implements vscode.Disposable {
   private readonly collection = vscode.languages.createDiagnosticCollection('tiinex');
   private readonly actions = new Map<string, any[]>();
@@ -79,6 +96,12 @@ export class TiinexDiagnosticsController implements vscode.Disposable {
     this.disposables.push(vscode.workspace.onDidChangeTextDocument((event: { document: vscode.TextDocument }) => { if (eligible(event.document)) this.scheduleInMemoryRefresh(event.document); }));
     this.disposables.push(vscode.workspace.onDidCloseTextDocument((document: vscode.TextDocument) => this.forget(document)));
     this.disposables.push(vscode.window.onDidChangeActiveTextEditor(() => this.updateActiveStatus()));
+    this.disposables.push(vscode.workspace.onDidChangeWorkspaceFolders(() => {
+      const prior = this.runtimePromise;
+      this.runtimePromise = null;
+      if (prior) void prior.then((runtime) => runtime.dispose()).catch(() => undefined);
+      void this.refreshActive();
+    }));
     this.disposables.push(vscode.languages.registerCodeActionsProvider([
       { scheme: 'file', language: 'markdown' },
       { scheme: 'file', pattern: '**/*.md' },
@@ -91,7 +114,7 @@ export class TiinexDiagnosticsController implements vscode.Disposable {
   }
 
   private runtime() {
-    return this.runtimePromise ??= prepareBundledRuntime(this.extensionPath, preferredNodeExecutable(vscode.workspace.getConfiguration('tiinex').get('nodePath', '').toString().trim()));
+    return this.runtimePromise ??= prepareDiagnosticsRuntime(this.extensionPath);
   }
 
   private emit(snapshot: DiagnosticsSnapshot | null): void {
@@ -181,9 +204,12 @@ export class TiinexDiagnosticsController implements vscode.Disposable {
       if (!this.liveDocument(request)) return this.snapshots.get(key) || null;
       const materialRoot = await repositoryRootForResource(sourcePath);
       const focusPath = relativeRepositoryPath(materialRoot, sourcePath);
+      const live = this.liveDocument(request);
+      const markdownForResolution = content === null ? String(live?.getText() || '') : content;
+      const referenceResolutions = await resolveVersionBearingPermalinks(markdownForResolution, focusPath);
       const result = content === null
-        ? await projectEditorAssistance(runtime, materialRoot, focusPath)
-        : await projectEditorAssistanceText(runtime, materialRoot, focusPath, content);
+        ? await projectEditorAssistance(runtime, materialRoot, focusPath, referenceResolutions)
+        : await projectEditorAssistanceText(runtime, materialRoot, focusPath, content, referenceResolutions);
       const document = this.liveDocument(request);
       if (!document) return this.snapshots.get(key) || null;
       const projected = result.documents?.[0];

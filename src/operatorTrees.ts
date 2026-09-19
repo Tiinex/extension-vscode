@@ -583,6 +583,19 @@ export class TiinexOperatorTrees implements vscode.Disposable {
           }
         },
         {
+          id: 'conversation', label: 'Open conversation / brainstorm',
+          description: 'Open an interactive bounded conversation with the receiving role. No automatic result artifact, disposition, or return package is expected; continue in the live conversation until participants explicitly decide otherwise.',
+          defaults: {
+            Purpose: 'Open an interactive bounded conversation with the receiving role about the subject described by this Handoff.',
+            Transfers: [{ name: 'bounded-conversation', fields: { 'Transfer Kind': 'work', Description: 'Participate in the bounded live conversation or brainstorm. Respond conversationally; do not turn the exchange into a durable result artifact unless explicitly requested.' } }],
+            ...noneSections,
+            'Signal Kind': 'none',
+            'Signal Meaning': 'This Handoff opens a live conversation. No automatic completion artifact, disposition, or return package is expected; continue the conversation until the participants explicitly choose a next action.',
+            'Does Not Mean': 'Opening the conversation does not transfer implementation authority or require the receiving role to manufacture a durable discussion result.',
+            'Must Not Be Used To Claim': 'Do not infer implementation, acceptance, completion, or a required return artifact from conversational participation alone.'
+          }
+        },
+        {
           id: 'discuss', label: 'Discuss / review',
           description: 'Prefill the complete bounded review Handoff contract. Choose Title and endpoints; no implementation authority is implied.',
           defaults: {
@@ -610,12 +623,27 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       const workspace = this.localOutgoingWorkspaceForChoice(choice) || this.workspaceFromLocalChoice(choice);
       const root = await this.ensureOutgoingAuthoringRoot(workspace);
       const catalog = await loadArtifactAuthoringCatalog(this.extensionPath, root);
-      const schema = await this.pickArtifactSchema(catalog, preselectedSchemaId);
+      let parentArtifact: ArtifactDraftParent | null | undefined;
+      let schema = await this.pickArtifactSchema(catalog, preselectedSchemaId);
+      if (!schema && preselectedSchemaId) {
+        // Some schemas are qualified only as continuations because their exact
+        // inherited creation shape requires an explicit Parent. Resolve that
+        // Parent first, then ask Core for the continuation contract instead of
+        // pretending the root-creation catalog is authoritative for this host action.
+        parentArtifact = await this.parentArtifactForResource(choice, catalog, resource);
+        if (parentArtifact === undefined) return;
+        if (parentArtifact) {
+          try {
+            const continuationModel = await loadArtifactAuthoringModel(this.extensionPath, preselectedSchemaId, 'continue-from-record');
+            if (continuationModel.status === 'ready') schema = { schemaId: preselectedSchemaId, label: continuationModel.label };
+          } catch { /* fall through to the bounded Core-unqualified notice below */ }
+        }
+      }
       if (!schema) {
-        if (preselectedSchemaId) await vscode.window.showWarningMessage(`Tiinex ${preselectedSchemaId} authoring is not currently qualified by Core. No artifact was written.`);
+        if (preselectedSchemaId) await vscode.window.showWarningMessage(`Tiinex ${preselectedSchemaId} authoring is not currently qualified by Core for the selected context. No artifact was written.`);
         return;
       }
-      const parentArtifact = await this.parentArtifactForResource(choice, catalog, resource);
+      if (parentArtifact === undefined) parentArtifact = await this.parentArtifactForResource(choice, catalog, resource);
       if (parentArtifact === undefined) return;
       const targetDirectory = await this.targetDirectoryForResource(root, resource);
       await this.showArtifactAuthoring(workspace, schema.schemaId, parentArtifact, {
@@ -2574,18 +2602,24 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
           const draft = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `Tiinex creating ${model.label}`, cancellable: false }, () => this.prepareAuthoringSubmission(workspace, schemaId, submission, parentArtifact, options.targetDirectory || ''));
           const writtenPath = await writePreparedArtifactDraft(this.extensionPath, draft);
           this.localLeafContextCache.delete(workspace.workspaceId);
-          if (submission.attachToOutgoing) {
-            if (!attachAvailable || schemaId !== 'tiinex.handoff.v1') throw new Error('tiinex.authoring.attach-outgoing-unavailable');
-            const qualified = await qualifyExistingHandoff(this.extensionPath, root, workspace.workspaceId, draft.path);
-            this.trackOutgoingHandoff(workspace, draft, writtenPath, qualified.from, qualified.to, [], 'created', true);
-            workspace.payloadIncluded = true;
-            workspace.checkoutRepository = undefined;
-            workspace.checkoutRef = undefined;
+          let followUpError = '';
+          try {
+            if (submission.attachToOutgoing) {
+              if (!attachAvailable || schemaId !== 'tiinex.handoff.v1') throw new Error('tiinex.authoring.attach-outgoing-unavailable');
+              const qualified = await qualifyExistingHandoff(this.extensionPath, root, workspace.workspaceId, draft.path);
+              this.trackOutgoingHandoff(workspace, draft, writtenPath, qualified.from, qualified.to, [], 'created', true);
+              workspace.payloadIncluded = true;
+              workspace.checkoutRepository = undefined;
+              workspace.checkoutRef = undefined;
+            }
+            this.refresh();
+            await this.updateUiContexts();
+            if (submission.attachToOutgoing) await this.revealOutgoingPanel();
+          } catch (error) {
+            followUpError = shortMessage(error);
           }
-          this.refresh();
-          await this.updateUiContexts();
-          if (submission.attachToOutgoing) await this.revealOutgoingPanel();
           await vscode.window.showInformationMessage(`Created ${draft.path}`);
+          if (followUpError) await vscode.window.showWarningMessage(`Artifact was created, but post-create UI/Outgoing follow-up was incomplete: ${followUpError}`);
         }
       });
     } catch (error) {

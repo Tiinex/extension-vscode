@@ -1191,14 +1191,19 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(tree, /detachOutgoingHandoffNode/);
   assert.match(tree, /async beginArtifactAuthoring\(resource\?: vscode\.Uri, preselectedSchemaId = ''\)/);
   assert.match(tree, /pickArtifactSchema\(catalog, preselectedSchemaId\)/);
+  assert.match(tree, /loadArtifactAuthoringModel\(this\.extensionPath, preselectedSchemaId, 'continue-from-record'\)/);
+  assert.match(tree, /continuationModel\.status === 'ready'/);
   assert.match(tree, /register\('tiinex\.artifact\.newFeedback', \(resource\?: vscode\.Uri\) => this\.beginArtifactAuthoring\(resource, 'tiinex\.feedback\.v1'\)\)/);
   assert.match(tree, /register\('tiinex\.artifact\.newHandoff', \(resource\?: vscode\.Uri\) => this\.beginArtifactAuthoring\(resource, 'tiinex\.handoff\.v1'\)\)/);
   assert.match(tree, /bounded-work/);
+  assert.match(tree, /Open conversation \/ brainstorm/);
+  assert.match(tree, /No automatic completion artifact, disposition, or return package is expected/);
+  assert.match(tree, /'Signal Kind': 'none'/);
   assert.match(tree, /'Required Context': 'none'/);
   assert.doesNotMatch(tree, /newHandoffFromExplorer/);
   assert.match(tree, /attachHandoffFromExplorer/);
   assert.match(tree, /return exact \|\| null/);
-  assert.match(tree, /authoring is not currently qualified by Core\. No artifact was written/);
+  assert.match(tree, /authoring is not currently qualified by Core for the selected context\. No artifact was written/);
   assert.match(tree, /preselectedSchemaId/);
   assert.doesNotMatch(tree, /Create exact Core-qualified/);
   assert.doesNotMatch(tree, /tiinex\.authoring\.cancelled/);
@@ -1462,6 +1467,9 @@ await test('Artifact Authoring host UX keeps repair and direct-create behavior b
   assert.match(bootstrap, /findings\.join\('\\n'\)/);
   assert.match(bootstrap, /tiinex\.authoring\.parent-blocked/);
   assert.match(panel, /await handlers\.create/);
+  assert.match(panel, /id=\"actions\"/);
+  assert.match(panel, /setBusy\(action,true\)/);
+  assert.match(panel, /actions\.style\.display=busyNow\?'none':''/);
   assert.match(panel, /panel\.dispose\(\)/);
 });
 
@@ -1983,6 +1991,22 @@ await test('in-memory editor assistance stages exact unsaved overlay bytes only 
   await assert.rejects(fs.access(path.dirname(stagedPath)));
 });
 
+await test('editor assistance forwards explicit permalink resolution evidence through temporary shared-Core input only', async () => {
+  const fs = await import('node:fs/promises');
+  let stagedResolutionPath = '';
+  const runtime = { root: '/runtime', entrypoint: '/runtime/tiinex-portable.mjs', nodeExecutable: 'node', dispose: async () => undefined };
+  const markdown = '# Continuity Context\n\n- Current Schema: [tiinex.topic.v1](https://github.com/Tiinex/docs/blob/foobar/schema.md)\n';
+  const facts = [{ path: '.topics/draft.trace.md', target: 'https://github.com/Tiinex/docs/blob/foobar/schema.md', exact: { state: 'missing' }, latest: { state: 'resolved', target: 'https://github.com/Tiinex/docs/blob/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/schema.md', sha256: 'latest' } }];
+  const fx = fakeRunner(async (_key, _index, call) => {
+    stagedResolutionPath = call.args[call.args.indexOf('--reference-resolutions') + 1];
+    assert.equal(path.basename(stagedResolutionPath), 'reference-resolutions.json');
+    assert.deepEqual(JSON.parse(await fs.readFile(stagedResolutionPath, 'utf8')), facts);
+    return { code: 0, stdout: JSON.stringify({ status: 'invalid', documents: [] }), stderr: '' };
+  });
+  await projectEditorAssistanceText(runtime, '/repo', '.topics/draft.trace.md', markdown, facts, fx.runner);
+  await assert.rejects(fs.access(path.dirname(stagedResolutionPath)));
+});
+
 await test('diagnostics controller captures unsaved bytes before debounce and discards stale or closed-editor work', async () => {
   const fs = await import('node:fs/promises');
   const source = await fs.readFile(path.resolve(HERE, '..', 'src', 'diagnostics.ts'), 'utf8');
@@ -1992,6 +2016,9 @@ await test('diagnostics controller captures unsaved bytes before debounce and di
   assert.match(source, /onDidCloseTextDocument/);
   assert.match(source, /CHANGE_DEBOUNCE_MS = 250/);
   assert.match(source, /projectEditorAssistanceText/);
+  assert.match(source, /prepareWorkspaceCoreRuntime/);
+  assert.match(source, /resolveVersionBearingPermalinks/);
+  assert.match(source, /referenceResolutions/);
   assert.match(source, /requestFor\(document, generation, 'in-memory', document\.getText\(\)\)/);
   assert.match(source, /document\.version === request\.version/);
   assert.ok((source.match(/this\.liveDocument\(request\)/g) || []).length >= 4);

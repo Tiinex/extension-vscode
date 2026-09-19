@@ -149,7 +149,7 @@ function html(input: ArtifactAuthoringPanelInput, nonce: string): string {
 ${assistLists}
 <div id="artifactFields">${model.sections.map(sectionHtml).join('')}</div>
 ${capabilityGaps}
-<div id="error" class="error"></div><div class="actions"><span id="status" class="status"></span><button type="button" class="secondary" id="cancel">Cancel</button><button type="button" class="secondary" id="preview">Preview</button><button type="button" id="create">Create</button></div>
+<div id="error" class="error"></div><div class="actions" id="actions"><span id="status" class="status"></span><button type="button" class="secondary" id="cancel">Cancel</button><button type="button" class="secondary" id="preview">Preview</button><button type="button" id="create">Create</button></div>
 <script nonce="${nonce}">
 const vscode=acquireVsCodeApi();
 const model=${safeJson(model)};const fieldAssists=${safeJson(fieldAssists)};const templates=${safeJson(templates)};const initialValues=${safeJson(input.initialValues || {})};
@@ -174,9 +174,11 @@ function valueOf(el){return String(el?.value??'').trim()}
 function collect(){const values={};for(const section of qa('.ordinary-section'))for(const el of qa('[data-field]',section)){const v=valueOf(el);if(v)values[el.dataset.field]=v}for(const section of qa('.group-section')){const group={};for(const el of qa('[data-field]',section)){const v=valueOf(el);if(v)group[el.dataset.field]=v}values[section.dataset.input]=group}for(const section of qa('.repeatable-section')){if(q('[data-none]',section)?.checked){values[section.dataset.input]='none';continue}const entries=[];for(const item of qa('.repeatable-item',section)){const name=valueOf(q('[data-entry-name]',item));const fields={};for(const el of qa('[data-field]',item)){const v=valueOf(el);if(v)fields[el.dataset.field]=v}entries.push({name,fields})}values[section.dataset.input]=entries}return values}
 function validate(){const errors=[];if(!valueOf(q('#title')))errors.push('Title is required.');for(const el of qa('[required]')){if(!valueOf(el)&&el.offsetParent!==null)errors.push((el.dataset.field||'Required field')+' is required.')}for(const section of qa('.repeatable-section')){if(q('[data-none]',section)?.checked)continue;for(const item of qa('.repeatable-item',section)){if(!valueOf(q('[data-entry-name]',item)))errors.push(section.dataset.input+': entry name is required.')}}errors.push(...assistCapabilityErrors());return [...new Set(errors)]}
 function submission(){return{workspaceId:q('#workspace').value,title:valueOf(q('#title')),templateId:q('#template')?.value||'',values:collect(),attachToOutgoing:!!q('#attach')?.checked}}
-function send(action){const errors=validate();const box=q('#error');if(errors.length){box.style.display='block';box.textContent=errors.join(' ');return}box.style.display='none';q('#status').textContent=action==='preview'?'Preparing preview…':'Creating…';vscode.postMessage({type:action,payload:submission()})}
-q('#preview').addEventListener('click',()=>send('preview'));q('#create').addEventListener('click',()=>send('create'));q('#cancel').addEventListener('click',()=>vscode.postMessage({type:'cancel'}));
-window.addEventListener('message',event=>{const msg=event.data||{};q('#status').textContent=msg.message||'';if(msg.type==='error'){const box=q('#error');box.style.display='block';box.textContent=msg.message||'Blocked.'}if(msg.type==='created')q('#create').disabled=true});
+let busy=false;
+function setBusy(action,busyNow){busy=busyNow;const actions=q('#actions');if(action==='create'&&actions)actions.style.display=busyNow?'none':'';for(const button of [q('#cancel'),q('#preview'),q('#create')])if(button)button.disabled=busyNow}
+function send(action){if(busy)return;const errors=validate();const box=q('#error');if(errors.length){box.style.display='block';box.textContent=errors.join(' ');return}box.style.display='none';setBusy(action,true);q('#status').textContent=action==='preview'?'Preparing preview…':'Creating…';vscode.postMessage({type:action,payload:submission()})}
+q('#preview').addEventListener('click',()=>send('preview'));q('#create').addEventListener('click',()=>send('create'));q('#cancel').addEventListener('click',()=>{if(!busy)vscode.postMessage({type:'cancel'})});
+window.addEventListener('message',event=>{const msg=event.data||{};q('#status').textContent=msg.message||'';if(msg.type==='status')setBusy('preview',false);if(msg.type==='error'){setBusy(msg.action==='preview'?'preview':'create',false);const box=q('#error');box.style.display='block';box.textContent=msg.message||'Blocked.'}});
 </script></body></html>`;
 }
 
@@ -199,7 +201,7 @@ export function openArtifactAuthoringPanel(input: ArtifactAuthoringPanelInput, h
       }
     } catch (error) {
       const text = error instanceof Error ? error.message : String(error);
-      await panel.webview.postMessage({ type: 'error', message: text });
+      await panel.webview.postMessage({ type: 'error', action: message?.type === 'preview' ? 'preview' : 'create', message: text });
     }
   });
   return panel;
