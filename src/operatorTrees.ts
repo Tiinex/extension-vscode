@@ -1868,11 +1868,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     }
   }
 
-  private async resolveRootOutgoingAllocation(prefixValue: string, folderOverride = ''): Promise<
-    | { state: 'none' }
-    | { state: 'ambiguous' }
-    | { state: 'ready'; packagePath: string; dimension: string; filename: string }
-  > {
+  private async resolveRootOutgoingAllocation(prefixValue: string, folderOverride = ''): Promise<any> {
     const prefix = rootOutgoingPrefix(prefixValue);
     const folder = String(folderOverride || this.outgoingFolder()).trim();
     if (!folder) return { state: 'none' };
@@ -1892,9 +1888,12 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
         // because they happen to share a filename prefix.
       } finally { await prepared?.runtime.dispose(); }
     }
-    const selection = chooseNextMajorParent(prefix, qualified);
-    if (selection.state !== 'ready' || !selection.candidate) return { state: selection.state };
-    return { state: 'ready', packagePath: selection.candidate.packagePath, dimension: selection.candidate.dimension, filename: selection.candidate.filename };
+    const selection: any = chooseNextMajorParent(prefix, qualified);
+    if (selection.state === 'none') return { state: 'none' } as any;
+    if (selection.state === 'ambiguous') return { state: 'ambiguous' } as any;
+    const candidate = selection.candidate;
+    if (!candidate) return { state: 'none' } as any;
+    return { state: 'ready', packagePath: candidate.packagePath, dimension: candidate.dimension, filename: candidate.filename } as any;
   }
 
   private async ensureRootOutgoingAllocation(folder: string): Promise<boolean> {

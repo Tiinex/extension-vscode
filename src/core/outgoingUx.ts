@@ -51,11 +51,16 @@ export interface QualifiedCarrierFrontierCandidate {
   mtimeMs: number;
 }
 
+export type QualifiedCarrierFrontierSelection =
+  | { state: 'none' }
+  | { state: 'ambiguous' }
+  | { state: 'ready'; candidate: QualifiedCarrierFrontierCandidate };
+
 /** Choose the one safe same-prefix frontier that may be advanced as the next
  * explicit Major. Parallel branches at the highest Major are intentionally
  * ambiguous: the host must not silently choose one and discard the other.
  */
-export function chooseNextMajorParent(prefixValue: string, candidates: QualifiedCarrierFrontierCandidate[]): { state: 'none' | 'ready' | 'ambiguous'; candidate?: QualifiedCarrierFrontierCandidate } {
+export function chooseNextMajorParent(prefixValue: string, candidates: QualifiedCarrierFrontierCandidate[]): QualifiedCarrierFrontierSelection {
   const prefix = rootOutgoingPrefix(prefixValue);
   const qualified = candidates.map((candidate) => {
     const dimension = String(candidate.dimension || '').trim();
