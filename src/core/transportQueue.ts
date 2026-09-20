@@ -1,3 +1,18 @@
+export interface StoredTransportReceiptRoute {
+  routeId: string;
+  workspaceId: string;
+  handoffPath: string;
+  recipientLabel?: string;
+  transportText: string;
+}
+
+export interface StoredTransportReceipt {
+  packagePath: string;
+  sha256: string;
+  presentationLabel: string;
+  routes: StoredTransportReceiptRoute[];
+}
+
 export interface StoredTransportQueueItem {
   packagePath: string;
   /** null means every exact qualified route in the package is active. */

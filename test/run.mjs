@@ -13,7 +13,7 @@ import { alphabeticalWorkspaceIds, artifactsForLineageMode, currentRoleArtifacts
 import { artifactReferenceAvailable, markdownLinkTargets, materialTargetKey, resolveArtifactReference } from '../dist/core/artifactNavigation.js';
 import { receivedHandoffContext, withWorkspaceRoots } from '../dist/core/receivedHandoff.js';
 import { operatorMatchedWorkspaceIds, resolvePrioritizedWorkspaceDuplicates } from '../dist/core/sourceSelection.js';
-import { carrierFilenameForCollisionInstance, comparePackageRecency, inheritedOutgoingLabel, majorOutgoingLabel } from '../dist/core/outgoingUx.js';
+import { carrierFilenameForCollisionInstance, carrierPrefixForDimension, chooseNextMajorParent, comparePackageRecency, inheritedOutgoingLabel, majorOutgoingLabel, rootOutgoingLabel, rootOutgoingPrefix } from '../dist/core/outgoingUx.js';
 import { projectArtifactAuthoringModel } from '../dist/core/artifactAuthoringModel.js';
 import { artifactCreationReady, requireArtifactCreationReady } from '../dist/core/artifactAuthoringQualification.js';
 import { mergeTransportRouteSelection, selectedTransportRouteIds, transportPrepared, transportPreparedKey } from '../dist/core/transportQueue.js';
@@ -182,6 +182,22 @@ await test('Outgoing source UX inherits Incoming carrier identity and shares Dis
   assert.equal(majorOutgoingLabel('tiinex-core-004-1', '004', '005'), 'tiinex-core-005');
   assert.equal(majorOutgoingLabel('docs-003-2-2-1-anchor-to-anchor.handoff-package.zip', '003-2-2', '004'), 'docs-004');
   assert.equal(majorOutgoingLabel('004-1', '004', '005'), '005');
+  assert.equal(rootOutgoingPrefix('test-test-002'), 'test-test');
+  assert.equal(rootOutgoingLabel('test-test-002'), 'test-test-001');
+  assert.equal(rootOutgoingLabel('TEST test'), 'test-test-001');
+  assert.equal(carrierPrefixForDimension('test-test-001-cartographer-to-pilot.handoff-package.zip', '001'), 'test-test');
+  assert.equal(carrierPrefixForDimension('tiinex-vscode-002-1-1-anchor-to-anchor.handoff-package.zip', '002-1-1'), 'tiinex-vscode');
+  assert.equal(carrierPrefixForDimension('001-1-anchor-to-anchor.handoff-package.zip', '001-1'), '');
+  const nextMajor = chooseNextMajorParent('test-test', [
+    { packagePath: '/out/one.zip', filename: 'test-test-001-cartographer-to-pilot.handoff-package.zip', dimension: '001', mtimeMs: 10 },
+    { packagePath: '/out/two.zip', filename: 'test-test-001-1-pilot-to-anchor.handoff-package.zip', dimension: '001-1', mtimeMs: 20 }
+  ]);
+  assert.equal(nextMajor.state, 'ready');
+  assert.equal(nextMajor.candidate?.dimension, '001-1');
+  assert.equal(chooseNextMajorParent('test-test', [
+    { packagePath: '/out/a.zip', filename: 'test-test-001-1-a-to-b.handoff-package.zip', dimension: '001-1', mtimeMs: 20 },
+    { packagePath: '/out/b.zip', filename: 'test-test-001-2-a-to-c.handoff-package.zip', dimension: '001-2', mtimeMs: 21 }
+  ]).state, 'ambiguous');
   assert.equal(carrierFilenameForCollisionInstance('tiinex-core-005.handoff-package.zip', 1), 'tiinex-core-005.handoff-package.zip');
   assert.equal(carrierFilenameForCollisionInstance('tiinex-core-005.handoff-package.zip', 2), 'tiinex-core-005--2.handoff-package.zip');
 });
@@ -266,8 +282,8 @@ await test('extension contributes stable Discovery, Incoming, Outgoing and Trans
   assert.equal(commands.get('tiinex.outgoing.copyTransportText')?.icon, '$(copy)');
   assert.equal(commands.get('tiinex.transport.refresh')?.icon, '$(refresh)');
   assert.equal(commands.get('tiinex.transport.send')?.title, 'Send to Transport');
-  assert.equal(commands.get('tiinex.transport.copyPackage')?.title, 'Copy Package');
-  assert.equal(commands.get('tiinex.transport.copyPackage')?.icon, '$(archive)');
+  assert.equal(commands.get('tiinex.transport.copyPackage')?.title, 'Reveal Package');
+  assert.equal(commands.get('tiinex.transport.copyPackage')?.icon, '$(folder-opened)');
   assert.equal(commands.get('tiinex.transport.copyText')?.title, 'Copy Transport Text');
   assert.equal(commands.get('tiinex.transport.copyText')?.icon, '$(copy)');
   assert.notEqual(commands.get('tiinex.transport.copyPackage')?.icon, commands.get('tiinex.transport.copyText')?.icon);
@@ -322,6 +338,8 @@ await test('extension contributes stable Discovery, Incoming, Outgoing and Trans
   assert.equal(attachFromWorkspaceMenu?.group, 'inline@2');
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.attachHandoff' && /outgoing(Local|Incoming)HandoffUnattached/.test(item.when || '')));
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.detachHandoff' && /outgoing(Local|Incoming)HandoffAttached/.test(item.when || '')));
+  assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.removeParticipantPointer' && /outgoingParticipantRolePointerPreview/.test(item.when || '') && /outgoingParticipantRolePointerProjected/.test(item.when || '')));
+  assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.removeHandoffPointer' && /outgoingHandoffPointerProjected/.test(item.when || '')));
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.copyTransportText' && /outgoingHandoffAttached/.test(item.when || '') && item.group === 'inline@1'));
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.omitWorkspacePayload' && /outgoingWorkspaceDescriptorEmbedded/.test(item.when || '')));
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.embedWorkspacePayload' && /outgoingWorkspaceDescriptorCheckout/.test(item.when || '')));
@@ -368,7 +386,9 @@ await test('extension contributes stable Discovery, Incoming, Outgoing and Trans
   assert.match(treeSource, /canPickMany: true/);
   assert.match(treeSource, /tiinex\.incomingWorkspaceExact/);
   assert.match(treeSource, /qualified match/);
-  assert.match(treeSource, /queueTransportPackage\(built\.outputPath, '', true\)/);
+  assert.match(treeSource, /queueBuiltTransportPackage\(built\.outputPath, built\.routeRoutingTexts, true\)/);
+  assert.match(treeSource, /rememberManufacturedTransportReceipt/);
+  assert.match(treeSource, /manufacturedTransportReceipt\(resolved, sha256\)/);
   assert.match(treeSource, /projectPackageTransport\(runtime, resolved/);
   assert.match(treeSource, /for \(const item of orientationRoutes\)/);
   assert.match(treeSource, /projectPackageTransport\(runtime, resolved, `\$\{workspaceId\}:\$\{handoffPath\}`\)/);
@@ -377,6 +397,10 @@ await test('extension contributes stable Discovery, Incoming, Outgoing and Trans
   assert.match(treeSource, /tiinex\.transport\.prepared\.v1/);
   assert.doesNotMatch(treeSource, /Cold start: read Start directly/);
   assert.doesNotMatch(treeSource, /chooseOutgoingCarrierParent/);
+  assert.match(treeSource, /resolveRootOutgoingAllocation\(prefix/);
+  assert.match(treeSource, /ensureRootOutgoingAllocation\(outputDirectory\)/);
+  assert.match(treeSource, /packageParentDimension/);
+  assert.match(treeSource, /localMajorParent/);
   assert.equal(Boolean(manifest.contributes?.problemMatchers), false);
   const extensionSource = await fs.readFile(path.resolve(HERE, '..', 'src', 'extension.ts'), 'utf8');
   assert.match(extensionSource, /trees\.beginHandoffAuthoring\(\)/);
@@ -1189,6 +1213,11 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(tree, /beginArtifactAuthoring/);
   assert.match(tree, /attachHandoffFromWorkspace/);
   assert.match(tree, /Handoff artifacts only; newest modified first/);
+  assert.doesNotMatch(tree, /toLocaleString\(\)/);
+  assert.match(tree, /timestamp\(artifactFeedTime\(artifact\)\.timestampMs\)/);
+  assert.match(tree, /private async revealTransportPackage/);
+  assert.match(tree, /revealInExplorer/);
+  assert.match(tree, /revealFileInOS/);
   assert.match(tree, /indexed\.artifacts\.filter\(\(artifact\) => artifact\.schemaId === 'tiinex\.handoff\.v1'\)/);
   assert.match(tree, /const participants = await this\.pickAdditionalCarrierRoles\(qualified\.from, qualified\.to\)/);
   assert.match(tree, /loadArtifactAuthoringCatalog/);
@@ -1268,11 +1297,18 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(packageBuilder, /prepareSelectedCoreManufactureRuntime/);
   assert.match(packageBuilder, /runtime bytes differ from the carried Core source/);
   assert.match(packageBuilder, /selected-core-runtime/);
-  assert.match(packageBuilder, /--collision-instance/);
+  assert.doesNotMatch(packageBuilder, /--collision-instance/);
+  assert.match(packageBuilder, /host owns only the operator-facing outer transport basename\/prefix/);
+  assert.match(packageBuilder, /input\.expectedCarrierFilename \|\| coreFilename/);
   assert.match(packageBuilder, /PackageRouteInput/);
   assert.match(packageBuilder, /workspace-routes\.json/);
   assert.match(packageBuilder, /workspace-targets\.json/);
   assert.match(packageBuilder, /--workspace-targets/);
+  assert.match(packageBuilder, /carrier-profile\.json/);
+  assert.match(packageBuilder, /tiinex-vscode-explicit-outgoing-workspaces-v1/);
+  assert.match(packageBuilder, /--carrier-profile/);
+  assert.match(packageBuilder, /if \(!packageParentPath\)/);
+  assert.match(packageBuilder, /explicit-vscode-outgoing-workspace-selection/);
   assert.match(packageBuilder, /participantRoles/);
   assert.match(packageBuilder, /shouldExposeWorkspaceRoot/);
   assert.match(packageBuilder, /ignoredPathsWithoutRepository/);
@@ -1604,6 +1640,12 @@ await test('multi-Incoming and Merge/Replace remain selection-first, dry until f
   assert.match(tree, /participant Role pointer · pending Pack/);
   assert.match(tree, /endpoint Role pointer · pending Pack/);
   assert.match(tree, /Handoff pointer · pending Pack/);
+  assert.match(tree, /tiinex\.outgoingParticipantRolePointerProjected/);
+  assert.match(tree, /tiinex\.outgoingHandoffPointerProjected/);
+  assert.match(tree, /removeOutgoingParticipantPointer/);
+  assert.match(tree, /tracked\.participants\.splice\(index, 1\)/);
+  assert.match(tree, /removeOutgoingHandoffPointer/);
+  assert.match(tree, /tracked\.participants = \[\]/);
   assert.match(tree, /001-1-READ-BEFORE-PROCEEDING\.trace\.md/);
   assert.match(tree, /001-2-bootstrap\.zip/);
   assert.match(tree, /001-tiinex-handoff-package\.trace\.md/);
@@ -1624,9 +1666,9 @@ await test('multi-Incoming and Merge/Replace remain selection-first, dry until f
   assert.match(tree, /pointerTargetChildren/);
   assert.match(tree, /workspaceFileTreeChildren/);
   assert.match(tree, /logicalLineageChildren/);
-  assert.match(tree, /outgoingSeriesPrefix/);
-  assert.match(tree, /nextOutgoingSeriesLabel/);
-  assert.match(tree, /Outgoing prefix\. Shared Tooling owns the qualified package filename; Tiinex adds the 000-series suffix after you choose the prefix\./);
+  assert.match(tree, /rootOutgoingPrefix/);
+  assert.match(tree, /rootOutgoingLabel/);
+  assert.match(tree, /Outgoing prefix\. Keep this stable; Tiinex adds the carrier Major \(001 for a fresh root\) separately\./);
   assert.doesNotMatch(tree, /Outgoing label\. A new lineage starts at carrier major 001/);
   assert.match(tree, /this\.materialProvider\.uriFor/);
   assert.match(tree, /openWorkspaceMarkdownNode/);
@@ -1667,7 +1709,7 @@ await test('multi-Incoming and Merge/Replace remain selection-first, dry until f
   assert.match(packageBuilder, /assertExpectedCarrierDimension\(built/);
   assert.match(packageBuilder, /assertExpectedCarrierFilename\(preview/);
   assert.match(packageBuilder, /assertExpectedCarrierFilename\(built/);
-  assert.match(tree, /expectedCarrierFilename = this\.outgoingProjectedFilename\(\)/);
+  assert.match(tree, /expectedCarrierFilename: this\.outgoingProjectedFilename\(\)/);
   assert.match(tree, /fileArtifactRoots\('discovery',[\s\S]*index\.packagePath/);
   assert.match(tree, /index\.carrierFiles/);
   assert.match(apply, /entry\.name === '\.git'/);
@@ -1831,6 +1873,25 @@ await test('pointerless Pack passes the displayed filename and verifies both rec
   assert.match(branch, /assertExactWorkspaceSelection\(preview/);
   assert.match(branch, /assertExactWorkspaceSelection\(built/);
   assert.match(branch, /publishCarrierFile/);
+});
+
+await test('routed Handoff Pack takes filename and collision allocation from qualified Core preview', async () => {
+  const fs = await import('node:fs/promises');
+  const root = path.resolve(HERE, '..');
+  const builder = await fs.readFile(path.join(root, 'src', 'packageBuilder.ts'), 'utf8');
+  const start = builder.indexOf('const args = await handoffArgs');
+  const branch = builder.slice(start, builder.indexOf('return { outputPath', start));
+  assert.match(branch, /const basePreview = await manufactureHandoffPackage/);
+  assert.match(branch, /const baseFilename = qualifiedCoreCarrierFilename\(basePreview\)/);
+  assert.match(branch, /nextCarrierCollisionInstance\(folder, baseFilename\)/);
+  assert.match(branch, /const finalArgs = collisionInstance > 1/);
+  assert.match(branch, /assertCoreCarrierFilenameStable\(preview, built\)/);
+  assert.doesNotMatch(branch, /assertExpectedCarrierFilename\(/);
+  const tree = await fs.readFile(path.join(root, 'src', 'operatorTrees.ts'), 'utf8');
+  const treeStart = tree.indexOf('const selected = candidateItems.length');
+  const treeBranch = tree.slice(treeStart, tree.indexOf('this.outgoing.lastBuilt', treeStart));
+  assert.doesNotMatch(treeBranch, /expectedCarrierFilename/);
+  assert.doesNotMatch(treeBranch, /refreshOutgoingCollisionInstance/);
 });
 
 await test('carrier publication does not overwrite different bytes and accepts an exact retry', async () => {

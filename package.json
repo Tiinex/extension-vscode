@@ -51,6 +51,8 @@
     "onCommand:tiinex.outgoing.attachHandoff",
     "onCommand:tiinex.outgoing.attachHandoffFromWorkspace",
     "onCommand:tiinex.outgoing.detachHandoff",
+    "onCommand:tiinex.outgoing.removeParticipantPointer",
+    "onCommand:tiinex.outgoing.removeHandoffPointer",
     "onCommand:tiinex.discovery.displayOptions",
     "onCommand:tiinex.incoming.displayOptions",
     "onCommand:tiinex.outgoing.displayOptions",
@@ -346,6 +348,16 @@
         "icon": "$(unlink)"
       },
       {
+        "command": "tiinex.outgoing.removeParticipantPointer",
+        "title": "Remove Participant Pointer",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "tiinex.outgoing.removeHandoffPointer",
+        "title": "Remove Handoff Pointer",
+        "icon": "$(trash)"
+      },
+      {
         "command": "tiinex.outgoing.copyTransportText",
         "title": "Copy Handoff Transport Text",
         "icon": "$(copy)"
@@ -362,8 +374,8 @@
       },
       {
         "command": "tiinex.transport.copyPackage",
-        "title": "Copy Package",
-        "icon": "$(archive)"
+        "title": "Reveal Package",
+        "icon": "$(folder-opened)"
       },
       {
         "command": "tiinex.transport.copyText",
@@ -664,6 +676,16 @@
           "group": "inline@1"
         },
         {
+          "command": "tiinex.outgoing.removeParticipantPointer",
+          "when": "view == tiinex.outgoing && (viewItem == tiinex.outgoingParticipantRolePointerPreview || viewItem == tiinex.outgoingParticipantRolePointerProjected)",
+          "group": "inline@1"
+        },
+        {
+          "command": "tiinex.outgoing.removeHandoffPointer",
+          "when": "view == tiinex.outgoing && viewItem == tiinex.outgoingHandoffPointerProjected",
+          "group": "inline@1"
+        },
+        {
           "command": "tiinex.transport.send",
           "when": "view == tiinex.discovery && viewItem == tiinex.discoveryPackage",
           "group": "inline@2"
@@ -819,6 +841,14 @@
         },
         {
           "command": "tiinex.outgoing.detachHandoff",
+          "when": "false"
+        },
+        {
+          "command": "tiinex.outgoing.removeParticipantPointer",
+          "when": "false"
+        },
+        {
+          "command": "tiinex.outgoing.removeHandoffPointer",
           "when": "false"
         },
         {
