@@ -1627,7 +1627,7 @@ await test('multi-Incoming and Merge/Replace remain selection-first, dry until f
   assert.match(tree, /pickerItems\.push\(\{ label: sourceName, kind: vscode\.QuickPickItemKind\.Separator \}\)/);
   assert.match(tree, /seed\?\.kind === 'local'/);
   assert.match(tree, /seed\?\.kind === 'incoming'/);
-  assert.match(tree, /this\.selectOutgoingWorkspaces\(packageParentPath/);
+  assert.match(tree, /this\.selectOutgoingWorkspaces\(resolvedParentPath && !localMajorParent/);
   assert.match(tree, /this\.outgoingProjectedFilename\(\)/);
   assert.match(tree, /const routes = qualifiedRoutes\(parent\.orientation\)/);
   assert.match(tree, /routes\.findIndex/);
@@ -1668,7 +1668,7 @@ await test('multi-Incoming and Merge/Replace remain selection-first, dry until f
   assert.match(tree, /logicalLineageChildren/);
   assert.match(tree, /rootOutgoingPrefix/);
   assert.match(tree, /rootOutgoingLabel/);
-  assert.match(tree, /Outgoing prefix\. Keep this stable; Tiinex adds the carrier Major \(001 for a fresh root\) separately\./);
+  assert.match(tree, /Outgoing prefix\. Keep this stable; Tiinex allocates the first free carrier Major for this prefix in the configured Outgoing folder\./);
   assert.doesNotMatch(tree, /Outgoing label\. A new lineage starts at carrier major 001/);
   assert.match(tree, /this\.materialProvider\.uriFor/);
   assert.match(tree, /openWorkspaceMarkdownNode/);
@@ -1881,17 +1881,17 @@ await test('routed Handoff Pack takes filename and collision allocation from qua
   const builder = await fs.readFile(path.join(root, 'src', 'packageBuilder.ts'), 'utf8');
   const start = builder.indexOf('const args = await handoffArgs');
   const branch = builder.slice(start, builder.indexOf('return { outputPath', start));
-  assert.match(branch, /const basePreview = await manufactureHandoffPackage/);
-  assert.match(branch, /const baseFilename = qualifiedCoreCarrierFilename\(basePreview\)/);
-  assert.match(branch, /nextCarrierCollisionInstance\(folder, baseFilename\)/);
-  assert.match(branch, /const finalArgs = collisionInstance > 1/);
+  assert.match(branch, /const preview = await manufactureHandoffPackage/);
+  assert.match(branch, /qualifiedCoreCarrierFilename\(preview\)/);
   assert.match(branch, /assertCoreCarrierFilenameStable\(preview, built\)/);
+  assert.match(branch, /const filename = checkedCarrierFilename\(String\(input\.expectedCarrierFilename \|\| coreFilename\)\)/);
+  assert.match(branch, /publishCarrierFile\(built\.primaryOutput\.path, folder, filename\)/);
   assert.doesNotMatch(branch, /assertExpectedCarrierFilename\(/);
   const tree = await fs.readFile(path.join(root, 'src', 'operatorTrees.ts'), 'utf8');
   const treeStart = tree.indexOf('const selected = candidateItems.length');
   const treeBranch = tree.slice(treeStart, tree.indexOf('this.outgoing.lastBuilt', treeStart));
-  assert.doesNotMatch(treeBranch, /expectedCarrierFilename/);
-  assert.doesNotMatch(treeBranch, /refreshOutgoingCollisionInstance/);
+  assert.match(treeBranch, /expectedCarrierFilename: this\.outgoingProjectedFilename\(selected\.item\)/);
+  assert.match(treeBranch, /refreshOutgoingCollisionInstance\(outputDirectory, selected\.item\)/);
 });
 
 await test('carrier publication does not overwrite different bytes and accepts an exact retry', async () => {
