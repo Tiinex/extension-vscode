@@ -1,0 +1,150 @@
+const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
+const fs = require('node:fs/promises');
+const path = require('node:path');
+const vscode = require('vscode');
+
+async function run() {
+  const extension = vscode.extensions.getExtension('tiinex.tiinex-vscode');
+  assert.ok(extension, 'Tiinex extension must be available in the real Extension Host');
+  await extension.activate();
+
+  const mode = String(process.env.TIINEX_EXTENSION_HOST_ACCEPTANCE_MODE || '');
+  const restart = Number(process.env.TIINEX_EXTENSION_HOST_ACCEPTANCE_RESTART || 0);
+  const fixturePackage = path.resolve(String(process.env.TIINEX_EXTENSION_HOST_FIXTURE_PACKAGE || ''));
+  const fixtureManifestPath = path.resolve(String(process.env.TIINEX_EXTENSION_HOST_FIXTURE_MANIFEST || ''));
+  const outputDir = path.resolve(String(process.env.TIINEX_EXTENSION_HOST_OUTPUT_DIR || ''));
+  const workspaceRoot = path.resolve(String(process.env.TIINEX_EXTENSION_HOST_WORKSPACE_ROOT || ''));
+  assert.ok(mode === 'local' || mode === 'published', `unexpected acceptance mode: ${mode}`);
+  assert.ok(restart >= 1, `unexpected restart: ${restart}`);
+  assert.ok(fixturePackage && fixtureManifestPath && outputDir && workspaceRoot, 'fixture paths must be supplied by the repository-owned runner');
+
+  const manifest = JSON.parse(await fs.readFile(fixtureManifestPath, 'utf8'));
+  assert.equal(await sha256File(fixturePackage), manifest.package.sha256, 'fixture package SHA-256 must match the pinned manifest');
+  const commands = await vscode.commands.getCommands(true);
+  for (const command of [
+    'tiinex.discovery.setIncoming', 'tiinex.incoming.replace', 'tiinex.outgoing.new', 'tiinex.outgoing.attachHandoff',
+    'tiinex.outgoing.package', 'tiinex.transport.send', 'tiinex.transport.refresh',
+    'tiinex.acceptance.configure', 'tiinex.acceptance.snapshot', 'tiinex.acceptance.corruptParticipantSnapshot'
+  ]) assert.ok(commands.includes(command), `${command} must be registered in Extension Host`);
+  assert.equal(commands.includes('tiinex.outgoing.removeParticipantPointer'), false, 'participant weakening command must not exist');
+
+  const dependencyState = JSON.parse(await fs.readFile(path.join(extension.extensionPath, '.vscode', 'link', 'dependency-mode.json'), 'utf8'));
+  assert.equal(dependencyState.mode, mode, 'Extension Host must see the requested Core dependency mode');
+
+  await vscode.commands.executeCommand('tiinex.acceptance.configure', {
+    incomingPackagePath: fixturePackage,
+    outgoingFolder: outputDir,
+    outgoingWorkspaceId: manifest.workspaceId,
+    participantSelection: 'exact'
+  });
+
+  if (restart === 1) await firstHostRun({ manifest, fixturePackage, outputDir, workspaceRoot });
+  else await restartHostRun({ manifest, fixturePackage });
+
+  const finalSnapshot = await vscode.commands.executeCommand('tiinex.acceptance.snapshot');
+  console.log(JSON.stringify({
+    status: 'ready', mode, restart,
+    incoming: finalSnapshot.incoming.length,
+    transport: finalSnapshot.transport.map((item) => ({ filename: item.filename, routeCount: item.routes.length })),
+    eventTypes: finalSnapshot.events.map((item) => item.type)
+  }));
+}
+
+async function firstHostRun({ manifest, fixturePackage, workspaceRoot }) {
+  await vscode.commands.executeCommand('tiinex.discovery.setIncoming', { data: { packagePath: fixturePackage } });
+  let snapshot = await vscode.commands.executeCommand('tiinex.acceptance.snapshot');
+  assert.equal(snapshot.incoming.length, 1, 'fixture carrier must enter Incoming through the registered command');
+  assert.deepEqual(snapshot.incoming[0].workspaceIds, [manifest.workspaceId]);
+  assert.equal(snapshot.incoming[0].routeCount, 0, 'fixture Incoming must be a qualified pointerless Workspace carrier');
+
+  await vscode.commands.executeCommand('tiinex.transport.send', { data: { packagePath: fixturePackage } });
+  snapshot = await vscode.commands.executeCommand('tiinex.acceptance.snapshot');
+  const pointerless = findTransport(snapshot, fixturePackage);
+  assert.ok(pointerless, 'pointerless Incoming carrier must qualify into Transport through the registered command');
+  assert.equal(pointerless.routes.length, 0, 'pointerless Workspace carrier must expose no synthetic Handoff route');
+  assert.equal(String(pointerless.genericTransportText || '').includes('Continue from'), false, 'pointerless Workspace carrier must expose no synthetic Handoff Continue from text');
+
+  await fs.writeFile(path.join(workspaceRoot, 'landing-marker.txt'), 'local-before-landing\n', 'utf8');
+  await vscode.commands.executeCommand('tiinex.incoming.replace', { data: { packagePath: fixturePackage, workspaceId: manifest.workspaceId } });
+  assert.equal(await fs.readFile(path.join(workspaceRoot, 'landing-marker.txt'), 'utf8'), 'incoming-fixture\n', 'Replace must land the carried source through the production Incoming controller');
+  snapshot = await vscode.commands.executeCommand('tiinex.acceptance.snapshot');
+  assert.deepEqual(snapshot.incoming[0].appliedWorkspaceIds, [manifest.workspaceId], 'successful Replace must mark the exact Workspace applied in this host session');
+  assert.equal(snapshot.events.some((item) => item.type === 'incoming-apply-blocked'), false, 'Incoming Replace must not hit an acceptance blocker');
+
+  await vscode.commands.executeCommand('tiinex.outgoing.new');
+  snapshot = await vscode.commands.executeCommand('tiinex.acceptance.snapshot');
+  assert.ok(snapshot.outgoing, 'registered New Outgoing command must create the production Outgoing controller state');
+  assert.equal(path.resolve(snapshot.outgoing.packageParentPath), path.resolve(fixturePackage), 'Outgoing must continue the exact qualified Incoming carrier');
+  assert.deepEqual(snapshot.outgoing.workspaces.map((item) => [item.workspaceId, item.source]), [[manifest.workspaceId, 'local']], 'acceptance presentation seam must choose the qualified local Workspace source');
+
+  const invalidPath = '.topics/handoffs/invalid-unqualified.trace.md';
+  await fs.mkdir(path.dirname(path.join(workspaceRoot, invalidPath)), { recursive: true });
+  await fs.writeFile(path.join(workspaceRoot, invalidPath), '# invalid handoff\n', 'utf8');
+  await vscode.commands.executeCommand('tiinex.outgoing.attachHandoff', handoffNode(manifest.workspaceId, invalidPath));
+  snapshot = await vscode.commands.executeCommand('tiinex.acceptance.snapshot');
+  assert.equal(snapshot.outgoing.drafts.length, 0, 'invalid/unqualified Handoff must be rejected before it can become a late Pack route');
+  assert.ok(snapshot.events.some((item) => item.type === 'attach-rejected' && item.detail.path === invalidPath), 'early Handoff rejection must be observable in the host gate');
+  await fs.rm(path.join(workspaceRoot, invalidPath), { force: true });
+
+  await vscode.commands.executeCommand('tiinex.acceptance.configure', { participantSelection: 'weaken' });
+  await vscode.commands.executeCommand('tiinex.outgoing.attachHandoff', handoffNode(manifest.workspaceId, manifest.handoffs[0]));
+  snapshot = await vscode.commands.executeCommand('tiinex.acceptance.snapshot');
+  assert.equal(snapshot.outgoing.drafts.length, 0, 'attempted participant-set weakening must prevent Handoff attachment');
+  assert.ok(snapshot.events.some((item) => item.type === 'participant-confirmation' && item.detail.state === 'rejected-weakened-set'), 'the exact-set guard must reject the weakened presentation selection');
+
+  await vscode.commands.executeCommand('tiinex.acceptance.configure', { participantSelection: 'exact' });
+  for (const handoffPath of manifest.handoffs) await vscode.commands.executeCommand('tiinex.outgoing.attachHandoff', handoffNode(manifest.workspaceId, handoffPath));
+  snapshot = await vscode.commands.executeCommand('tiinex.acceptance.snapshot');
+  assert.equal(snapshot.outgoing.drafts.length, 2, 'two qualified Handoffs must be attached through the production controller path');
+  for (const draft of snapshot.outgoing.drafts) {
+    assert.equal(draft.routeIncluded, true);
+    assert.equal(draft.participantProjectionState, 'qualified');
+    assert.deepEqual(draft.participants.map((item) => item.label).sort(), [...manifest.participants].sort(), 'visible participant presentation must match the exact Core-qualified set');
+  }
+
+  await vscode.commands.executeCommand('tiinex.acceptance.corruptParticipantSnapshot');
+  snapshot = await vscode.commands.executeCommand('tiinex.acceptance.snapshot');
+  assert.equal(snapshot.outgoing.drafts.every((draft) => draft.participants.length === 0), true, 'test seam must corrupt only mutable host bookkeeping before Pack');
+
+  await vscode.commands.executeCommand('tiinex.outgoing.package');
+  snapshot = await vscode.commands.executeCommand('tiinex.acceptance.snapshot');
+  assert.equal(snapshot.outgoing, null, 'successful Pack must close the Outgoing context');
+  assert.equal(snapshot.events.some((item) => item.type === 'pack-blocked'), false, 'two-Handoff Pack must not block');
+  const requalifyMessages = snapshot.events
+    .filter((item) => item.type === 'pack-progress')
+    .map((item) => String(item.detail.message || ''))
+    .filter((message) => message.startsWith('Requalifying Core participants for '));
+  assert.equal(requalifyMessages.length, 2, 'Pack must freshly reproject Core participants for each attached Handoff instead of trusting corrupted host snapshots');
+
+  const routed = snapshot.transport.filter((item) => path.resolve(item.packagePath) !== path.resolve(fixturePackage) && item.routes.length === 2);
+  assert.equal(routed.length, 1, 'Pack must produce exactly one Core-qualified two-route carrier in Transport');
+  assert.deepEqual(routed[0].routes.map((item) => item.handoffPath).sort(), [...manifest.handoffs].sort(), 'Transport must expose the exact two qualified Handoff paths');
+  for (const route of routed[0].routes) {
+    assert.ok(route.transportText.includes('Continue from'), 'each routed Transport projection must include exact Handoff continuation text');
+    assert.ok(route.transportText.includes(route.handoffPath) || /001-3-/.test(route.transportText), 'route transport text must carry an exact route pointer projection');
+  }
+  assert.ok(snapshot.events.some((item) => item.type === 'transport-qualified' && item.detail.source === 'queue' && item.detail.routeCount === 2 && path.resolve(String(item.detail.packagePath || '')) === path.resolve(routed[0].packagePath)), 'freshly built carrier must be reopened and qualified through Core before Transport accepts it');
+}
+
+async function restartHostRun({ fixturePackage }) {
+  const snapshot = await vscode.commands.executeCommand('tiinex.acceptance.snapshot');
+  const routed = snapshot.transport.filter((item) => path.resolve(item.packagePath) !== path.resolve(fixturePackage) && item.routes.length === 2);
+  assert.equal(routed.length, 1, 'restart must restore the produced two-route carrier from persisted host queue bookkeeping');
+  assert.ok(snapshot.events.some((item) => item.type === 'transport-qualified' && item.detail.source === 'restore' && item.detail.routeCount === 2 && path.resolve(String(item.detail.packagePath || '')) === path.resolve(routed[0].packagePath)), 'restart must requalify persisted carrier bytes through Core; persisted host bookkeeping cannot substitute semantic qualification');
+  await vscode.commands.executeCommand('tiinex.transport.refresh');
+  const refreshed = await vscode.commands.executeCommand('tiinex.acceptance.snapshot');
+  assert.ok(refreshed.events.some((item) => item.type === 'transport-qualified' && item.detail.source === 'refresh' && item.detail.routeCount === 2), 'explicit Transport refresh must requalify the routed carrier again');
+}
+
+function handoffNode(workspaceId, handoffPath) {
+  return { data: { section: 'outgoing', workspaceId, artifact: { schemaId: 'tiinex.handoff.v1', path: handoffPath } } };
+}
+function findTransport(snapshot, packagePath) {
+  return snapshot.transport.find((item) => path.resolve(item.packagePath) === path.resolve(packagePath));
+}
+async function sha256File(file) {
+  return crypto.createHash('sha256').update(await fs.readFile(file)).digest('hex');
+}
+
+module.exports = { run };

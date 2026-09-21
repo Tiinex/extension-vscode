@@ -51,7 +51,6 @@
     "onCommand:tiinex.outgoing.attachHandoff",
     "onCommand:tiinex.outgoing.attachHandoffFromWorkspace",
     "onCommand:tiinex.outgoing.detachHandoff",
-    "onCommand:tiinex.outgoing.removeParticipantPointer",
     "onCommand:tiinex.outgoing.removeHandoffPointer",
     "onCommand:tiinex.discovery.displayOptions",
     "onCommand:tiinex.incoming.displayOptions",
@@ -269,7 +268,7 @@
       },
       {
         "command": "tiinex.git.commitRepository",
-        "title": "Tiinex: Commit Repository…",
+        "title": "Tiinex: Commit Repository\u2026",
         "icon": "$(check)"
       },
       {
@@ -346,11 +345,6 @@
         "command": "tiinex.outgoing.detachHandoff",
         "title": "Detach Handoff from Outgoing",
         "icon": "$(unlink)"
-      },
-      {
-        "command": "tiinex.outgoing.removeParticipantPointer",
-        "title": "Remove Participant Pointer",
-        "icon": "$(trash)"
       },
       {
         "command": "tiinex.outgoing.removeHandoffPointer",
@@ -453,10 +447,10 @@
             "commit-push"
           ],
           "enumDescriptions": [
-            "Do Nothing — leave staged changes staged; no Tiinex commit or push is initiated.",
-            "Ask — after a stable staged Tiinex state passes the Git safety gates, ask once for that exact staged state: Commit creates the local commit, Commit + Push creates then publishes only that exact commit through the existing push-safety gates, and Cancel leaves staging unchanged.",
-            "Commit — after a stable staged-state event, auto-commit only the exact staged selection when it contains Tiinex Markdown material and passes the Git safety gates; Tiinex qualification is not re-run here.",
-            "Commit + Push — apply the same staged-selection Git safety gates and require an aligned upstream before committing; then push only the exact commit created by that same Tiinex operation."
+            "Do Nothing \u2014 leave staged changes staged; no Tiinex commit or push is initiated.",
+            "Ask \u2014 after a stable staged Tiinex state passes the Git safety gates, ask once for that exact staged state: Commit creates the local commit, Commit + Push creates then publishes only that exact commit through the existing push-safety gates, and Cancel leaves staging unchanged.",
+            "Commit \u2014 after a stable staged-state event, auto-commit only the exact staged selection when it contains Tiinex Markdown material and passes the Git safety gates; Tiinex qualification is not re-run here.",
+            "Commit + Push \u2014 apply the same staged-selection Git safety gates and require an aligned upstream before committing; then push only the exact commit created by that same Tiinex operation."
           ],
           "default": "ask",
           "description": "Post-stage Git policy over a stable staged Tiinex selection. It is independent of tiinex.landing.stage, never performs Stage All, and does not re-run Tiinex qualification before ordinary commit/push."
@@ -676,11 +670,6 @@
           "group": "inline@1"
         },
         {
-          "command": "tiinex.outgoing.removeParticipantPointer",
-          "when": "view == tiinex.outgoing && (viewItem == tiinex.outgoingParticipantRolePointerPreview || viewItem == tiinex.outgoingParticipantRolePointerProjected)",
-          "group": "inline@1"
-        },
-        {
           "command": "tiinex.outgoing.removeHandoffPointer",
           "when": "view == tiinex.outgoing && viewItem == tiinex.outgoingHandoffPointerProjected",
           "group": "inline@1"
@@ -844,10 +833,6 @@
           "when": "false"
         },
         {
-          "command": "tiinex.outgoing.removeParticipantPointer",
-          "when": "false"
-        },
-        {
           "command": "tiinex.outgoing.removeHandoffPointer",
           "when": "false"
         },
@@ -995,7 +980,8 @@
     "dev:link": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ensure-windows-main-host-dev-extension-link.ps1",
     "dev:unlink": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ensure-windows-main-host-dev-extension-link.ps1 -Unlink",
     "test:package": "npm run build && node test/package-integration.mjs",
-    "test:local-core": "node scripts/test-local-core.mjs"
+    "test:local-core": "node scripts/test-local-core.mjs",
+    "test:extension-host": "node scripts/test-extension-host.mjs"
   },
   "dependencies": {
     "@tiinex/core": "^0.35.0"

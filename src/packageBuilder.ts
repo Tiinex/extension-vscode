@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import * as vscode from 'vscode';
+import { extensionHostAcceptanceEnabled, recordExtensionHostAcceptanceEvent } from './vscode/extensionHostAcceptance';
 import { preferredNodeExecutable } from './host/nodeExecutable';
 import { manufactureHandoffPackage, manufactureHandoffPackageDetailed, projectHandoffParticipants, OperatorContextResult, prepareBundledRuntime, prepareHostCoreRuntime, prepareWorkspaceCoreRuntime, projectHandoffLeaves, projectOperatorContext, projectWorkspacePackageSources, WorkspacePackageSourcesResult } from './tiinex/bootstrap';
 import { repositoryRoots } from './vscode/gitApi';
@@ -16,7 +17,7 @@ import { extractZipBuffer, readExactZipEntryFromFile } from './host/zip';
 import { indexLocalWorkspaceFiles } from './carrierIndex';
 import { runChecked, runProcess } from './host/process';
 import { representativeWorkspaceChoicesForRoot } from './core/workspaceChoice';
-import { participantProjectionFromManufactureReceipt, ParticipantProjection, QualifiedParticipantRole } from './core/participantProjection';
+import { ParticipantProjection, QualifiedParticipantRole } from './core/participantProjection';
 import { assertStableQualifiedCarrierAllocation, qualifiedCarrierAllocationFromManufactureReceipt } from './core/carrierAllocation';
 import { carrierFilenameForCollisionInstance } from './core/outgoingUx';
 
@@ -34,8 +35,8 @@ export interface PackageEndpointRoleBinding {
   workspaceId: string;
   path: string;
 }
-export interface PackageRouteInput { routeId: string; participantRoles?: PackageParticipantRole[]; endpointRoles?: PackageEndpointRoleBinding[] }
-export interface PackageBuildInput { routeId: string; routeInputs?: PackageRouteInput[]; workspaceIds: string[]; carrierPrefix?: string; packageParentPath?: string; packageParentRoutePointer?: string; packageParentRouteId?: string; packageConsolidation?: boolean; packageMajorReason?: string; participantRoles?: PackageParticipantRole[]; incomingWorkspaceSources?: IncomingPackageWorkspaceSource[]; workspaceSourceOverrides?: PackageWorkspaceSourceOverride[]; outputDirectory?: string; expectedCarrierDimension?: string; expectedCarrierFilename?: string; collisionInstance?: number; reportProgress?: (message: string) => void }
+export interface PackageRouteInput { routeId: string; endpointRoles?: PackageEndpointRoleBinding[] }
+export interface PackageBuildInput { routeId: string; routeInputs?: PackageRouteInput[]; workspaceIds: string[]; carrierPrefix?: string; packageParentPath?: string; packageParentRoutePointer?: string; packageParentRouteId?: string; packageConsolidation?: boolean; packageMajorReason?: string; incomingWorkspaceSources?: IncomingPackageWorkspaceSource[]; workspaceSourceOverrides?: PackageWorkspaceSourceOverride[]; outputDirectory?: string; expectedCarrierDimension?: string; expectedCarrierFilename?: string; collisionInstance?: number; reportProgress?: (message: string) => void }
 export interface PackageRouteRouting { routeId: string; workspaceId: string; handoffPath: string; recipientLabel?: string; text: string }
 export type PackageParticipantProjection = ParticipantProjection;
 export interface PackageBuildResult { outputPath: string; routingText: string; routeRoutingTexts: PackageRouteRouting[]; autoCopiedTransportText: boolean; routeId: string; routeIds: string[]; workspaceIds: string[] }
@@ -307,6 +308,10 @@ export async function loadHandoffEndpointChoices(extensionPath: string): Promise
 
 export async function announceBuiltCarrier(outputPath: string, label: string, note = ''): Promise<void> {
   const target = path.resolve(outputPath);
+  if (extensionHostAcceptanceEnabled()) {
+    recordExtensionHostAcceptanceEvent('carrier-built-announcement', { outputPath: target, label, note });
+    return;
+  }
   const insideWorkspace = (vscode.workspace.workspaceFolders || []).some((folder: vscode.WorkspaceFolder) => repositoryContainsPath(folder.uri.fsPath, target));
   const revealAction = insideWorkspace ? 'Reveal in Explorer' : 'Open Folder';
   const action = await vscode.window.showInformationMessage(`Tiinex ${label} built.${note ? ` ${note}` : ''}`, revealAction, 'Copy path');
@@ -420,6 +425,45 @@ async function prepareSelectedCoreManufactureRuntime(extensionPath: string, inpu
   return prepareBundledRuntime(extensionPath, nodeExecutable());
 }
 
+function participantProjectionFromCoreResult(projection: any): PackageParticipantProjection {
+  const findings = (Array.isArray(projection?.findings) ? projection.findings : []).map((item: any) => ({
+    severity: String(item?.severity || ''), code: String(item?.code || ''), message: String(item?.message || '')
+  }));
+  if (projection?.status !== 'ready' || projection?.participantAuthority?.state === 'blocked') {
+    return { state: 'blocked', roles: [], detail: presentActionableFindings(projection?.findings || [], projection?.status || 'blocked'), findings };
+  }
+  const roles = (projection?.participantAuthority?.participants || []).map((item: any) => ({
+    label: String(item?.label || '').trim(), reference: String(item?.reference || '').trim(), workspaceId: String(item?.workspaceId || '').trim(), path: String(item?.path || '').trim()
+  }));
+  if (roles.some((item: PackageParticipantRole) => !item.label || !item.reference || !item.workspaceId || !item.path)) {
+    return { state: 'blocked', roles: [], detail: 'Core participant projection was incomplete.', findings };
+  }
+  if (!roles.length) return { state: 'not-established', roles: [], detail: 'Core did not establish any additional semantic participant Role for this current work.', findings };
+  return { state: 'qualified', roles, detail: `${roles.length} Core-qualified semantic participant Role${roles.length === 1 ? '' : 's'}.`, findings };
+}
+
+async function projectExactRouteParticipants(
+  runtime: Awaited<ReturnType<typeof prepareBundledRuntime>>,
+  selectedSources: WorkspaceSource[],
+  route: RouteChoice,
+  scratch: string,
+  input: PackageBuildInput
+): Promise<PackageParticipantProjection> {
+  const args = await handoffArgs(
+    selectedSources,
+    route,
+    [{ route, participantRoles: [], endpointRoles: [] }],
+    scratch,
+    String(input.packageParentPath || ''),
+    String(input.packageMajorReason || '').trim(),
+    String(input.packageParentRoutePointer || ''),
+    String(input.packageParentRouteId || ''),
+    input.packageConsolidation === true,
+    String(input.carrierPrefix || '').trim()
+  );
+  return participantProjectionFromCoreResult(await projectHandoffParticipants(runtime, args));
+}
+
 export async function projectHandoffPackageParticipants(extensionPath: string, input: PackageBuildInput): Promise<PackageParticipantProjection> {
   const scratch = await mkdtemp(path.join(os.tmpdir(), 'tiinex-vscode-participant-projection-'));
   let runtime: Awaited<ReturnType<typeof prepareBundledRuntime>> | null = null;
@@ -443,19 +487,8 @@ export async function projectHandoffPackageParticipants(extensionPath: string, i
     if (missingWorkspaceIds.length && !input.packageParentPath) throw new Error(`tiinex.package-builder.workspace-id-unresolved:${missingWorkspaceIds.join(',')}`);
     if (!selectedSources.length) throw new Error('tiinex.package-builder.no-local-workspace-source');
     if (!selectedSources.some((item) => item.workspaceId === route.workspaceId) && !input.packageParentPath) throw new Error(`tiinex.package-builder.route-workspace-not-selected:${route.workspaceId}`);
-    const args = await handoffArgs(selectedSources, route, [{ route, participantRoles: [], endpointRoles: [] }], scratch, String(input.packageParentPath || ''), String(input.packageMajorReason || '').trim(), String(input.packageParentRoutePointer || ''), String(input.packageParentRouteId || ''), input.packageConsolidation === true, String(input.carrierPrefix || '').trim());
     reportProgress(input, 'Projecting Core-qualified participant authority…');
-    const projection = await projectHandoffParticipants(runtime, args);
-    const findings = (Array.isArray(projection?.findings) ? projection.findings : []).map((item: any) => ({ severity: String(item?.severity || ''), code: String(item?.code || ''), message: String(item?.message || '') }));
-    if (projection?.status !== 'ready' || projection?.participantAuthority?.state === 'blocked') {
-      return { state: 'blocked', roles: [], detail: presentActionableFindings(projection?.findings || [], projection?.status || 'blocked'), findings };
-    }
-    const roles = (projection?.participantAuthority?.participants || []).map((item: any) => ({
-      label: String(item?.label || '').trim(), reference: String(item?.reference || '').trim(), workspaceId: String(item?.workspaceId || '').trim(), path: String(item?.path || '').trim()
-    }));
-    if (roles.some((item: PackageParticipantRole) => !item.label || !item.reference || !item.workspaceId || !item.path)) return { state: 'blocked', roles: [], detail: 'Core participant projection was incomplete.', findings };
-    if (!roles.length) return { state: 'not-established', roles: [], detail: 'Core did not establish any additional semantic participant Role for this current work.', findings };
-    return { state: 'qualified', roles, detail: `${roles.length} Core-qualified semantic participant Role${roles.length === 1 ? '' : 's'}.`, findings };
+    return await projectExactRouteParticipants(runtime, selectedSources, route, scratch, input);
   } catch (error) {
     return { state: 'blocked', roles: [], findings: [], detail: String(error instanceof Error ? error.message : error) };
   } finally {
@@ -488,11 +521,11 @@ export async function buildHandoffPackageFromForm(extensionPath: string, input: 
     for (const item of [...current.routes, ...sourceRoutes]) routeMap.set(item.id, item);
     const availableRoutes = [...routeMap.values()];
     const route = exactRouteByKey(availableRoutes, input.routeId);
-    const requestedRouteInputs = (input.routeInputs?.length ? input.routeInputs : [{ routeId: input.routeId, participantRoles: input.participantRoles || [] }]);
+    const requestedRouteInputs = input.routeInputs?.length ? input.routeInputs : [{ routeId: input.routeId }];
     const uniqueRouteInputs = new Map<string, PackageRouteInput>();
     for (const item of requestedRouteInputs) uniqueRouteInputs.set(item.routeId, item);
-    if (!uniqueRouteInputs.has(input.routeId)) uniqueRouteInputs.set(input.routeId, { routeId: input.routeId, participantRoles: input.participantRoles || [] });
-    const routeInputs = [...uniqueRouteInputs.values()].map((item) => ({ route: exactRouteByKey(availableRoutes, item.routeId), participantRoles: item.participantRoles || [], endpointRoles: item.endpointRoles || [] }));
+    if (!uniqueRouteInputs.has(input.routeId)) uniqueRouteInputs.set(input.routeId, { routeId: input.routeId });
+    const routeInputs = [...uniqueRouteInputs.values()].map((item) => ({ route: exactRouteByKey(availableRoutes, item.routeId), endpointRoles: item.endpointRoles || [] }));
     const requestedWorkspaceIds = [...new Set(input.workspaceIds.map((item) => String(item || '').trim()).filter(Boolean))].sort();
     const selectedSources = requestedWorkspaceIds.map((workspaceId) => sourceById.get(workspaceId)).filter((item): item is WorkspaceSource => Boolean(item));
     const selectedIds = new Set(selectedSources.map((item) => item.workspaceId));
@@ -526,7 +559,18 @@ export async function buildHandoffPackageFromForm(extensionPath: string, input: 
       if (item.route.pointerless || !item.route.workspaceId || !item.route.path) throw new Error('tiinex.package-builder.handoff-route-required');
       if (!selectedSources.some((source) => source.workspaceId === item.route.workspaceId) && !input.packageParentPath) throw new Error(`tiinex.package-builder.route-workspace-not-selected:${item.route.workspaceId}`);
     }
-    const args = await handoffArgs(selectedSources, route, routeInputs, scratch, String(input.packageParentPath || ''), String(input.packageMajorReason || '').trim(), String(input.packageParentRoutePointer || ''), String(input.packageParentRouteId || ''), input.packageConsolidation === true, String(input.carrierPrefix || '').trim());
+    // Participant Roles are semantic Core output, not mutable host input. Re-project
+    // every attached route immediately before manufacture and replace any stale
+    // controller snapshot with the exact current Core-qualified set.
+    const qualifiedRouteInputs: Array<{ route: RouteChoice; participantRoles: PackageParticipantRole[]; endpointRoles: PackageEndpointRoleBinding[] }> = [];
+    for (const item of routeInputs) {
+      reportProgress(input, `Requalifying Core participants for ${item.route.label || item.route.path || item.route.id}…`);
+      const participantProjection = await projectExactRouteParticipants(runtime, selectedSources, item.route, scratch, input);
+      if (participantProjection.state === 'blocked') throw new Error(`tiinex.package-builder.participant-projection-blocked:${item.route.id}:
+${participantProjection.detail}`);
+      qualifiedRouteInputs.push({ route: item.route, participantRoles: [...participantProjection.roles], endpointRoles: item.endpointRoles });
+    }
+    const args = await handoffArgs(selectedSources, route, qualifiedRouteInputs, scratch, String(input.packageParentPath || ''), String(input.packageMajorReason || '').trim(), String(input.packageParentRoutePointer || ''), String(input.packageParentRouteId || ''), input.packageConsolidation === true, String(input.carrierPrefix || '').trim());
     // Core owns routed Handoff bytes plus continuation/allocation truth. The host
     // only consumes and cross-checks the returned allocation/lineage projection,
     // then applies destination-local collision suffixing to Core's projected filename.

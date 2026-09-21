@@ -1,0 +1,30 @@
+{
+  "schema": "tiinex.extension-host.acceptance-fixture.v1",
+  "workspaceId": "acceptance",
+  "workspaceTargetPath": ".topics/.workspaces/extension-host-acceptance.workspace.md",
+  "handoffs": [
+    ".topics/handoffs/acceptance-route-one.trace.md",
+    ".topics/handoffs/acceptance-route-two.trace.md"
+  ],
+  "participants": [
+    "Pilot",
+    "Sigma"
+  ],
+  "package": {
+    "file": "incoming-pointerless.handoff-package.zip",
+    "sha256": "d98488f6a2fa37834a4954b3b84a38f17f348f535b2e08a1bdb0e91b9d460401",
+    "bytes": 6076939
+  },
+  "sourceFiles": {
+    ".topics/.workspaces/extension-host-acceptance.workspace.md": "1e2076cfba1e5afb13c55c45aad705acc43b38f4cde40f92180617388a83e17c",
+    ".topics/handoffs/acceptance-route-one.trace.md": "098c48a8916426c9bb039a5a0248635b59c2f23ba7fa4fbd45ee1592c6cfc817",
+    ".topics/handoffs/acceptance-route-two.trace.md": "41befbbd2015a5d2654320c865da0aef6c00f4d1704aa46d96b699d12139e7b8",
+    ".topics/roles/anchor-role.trace.md": "44879c23c534716cb34ef12804a7c9aa1c955547affc65febece802b5869be2b",
+    ".topics/roles/kodax-role.trace.md": "66ac8cb606041fdd9759a335fdeb68021d86ef053f3823173dbf7e4d75bc9720",
+    ".topics/roles/loom-role.trace.md": "424b608fb45ae04a9043927f2ed5a42fe95f9c5e0e1d8e89efa2d5da02d78510",
+    ".topics/roles/pilot-role.trace.md": "8e7c5300242713a88e1658f7c1b1427122522b15dd7255bf07a7e15bc2cbbc75",
+    ".topics/roles/sigma-role.trace.md": "d43a36dfb9511d2fe82af01e4db91e661db9dca0b648e48a933e7d30bd5f9161",
+    ".topics/tasks/extension-host-acceptance.trace.md": "30f845f8d89eb38c29843b3a4d4a368ec0e8639defbf4a92a34cede17def1c05",
+    "landing-marker.txt": "a5a1ecff833c779e790a92a7264dfe1af76ffa6b986a9ab8562b01302bd5f837"
+  }
+}

@@ -9,7 +9,7 @@ import { indexCarrierPackage, indexLocalWorkspace, indexLocalWorkspaceFiles, dis
 import { alphabeticalWorkspaceIds, artifactFeedTime, artifactsByModifiedNewest, artifactsForLineageMode, currentRoleChoices, IndexedArtifact, leafArtifactPathSet, logicalGroupForArtifact, normalizePath, schemaDisplayLabel, TreeLineageMode, TreeProjectionMode } from './core/artifactTree';
 import { preferredRepositoryParent } from './core/receiveUx';
 import { qualifiedRoutes, QualifiedRouteReceipt } from './core/receivedHandoff';
-import { mergeTransportRouteSelection, selectedTransportRouteIds, StoredTransportQueueItem, StoredTransportReceipt, transportPrepared, transportPreparedKey, TransportPreparedRecord } from './core/transportQueue';
+import { mergeTransportRouteSelection, selectedTransportRouteIds, StoredTransportQueueItem, transportPrepared, transportPreparedKey, TransportPreparedRecord } from './core/transportQueue';
 import { loadHandoffEndpointChoices, loadLocalWorkspaceChoices, loadPackageBuilderModel, buildHandoffPackageFromForm, announceBuiltCarrier, routeChoiceKeyForHandoff, IncomingPackageWorkspaceSource, PackageWorkspaceChoice, PackageWorkspaceSourceOverride, PackageRouteRouting, PackageParticipantProjection, projectHandoffPackageParticipants, qualifyLocalWorkspaceChoice } from './packageBuilder';
 import { ArtifactAuthoringCatalog, ArtifactDraftParent, loadArtifactAuthoringCatalog, loadArtifactAuthoringModel, prepareArtifactDraft, PreparedArtifactDraft, qualifyArtifactDraftParent, qualifyExistingHandoff, writePreparedArtifactDraft } from './authoring';
 import { initializeRepositoryWorkspace } from './workspaceInitialization';
@@ -29,6 +29,8 @@ import { routeChoiceKey } from './core/operatorModel';
 import { consumeIncomingMultiRootResume, prepareIncomingMultiRootSession } from './vscode/incomingWorkspaceSession';
 import { nextCarrierCollisionInstance } from './host/carrierPublish';
 import { presentOperatorError } from './core/operatorError';
+import { confirmExactCoreParticipantProjection, participantPresentation } from './vscode/outgoingParticipantController';
+import { configureExtensionHostAcceptance, extensionHostAcceptanceEnabled, extensionHostAcceptanceEvents, extensionHostAcceptanceOutgoingFolder, extensionHostAcceptanceOutgoingParent, extensionHostAcceptanceOutgoingSourceKeys, recordExtensionHostAcceptanceEvent } from './vscode/extensionHostAcceptance';
 
 export type OperatorSection = 'discovery' | 'incoming' | 'outgoing';
 
@@ -99,7 +101,7 @@ interface OutgoingDraft {
   draft: PreparedArtifactDraft;
   writtenPath: string;
   routeIncluded: boolean;
-  participants: CarrierRoleParticipant[];
+  participants: ReadonlyArray<CarrierRoleParticipant>;
   endpointRoles: CarrierEndpointRoleBinding[];
   participantProjectionState: PackageParticipantProjection['state'];
   participantProjectionDetail: string;
@@ -212,7 +214,6 @@ interface OperatorNodeData {
   workspaceId?: string;
   artifact?: IndexedArtifact;
   draftId?: string;
-  participantIndex?: number;
   pointerKind?: 'participant' | 'handoff';
   pathPrefix?: string;
   groupName?: string;
@@ -796,7 +797,6 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     register('tiinex.outgoing.attachHandoff', (node?: OperatorNode) => this.attachOutgoingHandoffNode(node));
     register('tiinex.outgoing.attachHandoffFromWorkspace', (node?: OperatorNode) => this.attachHandoffFromWorkspace(node?.data.workspaceId || ''));
     register('tiinex.outgoing.detachHandoff', (node?: OperatorNode) => this.detachOutgoingHandoffNode(node));
-    register('tiinex.outgoing.removeParticipantPointer', (node?: OperatorNode) => this.removeOutgoingParticipantPointer(node));
     register('tiinex.outgoing.removeHandoffPointer', (node?: OperatorNode) => this.removeOutgoingHandoffPointer(node));
     register('tiinex.outgoing.copyTransportText', (node?: OperatorNode) => this.copyOutgoingTransportText(node));
     register('tiinex.outgoing.package', () => this.packageOutgoing());
@@ -811,6 +811,11 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     register('tiinex.artifact.newFeedback', (resource?: vscode.Uri) => this.beginArtifactAuthoring(resource, 'tiinex.feedback.v1'));
     register('tiinex.artifact.newHandoff', (resource?: vscode.Uri) => this.beginArtifactAuthoring(resource, 'tiinex.handoff.v1'));
     register('tiinex.artifact.attachHandoff', (resource?: vscode.Uri) => this.attachHandoffFromExplorer(resource));
+    if (extensionHostAcceptanceEnabled()) {
+      register('tiinex.acceptance.configure', (value?: any) => configureExtensionHostAcceptance(value || {}));
+      register('tiinex.acceptance.snapshot', () => this.extensionHostAcceptanceSnapshot());
+      register('tiinex.acceptance.corruptParticipantSnapshot', () => this.corruptExtensionHostAcceptanceParticipantSnapshot());
+    }
 
     // Compatibility-only command ids from the preparatory iteration. They stay hidden.
     register('tiinex.incoming.clear', () => this.clearIncoming());
@@ -819,6 +824,46 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     register('tiinex.outgoing.newBlank', () => this.newOutgoing());
     register('tiinex.outgoing.newFromIncoming', async () => { await this.newOutgoing(); if (this.outgoing) await this.selectOutgoingWorkspaces(); });
     register('tiinex.outgoing.addWorkspace', () => this.selectOutgoingWorkspaces());
+  }
+
+  private extensionHostAcceptanceSnapshot(): any {
+    if (!extensionHostAcceptanceEnabled()) throw new Error('tiinex.extension-host.acceptance-disabled');
+    return {
+      incoming: this.incoming.map((item) => ({
+        packagePath: item.index.packagePath,
+        workspaceIds: item.index.workspaces.map((workspace) => workspace.workspaceId),
+        routeCount: qualifiedRoutes(item.orientation).length,
+        appliedWorkspaceIds: [...item.appliedWorkspaceIds].sort()
+      })),
+      outgoing: this.outgoing ? {
+        packageParentPath: this.outgoing.packageParentPath,
+        workspaces: this.outgoing.workspaces.map((item) => ({ workspaceId: item.workspaceId, source: item.source, root: item.root, packagePath: item.packagePath || '' })),
+        drafts: this.outgoing.drafts.map((item) => ({
+          workspaceId: item.draft.workspaceId,
+          path: item.draft.path,
+          routeIncluded: item.routeIncluded,
+          participantProjectionState: item.participantProjectionState,
+          participants: item.participants.map((role) => ({ label: role.label, reference: role.reference, workspaceId: role.workspaceId, path: role.path }))
+        }))
+      } : null,
+      transport: this.transport.map((item) => ({
+        packagePath: item.packagePath,
+        filename: item.filename,
+        sha256: item.sha256,
+        genericTransportText: item.genericTransportText,
+        routes: item.routes.map((route) => ({ ...route }))
+      })),
+      events: [...extensionHostAcceptanceEvents()]
+    };
+  }
+
+  private corruptExtensionHostAcceptanceParticipantSnapshot(): any {
+    if (!extensionHostAcceptanceEnabled()) throw new Error('tiinex.extension-host.acceptance-disabled');
+    if (!this.outgoing) throw new Error('tiinex.extension-host.outgoing-required');
+    for (const item of this.outgoing.drafts) item.participants = [];
+    recordExtensionHostAcceptanceEvent('participant-snapshot-corrupted', { routeCount: this.outgoing.drafts.length });
+    this.outgoingProvider.refresh();
+    return this.extensionHostAcceptanceSnapshot();
   }
 
   private async sendNodeToTransport(node?: OperatorNode): Promise<void> {
@@ -843,7 +888,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       const packagePath = String(record?.packagePath || '').trim();
       if (!packagePath) continue;
       try {
-        restored.push(await this.qualifyTransportPackage(packagePath, Array.isArray(record.routeIds) ? record.routeIds : null, Number(record.addedAt || 0) || Date.now()));
+        restored.push(await this.qualifyTransportPackage(packagePath, Array.isArray(record.routeIds) ? record.routeIds : null, Number(record.addedAt || 0) || Date.now(), 'restore'));
       } catch {
         // Queue bookkeeping is presentation state only. Missing or no-longer-
         // qualified bytes are not retained as semantic package truth.
@@ -859,7 +904,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     const refreshed: TransportPackageState[] = [];
     const failures: string[] = [];
     for (const record of records) {
-      try { refreshed.push(await this.qualifyTransportPackage(record.packagePath, record.routeIds, record.addedAt)); }
+      try { refreshed.push(await this.qualifyTransportPackage(record.packagePath, record.routeIds, record.addedAt, 'refresh')); }
       catch (error) { failures.push(`${path.basename(record.packagePath)}: ${shortMessage(error)}`); }
     }
     this.transport = refreshed.sort((a, b) => b.addedAt - a.addedAt || a.filename.localeCompare(b.filename));
@@ -869,34 +914,10 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     if (interactive && failures.length) await vscode.window.showWarningMessage(`Tiinex Transport removed unqualified or unavailable queue items:\n${failures.join('\n')}`);
   }
 
-  private async rememberManufacturedTransportReceipt(packagePath: string, routes: PackageRouteRouting[], presentationLabel = 'Handoff carrier'): Promise<void> {
-    if (!routes.length) return;
-    const resolved = path.resolve(packagePath);
-    const bytes = await readFile(resolved);
-    const sha256 = createHash('sha256').update(bytes).digest('hex');
-    const stored = this.context.workspaceState.get<Record<string, StoredTransportReceipt>>('tiinex.transport.receipts.v1', {}) || {};
-    stored[resolved] = {
-      packagePath: resolved, sha256, presentationLabel,
-      routes: routes.map((route) => ({
-        routeId: route.routeId, workspaceId: route.workspaceId, handoffPath: route.handoffPath,
-        recipientLabel: String(route.recipientLabel || '').trim(), transportText: route.text
-      }))
-    };
-    await this.context.workspaceState.update('tiinex.transport.receipts.v1', stored);
-  }
-
-  private manufacturedTransportReceipt(packagePath: string, sha256: string): StoredTransportReceipt | null {
-    const resolved = path.resolve(packagePath);
-    const stored = this.context.workspaceState.get<Record<string, StoredTransportReceipt>>('tiinex.transport.receipts.v1', {}) || {};
-    const receipt = stored[resolved];
-    if (!receipt || String(receipt.sha256 || '').toLocaleLowerCase() !== String(sha256 || '').toLocaleLowerCase()) return null;
-    if (!Array.isArray(receipt.routes) || !receipt.routes.length || receipt.routes.some((route) => !route.routeId || !route.transportText)) return null;
-    return receipt;
-  }
-
-  private async queueBuiltTransportPackage(packagePath: string, routes: PackageRouteRouting[], focus = false): Promise<string> {
+  private async queueBuiltTransportPackage(packagePath: string, focus = false): Promise<string> {
     try {
-      await this.rememberManufacturedTransportReceipt(packagePath, routes);
+      // A freshly manufactured package is still re-opened through Core before
+      // Transport accepts it. Persisted host receipts are never semantic authority.
       await this.queueTransportPackage(packagePath, '', focus);
       return '';
     } catch (error) {
@@ -911,7 +932,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     this.transportProvider.refresh();
     try {
       const existing = this.transport.find((item) => path.resolve(item.packagePath) === resolved);
-      const qualified = await this.qualifyTransportPackage(resolved, existing?.routeIds ?? null, existing?.addedAt || Date.now());
+      const qualified = await this.qualifyTransportPackage(resolved, existing?.routeIds ?? null, existing?.addedAt || Date.now(), 'queue');
       if (routeSelector) {
         const route = this.transportRouteForSelector(qualified, routeSelector);
         if (!route) throw new Error(`tiinex.transport.route-unqualified:${routeSelector}`);
@@ -931,22 +952,12 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     }
   }
 
-  private async qualifyTransportPackage(packagePath: string, routeIds: string[] | null, addedAt: number): Promise<TransportPackageState> {
+  private async qualifyTransportPackage(packagePath: string, routeIds: string[] | null, addedAt: number, source: 'queue' | 'refresh' | 'restore' = 'queue'): Promise<TransportPackageState> {
     const resolved = path.resolve(packagePath);
     const info = await stat(resolved);
     if (!info.isFile()) throw new Error('tiinex.transport.package-not-file');
     const bytes = await readFile(resolved);
     const sha256 = createHash('sha256').update(bytes).digest('hex');
-    const manufactured = this.manufacturedTransportReceipt(resolved, sha256);
-    if (manufactured) {
-      const routes = manufactured.routes.map((route) => ({
-        routeId: route.routeId, workspaceId: route.workspaceId, handoffPath: normalizePath(route.handoffPath),
-        recipientLabel: String(route.recipientLabel || '').trim(), transportText: route.transportText
-      }));
-      const qualifiedIds = new Set(routes.map((item) => item.routeId));
-      const retainedRouteIds = routeIds === null ? null : (routeIds || []).filter((item) => qualifiedIds.has(item));
-      return { packagePath: resolved, filename: path.basename(resolved), bytes: info.size, sha256, presentationLabel: manufactured.presentationLabel || 'Handoff carrier', genericTransportText: '', routes, routeIds: retainedRouteIds, addedAt };
-    }
     const runtime = await preparePackageRuntime(resolved, nodeExecutable());
     try {
       const orientation = await orientPackage(runtime, resolved);
@@ -986,6 +997,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
 
       const qualifiedIds = new Set(routes.map((item) => item.routeId));
       const retainedRouteIds = routeIds === null ? null : (routeIds || []).filter((item) => qualifiedIds.has(item));
+      recordExtensionHostAcceptanceEvent('transport-qualified', { source, packagePath: resolved, sha256, routeCount: routes.length });
       return {
         packagePath: resolved,
         filename: path.basename(resolved),
@@ -1259,6 +1271,14 @@ export class TiinexOperatorTrees implements vscode.Disposable {
   }
 
   private async selectOutgoingFolder(defaultFolder?: string, persist = true): Promise<string> {
+    const acceptanceFolder = extensionHostAcceptanceOutgoingFolder();
+    if (acceptanceFolder !== undefined) {
+      await mkdir(acceptanceFolder, { recursive: true });
+      this.outgoingFolderSelection = acceptanceFolder;
+      await this.refreshOutgoingCollisionInstance(acceptanceFolder);
+      this.outgoingProvider.refresh();
+      return acceptanceFolder;
+    }
     const selected = await vscode.window.showOpenDialog({
       canSelectFiles: false,
       canSelectFolders: true,
@@ -1674,9 +1694,12 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       this.outgoingProvider.refresh();
       await this.updateUiContexts();
     } catch (error) {
-      await vscode.window.showErrorMessage(`Tiinex ${forcedStrategy === 'merge' ? 'Merge' : forcedStrategy === 'replace' ? 'Replace' : 'Incoming'} review blocked: ${shortMessage(error)}`, 'Show Details').then(async (choice: string | undefined) => {
-        if (choice === 'Show Details') await vscode.window.showErrorMessage(String(error instanceof Error ? error.stack || error.message : error), { modal: true });
-      });
+      recordExtensionHostAcceptanceEvent('incoming-apply-blocked', { strategy: forcedStrategy || '', message: shortMessage(error) });
+      if (!extensionHostAcceptanceEnabled()) {
+        await vscode.window.showErrorMessage(`Tiinex ${forcedStrategy === 'merge' ? 'Merge' : forcedStrategy === 'replace' ? 'Replace' : 'Incoming'} review blocked: ${shortMessage(error)}`, 'Show Details').then(async (choice: string | undefined) => {
+          if (choice === 'Show Details') await vscode.window.showErrorMessage(String(error instanceof Error ? error.stack || error.message : error), { modal: true });
+        });
+      }
     }
   }
 
@@ -1835,6 +1858,8 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
         };
       })
     ];
+    const acceptanceParent = extensionHostAcceptanceOutgoingParent(items.map((item) => item.packagePath).filter(Boolean));
+    if (acceptanceParent !== undefined) return acceptanceParent;
     const selected = await vscode.window.showQuickPick(items, {
       title: 'New Outgoing',
       placeHolder: 'Blank, or continue one of the open Incoming packages',
@@ -2259,12 +2284,15 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     let duplicateCorrection = false;
     for (;;) {
       const items = pickerItems.map((item) => item.kind === vscode.QuickPickItemKind.Separator ? item : ({ ...item, picked: Boolean(item.key && pickedKeys.has(item.key)) }));
-      const selected = await vscode.window.showQuickPick(items, {
-        title: 'Select Outgoing Workspaces',
-        placeHolder: this.outgoingProjectedFilename(),
-        canPickMany: true,
-        ignoreFocusOut: true
-      });
+      const acceptanceKeys = extensionHostAcceptanceOutgoingSourceKeys(sources.map((item) => ({ sourceKey: item.sourceKey, workspaceId: item.workspaceId, source: item.source })));
+      const selected = acceptanceKeys === undefined
+        ? await vscode.window.showQuickPick(items, {
+            title: 'Select Outgoing Workspaces',
+            placeHolder: this.outgoingProjectedFilename(),
+            canPickMany: true,
+            ignoreFocusOut: true
+          })
+        : items.filter((item) => Boolean(item.key && acceptanceKeys.includes(item.key)));
       if (selected === undefined) return false;
       const selectedKeys = selected.map((item: SourceItem) => item.key || '').filter(Boolean);
       const resolution = resolvePrioritizedWorkspaceDuplicates(selectedKeys, sources.map((source, index) => ({ key: source.sourceKey, workspaceId: source.workspaceId, priority: index })));
@@ -2386,11 +2414,12 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       }
       if (!contextValue) continue;
       if (tracked) {
-        const participantDescription = tracked.participantProjectionState === 'qualified'
-          ? `${tracked.participants.length} Core-qualified participant Role${tracked.participants.length === 1 ? '' : 's'}`
-          : tracked.participantProjectionState === 'blocked'
-            ? 'participant projection blocked'
-            : 'participant authority unresolved';
+        const participantDescription = participantPresentation({
+          state: tracked.participantProjectionState,
+          roles: [...tracked.participants],
+          detail: tracked.participantProjectionDetail,
+          findings: []
+        }).description;
         const baseDescription = String(node.description || node.data.description || '').trim();
         const baseTooltip = String(node.tooltip || node.data.tooltip || artifact.path).trim();
         node.data.description = [baseDescription, participantDescription].filter(Boolean).join(' · ');
@@ -2788,48 +2817,6 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     );
   }
 
-  private async pickCoreQualifiedParticipantSet(projection: PackageParticipantProjection): Promise<PackageParticipantProjection | null> {
-    // Core owns semantic participant authority and derives the exact set from
-    // qualified current-work declarations. A blocked projection means the
-    // Handoff itself is not package-ready and must not be attached only to fail
-    // much later during Pack. `not-established` is a valid empty participant
-    // set and remains attachable without inventing Role authority.
-    if (projection.state === 'blocked') {
-      const summary = projection.findings.find((item) => item.severity === 'error')?.message || projection.detail || 'Core participant/route qualification blocked.';
-      await vscode.window.showErrorMessage(`Tiinex Attach Handoff blocked: ${summary}`, 'Show Details').then(async (choice: string | undefined) => {
-        if (choice === 'Show Details') await vscode.window.showErrorMessage(projection.detail || summary, { modal: true });
-      });
-      return null;
-    }
-    if (projection.state !== 'qualified' || !projection.roles.length) {
-      await vscode.window.showInformationMessage('No additional Core-qualified participants are established for this Handoff. It will be attached without participant Role pointers.');
-      return projection;
-    }
-
-    // The current semantic contract projects one exact required participant set,
-    // not a menu from Role inventory. Render that set as a real multi-select so
-    // multiple qualified humans/Roles are visible, while refusing a partial
-    // subset because host UI must not rewrite Core authority.
-    const items = projection.roles.map((role) => ({
-      label: `$(person) ${role.label}`,
-      description: role.workspaceId,
-      detail: role.reference,
-      role,
-      picked: true
-    }));
-    const selected = await vscode.window.showQuickPick(items, {
-      title: 'Additional participants · Core-qualified',
-      placeHolder: 'Confirm the exact Core-qualified participant set for this Handoff.',
-      canPickMany: true,
-      ignoreFocusOut: true
-    });
-    if (!selected) return null;
-    if (selected.length !== items.length || items.some((item) => !selected.some((choice) => choice.role.reference === item.role.reference))) {
-      await vscode.window.showWarningMessage('Tiinex participant selection must keep the exact Core-qualified set. No Handoff was attached.');
-      return null;
-    }
-    return projection;
-  }
 
   private async localWorkspaceChoices(): Promise<PackageWorkspaceChoice[]> {
     const cached = this.localWorkspaceChoicesCache;
@@ -3010,7 +2997,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
               if (!attachAvailable || schemaId !== 'tiinex.handoff.v1') throw new Error('tiinex.authoring.attach-outgoing-unavailable');
               const qualified = await qualifyExistingHandoff(this.extensionPath, root, workspace.workspaceId, draft.path);
               const participantProjection = await this.projectOutgoingParticipants(workspace, qualified.path);
-              const selectedParticipantProjection = await this.pickCoreQualifiedParticipantSet(participantProjection);
+              const selectedParticipantProjection = await confirmExactCoreParticipantProjection(participantProjection);
               if (selectedParticipantProjection) {
                 this.trackOutgoingHandoff(workspace, draft, writtenPath, qualified.from, qualified.to, selectedParticipantProjection, 'created', true, this.endpointRoleBindingsFromSubmission(submission));
                 workspace.payloadIncluded = true;
@@ -3143,7 +3130,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     const root = await this.ensureOutgoingAuthoringRoot(workspace);
     const qualified = await qualifyExistingHandoff(this.extensionPath, root, workspace.workspaceId, artifactPath);
     const participantProjection = await this.projectOutgoingParticipants(workspace, qualified.path);
-    const selectedParticipantProjection = await this.pickCoreQualifiedParticipantSet(participantProjection);
+    const selectedParticipantProjection = await confirmExactCoreParticipantProjection(participantProjection);
     if (!selectedParticipantProjection) return;
     this.trackOutgoingHandoff(workspace, this.preparedFromQualifiedHandoff(qualified), path.join(root, ...normalizePath(qualified.path).split('/')), qualified.from, qualified.to, selectedParticipantProjection, 'existing', true);
     this.outgoingProvider.refresh();
@@ -3227,7 +3214,8 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       }
       await this.attachQualifiedHandoff(workspace, node.data.artifact.path);
     } catch (error) {
-      await vscode.window.showErrorMessage(`Tiinex Attach blocked: ${shortMessage(error)}`);
+      recordExtensionHostAcceptanceEvent('attach-rejected', { message: shortMessage(error), workspaceId: String(node?.data.workspaceId || ''), path: String(node?.data.artifact?.path || '') });
+      if (!extensionHostAcceptanceEnabled()) await vscode.window.showErrorMessage(`Tiinex Attach blocked: ${shortMessage(error)}`);
     }
   }
 
@@ -3241,16 +3229,6 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     await this.updateUiContexts();
   }
 
-  private async removeOutgoingParticipantPointer(node?: OperatorNode): Promise<void> {
-    if (!this.outgoing || !node?.data.draftId || node.data.participantIndex === undefined) return;
-    const tracked = this.outgoing.drafts.find((item) => item.id === node.data.draftId);
-    const index = Number(node.data.participantIndex);
-    if (!tracked || !Number.isInteger(index) || index < 0 || index >= tracked.participants.length) return;
-    tracked.participants.splice(index, 1);
-    this.outgoing.lastBuilt = undefined;
-    this.outgoingProvider.refresh();
-    await this.updateUiContexts();
-  }
 
   private async removeOutgoingHandoffPointer(node?: OperatorNode): Promise<void> {
     if (!this.outgoing || !node?.data.draftId) return;
@@ -3471,7 +3449,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
             const workspaceSourceOverrides = await this.qualifiedOutgoingWorkspaceSourceOverrides();
             return await buildHandoffPackageFromForm(this.extensionPath, {
               routeId: routeChoiceKeyForHandoff(mechanicalAnchor.draft.workspaceId, mechanicalAnchor.draft.path),
-              routeInputs: routes.map((item) => ({ routeId: routeChoiceKeyForHandoff(item.draft.workspaceId, item.draft.path), participantRoles: item.participants, endpointRoles: item.endpointRoles })),
+              routeInputs: routes.map((item) => ({ routeId: routeChoiceKeyForHandoff(item.draft.workspaceId, item.draft.path), endpointRoles: item.endpointRoles })),
               workspaceIds,
               carrierPrefix: this.outgoing?.carrierPrefix || rootOutgoingPrefix(this.outgoing?.name || ''),
               packageParentPath: this.outgoing?.packageParentPath || '',
@@ -3482,7 +3460,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
               incomingWorkspaceSources,
               workspaceSourceOverrides,
               outputDirectory,
-              reportProgress: (message) => heartbeat.report(message)
+              reportProgress: (message) => { heartbeat.report(message); recordExtensionHostAcceptanceEvent('pack-progress', { message }); }
             });
           } finally { heartbeat.dispose(); }
         }
@@ -3496,7 +3474,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
           progress.report({ message: 'Refreshing packaged carrier discovery…' });
           await this.refreshDiscoveryAfterPack(built.outputPath);
           progress.report({ message: 'Queueing finished carrier for Transport…' });
-          transportWarning = await this.queueBuiltTransportPackage(built.outputPath, built.routeRoutingTexts, true);
+          transportWarning = await this.queueBuiltTransportPackage(built.outputPath, true);
         }
       );
       this.closeOutgoing();
@@ -3507,9 +3485,12 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       );
       if (transportWarning) await vscode.window.showWarningMessage(`Tiinex carrier was packed successfully, but Transport qualification needs attention: ${transportWarning}`);
     } catch (error) {
-      await vscode.window.showErrorMessage(`Tiinex Outgoing package blocked: ${shortMessage(error)}`, 'Show Details').then(async (choice: string | undefined) => {
-        if (choice === 'Show Details') await vscode.window.showErrorMessage(String(error instanceof Error ? error.stack || error.message : error), { modal: true });
-      });
+      recordExtensionHostAcceptanceEvent('pack-blocked', { message: shortMessage(error) });
+      if (!extensionHostAcceptanceEnabled()) {
+        await vscode.window.showErrorMessage(`Tiinex Outgoing package blocked: ${shortMessage(error)}`, 'Show Details').then(async (choice: string | undefined) => {
+          if (choice === 'Show Details') await vscode.window.showErrorMessage(String(error instanceof Error ? error.stack || error.message : error), { modal: true });
+        });
+      }
     } finally {
       this.setOutgoingLoading(false);
     }
@@ -3892,7 +3873,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
         tooltip: `${participant.reference}
 Core will materialize the participant Role pointer during carrier manufacture.`,
         contextValue: 'tiinex.outgoingParticipantRolePointerPreview', workspaceId,
-        draftId: tracked.id, participantIndex: index, pointerKind: 'participant'
+        draftId: tracked.id, pointerKind: 'participant'
       }));
     }
 
@@ -4519,7 +4500,7 @@ function projectedOutgoingRoutePointerFiles(input: {
       `${dimension}-${filenameToken(participant.label)}-role-pointer.trace.md`,
       'participant Role pointer · pending Pack',
       draft.draft.workspaceId,
-      { contextValue: 'tiinex.outgoingParticipantRolePointerProjected', draftId: draft.id, participantIndex, pointerKind: 'participant' }
+      { contextValue: 'tiinex.outgoingParticipantRolePointerProjected', draftId: draft.id, pointerKind: 'participant' }
     ));
     dimension = `${dimension}-1`;
   }
@@ -4556,7 +4537,7 @@ function projectedPendingCarrierFileNode(
   label: string,
   description: string,
   workspaceId: string,
-  options: { contextValue?: string; draftId?: string; participantIndex?: number; pointerKind?: 'participant' | 'handoff' } = {}
+  options: { contextValue?: string; draftId?: string; pointerKind?: 'participant' | 'handoff' } = {}
 ): OperatorNode {
   return new OperatorNode({
     kind: 'projectedFile', section: 'outgoing', id: `outgoing:pending-carrier:${workspaceId}:${label}`,
@@ -4566,7 +4547,6 @@ Projected from the current Outgoing route. Shared Core manufacture owns the fina
     workspaceId,
     contextValue: options.contextValue || 'tiinex.outgoingPendingCarrierPointer',
     draftId: options.draftId,
-    participantIndex: options.participantIndex,
     pointerKind: options.pointerKind
   });
 }

@@ -401,7 +401,9 @@ await test('extension contributes stable Discovery, Incoming, Outgoing and Trans
   assert.equal(attachFromWorkspaceMenu?.group, 'inline@2');
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.attachHandoff' && /outgoing(Local|Incoming)HandoffUnattached/.test(item.when || '')));
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.detachHandoff' && /outgoing(Local|Incoming)HandoffAttached/.test(item.when || '')));
-  assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.removeParticipantPointer' && /outgoingParticipantRolePointerPreview/.test(item.when || '') && /outgoingParticipantRolePointerProjected/.test(item.when || '')));
+  assert.equal(itemMenus.some((item) => item.command === 'tiinex.outgoing.removeParticipantPointer'), false);
+  assert.equal((manifest.contributes?.commands || []).some((item) => item.command === 'tiinex.outgoing.removeParticipantPointer'), false);
+  assert.equal(manifest.activationEvents.includes('onCommand:tiinex.outgoing.removeParticipantPointer'), false);
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.removeHandoffPointer' && /outgoingHandoffPointerProjected/.test(item.when || '')));
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.copyTransportText' && /outgoingHandoffAttached/.test(item.when || '') && item.group === 'inline@1'));
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.omitWorkspacePayload' && /outgoingWorkspaceDescriptorEmbedded/.test(item.when || '')));
@@ -449,15 +451,17 @@ await test('extension contributes stable Discovery, Incoming, Outgoing and Trans
   assert.match(treeSource, /canPickMany: true/);
   assert.match(treeSource, /tiinex\.incomingWorkspaceExact/);
   assert.match(treeSource, /qualified match/);
-  assert.match(treeSource, /queueBuiltTransportPackage\(built\.outputPath, built\.routeRoutingTexts, true\)/);
-  assert.match(treeSource, /rememberManufacturedTransportReceipt/);
-  assert.match(treeSource, /manufacturedTransportReceipt\(resolved, sha256\)/);
+  assert.match(treeSource, /queueBuiltTransportPackage\(built\.outputPath, true\)/);
+  assert.match(treeSource, /Persisted host receipts are never semantic authority/);
+  assert.doesNotMatch(treeSource, /rememberManufacturedTransportReceipt|manufacturedTransportReceipt|tiinex\.transport\.receipts\.v1/);
   assert.match(treeSource, /projectPackageTransport\(runtime, resolved/);
   assert.match(treeSource, /for \(const item of orientationRoutes\)/);
   assert.match(treeSource, /projectPackageTransport\(runtime, resolved, `\$\{workspaceId\}:\$\{handoffPath\}`\)/);
   assert.doesNotMatch(treeSource, /const base = orientationRoutes\.length \? await projectPackageTransport\(runtime, resolved\) : null/);
   assert.match(treeSource, /tiinex\.transport\.queue\.v1/);
   assert.match(treeSource, /tiinex\.transport\.prepared\.v1/);
+  assert.match(treeSource, /restoreTransportQueue[\s\S]*qualifyTransportPackage/);
+  assert.doesNotMatch(treeSource, /tiinex\.transport\.receipts\.v1/);
   assert.doesNotMatch(treeSource, /Cold start: read Start directly/);
   assert.doesNotMatch(treeSource, /chooseOutgoingCarrierParent/);
   assert.match(treeSource, /resolveRootOutgoingAllocation\(prefix/);
@@ -608,7 +612,54 @@ await test('extension activation synchronously registers all native Tiinex views
   for (const command of ['tiinex.discovery.refresh', 'tiinex.incoming.refresh', 'tiinex.outgoing.refresh', 'tiinex.transport.refresh']) {
     assert.ok(registeredCommands.includes(command), `${command} must be registered during activation`);
   }
+  assert.equal(registeredCommands.includes('tiinex.outgoing.removeParticipantPointer'), false, 'activation must not expose participant weakening');
   assert.ok(activationErrors.some((value) => value.includes('Tiinex activation degraded: activation-startup-probe-stop')));
+});
+
+await test('participant controller confirms only the exact Core-qualified set', async () => {
+  const { createRequire } = await import('node:module');
+  const require = createRequire(import.meta.url);
+  const Module = require('node:module');
+  const root = path.resolve(HERE, '..');
+  const beforeCache = new Set(Object.keys(require.cache));
+  const warnings = [];
+  const errors = [];
+  let selectionMode = 'all';
+  const vscode = {
+    window: {
+      showQuickPick: async (items) => selectionMode === 'all' ? items : selectionMode === 'partial' ? items.slice(0, 1) : undefined,
+      showWarningMessage: async (value) => { warnings.push(String(value)); },
+      showErrorMessage: async (value) => { errors.push(String(value)); },
+      showInformationMessage: async () => undefined
+    }
+  };
+  const originalLoad = Module._load;
+  Module._load = function(request, parent, isMain) {
+    if (request === 'vscode') return vscode;
+    return originalLoad.call(this, request, parent, isMain);
+  };
+  try {
+    const controller = require(path.join(root, 'dist', 'vscode', 'outgoingParticipantController.js'));
+    const projection = {
+      state: 'qualified',
+      roles: [
+        { label: 'Sigma', reference: 'business::.topics/roles/sigma.trace.md', workspaceId: 'business', path: '.topics/roles/sigma.trace.md' },
+        { label: 'Reviewer', reference: 'business::.topics/roles/reviewer.trace.md', workspaceId: 'business', path: '.topics/roles/reviewer.trace.md' }
+      ],
+      detail: '2 Core-qualified semantic participant Roles.',
+      findings: []
+    };
+    assert.equal(await controller.confirmExactCoreParticipantProjection(projection), projection);
+    selectionMode = 'partial';
+    assert.equal(await controller.confirmExactCoreParticipantProjection(projection), null);
+    assert.ok(warnings.some((value) => value.includes('exact Core-qualified set')));
+    const blocked = { state: 'blocked', roles: [], detail: 'Core rejected participant authority.', findings: [{ severity: 'error', code: 'participant.blocked', message: 'Core rejected participant authority.' }] };
+    assert.equal(await controller.confirmExactCoreParticipantProjection(blocked), null);
+    assert.ok(errors.some((value) => value.includes('Core rejected participant authority')));
+  } finally {
+    Module._load = originalLoad;
+    for (const key of Object.keys(require.cache)) if (!beforeCache.has(key)) delete require.cache[key];
+  }
 });
 
 await test('Receive orchestration keeps Workspace mutation explicit and makes unasserted branch state visible', async () => {
@@ -1295,9 +1346,8 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(tree, /revealFileInOS/);
   assert.match(tree, /indexed\.artifacts\.filter\(\(artifact\) => artifact\.schemaId === 'tiinex\.handoff\.v1'\)/);
   assert.doesNotMatch(tree, /pickAdditionalCarrierRoles|Additional carrier Roles \(optional\)/);
-  assert.match(tree, /pickCoreQualifiedParticipantSet/);
-  const participantPickerStart = tree.indexOf('private async pickCoreQualifiedParticipantSet');
-  const participantPicker = tree.slice(participantPickerStart, tree.indexOf('private async', participantPickerStart + 20));
+  assert.doesNotMatch(tree, /pickCoreQualifiedParticipantSet/);
+  const participantPicker = await fs.readFile(path.resolve(HERE, '..', 'src', 'vscode', 'outgoingParticipantController.ts'), 'utf8');
   assert.match(participantPicker, /projection\.state === 'blocked'/);
   assert.match(participantPicker, /Tiinex Attach Handoff blocked/);
   assert.match(participantPicker, /projection\.state !== 'qualified' \|\| !projection\.roles\.length/);
@@ -1307,7 +1357,7 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(participantPicker, /exact Core-qualified participant set/);
   assert.match(participantPicker, /canPickMany: true/);
   assert.match(participantPicker, /picked: true/);
-  assert.match(participantPicker, /selection must keep the exact Core-qualified set/);
+  assert.match(participantPicker, /must keep the exact Core-qualified set/);
   assert.match(participantPicker, /showQuickPick/);
   assert.doesNotMatch(participantPicker, /endpointCatalog|currentRoleChoices|loadHandoffEndpointChoices/);
   assert.match(tree, /projectOutgoingParticipants/);
@@ -1368,7 +1418,7 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.doesNotMatch(tree, /This Outgoing continues an Incoming Handoff carrier, so Pack needs at least one attached Handoff route/);
   assert.match(tree, /void vscode\.window\.showInformationMessage\(`Created \${draft\.path}`\)/);
   assert.match(tree, /refreshDiscoveryAfterPack/);
-  assert.match(tree, /participantRoles: item\.participants/);
+  assert.doesNotMatch(tree, /participantRoles: item\.participants/);
   assert.match(tree, /workspaceSourceOverrides/);
   assert.match(tree, /root: item\.stagedRoot \|\| item\.root/);
   assert.match(tree, /placeHolder: this\.outgoingProjectedFilename\(\)/);
@@ -1407,7 +1457,8 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(packageBuilder, /prepareWorkspaceCoreRuntime/);
   assert.match(packageBuilder, /prepareSelectedCoreManufactureRuntime/);
   assert.match(packageBuilder, /manufactureHandoffPackageDetailed/);
-  assert.match(packageBuilder, /participantProjectionFromManufactureReceipt/);
+  assert.match(packageBuilder, /participantProjectionFromCoreResult/);
+  assert.match(packageBuilder, /projectExactRouteParticipants/);
   assert.match(participantProjection, /plan\?\.requirements\?\.participantRoles/);
   assert.match(participantProjection, /Core did not establish any additional semantic participant Role for this current work/);
   assert.doesNotMatch(participantProjection, /endpointCatalog|currentRoleChoices|activeSpeaker/);
@@ -1429,6 +1480,8 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(packageBuilder, /nextCarrierCollisionInstance\(folder, coreFilename\)/);
   assert.doesNotMatch(packageBuilder, /input\.expectedCarrierFilename \|\| coreFilename/);
   assert.match(packageBuilder, /PackageRouteInput/);
+  assert.doesNotMatch(packageBuilder, /PackageRouteInput \{[^}]*participantRoles/);
+  assert.doesNotMatch(packageBuilder, /PackageBuildInput \{[^}]*participantRoles/);
   assert.match(packageBuilder, /packageParentRoutePointer/);
   assert.match(packageBuilder, /packageParentRouteId/);
   assert.match(packageBuilder, /packageConsolidation/);
@@ -1774,8 +1827,12 @@ await test('multi-Incoming and Merge/Replace remain selection-first, dry until f
   assert.match(tree, /Handoff pointer · pending Pack/);
   assert.match(tree, /tiinex\.outgoingParticipantRolePointerProjected/);
   assert.match(tree, /tiinex\.outgoingHandoffPointerProjected/);
-  assert.match(tree, /removeOutgoingParticipantPointer/);
-  assert.match(tree, /tracked\.participants\.splice\(index, 1\)/);
+  const packageBuilder = await fs.readFile(path.resolve(HERE, '..', 'src', 'packageBuilder.ts'), 'utf8');
+  assert.match(packageBuilder, /Participant Roles are semantic Core output, not mutable host input/);
+  assert.match(packageBuilder, /projectExactRouteParticipants/);
+  assert.match(packageBuilder, /qualifiedRouteInputs/);
+  assert.doesNotMatch(tree, /removeOutgoingParticipantPointer/);
+  assert.doesNotMatch(tree, /tracked\.participants\.splice/);
   assert.match(tree, /removeOutgoingHandoffPointer/);
   assert.match(tree, /tracked\.participants = \[\]/);
   assert.match(tree, /001-1-READ-BEFORE-PROCEEDING\.trace\.md/);
@@ -1834,17 +1891,17 @@ await test('multi-Incoming and Merge/Replace remain selection-first, dry until f
   assert.match(apply, /local-state-changed-after-review/);
   assert.match(apply, /assertMutationPreconditions\(plans\)/);
   assert.match(apply, /not a cross-repository atomic transaction/);
-  const packageBuilder = await fs.readFile(path.resolve(HERE, '..', 'src', 'packageBuilder.ts'), 'utf8');
+  const packageBuilderAllocation = await fs.readFile(path.resolve(HERE, '..', 'src', 'packageBuilder.ts'), 'utf8');
   assert.doesNotMatch(tree, /expectedOutgoingCarrierDimension/);
   assert.doesNotMatch(tree, /primary Handoff does not continue an exact qualified Handoff route/);
-  assert.match(packageBuilder, /qualifiedCarrierAllocationFromManufactureReceipt/);
-  assert.match(packageBuilder, /assertStableQualifiedCarrierAllocation/);
-  assert.match(packageBuilder, /carrier-dimension-shared-contract-mismatch/);
-  assert.match(packageBuilder, /carrier-filename-shared-contract-mismatch/);
-  assert.match(packageBuilder, /assertExpectedCarrierDimension\(preview/);
-  assert.match(packageBuilder, /assertExpectedCarrierDimension\(built/);
-  assert.match(packageBuilder, /assertExpectedCarrierFilename\(preview/);
-  assert.match(packageBuilder, /assertExpectedCarrierFilename\(built/);
+  assert.match(packageBuilderAllocation, /qualifiedCarrierAllocationFromManufactureReceipt/);
+  assert.match(packageBuilderAllocation, /assertStableQualifiedCarrierAllocation/);
+  assert.match(packageBuilderAllocation, /carrier-dimension-shared-contract-mismatch/);
+  assert.match(packageBuilderAllocation, /carrier-filename-shared-contract-mismatch/);
+  assert.match(packageBuilderAllocation, /assertExpectedCarrierDimension\(preview/);
+  assert.match(packageBuilderAllocation, /assertExpectedCarrierDimension\(built/);
+  assert.match(packageBuilderAllocation, /assertExpectedCarrierFilename\(preview/);
+  assert.match(packageBuilderAllocation, /assertExpectedCarrierFilename\(built/);
   assert.match(tree, /expectedCarrierFilename: this\.outgoingProjectedFilename\(\)/);
   assert.match(tree, /fileArtifactRoots\('discovery',[\s\S]*index\.packagePath/);
   assert.match(tree, /index\.carrierFiles/);
