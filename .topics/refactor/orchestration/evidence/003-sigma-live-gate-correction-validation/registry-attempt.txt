@@ -1,0 +1,7 @@
+$ npm view @types/vscode@1.95.0 version --registry=https://registry.npmjs.org/ --fetch-timeout=5000 --fetch-retries=0
+npm error code EAI_AGAIN
+npm error syscall getaddrinfo
+npm error errno EAI_AGAIN
+npm error request to https://registry.npmjs.org/@types%2fvscode failed, reason: getaddrinfo EAI_AGAIN registry.npmjs.org
+npm error A complete log of this run can be found in: /home/oai/.npm/_logs/2026-09-20T18_29_36_394Z-debug-0.log
+exit=1

@@ -5,7 +5,7 @@ import * as vscode from 'vscode';
 import { preferredNodeExecutable } from './host/nodeExecutable';
 import { IndexedCarrierPackage, IndexedCarrierWorkspace } from './carrierIndex';
 import { loadLocalWorkspaceChoices, PackageWorkspaceChoice } from './packageBuilder';
-import { compareIncomingWorkspaceToLocal, prepareBundledRuntime, projectWorkspacePackageSources, SourceFrontierComparisonResult, WorkspacePackageSourcesResult } from './tiinex/bootstrap';
+import { compareIncomingWorkspaceToLocal, prepareBundledRuntime, prepareHostCoreRuntime, projectWorkspacePackageSources, SourceFrontierComparisonResult, WorkspacePackageSourcesResult } from './tiinex/bootstrap';
 import { extractZipBuffer, inspectZipBuffer, readExactZipEntryFromFile } from './host/zip';
 import { safeRelativePath, safeTarget } from './core/paths';
 import {
@@ -605,7 +605,7 @@ export async function applyIncomingWorkspaces(extensionPath: string, index: Inde
   if (!requested.length) return { affectedWorkspaceIds: [], conflictWorkspaceIds: [] };
   return withIncomingApplyMutex(async () => {
     const scratch = await mkdtemp(path.join(os.tmpdir(), 'ti-'));
-    const runtime = await prepareBundledRuntime(extensionPath, nodeExecutable());
+    const runtime = await prepareHostCoreRuntime(extensionPath, (vscode.workspace.workspaceFolders || []).map((item: vscode.WorkspaceFolder) => item.uri.fsPath), nodeExecutable());
     try {
       return await vscode.window.withProgress(
         {

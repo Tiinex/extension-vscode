@@ -1,0 +1,5 @@
+PASS real extension package builder writes the displayed pointerless filename
+PASS result re-orients with exact Workspace selection and no invented Handoff or lineage
+PASS exact retry is idempotent and different payload cannot overwrite the existing carrier
+PASS extracted VSIX loads its bundled lockfile and runs its own public Core entrypoint
+4/4 package integration scenarios passed. Windows/VS Code UI acceptance remains separate.

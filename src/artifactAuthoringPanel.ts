@@ -12,6 +12,10 @@ export interface AuthoringFieldSuggestion {
   value?: string;
   description?: string;
   fills?: Record<string, string>;
+  kind?: string;
+  reference?: string;
+  workspaceId?: string;
+  path?: string;
 }
 
 export interface AuthoringFieldAssist {
@@ -44,6 +48,7 @@ export interface ArtifactAuthoringSubmission {
   title: string;
   templateId: string;
   values: Record<string, unknown>;
+  endpointSelections?: Record<string, AuthoringFieldSuggestion>;
   attachToOutgoing: boolean;
   closeWhenDone: boolean;
 }
@@ -174,7 +179,7 @@ q('#template')?.addEventListener('change',applyTemplate);q('#template')?.addEven
 function valueOf(el){return String(el?.value??'').trim()}
 function collect(){const values={};for(const section of qa('.ordinary-section'))for(const el of qa('[data-field]',section)){const v=valueOf(el);if(v)values[el.dataset.field]=v}for(const section of qa('.group-section')){const group={};for(const el of qa('[data-field]',section)){const v=valueOf(el);if(v)group[el.dataset.field]=v}values[section.dataset.input]=group}for(const section of qa('.repeatable-section')){if(q('[data-none]',section)?.checked){values[section.dataset.input]='none';continue}const entries=[];for(const item of qa('.repeatable-item',section)){const name=valueOf(q('[data-entry-name]',item));const fields={};for(const el of qa('[data-field]',item)){const v=valueOf(el);if(v)fields[el.dataset.field]=v}entries.push({name,fields})}values[section.dataset.input]=entries}return values}
 function validate(){const errors=[];if(!valueOf(q('#title')))errors.push('Title is required.');for(const el of qa('[required]')){if(!valueOf(el)&&el.offsetParent!==null)errors.push((el.dataset.field||'Required field')+' is required.')}for(const section of qa('.repeatable-section')){if(q('[data-none]',section)?.checked)continue;for(const item of qa('.repeatable-item',section)){if(!valueOf(q('[data-entry-name]',item)))errors.push(section.dataset.input+': entry name is required.')}}errors.push(...assistCapabilityErrors());return [...new Set(errors)]}
-function submission(){return{workspaceId:q('#workspace').value,title:valueOf(q('#title')),templateId:q('#template')?.value||'',values:collect(),attachToOutgoing:!!q('#attach')?.checked,closeWhenDone:q('#closeWhenDone')?.checked!==false}}
+function endpointSelections(){const out={};for(const select of qa('[data-endpoint-assist]')){const field=select.dataset.endpointAssist;const assist=fieldAssists.find(item=>item.field===field);if(!assist||select.value===''||select.value==='__manual__')continue;const suggestion=assist.suggestions[Number(select.value)];if(suggestion)out[field]=suggestion}return out}function submission(){return{workspaceId:q('#workspace').value,title:valueOf(q('#title')),templateId:q('#template')?.value||'',values:collect(),endpointSelections:endpointSelections(),attachToOutgoing:!!q('#attach')?.checked,closeWhenDone:q('#closeWhenDone')?.checked!==false}}
 let busy=false;
 function setBusy(action,busyNow){busy=busyNow;const actions=q('#actions');if(action==='create'&&actions)actions.style.display=busyNow?'none':'';for(const button of [q('#cancel'),q('#preview'),q('#create')])if(button)button.disabled=busyNow}
 function send(action){if(busy)return;const errors=validate();const box=q('#error');if(errors.length){box.style.display='block';box.textContent=errors.join(' ');return}box.style.display='none';setBusy(action,true);q('#status').textContent=action==='preview'?'Preparing preview…':'Creating…';vscode.postMessage({type:action,payload:submission()})}

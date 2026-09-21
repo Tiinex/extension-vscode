@@ -1,0 +1,8 @@
+$ tsc -p tsconfig.json --noEmit
+error TS2688: Cannot find type definition file for 'node'.
+  The file is in the program because:
+    Entry point of type library 'node' specified in compilerOptions
+error TS2688: Cannot find type definition file for 'vscode'.
+  The file is in the program because:
+    Entry point of type library 'vscode' specified in compilerOptions
+exit=2

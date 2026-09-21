@@ -87,6 +87,19 @@ export async function prepareWorkspaceCoreRuntime(rootValue: string, nodeExecuta
   return { root, entrypoint, nodeExecutable, dispose: async () => undefined };
 }
 
+
+export async function prepareHostCoreRuntime(extensionPath: string, candidateRoots: string[] = [], nodeExecutable = preferredNodeExecutable()): Promise<PackageRuntime> {
+  const roots=[...new Set(candidateRoots.map((item)=>path.resolve(String(item||'').trim())).filter(Boolean))];
+  const coreRoots=[];
+  for (const root of roots) {
+    try { const manifest=JSON.parse(await readFile(path.join(root,'package.json'),'utf8')); if(String(manifest?.name||'').trim()==='@tiinex/core') coreRoots.push(root); }
+    catch { /* non-Core host root */ }
+  }
+  if (coreRoots.length>1) throw new Error(`tiinex.core-source-runtime.ambiguous:${coreRoots.join(',')}`);
+  if (coreRoots.length===1) return prepareWorkspaceCoreRuntime(coreRoots[0],nodeExecutable);
+  return prepareBundledRuntime(extensionPath,nodeExecutable);
+}
+
 export async function prepareBundledRuntime(extensionPath: string, nodeExecutable = preferredNodeExecutable()): Promise<PackageRuntime> {
   const binding = await qualifyInstalledCore(extensionPath);
   return { root: binding.root, entrypoint: binding.entrypoint, nodeExecutable, dispose: async () => undefined };
@@ -599,8 +612,9 @@ export async function createArtifactDraft(
   } finally { await rm(scratch, { recursive: true, force: true }); }
 }
 
-export async function manufactureHandoffPackage(runtime: PackageRuntime, args: string[], runner: ProcessRunner = runProcess): Promise<any> {
-  const result = await runner(runtime.nodeExecutable, [runtime.entrypoint, 'manufacture-handoff-package', ...args, '--compact'], { env: nodeProcessEnvironment() });
+async function runManufactureHandoffPackage(runtime: PackageRuntime, args: string[], compact: boolean, runner: ProcessRunner = runProcess): Promise<any> {
+  const commandArgs = [runtime.entrypoint, 'manufacture-handoff-package', ...args, ...(compact ? ['--compact'] : [])];
+  const result = await runner(runtime.nodeExecutable, commandArgs, { env: nodeProcessEnvironment() });
   if (![0, 2].includes(result.code)) {
     const raw = result.stderr.trim() || result.stdout.trim() || String(result.code);
     let reason = raw;
@@ -610,4 +624,17 @@ export async function manufactureHandoffPackage(runtime: PackageRuntime, args: s
   let parsed: any;
   try { parsed = JSON.parse(result.stdout.trim()); } catch { throw new Error('tiinex.manufacture.invalid-json'); }
   return parsed;
+}
+
+
+export async function projectHandoffParticipants(runtime: PackageRuntime, args: string[], runner: ProcessRunner = runProcess): Promise<any> {
+  return runTiinexJson<any>(runtime, ['project-handoff-participants', ...args, '--compact'], runner);
+}
+
+export async function manufactureHandoffPackage(runtime: PackageRuntime, args: string[], runner: ProcessRunner = runProcess): Promise<any> {
+  return runManufactureHandoffPackage(runtime, args, true, runner);
+}
+
+export async function manufactureHandoffPackageDetailed(runtime: PackageRuntime, args: string[], runner: ProcessRunner = runProcess): Promise<any> {
+  return runManufactureHandoffPackage(runtime, args, false, runner);
 }

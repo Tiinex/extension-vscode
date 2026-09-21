@@ -4,13 +4,20 @@
     {
       "label": "Tiinex: npm install",
       "type": "shell",
-      "command": "npm install",
+      "command": "node",
       "problemMatcher": [],
       "presentation": {
         "reveal": "always",
         "panel": "shared",
         "clear": true,
         "showReuseMessage": false
+      },
+      "args": [
+        "scripts/core-mode.mjs",
+        "install"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
       }
     },
     {
@@ -36,21 +43,14 @@
     {
       "label": "Tiinex: Use local Core",
       "type": "shell",
-      "command": "npm",
+      "command": "node",
       "args": [
-        "install",
-        "--no-save",
-        "--package-lock=false",
-        "--install-links",
-        "file:${workspaceFolder}/../core"
+        "scripts/core-mode.mjs",
+        "local"
       ],
       "options": {
         "cwd": "${workspaceFolder}"
       },
-      "dependsOrder": "sequence",
-      "dependsOn": [
-        "Tiinex: Pack Core locally"
-      ],
       "problemMatcher": [],
       "presentation": {
         "reveal": "always",
@@ -62,10 +62,10 @@
     {
       "label": "Tiinex: Switch Core to Latest",
       "type": "shell",
-      "command": "npm",
+      "command": "node",
       "args": [
-        "install",
-        "@tiinex/core@latest"
+        "scripts/core-mode.mjs",
+        "published"
       ],
       "options": {
         "cwd": "${workspaceFolder}"

@@ -21,11 +21,13 @@ import { gitAutomationBlockerText, gitOperatorResultMarkdown, isTiinexArtifactPa
 import { classifyIncomingMergeConflict, planIncomingFileUnion, renderIncomingTextConflict } from '../dist/core/incomingMerge.js';
 import { planWorkspaceSession, validateWorkspaceTargetMapping } from '../dist/core/workspaceSession.js';
 import { representativeWorkspaceChoicesForRoot } from '../dist/core/workspaceChoice.js';
+import { participantProjectionFromManufactureReceipt } from '../dist/core/participantProjection.js';
+import { assertStableQualifiedCarrierAllocation, qualifiedCarrierAllocationFromManufactureReceipt } from '../dist/core/carrierAllocation.js';
 import { checkIgnoredPaths, commitPreparedGitOperator, commitPreparedReviewedStaged, commitWorkingTree, deriveGitOperatorCommitMessage, dirtyWorkingTreePaths, discardWorkingTree, generateTiinexCommitMessage, listStagedConflictMarkerPaths, listStagedMutationPaths, listStagedPaths, materializeUnmergedFileConflicts, mergeCommitNoCommit, payloadCheckoutEligibility, preflightExistingLocalBranch, prepareGitOperatorCommit, prepareReviewedStagedCommit, pushExactGitOperatorCommit, pushExactLandingCommit, pushExactReviewedStagedCommit, stageCommitPush, stageLandingChanges, stageLandingCommit, stashWorkingTree, unstageLandingPaths } from '../dist/host/git.js';
 import { preferredNodeExecutable } from '../dist/host/nodeExecutable.js';
 import { copyFileToClipboard } from '../dist/host/fileClipboard.js';
 import { nextCarrierCollisionInstance } from '../dist/host/carrierPublish.js';
-import { compareIncomingWorkspaceToLocal, createArtifactDraft, inspectArtifactCreationContract, parseBootstrapDescriptor, prepareBundledRuntime, projectArtifactMaterialization, projectArtifactSchemaGuide, runTiinexJson, projectEditorAssistanceText, projectHandoffEndpoints, projectOperatorContext, projectPackageTransport, projectStagedValidation, projectWorkspaceLanding, projectWorkspacePackageSources } from '../dist/tiinex/bootstrap.js';
+import { compareIncomingWorkspaceToLocal, createArtifactDraft, inspectArtifactCreationContract, manufactureHandoffPackage, manufactureHandoffPackageDetailed, parseBootstrapDescriptor, prepareBundledRuntime, projectArtifactMaterialization, projectArtifactSchemaGuide, runTiinexJson, projectEditorAssistanceText, projectHandoffEndpoints, projectOperatorContext, projectPackageTransport, projectStagedValidation, projectWorkspaceLanding, projectWorkspacePackageSources } from '../dist/tiinex/bootstrap.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 let count = 0;
@@ -37,6 +39,67 @@ async function test(name, fn) {
 async function rejectsCode(fn, code) {
   await assert.rejects(fn, (error) => String(error?.message || error).includes(code));
 }
+
+await test('participant projection exposes only exact Core-qualified semantic Role material', async () => {
+  const receipt = {
+    status: 'ready', transportExecutable: true, activeSpeakerLabel: 'host-local-only', findings: [],
+    plan: { requirements: { participantRoles: [{
+      requirementName: 'Reviewer',
+      referenceTarget: 'business::.topics/roles/reviewer.role.md',
+      targetWorkspaceId: 'business',
+      targetPath: '.topics/roles/reviewer.role.md'
+    }] } }
+  };
+  assert.deepEqual(participantProjectionFromManufactureReceipt(receipt), {
+    state: 'qualified',
+    roles: [{ label: 'Reviewer', reference: 'business::.topics/roles/reviewer.role.md', workspaceId: 'business', path: '.topics/roles/reviewer.role.md' }],
+    detail: '1 Core-qualified semantic participant Role.',
+    findings: []
+  });
+  assert.equal(participantProjectionFromManufactureReceipt({ status: 'ready', transportExecutable: true, plan: { requirements: { participantRoles: [] } } }).state, 'not-established');
+  assert.deepEqual(participantProjectionFromManufactureReceipt({ status: 'ready', transportExecutable: true, findings: [], planSummary: { semanticParticipantRoutes: [{ state: 'qualified', participants: [{ label: 'Sigma', reference: 'business::.topics/roles/sigma.trace.md', workspaceId: 'business', path: '.topics/roles/sigma.trace.md' }] }] } }), {
+    state: 'qualified',
+    roles: [{ label: 'Sigma', reference: 'business::.topics/roles/sigma.trace.md', workspaceId: 'business', path: '.topics/roles/sigma.trace.md' }],
+    detail: '1 Core-qualified semantic participant Role.',
+    findings: []
+  });
+  assert.equal(participantProjectionFromManufactureReceipt({ status: 'blocked', findings: [{ severity: 'error', code: 'participant.blocked', message: 'No exact Role material.' }] }).state, 'blocked');
+  assert.equal(participantProjectionFromManufactureReceipt({ status: 'ready', transportExecutable: true, plan: { requirements: { participantRoles: [{ requirementName: 'Reviewer' }] } } }).state, 'blocked');
+});
+
+await test('carrier continuation allocation is consumed only from exact Core manufacture projection', async () => {
+  const preview = {
+    carrierAllocation: { state: 'qualified', allocationMode: 'qualified-parent-route-pointer-ordinal', siblingIndex: 1, childDimension: '002-1', reasonCode: '' },
+    carrierProjection: { lineage: { dimension: '002-1' } }
+  };
+  assert.deepEqual(qualifiedCarrierAllocationFromManufactureReceipt(preview), {
+    state: 'qualified', allocationMode: 'qualified-parent-route-pointer-ordinal', siblingIndex: 1, childDimension: '002-1', projectionDimension: '002-1', reasonCode: ''
+  });
+  assert.throws(() => qualifiedCarrierAllocationFromManufactureReceipt({
+    carrierAllocation: { state: 'blocked', reasonCode: 'selected-parent-route-required-for-parallel-topology' }
+  }), /selected-parent-route-required-for-parallel-topology/);
+  assert.throws(() => qualifiedCarrierAllocationFromManufactureReceipt({
+    carrierAllocation: { state: 'qualified', childDimension: '002-1' },
+    carrierProjection: { lineage: { dimension: '002-2' } }
+  }), /carrier-allocation-projection-mismatch/);
+  assert.doesNotThrow(() => assertStableQualifiedCarrierAllocation(preview, structuredClone(preview)));
+  const changed = structuredClone(preview);
+  changed.carrierAllocation.siblingIndex = 2;
+  assert.throws(() => assertStableQualifiedCarrierAllocation(preview, changed), /carrier-allocation-preview-build-mismatch:siblingIndex/);
+});
+
+await test('participant projection preview requests full Core manufacture evidence without weakening compact Pack receipts', async () => {
+  const calls = [];
+  const runtime = { root: '/core', entrypoint: '/core/tools/tiinex-portable.mjs', nodeExecutable: 'node', dispose: async () => {} };
+  const runner = async (command, args) => {
+    calls.push({ command, args });
+    return { code: 0, stdout: JSON.stringify({ status: 'ready', transportExecutable: true }), stderr: '' };
+  };
+  await manufactureHandoffPackageDetailed(runtime, ['--workspace', '/repo'], runner);
+  await manufactureHandoffPackage(runtime, ['--workspace', '/repo'], runner);
+  assert.equal(calls[0].args.includes('--compact'), false);
+  assert.equal(calls[1].args.includes('--compact'), true);
+});
 
 
 await test('artifact navigation resolves relative, qualified and external links without guessing', async () => {
@@ -441,7 +504,19 @@ await test('Discovery settings are non-mutating and ordinary builds avoid relink
   const install = tasks.tasks.find((item) => item.label === 'Tiinex: npm install');
   const link = tasks.tasks.find((item) => item.label === 'Tiinex: Link this checkout');
   const build = tasks.tasks.find((item) => item.label === 'Tiinex: Build linked extension');
-  assert.equal(install.command, 'npm install');
+  assert.equal(install.command, 'node');
+  assert.deepEqual(install.args, ['scripts/core-mode.mjs', 'install']);
+  const localCore = tasks.tasks.find((item) => item.label === 'Tiinex: Use local Core');
+  const latestCore = tasks.tasks.find((item) => item.label === 'Tiinex: Switch Core to Latest');
+  assert.equal(localCore.command, 'node');
+  assert.deepEqual(localCore.args, ['scripts/core-mode.mjs', 'local']);
+  assert.equal(latestCore.command, 'node');
+  assert.deepEqual(latestCore.args, ['scripts/core-mode.mjs', 'published']);
+  const coreModeScript = await fs.readFile(path.join(root, 'scripts', 'core-mode.mjs'), 'utf8');
+  assert.match(coreModeScript, /dependency-mode\.json/);
+  assert.match(coreModeScript, /installForMode/);
+  assert.match(coreModeScript, /--no-save/);
+  assert.match(coreModeScript, /--package-lock=false/);
   assert.deepEqual(link.dependsOn, ['Tiinex: npm install']);
   assert.equal(link.dependsOrder, 'sequence');
   assert.deepEqual(build.dependsOn, ['Tiinex: npm install']);
@@ -645,7 +720,7 @@ await test('operator README and deterministic GIF runbook describe the stabilize
   assert.match(readme, /one \*\*Display Options\*\* control/);
   assert.match(readme, /green \*\*qualified match\*\*/);
   assert.match(readme, /docs\/GIF-CAPTURE\.md/);
-  assert.match(readme, /"@tiinex\/core": "\^0\.34\.0"/);
+  assert.match(readme, /"@tiinex\/core": "\^0\.35\.0"/);
   if (process.env.TIINEX_LOCAL_CORE_ACCEPTANCE === '1') {
     assert.match(manifest.dependencies['@tiinex/core'], /^file:/);
     assert.equal(lock.packages[''].dependencies['@tiinex/core'], manifest.dependencies['@tiinex/core']);
@@ -653,8 +728,8 @@ await test('operator README and deterministic GIF runbook describe the stabilize
     const installedCore = JSON.parse(await fs.readFile(path.join(root, 'node_modules', '@tiinex', 'core', 'package.json'), 'utf8'));
     assert.equal(lock.packages['node_modules/@tiinex/core'].version, installedCore.version);
   } else {
-    assert.equal(manifest.dependencies['@tiinex/core'], '^0.34.0');
-    assert.equal(lock.packages['node_modules/@tiinex/core'].version, '0.34.0');
+    assert.equal(manifest.dependencies['@tiinex/core'], '^0.35.0');
+    assert.equal(lock.packages['node_modules/@tiinex/core'].version, '0.35.0');
   }
   for (const section of ['Clip 1 — Display Options', 'Clip 2 — Incoming exact qualified match', 'Clip 3 — Outgoing Handoff and Pack safety', 'Clip 4 — Staging and commit-message ergonomics']) assert.match(capture, new RegExp(section));
   assert.match(capture, /does not replace the required Sigma Windows observation/);
@@ -1219,7 +1294,28 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(tree, /revealInExplorer/);
   assert.match(tree, /revealFileInOS/);
   assert.match(tree, /indexed\.artifacts\.filter\(\(artifact\) => artifact\.schemaId === 'tiinex\.handoff\.v1'\)/);
-  assert.match(tree, /const participants = await this\.pickAdditionalCarrierRoles\(qualified\.from, qualified\.to\)/);
+  assert.doesNotMatch(tree, /pickAdditionalCarrierRoles|Additional carrier Roles \(optional\)/);
+  assert.match(tree, /pickCoreQualifiedParticipantSet/);
+  const participantPickerStart = tree.indexOf('private async pickCoreQualifiedParticipantSet');
+  const participantPicker = tree.slice(participantPickerStart, tree.indexOf('private async', participantPickerStart + 20));
+  assert.match(participantPicker, /projection\.state === 'blocked'/);
+  assert.match(participantPicker, /Tiinex Attach Handoff blocked/);
+  assert.match(participantPicker, /projection\.state !== 'qualified' \|\| !projection\.roles\.length/);
+  assert.match(participantPicker, /No additional Core-qualified participants are established/);
+  assert.match(participantPicker, /attached without participant Role pointers/);
+  assert.match(participantPicker, /Additional participants · Core-qualified/);
+  assert.match(participantPicker, /exact Core-qualified participant set/);
+  assert.match(participantPicker, /canPickMany: true/);
+  assert.match(participantPicker, /picked: true/);
+  assert.match(participantPicker, /selection must keep the exact Core-qualified set/);
+  assert.match(participantPicker, /showQuickPick/);
+  assert.doesNotMatch(participantPicker, /endpointCatalog|currentRoleChoices|loadHandoffEndpointChoices/);
+  assert.match(tree, /projectOutgoingParticipants/);
+  assert.match(tree, /projectHandoffPackageParticipants/);
+  assert.match(tree, /Core-qualified participant Role/);
+  assert.match(tree, /participant authority unresolved/);
+  assert.match(tree, /participant projection blocked/);
+  assert.match(tree, /Active speaker labels are host-local presentation only and do not create Party identity, Role holding, holder binding, semantic participation, delegation or acceptance/);
   assert.match(tree, /loadArtifactAuthoringCatalog/);
   assert.match(tree, /pickArtifactSchema/);
   assert.match(tree, /pickArtifactParent/);
@@ -1229,6 +1325,10 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(tree, /parent\.role === 'loaded-leaf-candidate'/);
   assert.match(tree, /stat\(safeTarget\(choice\.root, normalizePath\(parent\.path\)\)\)/);
   assert.match(tree, /qualifyArtifactDraftParent/);
+  assert.match(tree, /Tiinex qualifying selected Parent/);
+  assert.match(tree, /Selected Parent is not qualified for native continuation/);
+  assert.match(tree, /parentArtifact\.qualifiedRecord = await vscode\.window\.withProgress/);
+  assert.match(tree, /parentArtifact \? \(parentArtifact\.qualifiedRecord \|\| qualifyArtifactDraftParent/);
   assert.match(tree, /showArtifactAuthoring/);
   assert.match(tree, /loadArtifactAuthoringModel\(this\.extensionPath, schemaId, transition\)/);
   assert.match(tree, /schemaId === 'tiinex\.handoff\.v1' && options\.attachAvailable/);
@@ -1241,7 +1341,7 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(tree, /root: local\.choice\.root/);
   assert.match(tree, /Participant Role ·/);
   assert.match(tree, /pointer pending Pack/);
-  assert.match(tree, /participant pointer/);
+  assert.match(tree, /Participant Role:/);
   assert.match(tree, /attachOutgoingHandoffNode/);
   assert.match(tree, /detachOutgoingHandoffNode/);
   assert.match(tree, /async beginArtifactAuthoring\(resource\?: vscode\.Uri, preselectedSchemaId = ''\)/);
@@ -1278,6 +1378,16 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(tree, /ConfigurationTarget\.Global/);
   assert.match(tree, /Tiinex packing Workspace carrier/);
   assert.match(tree, /Tiinex packing Handoff carrier/);
+  assert.match(tree, /Tiinex qualifying participant authority/);
+  assert.match(tree, /pickOutgoingParentTopology/);
+  assert.match(tree, /Consolidate all \${routes\.length} qualified parent routes/);
+  assert.match(tree, /Core allocates the canonical N\+1 consolidation child/);
+  assert.match(tree, /packageParentRoutePointer/);
+  assert.match(tree, /packageConsolidation/);
+  assert.match(tree, /reportProgress: \(message\) => progress\.report\(\{ message \}\)/);
+  assert.match(tree, /Tiinex Outgoing package blocked/);
+  assert.ok((tree.match(/finally \{\s*this\.setOutgoingLoading\(false\);\s*\}/g) || []).length >= 2);
+  assert.ok((tree.match(/cancellable: false/g) || []).length >= 3);
   assert.match(tree, /this\.closeOutgoing\(\);/);
   assert.match(tree, /register\('tiinex\.outgoing\.selectFolder', \(\) => this\.selectOutgoingFolder\(this\.outgoingFolder\(\) \|\| this\.discoveryFolder\(\) \|\| undefined\)\)/);
   assert.match(tree, /private async selectOutgoingFolder\(defaultFolder\?: string, persist = true\): Promise<string>/);
@@ -1293,14 +1403,38 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   const writeCall = tree.indexOf('writePreparedArtifactDraft(this.extensionPath, draft)');
   assert.ok(previewCall >= 0 && writeCall > previewCall);
   const packageBuilder = await fs.readFile(path.resolve(HERE, '..', 'src', 'packageBuilder.ts'), 'utf8');
+  const participantProjection = await fs.readFile(path.resolve(HERE, '..', 'src', 'core', 'participantProjection.ts'), 'utf8');
   assert.match(packageBuilder, /prepareWorkspaceCoreRuntime/);
   assert.match(packageBuilder, /prepareSelectedCoreManufactureRuntime/);
+  assert.match(packageBuilder, /manufactureHandoffPackageDetailed/);
+  assert.match(packageBuilder, /participantProjectionFromManufactureReceipt/);
+  assert.match(participantProjection, /plan\?\.requirements\?\.participantRoles/);
+  assert.match(participantProjection, /Core did not establish any additional semantic participant Role for this current work/);
+  assert.doesNotMatch(participantProjection, /endpointCatalog|currentRoleChoices|activeSpeaker/);
+  assert.match(packageBuilder, /Projecting Core-qualified participant authority/);
+  assert.match(packageBuilder, /Preparing qualified Core runtime/);
+  assert.match(packageBuilder, /Qualifying local Workspace context/);
+  assert.match(packageBuilder, /Qualifying selected Workspace sources/);
+  assert.match(packageBuilder, /Qualifying Handoff routes/);
+  assert.match(packageBuilder, /Running Core package preview/);
+  assert.match(packageBuilder, /Manufacturing qualified carrier/);
+  assert.match(packageBuilder, /Publishing carrier/);
+  assert.match(packageBuilder, /tiinex\.package-builder\.preview-blocked/);
+  assert.match(packageBuilder, /tiinex\.package-builder\.manufacture-blocked/);
+  assert.match(packageBuilder, /finally \{ await rm\(scratch, \{ recursive: true, force: true \}\); if \(runtime\) await runtime\.dispose\(\); \}/);
   assert.match(packageBuilder, /runtime bytes differ from the carried Core source/);
   assert.match(packageBuilder, /selected-core-runtime/);
   assert.doesNotMatch(packageBuilder, /--collision-instance/);
-  assert.match(packageBuilder, /host owns only the operator-facing outer transport basename\/prefix/);
-  assert.match(packageBuilder, /input\.expectedCarrierFilename \|\| coreFilename/);
+  assert.match(packageBuilder, /Core owns routed Handoff bytes plus continuation\/allocation truth/);
+  assert.match(packageBuilder, /nextCarrierCollisionInstance\(folder, coreFilename\)/);
+  assert.doesNotMatch(packageBuilder, /input\.expectedCarrierFilename \|\| coreFilename/);
   assert.match(packageBuilder, /PackageRouteInput/);
+  assert.match(packageBuilder, /packageParentRoutePointer/);
+  assert.match(packageBuilder, /packageParentRouteId/);
+  assert.match(packageBuilder, /packageConsolidation/);
+  assert.match(packageBuilder, /--package-parent-route-pointer/);
+  assert.match(packageBuilder, /--package-parent-route-id/);
+  assert.match(packageBuilder, /--package-consolidation/);
   assert.match(packageBuilder, /workspace-routes\.json/);
   assert.match(packageBuilder, /workspace-targets\.json/);
   assert.match(packageBuilder, /--workspace-targets/);
@@ -1629,8 +1763,6 @@ await test('multi-Incoming and Merge/Replace remain selection-first, dry until f
   assert.match(tree, /seed\?\.kind === 'incoming'/);
   assert.match(tree, /this\.selectOutgoingWorkspaces\(resolvedParentPath && !localMajorParent/);
   assert.match(tree, /this\.outgoingProjectedFilename\(\)/);
-  assert.match(tree, /const routes = qualifiedRoutes\(parent\.orientation\)/);
-  assert.match(tree, /routes\.findIndex/);
   assert.match(tree, /this\.projection\('outgoing'\) === 'files'/);
   assert.match(tree, /outgoingCarrierFileChildren\(\)/);
   assert.match(tree, /const workspaceHasCache = routeDrafts\.some\(\(draft\) => outgoingDraftNeedsExternalCache\(draft, selectedWorkspaceIds\)\)/);
@@ -1703,6 +1835,10 @@ await test('multi-Incoming and Merge/Replace remain selection-first, dry until f
   assert.match(apply, /assertMutationPreconditions\(plans\)/);
   assert.match(apply, /not a cross-repository atomic transaction/);
   const packageBuilder = await fs.readFile(path.resolve(HERE, '..', 'src', 'packageBuilder.ts'), 'utf8');
+  assert.doesNotMatch(tree, /expectedOutgoingCarrierDimension/);
+  assert.doesNotMatch(tree, /primary Handoff does not continue an exact qualified Handoff route/);
+  assert.match(packageBuilder, /qualifiedCarrierAllocationFromManufactureReceipt/);
+  assert.match(packageBuilder, /assertStableQualifiedCarrierAllocation/);
   assert.match(packageBuilder, /carrier-dimension-shared-contract-mismatch/);
   assert.match(packageBuilder, /carrier-filename-shared-contract-mismatch/);
   assert.match(packageBuilder, /assertExpectedCarrierDimension\(preview/);
@@ -1851,6 +1987,102 @@ await test('runtime binding rejects a missing lockfile, stale declaration and di
   } finally { await fs.rm(scratch, { recursive: true, force: true }); }
 });
 
+await test('Local Core mode survives a linked-extension restart and does not weaken Latest mode', async () => {
+  const fs = await import('node:fs/promises');
+  const os = await import('node:os');
+  const scratch = await fs.mkdtemp(path.join(os.tmpdir(), 'tiinex-local-runtime-restart-'));
+  const repos = path.join(scratch, 'repos');
+  const extensionCheckout = path.join(repos, 'extension-vscode');
+  const coreCheckout = path.join(repos, 'core');
+  const extensionLinkRoot = path.join(scratch, 'extensions');
+  const extensionLink = path.join(extensionLinkRoot, 'tiinex.tiinex-vscode');
+  const installedCore = path.join(extensionCheckout, 'node_modules', '@tiinex', 'core');
+  try {
+    await fs.mkdir(path.join(extensionCheckout, '.git'), { recursive: true });
+    await fs.mkdir(path.join(coreCheckout, '.git'), { recursive: true });
+    await fs.mkdir(path.join(coreCheckout, 'tools'), { recursive: true });
+    await fs.mkdir(path.join(installedCore, 'tools'), { recursive: true });
+    await fs.mkdir(extensionLinkRoot, { recursive: true });
+
+    const corePackage = (version) => ({
+      name: '@tiinex/core', version, type: 'module',
+      exports: { './portable-entry': './tools/tiinex-portable.mjs', './package.json': './package.json' }
+    });
+    await fs.writeFile(path.join(extensionCheckout, 'package.json'), JSON.stringify({ dependencies: { '@tiinex/core': '^0.35.0' } }));
+    await fs.writeFile(path.join(extensionCheckout, 'package-lock.json'), JSON.stringify({ packages: {
+      '': { dependencies: { '@tiinex/core': '^0.35.0' } },
+      'node_modules/@tiinex/core': { version: '0.35.0' }
+    } }));
+    await fs.writeFile(path.join(coreCheckout, 'package.json'), JSON.stringify(corePackage('0.1.1')));
+    await fs.writeFile(path.join(coreCheckout, 'tools', 'tiinex-portable.mjs'), 'export {};\n');
+    await fs.writeFile(path.join(installedCore, 'package.json'), JSON.stringify(corePackage('0.1.1')));
+    await fs.writeFile(path.join(installedCore, 'tools', 'tiinex-portable.mjs'), 'export {};\n');
+    await fs.symlink(extensionCheckout, extensionLink, 'dir');
+
+    // Switch all to Local intentionally leaves the reviewed manifest/lock on
+    // the published line while installing local Core bytes into node_modules.
+    // After a host restart the linked extension path must recover the real
+    // checkout and select the sibling Core source instead of rejecting 0.1.1:0.35.0.
+    const localRuntime = await prepareBundledRuntime(extensionLink, process.execPath);
+    try {
+      assert.equal(path.resolve(localRuntime.root), path.resolve(coreCheckout));
+      assert.equal(path.resolve(localRuntime.entrypoint), path.resolve(coreCheckout, 'tools', 'tiinex-portable.mjs'));
+    } finally { await localRuntime.dispose(); }
+
+    // Switch all to Latest restores the lock-matching installed package. The
+    // mere presence of a sibling checkout must not force Local mode.
+    await fs.writeFile(path.join(installedCore, 'package.json'), JSON.stringify(corePackage('0.35.0')));
+    const latestRuntime = await prepareBundledRuntime(extensionLink, process.execPath);
+    try {
+      assert.equal(path.resolve(latestRuntime.root), path.resolve(installedCore));
+    } finally { await latestRuntime.dispose(); }
+
+    // A mismatching installed package that does not match the sibling source
+    // remains fail-closed rather than being interpreted as Local mode.
+    await fs.writeFile(path.join(installedCore, 'package.json'), JSON.stringify(corePackage('9.9.9')));
+    await assert.rejects(prepareBundledRuntime(extensionLink, process.execPath), /version-mismatch:9\.9\.9:0\.35\.0/);
+  } finally { await fs.rm(scratch, { recursive: true, force: true }); }
+});
+
+await test('explicit persisted Local mode survives restart and Published mode remains strict', async () => {
+  const fs = await import('node:fs/promises');
+  const os = await import('node:os');
+  const scratch = await fs.mkdtemp(path.join(os.tmpdir(), 'tiinex-persisted-core-mode-'));
+  try {
+    const repos = path.join(scratch, 'repos');
+    const extensionCheckout = path.join(repos, 'extension-vscode');
+    const coreCheckout = path.join(repos, 'core');
+    const extensionLink = path.join(scratch, 'extensions', 'tiinex.tiinex-vscode');
+    await fs.mkdir(path.join(extensionCheckout, '.vscode', 'link'), { recursive: true });
+    await fs.mkdir(path.join(coreCheckout, 'tools'), { recursive: true });
+    await fs.mkdir(path.dirname(extensionLink), { recursive: true });
+    await fs.writeFile(path.join(extensionCheckout, 'package.json'), JSON.stringify({ dependencies: { '@tiinex/core': '^0.35.0' } }));
+    await fs.writeFile(path.join(extensionCheckout, 'package-lock.json'), JSON.stringify({ packages: { '': { dependencies: { '@tiinex/core': '^0.35.0' } }, 'node_modules/@tiinex/core': { version: '0.35.0' } } }));
+    await fs.writeFile(path.join(coreCheckout, 'package.json'), JSON.stringify({ name: '@tiinex/core', version: '0.99.0' }));
+    await fs.writeFile(path.join(coreCheckout, 'tools', 'tiinex-portable.mjs'), 'export {};\n');
+    await fs.writeFile(path.join(extensionCheckout, '.vscode', 'link', 'dependency-mode.json'), JSON.stringify({ mode: 'local', coreRoot: '../core' }));
+    await fs.symlink(extensionCheckout, extensionLink, 'dir');
+    const local = await prepareBundledRuntime(extensionLink, process.execPath);
+    try { assert.equal(path.resolve(local.root), path.resolve(coreCheckout)); }
+    finally { await local.dispose(); }
+
+    await fs.writeFile(path.join(extensionCheckout, '.vscode', 'link', 'dependency-mode.json'), JSON.stringify({ mode: 'published', coreRoot: '../core' }));
+    await assert.rejects(prepareBundledRuntime(extensionLink, process.execPath), /core-package\.unavailable|core-package\.version-mismatch/);
+  } finally { await fs.rm(scratch, { recursive: true, force: true }); }
+});
+
+await test('Incoming, Outgoing and Replace share the same runtime binding instead of bypassing version checks', async () => {
+  const fs = await import('node:fs/promises');
+  const root = path.resolve(HERE, '..');
+  const operator = await fs.readFile(path.join(root, 'src', 'operatorTrees.ts'), 'utf8');
+  const incoming = await fs.readFile(path.join(root, 'src', 'incomingApply.ts'), 'utf8');
+  const builder = await fs.readFile(path.join(root, 'src', 'packageBuilder.ts'), 'utf8');
+  assert.doesNotMatch(operator, /allowInstalledVersionMismatch/);
+  assert.doesNotMatch(incoming, /allowInstalledVersionMismatch|replaceBindingOptions/);
+  assert.doesNotMatch(builder, /allowInstalledVersionMismatch/);
+  assert.match(builder, /prepareHostCoreRuntime/);
+});
+
 await test('carrier names are labels and never filesystem paths', async () => {
   const { checkedCarrierFilename } = await import('../dist/core/carrierFilename.js');
   assert.equal(checkedCarrierFilename('business-001-1.handoff-package.zip'), 'business-001-1.handoff-package.zip');
@@ -1879,19 +2111,123 @@ await test('routed Handoff Pack takes filename and collision allocation from qua
   const fs = await import('node:fs/promises');
   const root = path.resolve(HERE, '..');
   const builder = await fs.readFile(path.join(root, 'src', 'packageBuilder.ts'), 'utf8');
-  const start = builder.indexOf('const args = await handoffArgs');
+  const buildStart = builder.indexOf('export async function buildHandoffPackageFromForm');
+  const start = builder.indexOf('const args = await handoffArgs', buildStart);
   const branch = builder.slice(start, builder.indexOf('return { outputPath', start));
   assert.match(branch, /const preview = await manufactureHandoffPackage/);
+  assert.match(branch, /qualifiedCarrierAllocationFromManufactureReceipt\(preview\)/);
   assert.match(branch, /qualifiedCoreCarrierFilename\(preview\)/);
+  assert.match(branch, /assertStableQualifiedCarrierAllocation\(preview, built\)/);
   assert.match(branch, /assertCoreCarrierFilenameStable\(preview, built\)/);
-  assert.match(branch, /const filename = checkedCarrierFilename\(String\(input\.expectedCarrierFilename \|\| coreFilename\)\)/);
+  assert.match(branch, /nextCarrierCollisionInstance\(folder, coreFilename\)/);
+  assert.match(branch, /carrierFilenameForCollisionInstance\(coreFilename, collisionInstance\)/);
   assert.match(branch, /publishCarrierFile\(built\.primaryOutput\.path, folder, filename\)/);
-  assert.doesNotMatch(branch, /assertExpectedCarrierFilename\(/);
+  assert.doesNotMatch(branch, /input\.expectedCarrierFilename|assertExpectedCarrierFilename\(|assertExpectedCarrierDimension\(/);
   const tree = await fs.readFile(path.join(root, 'src', 'operatorTrees.ts'), 'utf8');
-  const treeStart = tree.indexOf('const selected = candidateItems.length');
+  const treeStart = tree.indexOf('const mechanicalAnchor = routes[0]');
   const treeBranch = tree.slice(treeStart, tree.indexOf('this.outgoing.lastBuilt', treeStart));
-  assert.match(treeBranch, /expectedCarrierFilename: this\.outgoingProjectedFilename\(selected\.item\)/);
-  assert.match(treeBranch, /refreshOutgoingCollisionInstance\(outputDirectory, selected\.item\)/);
+  assert.ok(treeStart >= 0);
+  assert.match(treeBranch, /buildHandoffPackageFromForm/);
+  assert.match(treeBranch, /routeInputs: routes\.map/);
+  assert.match(treeBranch, /carrierPrefix:/);
+  assert.doesNotMatch(treeBranch, /expectedCarrierFilename:|expectedCarrierDimension:|refreshOutgoingCollisionInstance/);
+  assert.doesNotMatch(treeBranch, /Primary Outgoing route|primary Handoff does not continue an exact qualified Handoff route/);
+  assert.match(treeBranch, /Tiinex packing Handoff carrier/);
+  assert.match(tree, /Tiinex finishing Handoff carrier/);
+  assert.match(tree, /Queueing finished carrier for Transport/);
+  assert.match(branch, /Running Core route\/allocation preflight and package preview/);
+  assert.match(branch, /Manufacturing and requalifying finished carrier/);
+  assert.match(branch, /Allocating Core-derived output filename/);
+  assert.match(branch, /Publishing qualified carrier/);
+});
+
+await test('Handoff endpoint selections remain exact transport material bindings when Core creation omits optional endpoint References', async () => {
+  const fs = await import('node:fs/promises');
+  const root = path.resolve(HERE, '..');
+  const panel = await fs.readFile(path.join(root, 'src', 'artifactAuthoringPanel.ts'), 'utf8');
+  assert.match(panel, /endpointSelections\(\)/);
+  assert.match(panel, /endpointSelections:endpointSelections\(\)/);
+  const tree = await fs.readFile(path.join(root, 'src', 'operatorTrees.ts'), 'utf8');
+  assert.match(tree, /reference: item\.reference/);
+  assert.match(tree, /workspaceId: item\.workspaceId/);
+  assert.match(tree, /path: item\.path/);
+  assert.match(tree, /endpointRoleBindingsFromSubmission/);
+  assert.match(tree, /endpointRoles: item\.endpointRoles/);
+  const builder = await fs.readFile(path.join(root, 'src', 'packageBuilder.ts'), 'utf8');
+  assert.match(builder, /endpointRoles\?: PackageEndpointRoleBinding\[\]/);
+  assert.match(builder, /endpointRoles: endpointRoles\.map/);
+  assert.match(builder, /party: item\.party/);
+  assert.match(builder, /--workspace-routes/);
+});
+
+await test('all package-builder Core discovery consumes the shared host runtime resolver', async () => {
+  const fs = await import('node:fs/promises');
+  const root = path.resolve(HERE, '..');
+  const builder = await fs.readFile(path.join(root, 'src', 'packageBuilder.ts'), 'utf8');
+  const bootstrap = await fs.readFile(path.join(root, 'src', 'tiinex', 'bootstrap.ts'), 'utf8');
+  assert.match(builder, /prepareHostCoreRuntime/);
+  assert.doesNotMatch(builder, /function prepareWorkspaceAwareCoreRuntime/);
+  assert.match(bootstrap, /export async function prepareHostCoreRuntime/);
+  assert.match(bootstrap, /prepareWorkspaceCoreRuntime\(coreRoots\[0\]/);
+  assert.match(builder, /loadPackageBuilderModel[\s\S]*prepareHostCoreRuntime/);
+  assert.match(builder, /loadLocalWorkspaceChoices[\s\S]*prepareHostCoreRuntime/);
+  assert.match(builder, /loadHandoffEndpointChoices[\s\S]*prepareHostCoreRuntime/);
+});
+
+await test('local/latest Core mode is persisted and ordinary install preserves the selected mode', async () => {
+  const fs = await import('node:fs/promises');
+  const root = path.resolve(HERE, '..');
+  const tasks = JSON.parse(await fs.readFile(path.join(root, '.vscode', 'tasks.json'), 'utf8'));
+  for (const [label, mode] of [['Tiinex: Use local Core', 'local'], ['Tiinex: Switch Core to Latest', 'published']]) {
+    const task = tasks.tasks.find((item) => item.label === label);
+    assert.ok(task, label);
+    assert.equal(task.command, 'node');
+    assert.deepEqual(task.args, ['scripts/core-mode.mjs', mode]);
+  }
+  const script = await fs.readFile(path.join(root, 'scripts', 'core-mode.mjs'), 'utf8');
+  assert.match(script, /dependency-mode\.json/);
+  assert.match(script, /--no-save/);
+  assert.match(script, /--package-lock=false/);
+  assert.match(script, /installForMode/);
+});
+
+await test('long Pack progress keeps an elapsed-time heartbeat while one Core stage is still running', async () => {
+  const fs = await import('node:fs/promises');
+  const root = path.resolve(HERE, '..');
+  const tree = await fs.readFile(path.join(root, 'src', 'operatorTrees.ts'), 'utf8');
+  assert.match(tree, /function progressHeartbeat/);
+  assert.match(tree, /setInterval\(render, 5000\)/);
+  assert.match(tree, /`\$\{stage\} · \$\{elapsed\}s`/);
+  assert.match(tree, /reportProgress: \(message\) => heartbeat\.report\(message\)/);
+  assert.match(tree, /finally \{ heartbeat\.dispose\(\); \}/);
+});
+
+await test('routed Handoff Pack reports slow stages in order and clears loading on every terminal path', async () => {
+  const fs = await import('node:fs/promises');
+  const root = path.resolve(HERE, '..');
+  const builder = await fs.readFile(path.join(root, 'src', 'packageBuilder.ts'), 'utf8');
+  const buildStart = builder.indexOf('export async function buildHandoffPackageFromForm');
+  const routedStart = builder.indexOf('const args = await handoffArgs', buildStart);
+  const routed = builder.slice(routedStart, builder.indexOf('return { outputPath', routedStart));
+  const stages = [
+    'Running Core route/allocation preflight and package preview…',
+    'Manufacturing and requalifying finished carrier…',
+    'Allocating Core-derived output filename…',
+    'Publishing qualified carrier…'
+  ];
+  let prior = -1;
+  for (const stage of stages) {
+    const at = routed.indexOf(stage);
+    assert.ok(at > prior, `missing or out-of-order stage: ${stage}`);
+    prior = at;
+  }
+  const tree = await fs.readFile(path.join(root, 'src', 'operatorTrees.ts'), 'utf8');
+  const packStart = tree.indexOf("title: 'Tiinex packing Handoff carrier'");
+  const pack = tree.slice(packStart, tree.indexOf('private async openOutgoingWorkspaceArtifactForRepair', packStart));
+  assert.ok(pack.indexOf('Qualifying selected Workspace sources…') < pack.indexOf('Tiinex finishing Handoff carrier'));
+  assert.ok(pack.indexOf('Refreshing packaged carrier discovery…') < pack.indexOf('Queueing finished carrier for Transport…'));
+  assert.match(pack, /catch \(error\)/);
+  assert.match(pack, /finally \{\s*this\.setOutgoingLoading\(false\);\s*\}/);
 });
 
 await test('carrier publication does not overwrite different bytes and accepts an exact retry', async () => {
@@ -2158,7 +2494,8 @@ await test('linked Tiinex checkout binds directly to sibling Core while VSIX pac
   const binding = await fs.readFile(path.resolve(HERE, '..', 'src', 'host', 'corePackageBinding.ts'), 'utf8');
   const packager = await fs.readFile(path.resolve(HERE, '..', 'scripts', 'package-vsix.mjs'), 'utf8');
   assert.match(binding, /bindingMode: 'sibling-source'/);
-  assert.match(binding, /path\.resolve\(extensionPath, '\.\.', 'core'\)/);
+  assert.match(binding, /realpath\(extensionPath\)/);
+  assert.match(binding, /path\.resolve\(checkoutRoot, '\.\.', 'core'\)/);
   assert.match(binding, /path\.join\(root, 'tools', 'tiinex-portable\.mjs'\)/);
   assert.match(packager, /binding\.bindingMode === 'sibling-source'/);
   assert.match(packager, /packagedManifest\.dependencies/);
