@@ -6,7 +6,7 @@ import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import * as vscode from 'vscode';
 import { extensionHostAcceptanceEnabled, recordExtensionHostAcceptanceEvent } from './vscode/extensionHostAcceptance';
 import { preferredNodeExecutable } from './host/nodeExecutable';
-import { manufactureHandoffPackage, manufactureHandoffPackageDetailed, projectHandoffParticipants, OperatorContextResult, prepareBundledRuntime, prepareHostCoreRuntime, prepareWorkspaceCoreRuntime, projectHandoffLeaves, projectOperatorContext, projectWorkspacePackageSources, WorkspacePackageSourcesResult } from './tiinex/bootstrap';
+import { manufactureHandoffPackage, manufactureHandoffPackageDetailed, projectHandoffParticipants, OperatorContextResult, prepareBundledRuntime, prepareHostCoreRuntime, prepareWorkspaceCoreRuntime, projectHandoffLeaves, projectHandoffEndpoints, projectOperatorContext, projectWorkspacePackageSources, WorkspacePackageSourcesResult } from './tiinex/bootstrap';
 import { repositoryRoots } from './vscode/gitApi';
 import { repositoryFact } from './host/git';
 import { workspaceCarrierArgs } from './core/packageArgs';
@@ -20,6 +20,7 @@ import { representativeWorkspaceChoicesForRoot } from './core/workspaceChoice';
 import { ParticipantProjection, QualifiedParticipantRole } from './core/participantProjection';
 import { assertStableQualifiedCarrierAllocation, qualifiedCarrierAllocationFromManufactureReceipt } from './core/carrierAllocation';
 import { carrierFilenameForCollisionInstance } from './core/outgoingUx';
+import { endpointCandidatesForExplicitSource, mergeExactHandoffEndpointChoices } from './core/handoffEndpointSelection';
 
 type WorkspaceSource = WorkspacePackageSourcesResult['candidates'][number] & { root: string };
 export type RouteChoice = { id: string; pointerless: boolean; label: string; description: string; detail?: string; path?: string; from?: string; to?: string; workspaceId?: string };
@@ -41,6 +42,7 @@ export interface PackageRouteRouting { routeId: string; workspaceId: string; han
 export type PackageParticipantProjection = ParticipantProjection;
 export interface PackageBuildResult { outputPath: string; routingText: string; routeRoutingTexts: PackageRouteRouting[]; autoCopiedTransportText: boolean; routeId: string; routeIds: string[]; workspaceIds: string[] }
 export interface HandoffEndpointChoice { id: string; target: string; reference: string; kind: 'role' | 'party'; label: string; workspaceId: string; artifactPath: string; schemaId: string; qualification: string }
+export interface HandoffEndpointSource { workspaceId: string; root: string }
 
 function nodeExecutable(): string { return preferredNodeExecutable(vscode.workspace.getConfiguration('tiinex').get('nodePath', '').toString().trim()); }
 function receiptBlocker(receipt: any): string { return presentActionableFindings(receipt?.findings || [], receipt?.status || 'unknown'); }
@@ -295,15 +297,36 @@ async function outputDirectory(input: PackageBuildInput, title: string): Promise
   return folder[0].fsPath;
 }
 
-export async function loadHandoffEndpointChoices(extensionPath: string): Promise<HandoffEndpointChoice[]> {
-  const runtime = await prepareHostCoreRuntime(extensionPath, openWorkspaceRoots());
+export async function loadHandoffEndpointChoicesForSources(extensionPath: string, sources: HandoffEndpointSource[]): Promise<HandoffEndpointChoice[]> {
+  const explicit = sources.map((source) => ({ workspaceId: String(source.workspaceId || '').trim(), root: path.resolve(String(source.root || '').trim()) }));
+  if (!explicit.length) return [];
+  if (explicit.some((source) => !source.workspaceId || !source.root)) throw new Error('tiinex.package-builder.endpoint-source-invalid');
+  const byWorkspaceId = new Map<string, string[]>();
+  for (const source of explicit) byWorkspaceId.set(source.workspaceId, [...(byWorkspaceId.get(source.workspaceId) || []), source.root]);
+  const ambiguous = [...byWorkspaceId.entries()].find(([, roots]) => new Set(roots).size > 1);
+  if (ambiguous) throw new Error(`tiinex.package-builder.endpoint-source-workspace-ambiguous:${ambiguous[0]}`);
+
+  const runtime = await prepareHostCoreRuntime(extensionPath, [...new Set(explicit.map((source) => source.root))]);
   try {
-    const context = await operatorContext(runtime);
-    const validWorkspaceIds = new Set(sourcesFromContext(context).map((item) => item.workspaceId));
-    const byTarget = new Map<string, HandoffEndpointChoice>();
-    for (const candidate of context.endpoints || []) if (validWorkspaceIds.has(candidate.workspaceId)) byTarget.set(candidate.target, candidate);
-    return [...byTarget.values()].sort((a, b) => a.kind.localeCompare(b.kind) || a.label.localeCompare(b.label) || a.target.localeCompare(b.target));
+    const groups: HandoffEndpointChoice[][] = [];
+    for (const source of explicit) {
+      const projection = await projectHandoffEndpoints(runtime, source.root, source.workspaceId);
+      if (projection.status !== 'ready' || (projection.findings || []).some((item) => item.severity === 'error')) {
+        throw new Error(`tiinex.package-builder.endpoint-source-unqualified:${source.workspaceId}:\n${presentActionableFindings(projection.findings || [], projection.status)}`);
+      }
+      groups.push(endpointCandidatesForExplicitSource(source, projection.candidates || []));
+    }
+    return mergeExactHandoffEndpointChoices(groups);
   } finally { await runtime.dispose(); }
+}
+
+/** Compatibility surface for callers that have not yet supplied an explicit source set.
+ * It resolves each visible VS Code Workspace independently, then projects only the
+ * representative qualified Workspace roots rather than aggregating repository-wide
+ * endpoint discovery. New semantic authoring paths should pass exact sources directly. */
+export async function loadHandoffEndpointChoices(extensionPath: string): Promise<HandoffEndpointChoice[]> {
+  const choices = await loadLocalWorkspaceChoices(extensionPath);
+  return loadHandoffEndpointChoicesForSources(extensionPath, choices.map((item) => ({ workspaceId: item.workspaceId, root: item.root })));
 }
 
 export async function announceBuiltCarrier(outputPath: string, label: string, note = ''): Promise<void> {

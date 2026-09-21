@@ -6,11 +6,11 @@ import { mkdir, readFile, rm, stat } from 'node:fs/promises';
 import * as vscode from 'vscode';
 import { preferredNodeExecutable } from './host/nodeExecutable';
 import { indexCarrierPackage, indexLocalWorkspace, indexLocalWorkspaceFiles, discoveryPackages, IndexedCarrierPackage, IndexedWorkspaceFile } from './carrierIndex';
-import { alphabeticalWorkspaceIds, artifactFeedTime, artifactsByModifiedNewest, artifactsForLineageMode, currentRoleChoices, IndexedArtifact, leafArtifactPathSet, logicalGroupForArtifact, normalizePath, schemaDisplayLabel, TreeLineageMode, TreeProjectionMode } from './core/artifactTree';
+import { alphabeticalWorkspaceIds, artifactFeedTime, artifactsByModifiedNewest, artifactsForLineageMode, IndexedArtifact, leafArtifactPathSet, logicalGroupForArtifact, normalizePath, schemaDisplayLabel, TreeLineageMode, TreeProjectionMode } from './core/artifactTree';
 import { preferredRepositoryParent } from './core/receiveUx';
 import { qualifiedRoutes, QualifiedRouteReceipt } from './core/receivedHandoff';
 import { mergeTransportRouteSelection, selectedTransportRouteIds, StoredTransportQueueItem, transportPrepared, transportPreparedKey, TransportPreparedRecord } from './core/transportQueue';
-import { loadHandoffEndpointChoices, loadLocalWorkspaceChoices, loadPackageBuilderModel, buildHandoffPackageFromForm, announceBuiltCarrier, routeChoiceKeyForHandoff, IncomingPackageWorkspaceSource, PackageWorkspaceChoice, PackageWorkspaceSourceOverride, PackageRouteRouting, PackageParticipantProjection, projectHandoffPackageParticipants, qualifyLocalWorkspaceChoice } from './packageBuilder';
+import { loadHandoffEndpointChoicesForSources, loadLocalWorkspaceChoices, buildHandoffPackageFromForm, announceBuiltCarrier, routeChoiceKeyForHandoff, IncomingPackageWorkspaceSource, PackageWorkspaceChoice, PackageWorkspaceSourceOverride, PackageRouteRouting, PackageParticipantProjection, projectHandoffPackageParticipants, qualifyLocalWorkspaceChoice } from './packageBuilder';
 import { ArtifactAuthoringCatalog, ArtifactDraftParent, loadArtifactAuthoringCatalog, loadArtifactAuthoringModel, prepareArtifactDraft, PreparedArtifactDraft, qualifyArtifactDraftParent, qualifyExistingHandoff, writePreparedArtifactDraft } from './authoring';
 import { initializeRepositoryWorkspace } from './workspaceInitialization';
 import { repositoryRootForResource } from './vscode/gitApi';
@@ -595,12 +595,12 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     return relative && relative !== '.' ? safeRelativePath(relative) : '.';
   }
 
-  private async handoffAuthoringPresentation(): Promise<{ fieldAssists: any[]; templates: any[]; selectedTemplateId: string }> {
-    const endpoints = await this.endpointCatalog();
+  private async handoffAuthoringPresentation(workspace: OutgoingWorkspace): Promise<{ fieldAssists: any[]; templates: any[]; selectedTemplateId: string }> {
+    const endpoints = await this.endpointCatalog(workspace);
     const suggestions = (field: 'From' | 'To') => endpoints.map((item) => ({
       label: item.label,
       value: item.label,
-      description: item.kind === 'role' ? `Role · ${item.reference}` : item.kind === 'party' ? `Party · ${item.reference}` : item.kind,
+      description: item.kind === 'role' ? `Role · ${item.workspaceId} · ${item.path}` : item.kind === 'party' ? `Party · ${item.workspaceId} · ${item.path}` : item.kind,
       fills: { [`${field} Kind`]: item.kind },
       kind: item.kind,
       reference: item.reference,
@@ -814,6 +814,8 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     if (extensionHostAcceptanceEnabled()) {
       register('tiinex.acceptance.configure', (value?: any) => configureExtensionHostAcceptance(value || {}));
       register('tiinex.acceptance.snapshot', () => this.extensionHostAcceptanceSnapshot());
+      register('tiinex.acceptance.endpointCatalog', () => this.extensionHostAcceptanceEndpointCatalog());
+      register('tiinex.acceptance.authorHandoff', (value?: any) => this.extensionHostAcceptanceAuthorHandoff(value || {}));
       register('tiinex.acceptance.corruptParticipantSnapshot', () => this.corruptExtensionHostAcceptanceParticipantSnapshot());
     }
 
@@ -855,6 +857,65 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       })),
       events: [...extensionHostAcceptanceEvents()]
     };
+  }
+
+  private async extensionHostAcceptanceEndpointCatalog(): Promise<any[]> {
+    if (!extensionHostAcceptanceEnabled()) throw new Error('tiinex.extension-host.acceptance-disabled');
+    const workspace = this.outgoing?.workspaces?.[0];
+    if (!workspace) throw new Error('tiinex.extension-host.outgoing-required');
+    const catalog = await this.endpointCatalog(workspace);
+    recordExtensionHostAcceptanceEvent('endpoint-catalog', {
+      count: catalog.length,
+      candidates: catalog.map((item) => ({ label: item.label, kind: item.kind, workspaceId: item.workspaceId, path: item.path, reference: item.reference }))
+    });
+    return catalog;
+  }
+
+  private async extensionHostAcceptanceAuthorHandoff(value: any = {}): Promise<any> {
+    if (!extensionHostAcceptanceEnabled()) throw new Error('tiinex.extension-host.acceptance-disabled');
+    if (!this.outgoing) throw new Error('tiinex.extension-host.outgoing-required');
+    const workspaceId = String(value.workspaceId || this.outgoing.workspaces[0]?.workspaceId || '').trim();
+    const workspace = this.outgoing.workspaces.find((item) => item.workspaceId === workspaceId);
+    if (!workspace) throw new Error(`tiinex.extension-host.outgoing-workspace-required:${workspaceId}`);
+    const root = await this.ensureOutgoingAuthoringRoot(workspace);
+    const parentPath = normalizePath(String(value.parentPath || '.topics/tasks/extension-host-acceptance.trace.md').trim());
+    const parentArtifact: ArtifactDraftParent = {
+      path: parentPath,
+      markdown: await readFile(safeTarget(root, parentPath), 'utf8'),
+      workspaceId,
+      root,
+      reference: parentPath
+    };
+    parentArtifact.qualifiedRecord = await qualifyArtifactDraftParent(this.extensionPath, parentArtifact);
+    const submission: ArtifactAuthoringSubmission = {
+      workspaceId,
+      title: String(value.title || 'Extension Host Authored Handoff').trim(),
+      templateId: 'work',
+      values: {
+        Purpose: 'Exercise the production VS Code Handoff authoring, Attach, and Pack path in the real Extension Host.',
+        From: 'Anchor',
+        'From Kind': 'role',
+        To: 'Kodax',
+        'To Kind': 'role',
+        Transfers: [{ name: 'host-authored-work', fields: { 'Transfer Kind': 'work-and-responsibility', Description: 'Exercise the bounded real-host authoring path without inventing endpoint reference authority.' } }],
+        'Required Context': 'none',
+        'Reference Context': 'none',
+        'Retained Responsibilities': 'none',
+        'Exclusions And Dependencies': 'none',
+        'Signal Kind': 'return',
+        'Signal Meaning': 'Return the bounded Extension Host acceptance result.',
+        'Does Not Mean': 'This acceptance Handoff does not grant authority beyond the fixture.',
+        'Must Not Be Used To Claim': 'Do not infer endpoint Role reference authority from labels alone.'
+      },
+      endpointSelections: {},
+      attachToOutgoing: true,
+      closeWhenDone: true
+    };
+    const result = await this.createAuthoredArtifact(workspace, 'tiinex.handoff.v1', submission, parentArtifact, '', true);
+    if (result.followUpError) throw new Error(`tiinex.extension-host.authored-handoff-follow-up:${result.followUpError}`);
+    if (!result.attachedToOutgoing) throw new Error('tiinex.extension-host.authored-handoff-not-attached');
+    recordExtensionHostAcceptanceEvent('handoff-authored', { workspaceId, path: result.draft.path });
+    return { workspaceId, path: result.draft.path, title: result.draft.title };
   }
 
   private corruptExtensionHostAcceptanceParticipantSnapshot(): any {
@@ -2955,6 +3016,46 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     }
   }
 
+  private async createAuthoredArtifact(
+    workspace: OutgoingWorkspace,
+    schemaId: string,
+    submission: ArtifactAuthoringSubmission,
+    parentArtifact: ArtifactDraftParent | null,
+    targetDirectory: string,
+    attachAvailable: boolean
+  ): Promise<{ draft: PreparedArtifactDraft; writtenPath: string; attachedToOutgoing: boolean; followUpError: string }> {
+    const root = await this.ensureOutgoingAuthoringRoot(workspace);
+    const draft = await vscode.window.withProgress(
+      { location: vscode.ProgressLocation.Notification, title: `Tiinex creating ${schemaId}`, cancellable: false },
+      () => this.prepareAuthoringSubmission(workspace, schemaId, submission, parentArtifact, targetDirectory)
+    );
+    const writtenPath = await writePreparedArtifactDraft(this.extensionPath, draft);
+    this.localLeafContextCache.delete(workspace.workspaceId);
+    let followUpError = '';
+    let attachedToOutgoing = false;
+    try {
+      if (submission.attachToOutgoing) {
+        if (!attachAvailable || schemaId !== 'tiinex.handoff.v1') throw new Error('tiinex.authoring.attach-outgoing-unavailable');
+        const qualified = await qualifyExistingHandoff(this.extensionPath, root, workspace.workspaceId, draft.path);
+        const participantProjection = await this.projectOutgoingParticipants(workspace, qualified.path);
+        const selectedParticipantProjection = await confirmExactCoreParticipantProjection(participantProjection);
+        if (selectedParticipantProjection) {
+          this.trackOutgoingHandoff(workspace, draft, writtenPath, qualified.from, qualified.to, selectedParticipantProjection, 'created', true, this.endpointRoleBindingsFromSubmission(submission));
+          workspace.payloadIncluded = true;
+          workspace.checkoutRepository = undefined;
+          workspace.checkoutRef = undefined;
+          attachedToOutgoing = true;
+        }
+      }
+      this.refresh();
+      await this.updateUiContexts();
+      if (attachedToOutgoing) await this.revealOutgoingPanel();
+    } catch (error) {
+      followUpError = shortMessage(error);
+    }
+    return { draft, writtenPath, attachedToOutgoing, followUpError };
+  }
+
   private async showArtifactAuthoring(
     workspace: OutgoingWorkspace,
     schemaId: string,
@@ -2970,7 +3071,14 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       ]);
       if (parentArtifact && qualifiedParentRecord) parentArtifact.qualifiedRecord = qualifiedParentRecord;
       const attachAvailable = schemaId === 'tiinex.handoff.v1' && options.attachAvailable;
-      const handoffPresentation = schemaId === 'tiinex.handoff.v1' ? await this.handoffAuthoringPresentation() : null;
+      const attachUnavailableReason = attachAvailable
+        ? ''
+        : schemaId !== 'tiinex.handoff.v1'
+          ? 'Handoff artifacts only'
+          : this.outgoing
+            ? 'this Workspace is not selected in Outgoing'
+            : 'create an Outgoing context first';
+      const handoffPresentation = schemaId === 'tiinex.handoff.v1' ? await this.handoffAuthoringPresentation(workspace) : null;
       openArtifactAuthoringPanel({
         model,
         workspaces: [{ workspaceId: workspace.workspaceId, label: workspace.label || workspace.workspaceId, description: workspace.source === 'local' ? 'LOCAL' : `INCOMING · ${workspace.sourceLabel}` }],
@@ -2980,6 +3088,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
         selectedTemplateId: handoffPresentation?.selectedTemplateId || '',
         attachAvailable,
         attachDefault: attachAvailable && options.attachDefault,
+        attachUnavailableReason,
         parentLabel: parentArtifact?.path || ''
       }, {
         preview: async (submission) => {
@@ -2987,33 +3096,9 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
           await this.openVirtualMarkdown(`authoring/${workspace.workspaceId}/${draft.path}`, draft.markdown);
         },
         create: async (submission) => {
-          const draft = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `Tiinex creating ${model.label}`, cancellable: false }, () => this.prepareAuthoringSubmission(workspace, schemaId, submission, parentArtifact, options.targetDirectory || ''));
-          const writtenPath = await writePreparedArtifactDraft(this.extensionPath, draft);
-          this.localLeafContextCache.delete(workspace.workspaceId);
-          let followUpError = '';
-          let attachedToOutgoing = false;
-          try {
-            if (submission.attachToOutgoing) {
-              if (!attachAvailable || schemaId !== 'tiinex.handoff.v1') throw new Error('tiinex.authoring.attach-outgoing-unavailable');
-              const qualified = await qualifyExistingHandoff(this.extensionPath, root, workspace.workspaceId, draft.path);
-              const participantProjection = await this.projectOutgoingParticipants(workspace, qualified.path);
-              const selectedParticipantProjection = await confirmExactCoreParticipantProjection(participantProjection);
-              if (selectedParticipantProjection) {
-                this.trackOutgoingHandoff(workspace, draft, writtenPath, qualified.from, qualified.to, selectedParticipantProjection, 'created', true, this.endpointRoleBindingsFromSubmission(submission));
-                workspace.payloadIncluded = true;
-                workspace.checkoutRepository = undefined;
-                workspace.checkoutRef = undefined;
-                attachedToOutgoing = true;
-              }
-            }
-            this.refresh();
-            await this.updateUiContexts();
-            if (attachedToOutgoing) await this.revealOutgoingPanel();
-          } catch (error) {
-            followUpError = shortMessage(error);
-          }
-          void vscode.window.showInformationMessage(`Created ${draft.path}`);
-          if (followUpError) void vscode.window.showWarningMessage(`Artifact was created, but post-create UI/Outgoing follow-up was incomplete: ${followUpError}`);
+          const created = await this.createAuthoredArtifact(workspace, schemaId, submission, parentArtifact, options.targetDirectory || '', attachAvailable);
+          void vscode.window.showInformationMessage(`Created ${created.draft.path}`);
+          if (created.followUpError) void vscode.window.showWarningMessage(`Artifact was created, but post-create UI/Outgoing follow-up was incomplete: ${created.followUpError}`);
         }
       });
     } catch (error) {
@@ -3525,29 +3610,29 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     await this.updateUiContexts();
   }
 
-  private async endpointCatalog(): Promise<Array<{ label: string; kind: 'role' | 'party' | 'unknown'; reference: string; workspaceId: string; path: string }>> {
-    const artifacts: IndexedArtifact[] = [];
-    for (const incoming of this.incoming) {
-      artifacts.push(...incoming.index.carrierArtifacts);
-      for (const workspace of incoming.index.workspaces) artifacts.push(...workspace.artifacts);
+  private async endpointCatalog(authoringWorkspace: OutgoingWorkspace): Promise<Array<{ label: string; kind: 'role' | 'party' | 'unknown'; reference: string; workspaceId: string; path: string }>> {
+    // Endpoint semantics come only from Core. The host contributes the exact
+    // operator-selected Workspace roots and never expands that authority from
+    // repository-wide discovery, nested fixtures, labels, chronology or proximity.
+    const selected = this.outgoing?.workspaces?.length ? this.outgoing.workspaces : [authoringWorkspace];
+    const sources: Array<{ workspaceId: string; root: string }> = [];
+    for (const workspace of selected) {
+      const root = await this.ensureOutgoingAuthoringRoot(workspace);
+      sources.push({ workspaceId: workspace.workspaceId, root });
     }
-    const localModel = await safePackageModel(this.extensionPath);
-    for (const workspace of localModel.workspaces) if (workspace.root) {
-      try { artifacts.push(...(await indexLocalWorkspace(workspace.root, workspace.workspaceId)).artifacts); } catch { /* keep carried catalog usable */ }
-    }
-    const roles = currentRoleChoices(artifacts).map((item) => ({ label: item.label, kind: 'role' as const, reference: item.reference, workspaceId: item.workspaceId, path: item.path }));
-    let parties: Array<{ label: string; kind: 'party'; reference: string; workspaceId: string; path: string }> = [];
-    try {
-      parties = (await loadHandoffEndpointChoices(this.extensionPath)).filter((item) => item.kind === 'party').map((item) => ({ label: item.label, kind: 'party' as const, reference: item.reference || item.target, workspaceId: item.workspaceId, path: item.artifactPath }));
-    } catch { /* package-carried roles still work when a local endpoint catalog is unavailable */ }
-    const byKey = new Map<string, { label: string; kind: 'role' | 'party' | 'unknown'; reference: string; workspaceId: string; path: string }>();
-    for (const item of [...roles, ...parties]) byKey.set(`${item.kind}:${item.label.toLocaleLowerCase()}`, item);
-    return [...byKey.values()].sort((a, b) => a.label.localeCompare(b.label));
+    const projected = await loadHandoffEndpointChoicesForSources(this.extensionPath, sources);
+    return projected.map((item) => ({
+      label: item.label,
+      kind: item.kind,
+      reference: item.reference || item.target,
+      workspaceId: item.workspaceId,
+      path: item.artifactPath
+    }));
   }
 
   private async pickEndpoint(title: string, catalog: Array<{ label: string; kind: 'role' | 'party' | 'unknown'; reference: string; workspaceId: string; path: string }>, preferred = ''): Promise<{ label: string; kind: 'role' | 'party' | 'unknown'; reference: string; workspaceId: string; path: string } | null> {
     const preferredKey = preferred.trim().toLocaleLowerCase();
-    const items = catalog.map((item) => ({ label: item.label, description: item.kind === 'role' ? `Role · ${item.reference}` : `Party · ${item.reference}`, item, picked: item.label.toLocaleLowerCase() === preferredKey }));
+    const items = catalog.map((item) => ({ label: item.label, description: item.kind === 'role' ? `Role · ${item.workspaceId} · ${item.path}` : `Party · ${item.workspaceId} · ${item.path}`, item, picked: item.label.toLocaleLowerCase() === preferredKey }));
     items.sort((a, b) => Number(b.picked) - Number(a.picked) || a.label.localeCompare(b.label));
     const custom = { label: 'Unknown / unrepresented', description: 'Use a text label without claiming a Role/Party artifact reference.', item: null as any, picked: false };
     const selected = await vscode.window.showQuickPick([...items, custom], { title, placeHolder: preferred ? `Suggested: ${preferred}` : `Select ${title}`, ignoreFocusOut: true });
@@ -4602,7 +4687,3 @@ function shortMessage(error: unknown): string {
 
 function nodeExecutable(): string { return preferredNodeExecutable(vscode.workspace.getConfiguration('tiinex').get('nodePath', '').toString().trim()); }
 
-async function safePackageModel(extensionPath: string): Promise<Awaited<ReturnType<typeof loadPackageBuilderModel>>> {
-  try { return await loadPackageBuilderModel(extensionPath); }
-  catch { return { workspaces: [], routes: [] }; }
-}

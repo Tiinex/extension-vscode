@@ -23,6 +23,7 @@ import { planWorkspaceSession, validateWorkspaceTargetMapping } from '../dist/co
 import { representativeWorkspaceChoicesForRoot } from '../dist/core/workspaceChoice.js';
 import { participantProjectionFromManufactureReceipt } from '../dist/core/participantProjection.js';
 import { assertStableQualifiedCarrierAllocation, qualifiedCarrierAllocationFromManufactureReceipt } from '../dist/core/carrierAllocation.js';
+import { endpointCandidatesForExplicitSource, mergeExactHandoffEndpointChoices } from '../dist/core/handoffEndpointSelection.js';
 import { checkIgnoredPaths, commitPreparedGitOperator, commitPreparedReviewedStaged, commitWorkingTree, deriveGitOperatorCommitMessage, dirtyWorkingTreePaths, discardWorkingTree, generateTiinexCommitMessage, listStagedConflictMarkerPaths, listStagedMutationPaths, listStagedPaths, materializeUnmergedFileConflicts, mergeCommitNoCommit, payloadCheckoutEligibility, preflightExistingLocalBranch, prepareGitOperatorCommit, prepareReviewedStagedCommit, pushExactGitOperatorCommit, pushExactLandingCommit, pushExactReviewedStagedCommit, stageCommitPush, stageLandingChanges, stageLandingCommit, stashWorkingTree, unstageLandingPaths } from '../dist/host/git.js';
 import { preferredNodeExecutable } from '../dist/host/nodeExecutable.js';
 import { copyFileToClipboard } from '../dist/host/fileClipboard.js';
@@ -65,6 +66,26 @@ await test('participant projection exposes only exact Core-qualified semantic Ro
   });
   assert.equal(participantProjectionFromManufactureReceipt({ status: 'blocked', findings: [{ severity: 'error', code: 'participant.blocked', message: 'No exact Role material.' }] }).state, 'blocked');
   assert.equal(participantProjectionFromManufactureReceipt({ status: 'ready', transportExecutable: true, plan: { requirements: { participantRoles: [{ requirementName: 'Reviewer' }] } } }).state, 'blocked');
+});
+
+await test('Handoff endpoint host scoping preserves exact same-label choices and rejects nested fixture paths', async () => {
+  const source = { workspaceId: 'business', root: '/repo/business' };
+  const candidate = (artifactPath, reference, workspaceId = 'business') => ({
+    id: `${workspaceId}:${artifactPath}`, target: reference, reference, kind: 'role', label: 'Sigma', workspaceId, artifactPath, schemaId: 'tiinex.party.role.v1', qualification: 'qualified-exact'
+  });
+  const exact = endpointCandidatesForExplicitSource(source, [
+    candidate('.topics/roles/sigma-a.trace.md', 'business::.topics/roles/sigma-a.trace.md'),
+    candidate('.topics/roles/sigma-b.trace.md', 'business::.topics/roles/sigma-b.trace.md'),
+    candidate('test/extension-host/fixtures/source-workspace/.topics/roles/sigma-fixture.trace.md', 'business::test/extension-host/fixtures/source-workspace/.topics/roles/sigma-fixture.trace.md'),
+    candidate('.topics/roles/other.trace.md', 'other::.topics/roles/other.trace.md', 'other'),
+    { ...candidate('.topics/roles/unqualified.trace.md', 'business::.topics/roles/unqualified.trace.md'), qualification: 'degraded' }
+  ]);
+  assert.equal(exact.length, 2);
+  assert.deepEqual(exact.map((item) => item.artifactPath), ['.topics/roles/sigma-a.trace.md', '.topics/roles/sigma-b.trace.md']);
+  const merged = mergeExactHandoffEndpointChoices([exact, [exact[0]]]);
+  assert.equal(merged.length, 2);
+  assert.equal(merged[0].label, 'Sigma');
+  assert.equal(merged[1].label, 'Sigma');
 });
 
 await test('carrier continuation allocation is consumed only from exact Core manufacture projection', async () => {
@@ -1382,6 +1403,9 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(tree, /showArtifactAuthoring/);
   assert.match(tree, /loadArtifactAuthoringModel\(this\.extensionPath, schemaId, transition\)/);
   assert.match(tree, /schemaId === 'tiinex\.handoff\.v1' && options\.attachAvailable/);
+  assert.match(tree, /Handoff artifacts only/);
+  assert.match(tree, /this Workspace is not selected in Outgoing/);
+  assert.match(panel, /attachUnavailableReason/);
   assert.match(tree, /qualifyExistingHandoff/);
   assert.doesNotMatch(tree, /handoffFieldAssists|handoffTemplates/);
   assert.match(tree, /openArtifactAuthoringPanel/);
@@ -1416,7 +1440,7 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(tree, /Local Workspace source was not selected/);
   assert.match(tree, /routeId: routeChoiceKey\(\{ pointerless: true \}\)/);
   assert.doesNotMatch(tree, /This Outgoing continues an Incoming Handoff carrier, so Pack needs at least one attached Handoff route/);
-  assert.match(tree, /void vscode\.window\.showInformationMessage\(`Created \${draft\.path}`\)/);
+  assert.match(tree, /void vscode\.window\.showInformationMessage\(`Created \${created\.draft\.path}`\)/);
   assert.match(tree, /refreshDiscoveryAfterPack/);
   assert.doesNotMatch(tree, /participantRoles: item\.participants/);
   assert.match(tree, /workspaceSourceOverrides/);
@@ -1450,8 +1474,9 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.ok(workspaceClose >= 0 && workspaceAnnounce > workspaceClose);
   assert.ok(handoffClose >= 0 && handoffAnnounce > handoffClose);
   const previewCall = tree.indexOf('Tiinex preparing ${model.label} preview');
-  const writeCall = tree.indexOf('writePreparedArtifactDraft(this.extensionPath, draft)');
-  assert.ok(previewCall >= 0 && writeCall > previewCall);
+  const createCall = tree.indexOf('this.createAuthoredArtifact(workspace, schemaId, submission', previewCall);
+  assert.ok(previewCall >= 0 && createCall > previewCall);
+  assert.match(tree, /writePreparedArtifactDraft\(this\.extensionPath, draft\)/);
   const packageBuilder = await fs.readFile(path.resolve(HERE, '..', 'src', 'packageBuilder.ts'), 'utf8');
   const participantProjection = await fs.readFile(path.resolve(HERE, '..', 'src', 'core', 'participantProjection.ts'), 'utf8');
   assert.match(packageBuilder, /prepareWorkspaceCoreRuntime/);
@@ -2211,6 +2236,11 @@ await test('Handoff endpoint selections remain exact transport material bindings
   assert.match(tree, /endpointRoleBindingsFromSubmission/);
   assert.match(tree, /endpointRoles: item\.endpointRoles/);
   const builder = await fs.readFile(path.join(root, 'src', 'packageBuilder.ts'), 'utf8');
+  assert.match(tree, /loadHandoffEndpointChoicesForSources/);
+  assert.doesNotMatch(tree, /currentRoleChoices/);
+  assert.match(builder, /projectHandoffEndpoints/);
+  assert.match(builder, /endpointCandidatesForExplicitSource/);
+  assert.match(builder, /mergeExactHandoffEndpointChoices/);
   assert.match(builder, /endpointRoles\?: PackageEndpointRoleBinding\[\]/);
   assert.match(builder, /endpointRoles: endpointRoles\.map/);
   assert.match(builder, /party: item\.party/);
@@ -2228,7 +2258,7 @@ await test('all package-builder Core discovery consumes the shared host runtime 
   assert.match(bootstrap, /prepareWorkspaceCoreRuntime\(coreRoots\[0\]/);
   assert.match(builder, /loadPackageBuilderModel[\s\S]*prepareHostCoreRuntime/);
   assert.match(builder, /loadLocalWorkspaceChoices[\s\S]*prepareHostCoreRuntime/);
-  assert.match(builder, /loadHandoffEndpointChoices[\s\S]*prepareHostCoreRuntime/);
+  assert.match(builder, /loadHandoffEndpointChoicesForSources[\s\S]*prepareHostCoreRuntime/);
 });
 
 await test('local/latest Core mode is persisted and ordinary install preserves the selected mode', async () => {

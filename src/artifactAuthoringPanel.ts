@@ -39,6 +39,7 @@ export interface ArtifactAuthoringPanelInput {
   selectedTemplateId?: string;
   attachAvailable: boolean;
   attachDefault: boolean;
+  attachUnavailableReason?: string;
   parentLabel?: string;
   initialValues?: Record<string, string>;
 }
@@ -139,7 +140,7 @@ function html(input: ArtifactAuthoringPanelInput, nonce: string): string {
     : '';
   const attach = input.attachAvailable
     ? `<label class="attach"><input id="attach" type="checkbox" ${input.attachDefault ? 'checked' : ''}/> Attach to Outgoing</label>`
-    : `<label class="attach disabled"><input id="attach" type="checkbox" disabled /> Attach to Outgoing <span>— create an Outgoing context first</span></label>`;
+    : `<label class="attach disabled"><input id="attach" type="checkbox" disabled /> Attach to Outgoing <span>— ${escapeHtml(input.attachUnavailableReason || 'unavailable for this artifact')}</span></label>`;
   const parent = input.parentLabel ? `<div class="context-row"><strong>Continue from</strong><span>${escapeHtml(input.parentLabel)}</span></div>` : '';
   const capabilityGaps = (model.capabilityGaps || []).length
     ? `<section class="card capability-gap"><h2>Core authoring boundary</h2><div class="muted">These schema-optional fields are visible to Core validation but are not currently bound by Core creation, so this host will not pretend they can be written.</div>${model.capabilityGaps.map((gap) => `<div class="gap-row"><strong>${escapeHtml(gap.section)}</strong><span>${escapeHtml(gap.fields.join(', '))}</span></div>`).join('')}</section>`

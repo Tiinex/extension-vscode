@@ -25,7 +25,8 @@ async function run() {
   for (const command of [
     'tiinex.discovery.setIncoming', 'tiinex.incoming.replace', 'tiinex.outgoing.new', 'tiinex.outgoing.attachHandoff',
     'tiinex.outgoing.package', 'tiinex.transport.send', 'tiinex.transport.refresh',
-    'tiinex.acceptance.configure', 'tiinex.acceptance.snapshot', 'tiinex.acceptance.corruptParticipantSnapshot'
+    'tiinex.acceptance.configure', 'tiinex.acceptance.snapshot', 'tiinex.acceptance.endpointCatalog',
+    'tiinex.acceptance.authorHandoff', 'tiinex.acceptance.corruptParticipantSnapshot'
   ]) assert.ok(commands.includes(command), `${command} must be registered in Extension Host`);
   assert.equal(commands.includes('tiinex.outgoing.removeParticipantPointer'), false, 'participant weakening command must not exist');
 
@@ -78,6 +79,18 @@ async function firstHostRun({ manifest, fixturePackage, workspaceRoot }) {
   assert.equal(path.resolve(snapshot.outgoing.packageParentPath), path.resolve(fixturePackage), 'Outgoing must continue the exact qualified Incoming carrier');
   assert.deepEqual(snapshot.outgoing.workspaces.map((item) => [item.workspaceId, item.source]), [[manifest.workspaceId, 'local']], 'acceptance presentation seam must choose the qualified local Workspace source');
 
+  // Reproduce the Sigma contamination shape with a fully valid Role artifact nested
+  // beneath the selected Workspace. Core may discover material recursively, but the
+  // host must not promote nested fixture/schema-example repositories into the live
+  // endpoint selection surface for this exact Outgoing Workspace.
+  const nestedRolePath = 'test/extension-host/schema-example/.topics/roles/sigma-role.trace.md';
+  await fs.mkdir(path.dirname(path.join(workspaceRoot, nestedRolePath)), { recursive: true });
+  await fs.copyFile(path.join(workspaceRoot, '.topics/roles/sigma-role.trace.md'), path.join(workspaceRoot, nestedRolePath));
+  const endpoints = await vscode.commands.executeCommand('tiinex.acceptance.endpointCatalog');
+  assert.ok(endpoints.every((item) => String(item.path || '').startsWith('.topics/')), 'live endpoint choices must remain scoped to the explicit Workspace artifact namespace');
+  assert.equal(endpoints.some((item) => String(item.path || '').includes('schema-example/.topics/')), false, 'nested fixture/schema-example Role artifacts must never become live endpoint choices');
+  await fs.rm(path.join(workspaceRoot, 'test'), { recursive: true, force: true });
+
   const invalidPath = '.topics/handoffs/invalid-unqualified.trace.md';
   await fs.mkdir(path.dirname(path.join(workspaceRoot, invalidPath)), { recursive: true });
   await fs.writeFile(path.join(workspaceRoot, invalidPath), '# invalid handoff\n', 'utf8');
@@ -95,13 +108,17 @@ async function firstHostRun({ manifest, fixturePackage, workspaceRoot }) {
 
   await vscode.commands.executeCommand('tiinex.acceptance.configure', { participantSelection: 'exact' });
   for (const handoffPath of manifest.handoffs) await vscode.commands.executeCommand('tiinex.outgoing.attachHandoff', handoffNode(manifest.workspaceId, handoffPath));
+  const authored = await vscode.commands.executeCommand('tiinex.acceptance.authorHandoff', { workspaceId: manifest.workspaceId, title: 'Extension Host Authored Handoff' });
   snapshot = await vscode.commands.executeCommand('tiinex.acceptance.snapshot');
-  assert.equal(snapshot.outgoing.drafts.length, 2, 'two qualified Handoffs must be attached through the production controller path');
-  for (const draft of snapshot.outgoing.drafts) {
+  assert.equal(snapshot.outgoing.drafts.length, 3, 'two fixture Handoffs plus one production-authored Handoff must be attached through the production controller path');
+  const fixtureDrafts = snapshot.outgoing.drafts.filter((draft) => manifest.handoffs.includes(draft.path));
+  assert.equal(fixtureDrafts.length, 2, 'both qualified fixture Handoffs must remain attached');
+  for (const draft of fixtureDrafts) {
     assert.equal(draft.routeIncluded, true);
     assert.equal(draft.participantProjectionState, 'qualified');
     assert.deepEqual(draft.participants.map((item) => item.label).sort(), [...manifest.participants].sort(), 'visible participant presentation must match the exact Core-qualified set');
   }
+  assert.ok(snapshot.outgoing.drafts.some((draft) => draft.path === authored.path && draft.routeIncluded), 'the production-authored Handoff must be attached before Pack');
 
   await vscode.commands.executeCommand('tiinex.acceptance.corruptParticipantSnapshot');
   snapshot = await vscode.commands.executeCommand('tiinex.acceptance.snapshot');
@@ -115,26 +132,41 @@ async function firstHostRun({ manifest, fixturePackage, workspaceRoot }) {
     .filter((item) => item.type === 'pack-progress')
     .map((item) => String(item.detail.message || ''))
     .filter((message) => message.startsWith('Requalifying Core participants for '));
-  assert.equal(requalifyMessages.length, 2, 'Pack must freshly reproject Core participants for each attached Handoff instead of trusting corrupted host snapshots');
+  assert.equal(requalifyMessages.length, 3, 'Pack must freshly reproject Core participants for each attached Handoff instead of trusting corrupted host snapshots');
 
-  const routed = snapshot.transport.filter((item) => path.resolve(item.packagePath) !== path.resolve(fixturePackage) && item.routes.length === 2);
-  assert.equal(routed.length, 1, 'Pack must produce exactly one Core-qualified two-route carrier in Transport');
-  assert.deepEqual(routed[0].routes.map((item) => item.handoffPath).sort(), [...manifest.handoffs].sort(), 'Transport must expose the exact two qualified Handoff paths');
+  const routed = snapshot.transport.filter((item) => path.resolve(item.packagePath) !== path.resolve(fixturePackage) && item.routes.length === 3);
+  assert.equal(routed.length, 1, 'Pack must produce exactly one Core-qualified three-route carrier in Transport');
+  assert.deepEqual(routed[0].routes.map((item) => item.handoffPath).sort(), [...manifest.handoffs, authored.path].sort(), 'Transport must expose the exact fixture plus production-authored Handoff paths');
   for (const route of routed[0].routes) {
     assert.ok(route.transportText.includes('Continue from'), 'each routed Transport projection must include exact Handoff continuation text');
     assert.ok(route.transportText.includes(route.handoffPath) || /001-3-/.test(route.transportText), 'route transport text must carry an exact route pointer projection');
   }
-  assert.ok(snapshot.events.some((item) => item.type === 'transport-qualified' && item.detail.source === 'queue' && item.detail.routeCount === 2 && path.resolve(String(item.detail.packagePath || '')) === path.resolve(routed[0].packagePath)), 'freshly built carrier must be reopened and qualified through Core before Transport accepts it');
+  assert.ok(snapshot.events.some((item) => item.type === 'transport-qualified' && item.detail.source === 'queue' && item.detail.routeCount === 3 && path.resolve(String(item.detail.packagePath || '')) === path.resolve(routed[0].packagePath)), 'freshly built carrier must be reopened and qualified through Core before Transport accepts it');
 }
 
 async function restartHostRun({ fixturePackage }) {
-  const snapshot = await vscode.commands.executeCommand('tiinex.acceptance.snapshot');
-  const routed = snapshot.transport.filter((item) => path.resolve(item.packagePath) !== path.resolve(fixturePackage) && item.routes.length === 2);
-  assert.equal(routed.length, 1, 'restart must restore the produced two-route carrier from persisted host queue bookkeeping');
-  assert.ok(snapshot.events.some((item) => item.type === 'transport-qualified' && item.detail.source === 'restore' && item.detail.routeCount === 2 && path.resolve(String(item.detail.packagePath || '')) === path.resolve(routed[0].packagePath)), 'restart must requalify persisted carrier bytes through Core; persisted host bookkeeping cannot substitute semantic qualification');
+  let snapshot = await vscode.commands.executeCommand('tiinex.acceptance.snapshot');
+  const routed = snapshot.transport.filter((item) => path.resolve(item.packagePath) !== path.resolve(fixturePackage) && item.routes.length === 3);
+  assert.equal(routed.length, 1, 'restart must restore the produced three-route carrier from persisted host queue bookkeeping');
+  assert.ok(snapshot.events.some((item) => item.type === 'transport-qualified' && item.detail.source === 'restore' && item.detail.routeCount === 3 && path.resolve(String(item.detail.packagePath || '')) === path.resolve(routed[0].packagePath)), 'restart must requalify persisted carrier bytes through Core; persisted host bookkeeping cannot substitute semantic qualification');
   await vscode.commands.executeCommand('tiinex.transport.refresh');
-  const refreshed = await vscode.commands.executeCommand('tiinex.acceptance.snapshot');
-  assert.ok(refreshed.events.some((item) => item.type === 'transport-qualified' && item.detail.source === 'refresh' && item.detail.routeCount === 2), 'explicit Transport refresh must requalify the routed carrier again');
+  snapshot = await vscode.commands.executeCommand('tiinex.acceptance.snapshot');
+  assert.ok(snapshot.events.some((item) => item.type === 'transport-qualified' && item.detail.source === 'refresh' && item.detail.routeCount === 3), 'explicit Transport refresh must requalify the routed carrier again');
+
+  // The second real-host launch now exercises the exact Workspace-only Sigma seam:
+  // Replace/local source state survived restart, New Outgoing chooses that qualified
+  // source again, and Pack must manufacture a pointerless carrier without requiring
+  // a Handoff route or mutating the Workspace artifact bytes.
+  await vscode.commands.executeCommand('tiinex.outgoing.new');
+  snapshot = await vscode.commands.executeCommand('tiinex.acceptance.snapshot');
+  assert.ok(snapshot.outgoing, 'restart must be able to create a fresh Outgoing context from the qualified Incoming/local source');
+  assert.equal(snapshot.outgoing.drafts.length, 0, 'Workspace-only Pack precondition must contain no Handoff routes');
+  await vscode.commands.executeCommand('tiinex.outgoing.package');
+  snapshot = await vscode.commands.executeCommand('tiinex.acceptance.snapshot');
+  assert.equal(snapshot.outgoing, null, 'Workspace-only Pack must close the Outgoing context');
+  const pointerlessBuilt = snapshot.transport.filter((item) => path.resolve(item.packagePath) !== path.resolve(fixturePackage) && item.routes.length === 0);
+  assert.ok(pointerlessBuilt.length >= 1, 'Workspace-only Pack after Replace/local/restart must produce a Core-qualified pointerless carrier');
+  assert.equal(snapshot.events.some((item) => item.type === 'pack-blocked'), false, 'Workspace-only Pack must not hit a host-owned mutation blocker');
 }
 
 function handoffNode(workspaceId, handoffPath) {
