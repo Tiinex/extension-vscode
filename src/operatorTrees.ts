@@ -10,7 +10,7 @@ import { alphabeticalWorkspaceIds, artifactFeedTime, artifactsByModifiedNewest, 
 import { preferredRepositoryParent } from './core/receiveUx';
 import { qualifiedRoutes, QualifiedRouteReceipt } from './core/receivedHandoff';
 import { mergeTransportRouteSelection, selectedTransportRouteIds, StoredTransportQueueItem, transportPrepared, transportPreparedKey, TransportPreparedRecord } from './core/transportQueue';
-import { loadHandoffEndpointChoicesForSources, loadLocalWorkspaceChoices, buildHandoffPackageFromForm, announceBuiltCarrier, routeChoiceKeyForHandoff, IncomingPackageWorkspaceSource, PackageWorkspaceChoice, PackageWorkspaceSourceOverride, PackageRouteRouting, PackageParticipantProjection, projectHandoffPackageParticipants, qualifyLocalWorkspaceChoice } from './packageBuilder';
+import { loadHandoffEndpointChoicesForSources, loadHandoffRouteChoicesForSource, loadLocalWorkspaceChoices, buildHandoffPackageFromForm, announceBuiltCarrier, routeChoiceKeyForHandoff, IncomingPackageWorkspaceSource, PackageWorkspaceChoice, PackageWorkspaceSourceOverride, PackageRouteRouting, PackageParticipantProjection, projectHandoffPackageParticipants, qualifyLocalWorkspaceChoice } from './packageBuilder';
 import { ArtifactAuthoringCatalog, ArtifactDraftParent, loadArtifactAuthoringCatalog, loadArtifactAuthoringModel, prepareArtifactDraft, PreparedArtifactDraft, qualifyArtifactDraftParent, qualifyExistingHandoff, writePreparedArtifactDraft } from './authoring';
 import { initializeRepositoryWorkspace } from './workspaceInitialization';
 import { repositoryRootForResource } from './vscode/gitApi';
@@ -3336,41 +3336,39 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     if (!workspace) return;
     try {
       const root = await this.ensureOutgoingAuthoringRoot(workspace);
-      const indexed = await indexLocalWorkspace(root, workspace.workspaceId);
-      const handoffs = indexed.artifacts.filter((artifact) => artifact.schemaId === 'tiinex.handoff.v1');
+      const handoffs = await loadHandoffRouteChoicesForSource(this.extensionPath, { workspaceId: workspace.workspaceId, root });
       if (!handoffs.length) {
-        await vscode.window.showInformationMessage(`No qualified Handoff artifacts are available in ${workspace.workspaceId}.`);
+        await vscode.window.showInformationMessage(`No Core-qualified Handoff artifacts are available in ${workspace.workspaceId}.`);
         return;
       }
       const mode = await vscode.window.showQuickPick([
-        { label: 'Leaves', description: 'Recommended', detail: 'Only current Handoff lineage leaves in this Workspace.', value: 'leaves' as const },
-        { label: 'Full lineage', description: 'All Handoff artifacts', detail: 'Browse the complete indexed Handoff lineage for this Workspace.', value: 'full' as const }
+        { label: 'Leaves', description: 'Recommended', detail: 'Only current Core-projected Handoff lineage leaves in this Workspace.', value: 'leaves' as const },
+        { label: 'Full lineage', description: 'All Core-qualified Handoff artifacts', detail: 'Browse the complete Core-projected Handoff lineage for this Workspace.', value: 'full' as const }
       ], {
         title: `Attach Handoff · ${workspace.workspaceId} Scope`,
-        placeHolder: 'Choose the amount of Handoff lineage to browse',
+        placeHolder: 'Choose the amount of Core-projected Handoff lineage to browse',
         canPickMany: false,
         ignoreFocusOut: true
       });
       if (!mode) return;
-      const leaves = leafArtifactPathSet(indexed.artifacts);
-      const candidates = artifactsByModifiedNewest(handoffs.filter((artifact) => mode.value === 'full' || leaves.has(normalizePath(artifact.path))));
+      const candidates = handoffs.filter((candidate) => mode.value === 'full' || candidate.leaf);
       if (!candidates.length) {
-        await vscode.window.showInformationMessage(`No ${mode.value === 'leaves' ? 'leaf ' : ''}Handoff artifacts are available in ${workspace.workspaceId}.`);
+        await vscode.window.showInformationMessage(`No ${mode.value === 'leaves' ? 'leaf ' : ''}Core-qualified Handoff artifacts are available in ${workspace.workspaceId}.`);
         return;
       }
-      const picked = await vscode.window.showQuickPick(candidates.map((artifact) => ({
-        label: artifact.title || path.basename(artifact.path),
-        description: this.outgoingDraftForPath(workspace.workspaceId, artifact.path)?.routeIncluded ? 'attached' : 'handoff',
-        detail: `${artifactFeedTime(artifact).timestampMs ? timestamp(artifactFeedTime(artifact).timestampMs) : 'Modified time unavailable'} · ${normalizePath(artifact.path)}`,
-        artifact
+      const picked = await vscode.window.showQuickPick(candidates.map((handoff) => ({
+        label: handoff.label || path.basename(handoff.path || ''),
+        description: this.outgoingDraftForPath(workspace.workspaceId, handoff.path || '')?.routeIncluded ? 'attached' : 'handoff',
+        detail: `${handoff.description} · ${normalizePath(handoff.path || '')}`,
+        handoff
       })), {
         title: `Attach Handoff · ${workspace.workspaceId}`,
-        placeHolder: `${mode.label}; Handoff artifacts only; newest modified first.`,
+        placeHolder: `${mode.label}; Core-qualified Handoff artifacts only.`,
         canPickMany: false,
         ignoreFocusOut: true
       });
-      if (!picked) return;
-      await this.attachQualifiedHandoff(workspace, picked.artifact.path);
+      if (!picked?.handoff.path) return;
+      await this.attachQualifiedHandoff(workspace, picked.handoff.path);
     } catch (error) {
       await vscode.window.showErrorMessage(`Tiinex Attach Handoff blocked: ${shortMessage(error)}`);
     }

@@ -24,6 +24,7 @@ import { representativeWorkspaceChoicesForRoot } from '../dist/core/workspaceCho
 import { participantProjectionFromManufactureReceipt } from '../dist/core/participantProjection.js';
 import { assertStableQualifiedCarrierAllocation, qualifiedCarrierAllocationFromManufactureReceipt } from '../dist/core/carrierAllocation.js';
 import { endpointCandidatesForExplicitSource, mergeExactHandoffEndpointChoices } from '../dist/core/handoffEndpointSelection.js';
+import { handoffRouteCandidatesForExplicitSource } from '../dist/core/handoffRouteSelection.js';
 import { checkIgnoredPaths, commitPreparedGitOperator, commitPreparedReviewedStaged, commitWorkingTree, deriveGitOperatorCommitMessage, dirtyWorkingTreePaths, discardWorkingTree, generateTiinexCommitMessage, listStagedConflictMarkerPaths, listStagedMutationPaths, listStagedPaths, materializeUnmergedFileConflicts, mergeCommitNoCommit, payloadCheckoutEligibility, preflightExistingLocalBranch, prepareGitOperatorCommit, prepareReviewedStagedCommit, pushExactGitOperatorCommit, pushExactLandingCommit, pushExactReviewedStagedCommit, stageCommitPush, stageLandingChanges, stageLandingCommit, stashWorkingTree, unstageLandingPaths } from '../dist/host/git.js';
 import { preferredNodeExecutable } from '../dist/host/nodeExecutable.js';
 import { copyFileToClipboard } from '../dist/host/fileClipboard.js';
@@ -86,6 +87,31 @@ await test('Handoff endpoint host scoping preserves exact same-label choices and
   assert.equal(merged.length, 2);
   assert.equal(merged[0].label, 'Sigma');
   assert.equal(merged[1].label, 'Sigma');
+});
+
+
+await test('Handoff route host scoping consumes Core qualification and rejects nested fixture paths', async () => {
+  const source = { workspaceId: 'business', root: '/repo/business' };
+  const candidate = (artifactPath, qualification = 'qualified-exact', leaf = false) => ({
+    path: artifactPath,
+    title: path.basename(artifactPath),
+    from: 'Anchor',
+    to: 'Kodax',
+    purpose: 'route test',
+    qualification,
+    leaf
+  });
+  const routes = handoffRouteCandidatesForExplicitSource(source, [
+    candidate('.topics/handoffs/a.trace.md', 'qualified-exact', false),
+    candidate('.topics/handoffs/b.trace.md', 'qualified-exact', true),
+    candidate('.topics/handoffs/a.trace.md', 'qualified-exact', false),
+    candidate('test/extension-host/fixtures/source-workspace/.topics/handoffs/fixture.trace.md', 'qualified-exact', true),
+    candidate('.topics/handoffs/degraded.trace.md', 'qualified-degraded', true)
+  ], [candidate('.topics/handoffs/a.trace.md')]);
+  assert.deepEqual(routes.map((item) => ({ workspaceId: item.workspaceId, path: item.path, leaf: item.leaf })), [
+    { workspaceId: 'business', path: '.topics/handoffs/a.trace.md', leaf: true },
+    { workspaceId: 'business', path: '.topics/handoffs/b.trace.md', leaf: true }
+  ]);
 });
 
 await test('carrier continuation allocation is consumed only from exact Core manufacture projection', async () => {
@@ -1372,13 +1398,14 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(panel, /fieldAssists/);
   assert.match(tree, /beginArtifactAuthoring/);
   assert.match(tree, /attachHandoffFromWorkspace/);
-  assert.match(tree, /Handoff artifacts only; newest modified first/);
+  assert.match(tree, /Core-qualified Handoff artifacts only/);
   assert.doesNotMatch(tree, /toLocaleString\(\)/);
-  assert.match(tree, /timestamp\(artifactFeedTime\(artifact\)\.timestampMs\)/);
+  assert.match(tree, /detail: `\$\{handoff\.description\} · \$\{normalizePath\(handoff\.path \|\| ''\)\}`/);
   assert.match(tree, /private async revealTransportPackage/);
   assert.match(tree, /revealInExplorer/);
   assert.match(tree, /revealFileInOS/);
-  assert.match(tree, /indexed\.artifacts\.filter\(\(artifact\) => artifact\.schemaId === 'tiinex\.handoff\.v1'\)/);
+  assert.match(tree, /loadHandoffRouteChoicesForSource/);
+  assert.match(tree, /Core-projected Handoff lineage/);
   assert.doesNotMatch(tree, /pickAdditionalCarrierRoles|Additional carrier Roles \(optional\)/);
   assert.doesNotMatch(tree, /pickCoreQualifiedParticipantSet/);
   const participantPicker = await fs.readFile(path.resolve(HERE, '..', 'src', 'vscode', 'outgoingParticipantController.ts'), 'utf8');

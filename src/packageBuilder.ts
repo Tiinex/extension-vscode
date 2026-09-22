@@ -21,9 +21,10 @@ import { ParticipantProjection, QualifiedParticipantRole } from './core/particip
 import { assertStableQualifiedCarrierAllocation, qualifiedCarrierAllocationFromManufactureReceipt } from './core/carrierAllocation';
 import { carrierFilenameForCollisionInstance } from './core/outgoingUx';
 import { endpointCandidatesForExplicitSource, mergeExactHandoffEndpointChoices } from './core/handoffEndpointSelection';
+import { handoffRouteCandidatesForExplicitSource } from './core/handoffRouteSelection';
 
 type WorkspaceSource = WorkspacePackageSourcesResult['candidates'][number] & { root: string };
-export type RouteChoice = { id: string; pointerless: boolean; label: string; description: string; detail?: string; path?: string; from?: string; to?: string; workspaceId?: string };
+export type RouteChoice = { id: string; pointerless: boolean; label: string; description: string; detail?: string; path?: string; from?: string; to?: string; workspaceId?: string; leaf?: boolean };
 export interface PackageWorkspaceChoice { workspaceId: string; repository: string; ref: string; root: string; workspaceTargetPath: string; sourceKind?: string }
 export interface IncomingPackageWorkspaceSource { workspaceId: string; packagePath: string; archivePath: string }
 export interface PackageWorkspaceSourceOverride { workspaceId: string; root: string }
@@ -274,15 +275,39 @@ async function handoffRouteChoicesForSources(runtime: Awaited<ReturnType<typeof 
   const out: RouteChoice[] = [];
   for (const source of sources) {
     const projected = await projectHandoffLeaves(runtime, [source.root]);
-    if (projected.status !== 'ready') throw new Error(`tiinex.package-builder.handoff-routes-unqualified:${source.workspaceId}`);
-    const candidates = projected.candidates?.length ? projected.candidates : projected.leaves;
-    for (const leaf of candidates || []) {
-      if (leaf.qualification !== 'qualified-exact') continue;
-      const base = { pointerless: false, workspaceId: source.workspaceId, path: leaf.path };
-      out.push({ id: routeChoiceKey(base), ...base, label: leaf.title || leaf.path, description: `${leaf.from} → ${leaf.to}`, detail: `${source.workspaceId}: ${leaf.path}\n${leaf.purpose || ''}`, from: leaf.from, to: leaf.to });
+    if (projected.status !== 'ready' || (projected.findings || []).some((item) => item.severity === 'error')) {
+      throw new Error(`tiinex.package-builder.handoff-routes-unqualified:${source.workspaceId}:\n${presentActionableFindings(projected.findings || [], projected.status)}`);
+    }
+    for (const candidate of handoffRouteCandidatesForExplicitSource(source, projected.candidates || [], projected.leaves || [])) {
+      const base = { pointerless: false, workspaceId: source.workspaceId, path: candidate.path };
+      out.push({
+        id: routeChoiceKey(base),
+        ...base,
+        label: candidate.title || candidate.path,
+        description: `${candidate.from} → ${candidate.to}`,
+        detail: `${source.workspaceId}: ${candidate.path}\n${candidate.purpose || ''}`,
+        from: candidate.from,
+        to: candidate.to,
+        leaf: candidate.leaf
+      });
     }
   }
   return out;
+}
+
+export async function loadHandoffRouteChoicesForSource(extensionPath: string, source: HandoffEndpointSource): Promise<RouteChoice[]> {
+  const workspaceId = String(source.workspaceId || '').trim();
+  const root = path.resolve(String(source.root || '').trim());
+  if (!workspaceId || !root) throw new Error('tiinex.package-builder.handoff-route-source-invalid');
+  const runtime = await prepareHostCoreRuntime(extensionPath, [root]);
+  try {
+    const workspaceProjection = await projectWorkspacePackageSources(runtime, [root]);
+    const matches = (workspaceProjection.candidates || []).filter((item) => item.workspaceId === workspaceId);
+    if (workspaceProjection.status !== 'ready' || matches.length !== 1) {
+      throw new Error(`tiinex.package-builder.handoff-route-source-unqualified:${workspaceId}`);
+    }
+    return handoffRouteChoicesForSources(runtime, [{ ...matches[0], root }]);
+  } finally { await runtime.dispose(); }
 }
 
 async function outputDirectory(input: PackageBuildInput, title: string): Promise<string> {
