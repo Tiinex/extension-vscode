@@ -28,7 +28,7 @@ const vscode = {
 };
 try {
   await mkdir(path.join(fixture, '.topics', '.workspaces'), { recursive: true });
-  for (const name of ['tiinex-extension-vscode.workspace.md', 'tiinex-vscode.workspace.md']) {
+  for (const name of ['tiinex-vscode.workspace.md']) {
     await cp(path.join(root, '.topics', '.workspaces', name), path.join(fixture, '.topics', '.workspaces', name));
   }
   await writeFile(path.join(fixture, 'README.md'), '# Package integration fixture\n');
@@ -36,7 +36,7 @@ try {
   await git('init', '-q');
   await git('config', 'user.name', 'Tiinex Test');
   await git('config', 'user.email', 'tiinex@example.invalid');
-  await git('remote', 'add', 'origin', 'https://github.com/Tiinex/extension-vscode.git');
+  await git('remote', 'add', 'origin', 'https://github.com/Tiinex/vscode.git');
   await git('add', '-A');
   await git('commit', '-qm', 'fixture');
   Module._load = function(request, parent, isMain) {
@@ -46,7 +46,7 @@ try {
   const { prepareBundledRuntime, runTiinexJson } = require('../dist/tiinex/bootstrap.js');
   const { extractZipBuffer } = require('../dist/host/zip.js');
   const filename = 'business-001-9-2.handoff-package.zip';
-  const input = { routeId: 'workspace-carrier:none', workspaceIds: ['extension-vscode'], outputDirectory: output, expectedCarrierFilename: filename };
+  const input = { routeId: 'workspace-carrier:none', workspaceIds: ['vscode'], outputDirectory: output, expectedCarrierFilename: filename };
   const built = await buildHandoffPackageFromForm(root, input);
   assert.equal(path.basename(built.outputPath), filename);
   assert.deepEqual(await readdir(output), [filename]);
@@ -56,7 +56,7 @@ try {
   try {
     const orientation = await runTiinexJson(runtime, ['orient-handoff-package', built.outputPath]);
     assert.equal(orientation.status, 'ready');
-    assert.deepEqual(orientation.workspaces.map(w => w.id), ['extension-vscode']);
+    assert.deepEqual(orientation.workspaces.map(w => w.id), ['vscode']);
     assert.deepEqual(orientation.routes, []);
     assert.equal(orientation.carrierLineage.dimension, '001');
     pass('result re-orients with exact Workspace selection and no invented Handoff or lineage');

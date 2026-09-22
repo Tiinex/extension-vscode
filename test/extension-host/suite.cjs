@@ -25,7 +25,7 @@ async function run() {
   for (const command of [
     'tiinex.discovery.setIncoming', 'tiinex.incoming.replace', 'tiinex.outgoing.new', 'tiinex.outgoing.attachHandoff',
     'tiinex.outgoing.package', 'tiinex.transport.send', 'tiinex.transport.refresh',
-    'tiinex.acceptance.configure', 'tiinex.acceptance.snapshot', 'tiinex.acceptance.endpointCatalog',
+    'tiinex.acceptance.configure', 'tiinex.acceptance.snapshot', 'tiinex.acceptance.endpointCatalog', 'tiinex.acceptance.workspaceCatalog',
     'tiinex.acceptance.authorHandoff', 'tiinex.acceptance.corruptParticipantSnapshot'
   ]) assert.ok(commands.includes(command), `${command} must be registered in Extension Host`);
   assert.equal(commands.includes('tiinex.outgoing.removeParticipantPointer'), false, 'participant weakening command must not exist');
@@ -78,6 +78,35 @@ async function firstHostRun({ manifest, fixturePackage, workspaceRoot }) {
   assert.ok(snapshot.outgoing, 'registered New Outgoing command must create the production Outgoing controller state');
   assert.equal(path.resolve(snapshot.outgoing.packageParentPath), path.resolve(fixturePackage), 'Outgoing must continue the exact qualified Incoming carrier');
   assert.deepEqual(snapshot.outgoing.workspaces.map((item) => [item.workspaceId, item.source]), [[manifest.workspaceId, 'local']], 'acceptance presentation seam must choose the qualified local Workspace source');
+  assert.equal(snapshot.outgoing.workspaces[0].sourceQualification, 'qualified', 'fresh explicit Local Workspace source must begin qualified');
+
+  // Reproduce the Sigma Workspace-discovery contamination shape. A recursively
+  // discoverable nested Workspace must not become another live source choice for
+  // this explicit VS Code Workspace root.
+  let workspaceCatalog = await vscode.commands.executeCommand('tiinex.acceptance.workspaceCatalog');
+  assert.equal(workspaceCatalog.length, 1, 'explicit operator root must expose exactly one live Workspace choice');
+  const selectedWorkspaceTarget = String(workspaceCatalog[0].workspaceTargetPath || '');
+  assert.ok(selectedWorkspaceTarget.startsWith('.topics/.workspaces/'), 'selected Workspace must be the direct canonical Workspace artifact');
+  const selectedWorkspaceBytes = await fs.readFile(path.join(workspaceRoot, selectedWorkspaceTarget));
+  const nestedWorkspacePath = path.join(workspaceRoot, 'test/extension-host/schema-example/.topics/.workspaces/nested.workspace.md');
+  await fs.mkdir(path.dirname(nestedWorkspacePath), { recursive: true });
+  await fs.writeFile(nestedWorkspacePath, selectedWorkspaceBytes);
+  workspaceCatalog = await vscode.commands.executeCommand('tiinex.acceptance.workspaceCatalog');
+  assert.equal(workspaceCatalog.length, 1, 'nested Workspace artifacts must not contaminate explicit-root discovery');
+  assert.equal(String(workspaceCatalog[0].workspaceTargetPath || ''), selectedWorkspaceTarget);
+  await fs.rm(path.join(workspaceRoot, 'test'), { recursive: true, force: true });
+
+  // Stale selected source must be visibly invalidated by Refresh before Pack and
+  // recover when the exact Workspace artifact qualifies again.
+  const workspaceArtifactPath = path.join(workspaceRoot, selectedWorkspaceTarget);
+  await fs.writeFile(workspaceArtifactPath, '# temporarily unqualified Workspace\n', 'utf8');
+  await vscode.commands.executeCommand('tiinex.outgoing.refresh');
+  snapshot = await vscode.commands.executeCommand('tiinex.acceptance.snapshot');
+  assert.equal(snapshot.outgoing.workspaces[0].sourceQualification, 'invalid', 'Refresh must visibly invalidate a stale selected Local Workspace before Pack');
+  await fs.writeFile(workspaceArtifactPath, selectedWorkspaceBytes);
+  await vscode.commands.executeCommand('tiinex.outgoing.refresh');
+  snapshot = await vscode.commands.executeCommand('tiinex.acceptance.snapshot');
+  assert.equal(snapshot.outgoing.workspaces[0].sourceQualification, 'qualified', 'Refresh must recover the exact selected Local Workspace after its artifact qualifies again');
 
   // Reproduce the Sigma contamination shape with a fully valid Role artifact nested
   // beneath the selected Workspace. Core may discover material recursively, but the
@@ -107,7 +136,16 @@ async function firstHostRun({ manifest, fixturePackage, workspaceRoot }) {
   assert.ok(snapshot.events.some((item) => item.type === 'participant-confirmation' && item.detail.state === 'rejected-weakened-set'), 'the exact-set guard must reject the weakened presentation selection');
 
   await vscode.commands.executeCommand('tiinex.acceptance.configure', { participantSelection: 'exact' });
-  for (const handoffPath of manifest.handoffs) await vscode.commands.executeCommand('tiinex.outgoing.attachHandoff', handoffNode(manifest.workspaceId, handoffPath));
+  await vscode.commands.executeCommand('tiinex.outgoing.attachHandoff', handoffNode(manifest.workspaceId, manifest.handoffs[0]));
+  snapshot = await vscode.commands.executeCommand('tiinex.acceptance.snapshot');
+  assert.equal(snapshot.outgoing.drafts.length, 1, 'first exact Handoff attach must create one route');
+  const firstDraftSha = snapshot.outgoing.drafts[0].artifactSha256;
+  await vscode.commands.executeCommand('tiinex.outgoing.attachHandoff', handoffNode(manifest.workspaceId, manifest.handoffs[0]));
+  snapshot = await vscode.commands.executeCommand('tiinex.acceptance.snapshot');
+  assert.equal(snapshot.outgoing.drafts.length, 1, 'duplicate exact Handoff attach must be idempotent');
+  assert.equal(snapshot.outgoing.drafts[0].artifactSha256, firstDraftSha, 'idempotent attach must preserve exact artifact identity');
+  assert.ok(snapshot.events.some((item) => item.type === 'attach-idempotent-exact' && item.detail.path === manifest.handoffs[0]), 'duplicate exact attach must be observable as an idempotent host event');
+  for (const handoffPath of manifest.handoffs.slice(1)) await vscode.commands.executeCommand('tiinex.outgoing.attachHandoff', handoffNode(manifest.workspaceId, handoffPath));
   const authored = await vscode.commands.executeCommand('tiinex.acceptance.authorHandoff', { workspaceId: manifest.workspaceId, title: 'Extension Host Authored Handoff' });
   snapshot = await vscode.commands.executeCommand('tiinex.acceptance.snapshot');
   assert.equal(snapshot.outgoing.drafts.length, 3, 'two fixture Handoffs plus one production-authored Handoff must be attached through the production controller path');

@@ -25,7 +25,7 @@ export async function confirmExactCoreParticipantProjection(projection: PackageP
     return null;
   }
   if (projection.state !== 'qualified' || !projection.roles.length) {
-    await vscode.window.showInformationMessage('No additional Core-qualified participants are established for this Handoff. It will be attached without participant Role pointers.');
+    void vscode.window.showInformationMessage('No additional Core-qualified participants are established for this Handoff. It will be attached without participant Role pointers.');
     return projection;
   }
 

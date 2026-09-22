@@ -322,6 +322,19 @@ await test('Outgoing workspace picker chooses one representative qualified Works
     { workspaceId: 'single', workspaceTargetPath: '.topics/.workspaces/tiinex-single.workspace.md' }
   ]);
   assert.deepEqual(unchanged.map((item) => item.workspaceId), ['single']);
+
+  const sigmaRenamedCheckout = representativeWorkspaceChoicesForRoot('/tmp/random-checkout-name', [
+    { workspaceId: 'vscode', workspaceTargetPath: '.topics/.workspaces/tiinex-vscode.workspace.md' },
+    { workspaceId: '001-3-acceptance', workspaceTargetPath: '001-3-acceptance.workspace.md' },
+    { workspaceId: 'extension-host-acceptance', workspaceTargetPath: 'test/extension-host/fixtures/source-workspace/.topics/.workspaces/extension-host-acceptance.workspace.md' }
+  ]);
+  assert.deepEqual(sigmaRenamedCheckout.map((item) => item.workspaceId), ['vscode'], 'an explicit renamed checkout root must expose its one direct canonical Workspace, not recursively discovered fixture Workspaces');
+
+  const ambiguousCanonicalRoot = representativeWorkspaceChoicesForRoot('/tmp/random-checkout-name', [
+    { workspaceId: 'alpha', workspaceTargetPath: '.topics/.workspaces/tiinex-alpha.workspace.md' },
+    { workspaceId: 'beta', workspaceTargetPath: '.topics/.workspaces/tiinex-beta.workspace.md' }
+  ]);
+  assert.deepEqual(ambiguousCanonicalRoot, [], 'multiple direct canonical Workspaces are an operator-root ambiguity and must fail closed');
 });
 
 await test('package route identity is separate from Workspace inclusion and contains no authoring Parent state', async () => {
@@ -1369,6 +1382,8 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.doesNotMatch(tree, /pickAdditionalCarrierRoles|Additional carrier Roles \(optional\)/);
   assert.doesNotMatch(tree, /pickCoreQualifiedParticipantSet/);
   const participantPicker = await fs.readFile(path.resolve(HERE, '..', 'src', 'vscode', 'outgoingParticipantController.ts'), 'utf8');
+  assert.match(participantPicker, /void vscode\.window\.showInformationMessage\('No additional Core-qualified participants/, 'no-participant informational toast must not gate the subsequent Outgoing refresh');
+  assert.doesNotMatch(participantPicker, /await vscode\.window\.showInformationMessage\('No additional Core-qualified participants/, 'no-participant informational toast must remain non-blocking');
   assert.match(participantPicker, /projection\.state === 'blocked'/);
   assert.match(participantPicker, /Tiinex Attach Handoff blocked/);
   assert.match(participantPicker, /projection\.state !== 'qualified' \|\| !projection\.roles\.length/);
@@ -2362,7 +2377,7 @@ await test('installed Core runtime executes real operator-context and staged-onl
   try {
     const context = await projectOperatorContext(runtime, [root]);
     assert.equal(context.status, 'ready');
-    assert.deepEqual(context.workspaces.map((item) => item.workspaceId), ['extension-vscode', 'vscode']);
+    assert.deepEqual(context.workspaces.map((item) => item.workspaceId), ['vscode']);
     assert.equal((context.findings || []).some((item) => item.severity === 'error'), false);
     const staged = await projectStagedValidation(runtime, root, ['README.md']);
     assert.equal(staged.status, 'ready');

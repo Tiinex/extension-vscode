@@ -79,6 +79,9 @@ interface OutgoingWorkspace {
   checkoutRepository?: string;
   checkoutRef?: string;
   stagedRoot?: string;
+  workspaceTargetPath?: string;
+  sourceQualification: 'qualified' | 'invalid';
+  sourceQualificationDetail?: string;
 }
 
 interface CarrierRoleParticipant {
@@ -108,6 +111,16 @@ interface OutgoingDraft {
   from: string;
   to: string;
   origin: 'created' | 'existing';
+  sourceKey: string;
+  artifactSha256: string;
+}
+
+function localOutgoingSourceKey(workspaceId: string, root: string, workspaceTargetPath = ''): string {
+  return `local:${workspaceId}:${path.resolve(root)}:${normalizePath(workspaceTargetPath)}`;
+}
+
+function exactHandoffSha256(markdown: string): string {
+  return createHash('sha256').update(markdown, 'utf8').digest('hex');
 }
 
 const ACTIVE_SPEAKER_NON_AUTHORITY = 'Active speaker labels are host-local presentation only and do not create Party identity, Role holding, holder binding, semantic participation, delegation or acceptance.';
@@ -815,6 +828,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       register('tiinex.acceptance.configure', (value?: any) => configureExtensionHostAcceptance(value || {}));
       register('tiinex.acceptance.snapshot', () => this.extensionHostAcceptanceSnapshot());
       register('tiinex.acceptance.endpointCatalog', () => this.extensionHostAcceptanceEndpointCatalog());
+      register('tiinex.acceptance.workspaceCatalog', () => this.extensionHostAcceptanceWorkspaceCatalog());
       register('tiinex.acceptance.authorHandoff', (value?: any) => this.extensionHostAcceptanceAuthorHandoff(value || {}));
       register('tiinex.acceptance.corruptParticipantSnapshot', () => this.corruptExtensionHostAcceptanceParticipantSnapshot());
     }
@@ -839,11 +853,21 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       })),
       outgoing: this.outgoing ? {
         packageParentPath: this.outgoing.packageParentPath,
-        workspaces: this.outgoing.workspaces.map((item) => ({ workspaceId: item.workspaceId, source: item.source, root: item.root, packagePath: item.packagePath || '' })),
+        workspaces: this.outgoing.workspaces.map((item) => ({
+          workspaceId: item.workspaceId,
+          source: item.source,
+          root: item.root,
+          packagePath: item.packagePath || '',
+          workspaceTargetPath: item.workspaceTargetPath || '',
+          sourceQualification: item.sourceQualification,
+          sourceQualificationDetail: item.sourceQualificationDetail || ''
+        })),
         drafts: this.outgoing.drafts.map((item) => ({
           workspaceId: item.draft.workspaceId,
           path: item.draft.path,
           routeIncluded: item.routeIncluded,
+          sourceKey: item.sourceKey,
+          artifactSha256: item.artifactSha256,
           participantProjectionState: item.participantProjectionState,
           participants: item.participants.map((role) => ({ label: role.label, reference: role.reference, workspaceId: role.workspaceId, path: role.path }))
         }))
@@ -857,6 +881,16 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       })),
       events: [...extensionHostAcceptanceEvents()]
     };
+  }
+
+  private async extensionHostAcceptanceWorkspaceCatalog(): Promise<any[]> {
+    if (!extensionHostAcceptanceEnabled()) throw new Error('tiinex.extension-host.acceptance-disabled');
+    const catalog = await loadLocalWorkspaceChoices(this.extensionPath);
+    recordExtensionHostAcceptanceEvent('workspace-catalog', {
+      count: catalog.length,
+      candidates: catalog.map((item) => ({ workspaceId: item.workspaceId, root: item.root, workspaceTargetPath: item.workspaceTargetPath }))
+    });
+    return catalog;
   }
 
   private async extensionHostAcceptanceEndpointCatalog(): Promise<any[]> {
@@ -2145,28 +2179,61 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
   }
 
   private async refreshOutgoing(): Promise<void> {
+    await this.requalifyOutgoingWorkspaceSources();
     this.outgoingProvider.refresh();
     await this.updateUiContexts();
   }
 
-  private async qualifiedOutgoingWorkspaceSourceOverrides(): Promise<PackageWorkspaceSourceOverride[]> {
-    if (!this.outgoing) return [];
+  private async requalifyOutgoingWorkspaceSources(): Promise<{ ready: boolean; invalidWorkspaceIds: string[] }> {
+    if (!this.outgoing) return { ready: true, invalidWorkspaceIds: [] };
+    const localWorkspaces = this.outgoing.workspaces.filter((item) => item.source === 'local');
+    if (!localWorkspaces.length) return { ready: true, invalidWorkspaceIds: [] };
+
     let freshLocalChoices: PackageWorkspaceChoice[] = [];
+    let loadFailure = '';
     try {
       freshLocalChoices = await loadLocalWorkspaceChoices(this.extensionPath);
-    } catch {
-      freshLocalChoices = [];
+    } catch (error) {
+      loadFailure = shortMessage(error);
     }
-    const freshByWorkspaceId = new Map(freshLocalChoices.map((item) => [item.workspaceId, item]));
+
+    const invalidWorkspaceIds: string[] = [];
+    for (const workspace of localWorkspaces) {
+      const fresh = freshLocalChoices.find((item) =>
+        item.workspaceId === workspace.workspaceId
+        && sameRepositoryRoot(item.root, workspace.root)
+        && normalizePath(item.workspaceTargetPath) === normalizePath(workspace.workspaceTargetPath || '')
+      );
+      if (!fresh) {
+        workspace.sourceQualification = 'invalid';
+        workspace.sourceQualificationDetail = loadFailure
+          ? `Local Workspace requalification failed: ${loadFailure}`
+          : 'The exact selected Local Workspace source no longer qualifies at this root.';
+        invalidWorkspaceIds.push(workspace.workspaceId);
+        continue;
+      }
+      workspace.sourceQualification = 'qualified';
+      workspace.sourceQualificationDetail = undefined;
+      workspace.repository = fresh.repository;
+      workspace.ref = fresh.ref;
+      workspace.sourceKey = localOutgoingSourceKey(workspace.workspaceId, workspace.root, workspace.workspaceTargetPath);
+    }
+    if (invalidWorkspaceIds.length) this.outgoing.lastBuilt = undefined;
+    recordExtensionHostAcceptanceEvent('outgoing-source-requalification', {
+      ready: invalidWorkspaceIds.length === 0,
+      invalidWorkspaceIds,
+      loadFailure
+    });
+    return { ready: invalidWorkspaceIds.length === 0, invalidWorkspaceIds };
+  }
+
+  private async qualifiedOutgoingWorkspaceSourceOverrides(): Promise<PackageWorkspaceSourceOverride[]> {
+    if (!this.outgoing) return [];
+    const qualification = await this.requalifyOutgoingWorkspaceSources();
+    if (!qualification.ready) throw new Error(`tiinex.outgoing.workspace-source-invalidated:${qualification.invalidWorkspaceIds.join(',')}`);
     return this.outgoing.workspaces
       .filter((item) => Boolean(item.root) || Boolean(item.stagedRoot) || item.source === 'local')
-      .map((item): PackageWorkspaceSourceOverride => {
-        if (item.source === 'local') {
-          const fresh = freshByWorkspaceId.get(item.workspaceId);
-          if (fresh?.root) return { workspaceId: item.workspaceId, root: fresh.root };
-        }
-        return { workspaceId: item.workspaceId, root: item.stagedRoot || item.root };
-      })
+      .map((item): PackageWorkspaceSourceOverride => ({ workspaceId: item.workspaceId, root: item.stagedRoot || item.root }))
       .filter((item) => Boolean(item.root));
   }
 
@@ -2287,7 +2354,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     let priority = 0;
     pickerItems.push({ label: '$(repo) LOCAL · VS CODE', kind: vscode.QuickPickItemKind.Separator });
     for (const local of locals) {
-      const key = `local:${local.workspaceId}`;
+      const key = localOutgoingSourceKey(local.workspaceId, local.root, local.workspaceTargetPath);
       const source: OutgoingWorkspace = {
         workspaceId: local.workspaceId,
         label: local.workspaceId,
@@ -2297,7 +2364,9 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
         source: 'local',
         sourceKey: key,
         sourceLabel: 'Local',
-        payloadIncluded: true
+        workspaceTargetPath: local.workspaceTargetPath,
+        payloadIncluded: true,
+        sourceQualification: 'qualified'
       };
       sources.push(source);
       pickerItems.push({ label: `$(repo) ${local.workspaceId}`, source, key, priority: priority++ });
@@ -2321,7 +2390,8 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
           archivePath: workspace.archivePath,
           payloadIncluded: Boolean(workspace.archivePath),
           checkoutRepository: workspace.archivePath ? undefined : workspace.repository,
-          checkoutRef: workspace.archivePath ? undefined : workspace.ref
+          checkoutRef: workspace.archivePath ? undefined : workspace.ref,
+          sourceQualification: 'qualified'
         };
         sources.push(source);
         pickerItems.push({ label: `$(file-zip) ${workspace.label || workspace.workspaceId}`, source, key, priority: priority++ });
@@ -2429,7 +2499,13 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       // Logical is the human-friendly Workspace projection. Files mirrors the
       // recipient-facing carrier surface instead of showing another Workspace list.
       if (this.projection('outgoing') === 'files') return this.outgoingCarrierFileChildren();
-      return this.outgoing.workspaces.map((workspace) => this.workspaceNode('outgoing', workspace.workspaceId, workspace.label, true, workspace.sourceLabel));
+      return this.outgoing.workspaces.map((workspace) => this.workspaceNode(
+        'outgoing',
+        workspace.workspaceId,
+        workspace.label,
+        workspace.sourceQualification !== 'invalid',
+        workspace.sourceQualification === 'invalid' ? `${workspace.sourceLabel} · source invalid` : workspace.sourceLabel
+      ));
     }
     if (node.data.kind === 'workspaceArchive') {
       const workspace = this.outgoing.workspaces.find((item) => item.workspaceId === node.data.workspaceId);
@@ -2756,6 +2832,17 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     return this.outgoing?.drafts.find((item) => item.draft.workspaceId === workspaceId && normalizePath(item.draft.path) === wanted);
   }
 
+  private outgoingDraftForExactHandoff(workspace: OutgoingWorkspace, artifactPath: string, markdown: string): OutgoingDraft | undefined {
+    const wanted = normalizePath(artifactPath);
+    const digest = exactHandoffSha256(markdown);
+    return this.outgoing?.drafts.find((item) =>
+      item.draft.workspaceId === workspace.workspaceId
+      && item.sourceKey === workspace.sourceKey
+      && normalizePath(item.draft.path) === wanted
+      && item.artifactSha256 === digest
+    );
+  }
+
   private effectiveOutgoingWorkspaceRoot(workspace: OutgoingWorkspace): string {
     return workspace.stagedRoot || workspace.root;
   }
@@ -2805,6 +2892,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     if (!this.outgoing) throw new Error('tiinex.authoring.outgoing-required');
     const current = this.outgoing.workspaces.find((item) => item.workspaceId === workspace.workspaceId && item.sourceKey === workspace.sourceKey);
     if (!current) throw new Error(`tiinex.authoring.outgoing-workspace-source-changed:${workspace.workspaceId}`);
+    const artifactSha256 = exactHandoffSha256(draft.markdown);
     const existing = this.outgoingDraftForPath(workspace.workspaceId, draft.path);
     if (existing) {
       existing.draft = draft;
@@ -2816,6 +2904,8 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       existing.participantProjectionDetail = projection.detail;
       existing.from = from;
       existing.to = to;
+      existing.sourceKey = workspace.sourceKey;
+      existing.artifactSha256 = artifactSha256;
       if (this.outgoing) this.outgoing.lastBuilt = undefined;
       return existing;
     }
@@ -2830,7 +2920,9 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       participantProjectionDetail: projection.detail,
       from,
       to,
-      origin
+      origin,
+      sourceKey: workspace.sourceKey,
+      artifactSha256
     };
     this.outgoing.drafts.push(tracked);
     if (this.outgoing) this.outgoing.lastBuilt = undefined;
@@ -3197,9 +3289,11 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       repository: choice.repository,
       ref: choice.ref,
       source: 'local',
-      sourceKey: `local:${choice.workspaceId}:${path.resolve(choice.root)}`,
+      sourceKey: localOutgoingSourceKey(choice.workspaceId, choice.root, choice.workspaceTargetPath),
       sourceLabel: 'Local',
-      payloadIncluded: true
+      workspaceTargetPath: choice.workspaceTargetPath,
+      payloadIncluded: true,
+      sourceQualification: 'qualified'
     };
   }
 
@@ -3214,6 +3308,19 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     if (!this.outgoing) throw new Error('tiinex.authoring.outgoing-required');
     const root = await this.ensureOutgoingAuthoringRoot(workspace);
     const qualified = await qualifyExistingHandoff(this.extensionPath, root, workspace.workspaceId, artifactPath);
+    const exactExisting = this.outgoingDraftForExactHandoff(workspace, qualified.path, qualified.markdown);
+    if (exactExisting?.routeIncluded) {
+      recordExtensionHostAcceptanceEvent('attach-idempotent-exact', {
+        workspaceId: workspace.workspaceId,
+        path: qualified.path,
+        artifactSha256: exactExisting.artifactSha256
+      });
+      this.outgoingProvider.refresh();
+      await this.updateUiContexts();
+      await this.revealOutgoingPanel();
+      if (!extensionHostAcceptanceEnabled()) void vscode.window.showInformationMessage('This exact Handoff is already attached to Outgoing.');
+      return;
+    }
     const participantProjection = await this.projectOutgoingParticipants(workspace, qualified.path);
     const selectedParticipantProjection = await confirmExactCoreParticipantProjection(participantProjection);
     if (!selectedParticipantProjection) return;
@@ -3445,6 +3552,13 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
 
   private async packageOutgoing(): Promise<void> {
     if (!this.outgoing) return;
+    const sourceQualification = await this.requalifyOutgoingWorkspaceSources();
+    this.outgoingProvider.refresh();
+    await this.updateUiContexts();
+    if (!sourceQualification.ready) {
+      await vscode.window.showErrorMessage(`Tiinex Pack blocked: selected Local Workspace source no longer qualifies: ${sourceQualification.invalidWorkspaceIds.join(', ')}. Repair or reselect Outgoing Workspaces, then Refresh.`);
+      return;
+    }
     if (!await this.validateOutgoingPayloadPlanForPackaging()) return;
     const routes = this.outgoing.drafts.filter((item) => item.writtenPath && item.routeIncluded);
     const incomingWorkspaceSources: IncomingPackageWorkspaceSource[] = this.outgoing.workspaces
