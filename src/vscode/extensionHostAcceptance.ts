@@ -7,6 +7,7 @@ interface AcceptanceConfig {
   outgoingFolder: string;
   outgoingWorkspaceId: string;
   participantSelection: AcceptanceParticipantSelection;
+  additionalParticipantReferences: string[];
 }
 
 interface AcceptanceEvent {
@@ -20,7 +21,8 @@ const config: AcceptanceConfig = {
   incomingPackagePath: String(process.env.TIINEX_EXTENSION_HOST_FIXTURE_PACKAGE || '').trim(),
   outgoingFolder: String(process.env.TIINEX_EXTENSION_HOST_OUTPUT_DIR || '').trim(),
   outgoingWorkspaceId: String(process.env.TIINEX_EXTENSION_HOST_WORKSPACE_ID || 'acceptance').trim() || 'acceptance',
-  participantSelection: 'exact'
+  participantSelection: 'exact',
+  additionalParticipantReferences: []
 };
 const events: AcceptanceEvent[] = [];
 
@@ -34,6 +36,10 @@ export function configureExtensionHostAcceptance(value: Partial<AcceptanceConfig
   if (value.participantSelection !== undefined) {
     if (!['exact', 'weaken', 'cancel'].includes(String(value.participantSelection))) throw new Error('tiinex.extension-host.participant-selection-invalid');
     config.participantSelection = value.participantSelection;
+  }
+  if (value.additionalParticipantReferences !== undefined) {
+    if (!Array.isArray(value.additionalParticipantReferences)) throw new Error('tiinex.extension-host.additional-participant-references-invalid');
+    config.additionalParticipantReferences = [...new Set(value.additionalParticipantReferences.map((item) => String(item || '').trim()).filter(Boolean))];
   }
   recordExtensionHostAcceptanceEvent('configure', { ...config });
   return Object.freeze({ ...config });
@@ -62,6 +68,16 @@ export function extensionHostAcceptanceOutgoingFolder(): string | undefined {
   if (!value) throw new Error('tiinex.extension-host.output-dir-required');
   recordExtensionHostAcceptanceEvent('outgoing-folder-selected', { outputDirectory: value });
   return value;
+}
+
+export function extensionHostAcceptanceAdditionalParticipantReferences(references: string[]): string[] | null | undefined {
+  if (!enabled) return undefined;
+  const candidates = [...references];
+  recordExtensionHostAcceptanceEvent('participant-candidates-presented', { references: candidates, requested: [...config.additionalParticipantReferences] });
+  if (config.participantSelection === 'cancel') return null;
+  const missing = config.additionalParticipantReferences.filter((reference) => !candidates.includes(reference));
+  if (missing.length) throw new Error(`tiinex.extension-host.additional-participant-unavailable:${missing.join(',')}`);
+  return candidates.filter((reference) => config.additionalParticipantReferences.includes(reference));
 }
 
 export function extensionHostAcceptanceParticipantReferences(references: string[]): string[] | null | undefined {

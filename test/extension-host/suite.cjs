@@ -37,7 +37,8 @@ async function run() {
     incomingPackagePath: fixturePackage,
     outgoingFolder: outputDir,
     outgoingWorkspaceId: manifest.workspaceId,
-    participantSelection: 'exact'
+    participantSelection: 'exact',
+    additionalParticipantReferences: []
   });
 
   if (restart === 1) await firstHostRun({ manifest, fixturePackage, outputDir, workspaceRoot });
@@ -116,6 +117,10 @@ async function firstHostRun({ manifest, fixturePackage, workspaceRoot }) {
   await fs.mkdir(path.dirname(path.join(workspaceRoot, nestedRolePath)), { recursive: true });
   await fs.copyFile(path.join(workspaceRoot, '.topics/roles/sigma-role.trace.md'), path.join(workspaceRoot, nestedRolePath));
   const endpoints = await vscode.commands.executeCommand('tiinex.acceptance.endpointCatalog');
+  const anchorEndpoint = endpoints.find((item) => item.label === 'Anchor' && item.kind === 'role');
+  const kodaxEndpoint = endpoints.find((item) => item.label === 'Kodax' && item.kind === 'role');
+  const loomEndpoint = endpoints.find((item) => item.label === 'Loom' && item.kind === 'role');
+  assert.ok(anchorEndpoint?.reference && kodaxEndpoint?.reference && loomEndpoint?.reference, 'acceptance Workspace must expose exact Core-projected Anchor, Kodax, and Loom Role references');
   assert.ok(endpoints.every((item) => String(item.path || '').startsWith('.topics/')), 'live endpoint choices must remain scoped to the explicit Workspace artifact namespace');
   assert.equal(endpoints.some((item) => String(item.path || '').includes('schema-example/.topics/')), false, 'nested fixture/schema-example Role artifacts must never become live endpoint choices');
   await fs.rm(path.join(workspaceRoot, 'test'), { recursive: true, force: true });
@@ -146,7 +151,13 @@ async function firstHostRun({ manifest, fixturePackage, workspaceRoot }) {
   assert.equal(snapshot.outgoing.drafts[0].artifactSha256, firstDraftSha, 'idempotent attach must preserve exact artifact identity');
   assert.ok(snapshot.events.some((item) => item.type === 'attach-idempotent-exact' && item.detail.path === manifest.handoffs[0]), 'duplicate exact attach must be observable as an idempotent host event');
   for (const handoffPath of manifest.handoffs.slice(1)) await vscode.commands.executeCommand('tiinex.outgoing.attachHandoff', handoffNode(manifest.workspaceId, handoffPath));
-  const authored = await vscode.commands.executeCommand('tiinex.acceptance.authorHandoff', { workspaceId: manifest.workspaceId, title: 'Extension Host Authored Handoff' });
+  await vscode.commands.executeCommand('tiinex.acceptance.configure', { participantSelection: 'exact', additionalParticipantReferences: [loomEndpoint.reference] });
+  const authored = await vscode.commands.executeCommand('tiinex.acceptance.authorHandoff', { workspaceId: manifest.workspaceId, title: 'Extension Host Authored Handoff', fromLabel: 'Anchor', toLabel: 'Kodax' });
+  assert.equal(authored.fromReference, anchorEndpoint.reference, 'production Handoff authoring must bind the exact Core-projected From Reference');
+  assert.equal(authored.toReference, kodaxEndpoint.reference, 'production Handoff authoring must bind the exact Core-projected To Reference');
+  const authoredMarkdown = await fs.readFile(path.join(workspaceRoot, authored.path), 'utf8');
+  assert.ok(authoredMarkdown.includes(anchorEndpoint.reference), 'durable authored Handoff bytes must contain the exact From Reference');
+  assert.ok(authoredMarkdown.includes(kodaxEndpoint.reference), 'durable authored Handoff bytes must contain the exact To Reference');
   snapshot = await vscode.commands.executeCommand('tiinex.acceptance.snapshot');
   assert.equal(snapshot.outgoing.drafts.length, 3, 'two fixture Handoffs plus one production-authored Handoff must be attached through the production controller path');
   const fixtureDrafts = snapshot.outgoing.drafts.filter((draft) => manifest.handoffs.includes(draft.path));
@@ -156,7 +167,10 @@ async function firstHostRun({ manifest, fixturePackage, workspaceRoot }) {
     assert.equal(draft.participantProjectionState, 'qualified');
     assert.deepEqual(draft.participants.map((item) => item.label).sort(), [...manifest.participants].sort(), 'visible participant presentation must match the exact Core-qualified set');
   }
-  assert.ok(snapshot.outgoing.drafts.some((draft) => draft.path === authored.path && draft.routeIncluded), 'the production-authored Handoff must be attached before Pack');
+  const authoredDraft = snapshot.outgoing.drafts.find((draft) => draft.path === authored.path);
+  assert.ok(authoredDraft?.routeIncluded, 'the production-authored Handoff must be attached before Pack');
+  assert.deepEqual(authoredDraft.participantSelections.map((item) => item.reference), [loomEndpoint.reference], 'Attach must preserve the exact operator-selected additional Role reference separately from Core semantic projection');
+  assert.ok(authoredDraft.participants.some((item) => item.reference === loomEndpoint.reference), 'Core semantic participant projection must include the exact selected additional Role');
 
   await vscode.commands.executeCommand('tiinex.acceptance.corruptParticipantSnapshot');
   snapshot = await vscode.commands.executeCommand('tiinex.acceptance.snapshot');

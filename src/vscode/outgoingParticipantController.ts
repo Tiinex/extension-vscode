@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import type { PackageParticipantProjection } from '../packageBuilder';
-import { extensionHostAcceptanceEnabled, extensionHostAcceptanceParticipantReferences, recordExtensionHostAcceptanceEvent } from './extensionHostAcceptance';
+import type { PackageParticipantProjection, PackageParticipantRole } from '../packageBuilder';
+import { extensionHostAcceptanceAdditionalParticipantReferences, extensionHostAcceptanceEnabled, extensionHostAcceptanceParticipantReferences, recordExtensionHostAcceptanceEvent } from './extensionHostAcceptance';
 
 export interface ParticipantPresentation {
   description: string;
@@ -14,6 +14,35 @@ export function participantPresentation(projection: PackageParticipantProjection
       ? 'participant projection blocked'
       : 'participant authority unresolved';
   return { description, tooltip: projection.detail };
+}
+
+export async function selectAdditionalParticipantRoles(candidates: PackageParticipantRole[]): Promise<PackageParticipantRole[] | null> {
+  if (!candidates.length) return [];
+  const items = candidates.map((role) => ({
+    label: `$(person-add) ${role.label}`,
+    description: role.workspaceId,
+    detail: role.reference,
+    role,
+    picked: false
+  }));
+  const acceptanceReferences = extensionHostAcceptanceAdditionalParticipantReferences(items.map((item) => item.role.reference));
+  const selected = acceptanceReferences === undefined
+    ? await vscode.window.showQuickPick(items, {
+        title: 'Additional participant Roles · qualified open Workspaces',
+        placeHolder: 'Select zero, one, or multiple additional Roles. Core requalifies the exact set before Attach and Pack.',
+        canPickMany: true,
+        ignoreFocusOut: true
+      })
+    : acceptanceReferences === null
+      ? undefined
+      : items.filter((item) => acceptanceReferences.includes(item.role.reference));
+  if (!selected) {
+    recordExtensionHostAcceptanceEvent('participant-selection', { state: 'cancelled', candidateCount: items.length });
+    return null;
+  }
+  const roles = selected.map((item) => item.role);
+  recordExtensionHostAcceptanceEvent('participant-selection', { state: 'selected', selected: roles.map((item) => item.reference), candidateCount: items.length });
+  return roles;
 }
 
 export async function confirmExactCoreParticipantProjection(projection: PackageParticipantProjection): Promise<PackageParticipantProjection | null> {

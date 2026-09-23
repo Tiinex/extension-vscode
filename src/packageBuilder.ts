@@ -22,6 +22,7 @@ import { assertStableQualifiedCarrierAllocation, qualifiedCarrierAllocationFromM
 import { carrierFilenameForCollisionInstance } from './core/outgoingUx';
 import { endpointCandidatesForExplicitSource, mergeExactHandoffEndpointChoices } from './core/handoffEndpointSelection';
 import { handoffRouteCandidatesForExplicitSource } from './core/handoffRouteSelection';
+import { safeTarget } from './core/paths';
 
 type WorkspaceSource = WorkspacePackageSourcesResult['candidates'][number] & { root: string };
 export type RouteChoice = { id: string; pointerless: boolean; label: string; description: string; detail?: string; path?: string; from?: string; to?: string; workspaceId?: string; leaf?: boolean };
@@ -37,8 +38,8 @@ export interface PackageEndpointRoleBinding {
   workspaceId: string;
   path: string;
 }
-export interface PackageRouteInput { routeId: string; endpointRoles?: PackageEndpointRoleBinding[] }
-export interface PackageBuildInput { routeId: string; routeInputs?: PackageRouteInput[]; workspaceIds: string[]; carrierPrefix?: string; packageParentPath?: string; packageParentRoutePointer?: string; packageParentRouteId?: string; packageConsolidation?: boolean; packageMajorReason?: string; incomingWorkspaceSources?: IncomingPackageWorkspaceSource[]; workspaceSourceOverrides?: PackageWorkspaceSourceOverride[]; outputDirectory?: string; expectedCarrierDimension?: string; expectedCarrierFilename?: string; collisionInstance?: number; reportProgress?: (message: string) => void }
+export interface PackageRouteInput { routeId: string; participantRoles?: PackageParticipantRole[]; endpointRoles?: PackageEndpointRoleBinding[] }
+export interface PackageBuildInput { routeId: string; routeInputs?: PackageRouteInput[]; workspaceIds: string[]; carrierPrefix?: string; packageParentPath?: string; packageParentRoutePointer?: string; packageParentRouteId?: string; packageConsolidation?: boolean; packageMajorReason?: string; incomingWorkspaceSources?: IncomingPackageWorkspaceSource[]; workspaceSourceOverrides?: PackageWorkspaceSourceOverride[]; discoveryWorkspaceSourceOverrides?: PackageWorkspaceSourceOverride[]; outputDirectory?: string; expectedCarrierDimension?: string; expectedCarrierFilename?: string; collisionInstance?: number; reportProgress?: (message: string) => void }
 export interface PackageRouteRouting { routeId: string; workspaceId: string; handoffPath: string; recipientLabel?: string; text: string }
 export type PackageParticipantProjection = ParticipantProjection;
 export interface PackageBuildResult { outputPath: string; routingText: string; routeRoutingTexts: PackageRouteRouting[]; autoCopiedTransportText: boolean; routeId: string; routeIds: string[]; workspaceIds: string[] }
@@ -271,6 +272,44 @@ async function qualifyWorkspaceSourceOverrides(runtime: Awaited<ReturnType<typeo
   return out;
 }
 
+type MaterialBinding = { sourcePath: string; referenceTarget: string; provenance: { workspaceId: string; path: string } };
+
+async function materialBindingsForDiscoverySources(
+  runtime: Awaited<ReturnType<typeof prepareBundledRuntime>>,
+  selectedSources: WorkspaceSource[],
+  discoverySources: WorkspaceSource[]
+): Promise<Record<string, MaterialBinding>> {
+  const carriedWorkspaceIds = new Set(selectedSources.map((item) => item.workspaceId));
+  const bindings: Record<string, MaterialBinding> = {};
+  for (const source of discoverySources) {
+    // A selected Outgoing Workspace is already authoritative source material for
+    // Core manufacture. Discovery roots are availability-only and must never
+    // cause that Workspace to be carried a second time or added to Outgoing.
+    if (carriedWorkspaceIds.has(source.workspaceId)) continue;
+    const projection = await projectHandoffEndpoints(runtime, source.root, source.workspaceId);
+    if (projection.status !== 'ready' || (projection.findings || []).some((item) => item.severity === 'error')) {
+      throw new Error(`tiinex.package-builder.discovery-material-source-unqualified:${source.workspaceId}:\n${presentActionableFindings(projection.findings || [], projection.status)}`);
+    }
+    const candidates = endpointCandidatesForExplicitSource(source, projection.candidates || []);
+    for (const candidate of candidates) {
+      const reference = String(candidate.reference || candidate.target || '').trim();
+      const artifactPath = String(candidate.artifactPath || '').replace(/\\/g, '/').replace(/^\/+/, '');
+      if (!reference || !artifactPath) continue;
+      const sourcePath = safeTarget(source.root, artifactPath);
+      const existing = bindings[reference];
+      if (existing && (path.resolve(existing.sourcePath) !== sourcePath || existing.provenance.workspaceId !== source.workspaceId || existing.provenance.path !== artifactPath)) {
+        throw new Error(`tiinex.package-builder.discovery-material-reference-ambiguous:${reference}`);
+      }
+      bindings[reference] = {
+        sourcePath,
+        referenceTarget: reference,
+        provenance: { workspaceId: source.workspaceId, path: artifactPath }
+      };
+    }
+  }
+  return bindings;
+}
+
 async function handoffRouteChoicesForSources(runtime: Awaited<ReturnType<typeof prepareBundledRuntime>>, sources: WorkspaceSource[]): Promise<RouteChoice[]> {
   const out: RouteChoice[] = [];
   for (const source of sources) {
@@ -403,7 +442,7 @@ function routeChoiceFromKey(keyValue: string): RouteChoice {
   return { id: key, pointerless: false, workspaceId, path: routePath, label: routePath, description: `${workspaceId}: ${routePath}` };
 }
 
-async function handoffArgs(selected: WorkspaceSource[], primaryRoute: RouteChoice, routes: Array<{ route: RouteChoice; participantRoles: PackageParticipantRole[]; endpointRoles: PackageEndpointRoleBinding[] }>, scratch: string, packageParentPath = '', packageMajorReason = '', packageParentRoutePointer = '', packageParentRouteId = '', packageConsolidation = false, carrierPrefix = ''): Promise<string[]> {
+async function handoffArgs(selected: WorkspaceSource[], primaryRoute: RouteChoice, routes: Array<{ route: RouteChoice; participantRoles: PackageParticipantRole[]; endpointRoles: PackageEndpointRoleBinding[] }>, scratch: string, packageParentPath = '', packageMajorReason = '', packageParentRoutePointer = '', packageParentRouteId = '', packageConsolidation = false, carrierPrefix = '', materialBindings: Record<string, any> = {}): Promise<string[]> {
   if (!primaryRoute.workspaceId || !primaryRoute.path) throw new Error('tiinex.package-builder.route-unresolved');
   const primary = selected.find((item) => item.workspaceId === primaryRoute.workspaceId);
   if (!primary) throw new Error('tiinex.package-builder.route-workspace-not-selected');
@@ -445,6 +484,11 @@ async function handoffArgs(selected: WorkspaceSource[], primaryRoute: RouteChoic
     args.push('--package-major', '--major-reason', packageMajorReason);
   }
   if (String(carrierPrefix || '').trim()) args.push('--carrier-prefix', String(carrierPrefix || '').trim());
+  if (Object.keys(materialBindings).length) {
+    const bindingsPath = path.join(scratch, 'material-bindings.json');
+    await writeFile(bindingsPath, JSON.stringify(materialBindings), 'utf8');
+    args.push('--material-bindings', bindingsPath);
+  }
   if (routes.length > 1 || routes.some((item) => item.participantRoles.length || item.endpointRoles.length)) {
     const routesPath = path.join(scratch, 'workspace-routes.json');
     await writeFile(routesPath, JSON.stringify({ routes: routes.map(({ route, participantRoles, endpointRoles }) => ({
@@ -494,20 +538,23 @@ async function projectExactRouteParticipants(
   runtime: Awaited<ReturnType<typeof prepareBundledRuntime>>,
   selectedSources: WorkspaceSource[],
   route: RouteChoice,
+  participantRoles: PackageParticipantRole[],
   scratch: string,
-  input: PackageBuildInput
+  input: PackageBuildInput,
+  materialBindings: Record<string, MaterialBinding> = {}
 ): Promise<PackageParticipantProjection> {
   const args = await handoffArgs(
     selectedSources,
     route,
-    [{ route, participantRoles: [], endpointRoles: [] }],
+    [{ route, participantRoles, endpointRoles: [] }],
     scratch,
     String(input.packageParentPath || ''),
     String(input.packageMajorReason || '').trim(),
     String(input.packageParentRoutePointer || ''),
     String(input.packageParentRouteId || ''),
     input.packageConsolidation === true,
-    String(input.carrierPrefix || '').trim()
+    String(input.carrierPrefix || '').trim(),
+    materialBindings
   );
   return participantProjectionFromCoreResult(await projectHandoffParticipants(runtime, args));
 }
@@ -525,6 +572,7 @@ export async function projectHandoffPackageParticipants(extensionPath: string, i
     reportProgress(input, 'Qualifying selected Workspace sources…');
     const incomingSources = await qualifyIncomingWorkspaceSources(runtime, scratch, input.incomingWorkspaceSources || []);
     const overrideSources = await qualifyWorkspaceSourceOverrides(runtime, input.workspaceSourceOverrides || []);
+    const discoverySources = await qualifyWorkspaceSourceOverrides(runtime, input.discoveryWorkspaceSourceOverrides || []);
     const sourceById = new Map<string, WorkspaceSource>();
     for (const item of incomingSources) sourceById.set(item.workspaceId, item);
     for (const item of overrideSources) sourceById.set(item.workspaceId, item);
@@ -535,8 +583,10 @@ export async function projectHandoffPackageParticipants(extensionPath: string, i
     if (missingWorkspaceIds.length && !input.packageParentPath) throw new Error(`tiinex.package-builder.workspace-id-unresolved:${missingWorkspaceIds.join(',')}`);
     if (!selectedSources.length) throw new Error('tiinex.package-builder.no-local-workspace-source');
     if (!selectedSources.some((item) => item.workspaceId === route.workspaceId) && !input.packageParentPath) throw new Error(`tiinex.package-builder.route-workspace-not-selected:${route.workspaceId}`);
+    const selectedRouteInput = (input.routeInputs || []).find((item) => item.routeId === input.routeId);
+    const materialBindings = await materialBindingsForDiscoverySources(runtime, selectedSources, discoverySources);
     reportProgress(input, 'Projecting Core-qualified participant authority…');
-    return await projectExactRouteParticipants(runtime, selectedSources, route, scratch, input);
+    return await projectExactRouteParticipants(runtime, selectedSources, route, selectedRouteInput?.participantRoles || [], scratch, input, materialBindings);
   } catch (error) {
     return { state: 'blocked', roles: [], findings: [], detail: String(error instanceof Error ? error.message : error) };
   } finally {
@@ -560,6 +610,7 @@ export async function buildHandoffPackageFromForm(extensionPath: string, input: 
     reportProgress(input, 'Qualifying selected Workspace sources…');
     const incomingSources = await qualifyIncomingWorkspaceSources(runtime, scratch, input.incomingWorkspaceSources || []);
     const overrideSources = await qualifyWorkspaceSourceOverrides(runtime, input.workspaceSourceOverrides || []);
+    const discoverySources = await qualifyWorkspaceSourceOverrides(runtime, input.discoveryWorkspaceSourceOverrides || []);
     const sourceById = new Map<string, WorkspaceSource>(current.sources.map((item) => [item.workspaceId, item]));
     for (const item of incomingSources) sourceById.set(item.workspaceId, item);
     for (const item of overrideSources) sourceById.set(item.workspaceId, item);
@@ -573,13 +624,14 @@ export async function buildHandoffPackageFromForm(extensionPath: string, input: 
     const uniqueRouteInputs = new Map<string, PackageRouteInput>();
     for (const item of requestedRouteInputs) uniqueRouteInputs.set(item.routeId, item);
     if (!uniqueRouteInputs.has(input.routeId)) uniqueRouteInputs.set(input.routeId, { routeId: input.routeId });
-    const routeInputs = [...uniqueRouteInputs.values()].map((item) => ({ route: exactRouteByKey(availableRoutes, item.routeId), endpointRoles: item.endpointRoles || [] }));
+    const routeInputs = [...uniqueRouteInputs.values()].map((item) => ({ route: exactRouteByKey(availableRoutes, item.routeId), participantRoles: item.participantRoles || [], endpointRoles: item.endpointRoles || [] }));
     const requestedWorkspaceIds = [...new Set(input.workspaceIds.map((item) => String(item || '').trim()).filter(Boolean))].sort();
     const selectedSources = requestedWorkspaceIds.map((workspaceId) => sourceById.get(workspaceId)).filter((item): item is WorkspaceSource => Boolean(item));
     const selectedIds = new Set(selectedSources.map((item) => item.workspaceId));
     const missingWorkspaceIds = requestedWorkspaceIds.filter((item) => !selectedIds.has(item));
     if (missingWorkspaceIds.length && !input.packageParentPath) throw new Error(`tiinex.package-builder.workspace-id-unresolved:${missingWorkspaceIds.join(',')}`);
     if (!selectedSources.length) throw new Error('tiinex.package-builder.no-local-workspace-source');
+    const materialBindings = await materialBindingsForDiscoverySources(runtime, selectedSources, discoverySources);
     if (route.pointerless) {
       const args = await workspaceCarrierArgs(selectedSources, scratch, String(input.expectedCarrierFilename || ''), String(input.packageParentPath || ''), String(input.packageMajorReason || '').trim());
       reportProgress(input, 'Running Core package preview…');
@@ -607,18 +659,18 @@ export async function buildHandoffPackageFromForm(extensionPath: string, input: 
       if (item.route.pointerless || !item.route.workspaceId || !item.route.path) throw new Error('tiinex.package-builder.handoff-route-required');
       if (!selectedSources.some((source) => source.workspaceId === item.route.workspaceId) && !input.packageParentPath) throw new Error(`tiinex.package-builder.route-workspace-not-selected:${item.route.workspaceId}`);
     }
-    // Participant Roles are semantic Core output, not mutable host input. Re-project
-    // every attached route immediately before manufacture and replace any stale
-    // controller snapshot with the exact current Core-qualified set.
+    // Explicit participant choices are operator input; the semantic participant set
+    // is Core output. Re-project every attached route immediately before manufacture
+    // and replace any stale controller snapshot with the exact current Core-qualified set.
     const qualifiedRouteInputs: Array<{ route: RouteChoice; participantRoles: PackageParticipantRole[]; endpointRoles: PackageEndpointRoleBinding[] }> = [];
     for (const item of routeInputs) {
       reportProgress(input, `Requalifying Core participants for ${item.route.label || item.route.path || item.route.id}…`);
-      const participantProjection = await projectExactRouteParticipants(runtime, selectedSources, item.route, scratch, input);
+      const participantProjection = await projectExactRouteParticipants(runtime, selectedSources, item.route, item.participantRoles, scratch, input, materialBindings);
       if (participantProjection.state === 'blocked') throw new Error(`tiinex.package-builder.participant-projection-blocked:${item.route.id}:
 ${participantProjection.detail}`);
       qualifiedRouteInputs.push({ route: item.route, participantRoles: [...participantProjection.roles], endpointRoles: item.endpointRoles });
     }
-    const args = await handoffArgs(selectedSources, route, qualifiedRouteInputs, scratch, String(input.packageParentPath || ''), String(input.packageMajorReason || '').trim(), String(input.packageParentRoutePointer || ''), String(input.packageParentRouteId || ''), input.packageConsolidation === true, String(input.carrierPrefix || '').trim());
+    const args = await handoffArgs(selectedSources, route, qualifiedRouteInputs, scratch, String(input.packageParentPath || ''), String(input.packageMajorReason || '').trim(), String(input.packageParentRoutePointer || ''), String(input.packageParentRouteId || ''), input.packageConsolidation === true, String(input.carrierPrefix || '').trim(), materialBindings);
     // Core owns routed Handoff bytes plus continuation/allocation truth. The host
     // only consumes and cross-checks the returned allocation/lineage projection,
     // then applies destination-local collision suffixing to Core's projected filename.

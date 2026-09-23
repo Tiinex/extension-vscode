@@ -676,7 +676,7 @@ await test('extension activation synchronously registers all native Tiinex views
   assert.ok(activationErrors.some((value) => value.includes('Tiinex activation degraded: activation-startup-probe-stop')));
 });
 
-await test('participant controller confirms only the exact Core-qualified set', async () => {
+await test('participant controller selects zero/one/many qualified extras and still confirms only the exact Core-qualified result', async () => {
   const { createRequire } = await import('node:module');
   const require = createRequire(import.meta.url);
   const Module = require('node:module');
@@ -687,7 +687,7 @@ await test('participant controller confirms only the exact Core-qualified set', 
   let selectionMode = 'all';
   const vscode = {
     window: {
-      showQuickPick: async (items) => selectionMode === 'all' ? items : selectionMode === 'partial' ? items.slice(0, 1) : undefined,
+      showQuickPick: async (items) => selectionMode === 'all' ? items : selectionMode === 'partial' ? items.slice(0, 1) : selectionMode === 'none' ? [] : undefined,
       showWarningMessage: async (value) => { warnings.push(String(value)); },
       showErrorMessage: async (value) => { errors.push(String(value)); },
       showInformationMessage: async () => undefined
@@ -709,6 +709,12 @@ await test('participant controller confirms only the exact Core-qualified set', 
       detail: '2 Core-qualified semantic participant Roles.',
       findings: []
     };
+    selectionMode = 'none';
+    assert.deepEqual(await controller.selectAdditionalParticipantRoles(projection.roles), []);
+    selectionMode = 'partial';
+    assert.deepEqual((await controller.selectAdditionalParticipantRoles(projection.roles))?.map((item) => item.label), ['Sigma']);
+    selectionMode = 'all';
+    assert.deepEqual((await controller.selectAdditionalParticipantRoles(projection.roles))?.map((item) => item.label), ['Sigma', 'Reviewer']);
     assert.equal(await controller.confirmExactCoreParticipantProjection(projection), projection);
     selectionMode = 'partial';
     assert.equal(await controller.confirmExactCoreParticipantProjection(projection), null);
@@ -1547,8 +1553,8 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(packageBuilder, /nextCarrierCollisionInstance\(folder, coreFilename\)/);
   assert.doesNotMatch(packageBuilder, /input\.expectedCarrierFilename \|\| coreFilename/);
   assert.match(packageBuilder, /PackageRouteInput/);
-  assert.doesNotMatch(packageBuilder, /PackageRouteInput \{[^}]*participantRoles/);
-  assert.doesNotMatch(packageBuilder, /PackageBuildInput \{[^}]*participantRoles/);
+  assert.match(packageBuilder, /PackageRouteInput \{[^}]*participantRoles\?: PackageParticipantRole\[\]/);
+  assert.match(packageBuilder, /discoveryWorkspaceSourceOverrides\?: PackageWorkspaceSourceOverride\[\]/);
   assert.match(packageBuilder, /packageParentRoutePointer/);
   assert.match(packageBuilder, /packageParentRouteId/);
   assert.match(packageBuilder, /packageConsolidation/);
@@ -1790,7 +1796,7 @@ await test('Artifact Authoring host UX keeps repair and direct-create behavior b
   assert.match(panel, /panel\.dispose\(\)/);
 });
 
-await test('installed Core exposes Handoff reference fields as validation-only authoring gaps', async () => {
+await test('installed Core exposes Handoff endpoint References as writable optional authoring inputs', async () => {
   const root = path.resolve(HERE, '..');
   const runtime = await prepareBundledRuntime(root, process.execPath);
   try {
@@ -1801,11 +1807,11 @@ await test('installed Core exposes Handoff reference fields as validation-only a
     const model = projectArtifactAuthoringModel(contract, guide);
     const parties = model.sections.find((section) => section.key === 'Handoff Parties');
     assert.ok(parties);
-    assert.equal(parties.fields.some((field) => field.key === 'From Reference'), false);
-    assert.equal(parties.fields.some((field) => field.key === 'To Reference'), false);
+    assert.equal(parties.fields.some((field) => field.key === 'From Reference'), true);
+    assert.equal(parties.fields.some((field) => field.key === 'To Reference'), true);
     const gap = model.capabilityGaps.find((item) => item.section === 'Handoff Parties');
-    assert.ok(gap?.fields.includes('From Reference'));
-    assert.ok(gap?.fields.includes('To Reference'));
+    assert.equal(Boolean(gap?.fields.includes('From Reference')), false);
+    assert.equal(Boolean(gap?.fields.includes('To Reference')), false);
   } finally { await runtime.dispose(); }
 });
 
@@ -1885,17 +1891,15 @@ await test('multi-Incoming and Merge/Replace remain selection-first, dry until f
   assert.match(tree, /this\.outgoingProjectedFilename\(\)/);
   assert.match(tree, /this\.projection\('outgoing'\) === 'files'/);
   assert.match(tree, /outgoingCarrierFileChildren\(\)/);
-  assert.match(tree, /const workspaceHasCache = routeDrafts\.some\(\(draft\) => outgoingDraftNeedsExternalCache\(draft, selectedWorkspaceIds\)\)/);
-  assert.match(tree, /if \(workspaceHasCache && fullLineage\)/);
-  assert.match(tree, /`\$\{prefix\}-1-cache\.trace\.md`/);
-  assert.match(tree, /hasCache: workspaceHasCache/);
-  assert.match(tree, /participant Role pointer · pending Pack/);
-  assert.match(tree, /endpoint Role pointer · pending Pack/);
-  assert.match(tree, /Handoff pointer · pending Pack/);
+  assert.doesNotMatch(tree, /outgoingDraftNeedsExternalCache/);
+  assert.doesNotMatch(tree, /-cache\.trace\.md|endpoint-role-pointer\.trace\.md|role-pointer\.trace\.md/);
+  assert.match(tree, /Core-qualified · final carrier path pending Pack/);
+  assert.match(tree, /Durable Handoff Reference · Core materialization pending Pack/);
+  assert.match(tree, /Core allocation · final carrier path pending Pack/);
   assert.match(tree, /tiinex\.outgoingParticipantRolePointerProjected/);
   assert.match(tree, /tiinex\.outgoingHandoffPointerProjected/);
   const packageBuilder = await fs.readFile(path.resolve(HERE, '..', 'src', 'packageBuilder.ts'), 'utf8');
-  assert.match(packageBuilder, /Participant Roles are semantic Core output, not mutable host input/);
+  assert.match(packageBuilder, /Explicit participant choices are operator input; the semantic participant set/);
   assert.match(packageBuilder, /projectExactRouteParticipants/);
   assert.match(packageBuilder, /qualifiedRouteInputs/);
   assert.doesNotMatch(tree, /removeOutgoingParticipantPointer/);
@@ -2265,28 +2269,27 @@ await test('routed Handoff Pack takes filename and collision allocation from qua
   assert.match(branch, /Publishing qualified carrier/);
 });
 
-await test('Handoff endpoint selections remain exact transport material bindings when Core creation omits optional endpoint References', async () => {
+await test('Handoff endpoint selections persist exact Core References and Pack can resolve open discovery-only material without transient authority', async () => {
   const fs = await import('node:fs/promises');
   const root = path.resolve(HERE, '..');
   const panel = await fs.readFile(path.join(root, 'src', 'artifactAuthoringPanel.ts'), 'utf8');
   assert.match(panel, /endpointSelections\(\)/);
   assert.match(panel, /endpointSelections:endpointSelections\(\)/);
+  assert.match(panel, /endpointReferenceLabels/);
+  assert.match(panel, /field\+' Reference'/);
   const tree = await fs.readFile(path.join(root, 'src', 'operatorTrees.ts'), 'utf8');
-  assert.match(tree, /reference: item\.reference/);
-  assert.match(tree, /workspaceId: item\.workspaceId/);
-  assert.match(tree, /path: item\.path/);
-  assert.match(tree, /endpointRoleBindingsFromSubmission/);
-  assert.match(tree, /endpointRoles: item\.endpointRoles/);
+  assert.match(tree, /\[`\$\{field\} Reference`\]: item\.reference/);
+  assert.match(tree, /values\[`\$\{field\} Reference`\] = reference/);
+  assert.match(tree, /delete values\[`\$\{field\} Reference`\]/);
+  assert.match(tree, /const sources = \(await this\.localWorkspaceChoices\(\)\)/);
+  assert.match(tree, /discoveryWorkspaceSourceOverrides/);
+  assert.doesNotMatch(tree, /const selected = this\.outgoing\?\.workspaces\?\.length \? this\.outgoing\.workspaces/);
   const builder = await fs.readFile(path.join(root, 'src', 'packageBuilder.ts'), 'utf8');
-  assert.match(tree, /loadHandoffEndpointChoicesForSources/);
-  assert.doesNotMatch(tree, /currentRoleChoices/);
-  assert.match(builder, /projectHandoffEndpoints/);
-  assert.match(builder, /endpointCandidatesForExplicitSource/);
-  assert.match(builder, /mergeExactHandoffEndpointChoices/);
-  assert.match(builder, /endpointRoles\?: PackageEndpointRoleBinding\[\]/);
-  assert.match(builder, /endpointRoles: endpointRoles\.map/);
-  assert.match(builder, /party: item\.party/);
-  assert.match(builder, /--workspace-routes/);
+  assert.match(builder, /materialBindingsForDiscoverySources/);
+  assert.match(builder, /--material-bindings/);
+  assert.match(builder, /referenceTarget: reference/);
+  assert.match(builder, /discovery Workspace to be carried a second time|must never/);
+  assert.match(builder, /participantRoles\?: PackageParticipantRole\[\]/);
 });
 
 await test('all package-builder Core discovery consumes the shared host runtime resolver', async () => {

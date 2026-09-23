@@ -350,6 +350,7 @@ export interface HandoffLeavesResult {
   status: string;
   candidates?: HandoffLeafCandidate[];
   leaves: HandoffLeafCandidate[];
+  findings?: Array<{ severity: string; code: string; message: string }>;
   pointerless: { selectionLabel: string; packageRole: string; manufactureState: string; blockerCode: string; consequence: string };
 }
 
