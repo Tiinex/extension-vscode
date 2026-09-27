@@ -43,7 +43,7 @@ export interface PackageBuildInput { routeId: string; routeInputs?: PackageRoute
 export interface PackageRouteRouting { routeId: string; workspaceId: string; handoffPath: string; recipientLabel?: string; text: string }
 export type PackageParticipantProjection = ParticipantProjection;
 export interface PackageBuildResult { outputPath: string; routingText: string; routeRoutingTexts: PackageRouteRouting[]; autoCopiedTransportText: boolean; routeId: string; routeIds: string[]; workspaceIds: string[] }
-export interface HandoffEndpointChoice { id: string; target: string; reference: string; kind: 'role' | 'party'; label: string; workspaceId: string; artifactPath: string; schemaId: string; qualification: string }
+export interface HandoffEndpointChoice { id: string; target: string; reference: string; kind: 'role' | 'party'; label: string; authoringLabel?: string; workspaceId: string; artifactPath: string; schemaId: string; qualification: string }
 export interface HandoffEndpointSource { workspaceId: string; root: string }
 
 function nodeExecutable(): string { return preferredNodeExecutable(vscode.workspace.getConfiguration('tiinex').get('nodePath', '').toString().trim()); }
@@ -540,7 +540,7 @@ async function handoffArgs(selected: WorkspaceSource[], primaryRoute: RouteChoic
     await writeFile(routesPath, JSON.stringify({ routes: routes.map(({ route, participantRoles, endpointRoles }) => ({
       workspaceId: route.workspaceId,
       path: route.path,
-      participantRoles: participantRoles.map((item) => ({ label: item.label, workspaceId: item.workspaceId, path: item.path, reference: item.reference })),
+      participantRoles: participantRoles.map((item) => ({ label: item.authoringLabel || item.label, workspaceId: item.workspaceId, path: item.path, reference: item.reference })),
       endpointRoles: endpointRoles.map((item) => ({ party: item.party, label: item.label, workspaceId: item.workspaceId, path: item.path, reference: item.reference }))
     })) }), 'utf8');
     args.push('--workspace-routes', routesPath);
@@ -571,7 +571,9 @@ function participantProjectionFromCoreResult(projection: any): PackageParticipan
     return { state: 'blocked', roles: [], detail: presentActionableFindings(projection?.findings || [], projection?.status || 'blocked'), findings };
   }
   const roles = (projection?.participantAuthority?.participants || []).map((item: any) => ({
-    label: String(item?.label || '').trim(), reference: String(item?.reference || '').trim(), workspaceId: String(item?.workspaceId || '').trim(), path: String(item?.path || '').trim()
+    label: String(item?.label || '').trim(),
+    authoringLabel: String(item?.authoringLabel || item?.label || '').trim() || undefined,
+    reference: String(item?.reference || '').trim(), workspaceId: String(item?.workspaceId || '').trim(), path: String(item?.path || '').trim()
   }));
   if (roles.some((item: PackageParticipantRole) => !item.label || !item.reference || !item.workspaceId || !item.path)) {
     return { state: 'blocked', roles: [], detail: 'Core participant projection was incomplete.', findings };

@@ -4,6 +4,7 @@ export interface ExactHandoffEndpointCandidate {
   reference: string;
   kind: 'role' | 'party';
   label: string;
+  authoringLabel?: string;
   workspaceId: string;
   artifactPath: string;
   schemaId: string;

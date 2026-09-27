@@ -246,6 +246,11 @@ export interface PackageTransportProjectionResult {
     findingSummary?: unknown;
     findings?: Array<{ severity?: string; code?: string; message?: string }>;
   };
+  primary?: { kind?: string; filename?: string; routeId?: string; workspaceId?: string; workspaceRelativeHandoffPath?: string } | null;
+  normalInlineRouting?: { content?: string } | null;
+  sharedRouting?: { routes?: Array<{ routeId?: string; workspaceId?: string; workspaceRelativeHandoffPath?: string; transportText?: string }> } | null;
+  presentation?: { kind?: string; label?: string; recipientLabel?: string; recipientProjectionAuthority?: string } | null;
+  selectedRoute?: { id?: string; workspaceId?: string; workspaceRelativePath?: string; parties?: { from?: string; to?: string } } | null;
   humanOutput?: {
     status?: string;
     primary?: { kind?: string; filename?: string; routeId?: string; workspaceId?: string; workspaceRelativeHandoffPath?: string } | null;
@@ -276,7 +281,23 @@ export async function projectPackageTransport(
   const selector = String(route || '').trim();
   if (selector) args.push('--route', selector);
   args.push('--compact');
-  return runTiinexJson<PackageTransportProjectionResult>(runtime, args, runner);
+  const projected = await runTiinexJson<PackageTransportProjectionResult>(runtime, args, runner);
+  // Current Core projects human transport output at the operation-result top level.
+  // Older host builds consumed a nested humanOutput shape. Normalize only the
+  // representation boundary here so every VS Code caller consumes Core's exact
+  // projected values without reconstructing transport semantics.
+  if (!projected.humanOutput) {
+    projected.humanOutput = {
+      status: projected.status,
+      primary: projected.primary || null,
+      normalInlineRouting: projected.normalInlineRouting || null,
+      sharedRouting: projected.sharedRouting || null,
+      presentation: projected.presentation || null,
+      selectedRoute: projected.selectedRoute || null,
+      findings: projected.findings || []
+    };
+  }
+  return projected;
 }
 
 export interface GroundingResult {
@@ -528,7 +549,7 @@ export async function projectStagedValidation(runtime: PackageRuntime, root: str
 export interface HandoffEndpointProjectionResult {
   status: string;
   workspaceId: string;
-  candidates: Array<{ id: string; target: string; reference: string; kind: 'role' | 'party'; label: string; workspaceId: string; artifactPath: string; schemaId: string; qualification: string }>;
+  candidates: Array<{ id: string; target: string; reference: string; kind: 'role' | 'party'; label: string; authoringLabel?: string; workspaceId: string; artifactPath: string; schemaId: string; qualification: string }>;
   findings?: Array<{ severity: string; code: string; message: string }>;
 }
 

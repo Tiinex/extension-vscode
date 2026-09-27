@@ -2,6 +2,7 @@ import { presentActionableFindings } from './findingPresentation';
 
 export interface QualifiedParticipantRole {
   label: string;
+  authoringLabel?: string;
   reference: string;
   workspaceId: string;
   path: string;
@@ -49,6 +50,7 @@ export function participantProjectionFromManufactureReceipt(receipt: any): Parti
       : (Array.isArray(receipt?.plan?.requirements?.participantRoles) ? receipt.plan.requirements.participantRoles : []));
   const roles = projected.map((item: any) => ({
     label: String(item?.label || item?.roleLabel || item?.requirementName || '').trim(),
+    authoringLabel: String(item?.authoringLabel || item?.roleLabel || item?.label || item?.requirementName || '').trim() || undefined,
     reference: String(item?.reference || item?.referenceTarget || '').trim(),
     workspaceId: String(item?.workspaceId || item?.targetWorkspaceId || item?.selectedMaterial?.provenance?.workspaceId || '').trim(),
     path: String(item?.path || item?.targetPath || item?.selectedMaterial?.provenance?.path || '').trim()

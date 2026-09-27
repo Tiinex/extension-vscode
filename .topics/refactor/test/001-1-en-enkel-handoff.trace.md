@@ -9,7 +9,7 @@
     - [relative](001-test.trace.md)
 - Current
   - Current Schema: [tiinex.handoff.v1](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.schemas/coordination/handoff/tiinex.handoff.v1.schema.md)
-  - Created At: 2026-09-21 20:52:35
+  - Created At: 2026-09-27 16:28:06
   - Summary: Handoff Draft
   - Status: draft/local
 
@@ -20,9 +20,9 @@
 ## Handoff Parties
 
 - Purpose: Open an interactive bounded conversation with the receiving role about the subject described by this Handoff.
-- From: Sigma
+- From: Glimmer
 - From Kind: role
-- To: Anchor
+- To: Pilot
 - To Kind: role
 
 ## Transfers
@@ -63,8 +63,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-test.trace.md](001-test.trace.md)
-  - Value: Yv1vBcPiZEXyMDMLSsxDAFdfw2xOufWl6GgIUxyiN9w
+  - Value: IDTkVTafx3rAetEoK12EuknNWdbLecojGDAALfTjLls
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: Mw9QS-ymrcRvBJeikFJhQW3JyTLrn0lnXhhiqITQpro
+  - Value: n8e6NhbvxaD2TtdbfwCvZNi1bdBMiaHcUEVPba0K5Is

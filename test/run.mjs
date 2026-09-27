@@ -54,14 +54,14 @@ await test('participant projection exposes only exact Core-qualified semantic Ro
   };
   assert.deepEqual(participantProjectionFromManufactureReceipt(receipt), {
     state: 'qualified',
-    roles: [{ label: 'Reviewer', reference: 'business::.topics/roles/reviewer.role.md', workspaceId: 'business', path: '.topics/roles/reviewer.role.md' }],
+    roles: [{ label: 'Reviewer', authoringLabel: 'Reviewer', reference: 'business::.topics/roles/reviewer.role.md', workspaceId: 'business', path: '.topics/roles/reviewer.role.md' }],
     detail: '1 Core-qualified semantic participant Role.',
     findings: []
   });
   assert.equal(participantProjectionFromManufactureReceipt({ status: 'ready', transportExecutable: true, plan: { requirements: { participantRoles: [] } } }).state, 'not-established');
   assert.deepEqual(participantProjectionFromManufactureReceipt({ status: 'ready', transportExecutable: true, findings: [], planSummary: { semanticParticipantRoutes: [{ state: 'qualified', participants: [{ label: 'Sigma', reference: 'business::.topics/roles/sigma.trace.md', workspaceId: 'business', path: '.topics/roles/sigma.trace.md' }] }] } }), {
     state: 'qualified',
-    roles: [{ label: 'Sigma', reference: 'business::.topics/roles/sigma.trace.md', workspaceId: 'business', path: '.topics/roles/sigma.trace.md' }],
+    roles: [{ label: 'Sigma', authoringLabel: 'Sigma', reference: 'business::.topics/roles/sigma.trace.md', workspaceId: 'business', path: '.topics/roles/sigma.trace.md' }],
     detail: '1 Core-qualified semantic participant Role.',
     findings: []
   });
@@ -72,7 +72,9 @@ await test('participant projection exposes only exact Core-qualified semantic Ro
 await test('Handoff endpoint host scoping preserves exact same-label choices and rejects nested fixture paths', async () => {
   const source = { workspaceId: 'business', root: '/repo/business' };
   const candidate = (artifactPath, reference, workspaceId = 'business') => ({
-    id: `${workspaceId}:${artifactPath}`, target: reference, reference, kind: 'role', label: 'Sigma', workspaceId, artifactPath, schemaId: 'tiinex.party.role.v1', qualification: 'qualified-exact'
+    id: `${workspaceId}:${artifactPath}`, target: reference, reference, kind: 'role',
+    label: 'Sigma Role — Canonical Holder Cutover Continuation', authoringLabel: 'Sigma',
+    workspaceId, artifactPath, schemaId: 'tiinex.party.role.v1', qualification: 'qualified-exact'
   });
   const exact = endpointCandidatesForExplicitSource(source, [
     candidate('.topics/roles/sigma-a.trace.md', 'business::.topics/roles/sigma-a.trace.md'),
@@ -85,8 +87,10 @@ await test('Handoff endpoint host scoping preserves exact same-label choices and
   assert.deepEqual(exact.map((item) => item.artifactPath), ['.topics/roles/sigma-a.trace.md', '.topics/roles/sigma-b.trace.md']);
   const merged = mergeExactHandoffEndpointChoices([exact, [exact[0]]]);
   assert.equal(merged.length, 2);
-  assert.equal(merged[0].label, 'Sigma');
-  assert.equal(merged[1].label, 'Sigma');
+  assert.equal(merged[0].label, 'Sigma Role — Canonical Holder Cutover Continuation');
+  assert.equal(merged[0].authoringLabel, 'Sigma');
+  assert.equal(merged[1].label, 'Sigma Role — Canonical Holder Cutover Continuation');
+  assert.equal(merged[1].authoringLabel, 'Sigma');
 });
 
 
@@ -853,7 +857,7 @@ await test('operator README and deterministic GIF runbook describe the stabilize
   assert.match(readme, /one \*\*Display Options\*\* control/);
   assert.match(readme, /green \*\*qualified match\*\*/);
   assert.match(readme, /docs\/GIF-CAPTURE\.md/);
-  assert.match(readme, /"@tiinex\/core": "\^0\.35\.0"/);
+  assert.match(readme, /"@tiinex\/core": "\^0\.45\.0"/);
   if (process.env.TIINEX_LOCAL_CORE_ACCEPTANCE === '1') {
     assert.match(manifest.dependencies['@tiinex/core'], /^file:/);
     assert.equal(lock.packages[''].dependencies['@tiinex/core'], manifest.dependencies['@tiinex/core']);
@@ -861,8 +865,8 @@ await test('operator README and deterministic GIF runbook describe the stabilize
     const installedCore = JSON.parse(await fs.readFile(path.join(root, 'node_modules', '@tiinex', 'core', 'package.json'), 'utf8'));
     assert.equal(lock.packages['node_modules/@tiinex/core'].version, installedCore.version);
   } else {
-    assert.equal(manifest.dependencies['@tiinex/core'], '^0.35.0');
-    assert.equal(lock.packages['node_modules/@tiinex/core'].version, '0.35.0');
+    assert.equal(manifest.dependencies['@tiinex/core'], '^0.45.0');
+    assert.equal(lock.packages['node_modules/@tiinex/core'].version, '0.45.0');
   }
   for (const section of ['Clip 1 — Display Options', 'Clip 2 — Incoming exact qualified match', 'Clip 3 — Outgoing Handoff and Pack safety', 'Clip 4 — Staging and commit-message ergonomics']) assert.match(capture, new RegExp(section));
   assert.match(capture, /does not replace the required Sigma Windows observation/);
@@ -1676,15 +1680,28 @@ await test('Pointerless transport queue requires Core-owned generic transport te
   assert.match(tree, /const textRequired = Boolean\(item\.routes\.length \|\| item\.genericTransportText\)/);
 });
 
+await test('Outgoing Files projection indexes exact temporary Core-manufactured carrier bytes instead of host pending-shape paths', async () => {
+  const fs = await import('node:fs/promises');
+  const root = path.resolve(HERE, '..');
+  const tree = await fs.readFile(path.join(root, 'src', 'operatorTrees.ts'), 'utf8');
+  assert.match(tree, /private async outgoingCarrierFileChildren\(\): Promise<OperatorNode\[]>/);
+  assert.match(tree, /const index = await this\.outgoingExactCarrierPreview\(\)/);
+  assert.match(tree, /return this\.outerCarrierFileChildren\('outgoing', index, ''\)/);
+  assert.match(tree, /buildHandoffPackageFromForm\(this\.extensionPath/);
+  assert.match(tree, /const index = await indexCarrierPackage\(built\.outputPath\)/);
+  assert.doesNotMatch(tree, /Start artifact', pending/);
+  assert.doesNotMatch(tree, /Workspace descriptor`, description: descriptorDescription/);
+});
+
 await test('Transport package projection delegates exact generic and route transport text to Core CLI', async () => {
   const runtime = { root: '/runtime', entrypoint: '/runtime/tiinex-portable.mjs', nodeExecutable: 'node', dispose: async () => undefined };
   const fx = fakeRunner((_key, index, call) => {
     if (index === 0) {
       assert.deepEqual(call.args, ['/runtime/tiinex-portable.mjs', 'project-handoff-carrier-output', '/packages/a.zip', '--compact']);
-      return { code: 0, stdout: JSON.stringify({ status: 'ready', humanOutput: { normalInlineRouting: { content: 'EXACT GENERIC' } } }), stderr: '' };
+      return { code: 0, stdout: JSON.stringify({ status: 'ready', primary: { kind: 'workspace-package' }, normalInlineRouting: { content: 'EXACT GENERIC' }, presentation: { label: 'Workspace carrier' } }), stderr: '' };
     }
     assert.deepEqual(call.args, ['/runtime/tiinex-portable.mjs', 'project-handoff-carrier-output', '/packages/a.zip', '--route', 'extension-vscode:.topics/route.trace.md', '--compact']);
-    return { code: 0, stdout: JSON.stringify({ status: 'ready', humanOutput: { normalInlineRouting: { content: 'EXACT ROUTE' }, presentation: { recipientLabel: 'Sigma' } } }), stderr: '' };
+    return { code: 0, stdout: JSON.stringify({ status: 'ready', primary: { kind: 'handoff-package', routeId: 'route-1' }, normalInlineRouting: { content: 'EXACT ROUTE' }, presentation: { recipientLabel: 'Sigma' }, selectedRoute: { id: 'route-1', parties: { to: 'Sigma' } } }), stderr: '' };
   });
   const generic = await projectPackageTransport(runtime, '/packages/a.zip', '', fx.runner);
   const routed = await projectPackageTransport(runtime, '/packages/a.zip', 'extension-vscode:.topics/route.trace.md', fx.runner);
@@ -1933,12 +1950,12 @@ await test('multi-Incoming and Merge/Replace remain selection-first, dry until f
   assert.doesNotMatch(tree, /tracked\.participants\.splice/);
   assert.match(tree, /removeOutgoingHandoffPointer/);
   assert.match(tree, /tracked\.participants = \[\]/);
-  const outgoingFilesBody = tree.slice(tree.indexOf('private outgoingCarrierFileChildren()'), tree.indexOf('private async prepareAuthoringSubmission'));
-  assert.match(outgoingFilesBody, /Start artifact/);
-  assert.match(outgoingFilesBody, /Bootstrap descriptor/);
-  assert.match(outgoingFilesBody, /Package root/);
-  assert.match(outgoingFilesBody, /Core allocation · final carrier path pending Pack/);
-  assert.doesNotMatch(outgoingFilesBody, /001-1-READ-BEFORE-PROCEEDING|001-2-bootstrap|001-tiinex-handoff-package/);
+  const outgoingFilesBody = tree.slice(tree.indexOf('private async outgoingCarrierFileChildren()'), tree.indexOf('private async prepareAuthoringSubmission'));
+  assert.match(outgoingFilesBody, /outgoingExactCarrierPreview/);
+  assert.match(outgoingFilesBody, /buildHandoffPackageFromForm\(this\.extensionPath/);
+  assert.match(outgoingFilesBody, /indexCarrierPackage\(built\.outputPath\)/);
+  assert.match(outgoingFilesBody, /outerCarrierFileChildren\('outgoing', index, ''\)/);
+  assert.doesNotMatch(outgoingFilesBody, /Start artifact|Bootstrap descriptor|Package root|Core allocation · final carrier path pending Pack/);
   assert.match(tree, /Keep Incoming and Outgoing package roots visually identical/);
   assert.doesNotMatch(tree, /\$\{parentDimension\}-\?/);
   assert.doesNotMatch(tree, /: '…'/);
@@ -2284,8 +2301,10 @@ await test('routed Handoff Pack takes filename and collision allocation from qua
   assert.match(branch, /publishCarrierFile\(built\.primaryOutput\.path, folder, filename\)/);
   assert.doesNotMatch(branch, /input\.expectedCarrierFilename|assertExpectedCarrierFilename\(|assertExpectedCarrierDimension\(/);
   const tree = await fs.readFile(path.join(root, 'src', 'operatorTrees.ts'), 'utf8');
-  const treeStart = tree.indexOf('const mechanicalAnchor = routes[0]');
+  const packMethodStart = tree.indexOf('private async packageOutgoing()');
+  const treeStart = tree.indexOf('const mechanicalAnchor = routes[0]', packMethodStart);
   const treeBranch = tree.slice(treeStart, tree.indexOf('this.outgoing.lastBuilt', treeStart));
+  assert.ok(packMethodStart >= 0);
   assert.ok(treeStart >= 0);
   assert.match(treeBranch, /buildHandoffPackageFromForm/);
   assert.match(treeBranch, /routeInputs: routes\.map/);

@@ -500,6 +500,8 @@ export class TiinexOperatorTrees implements vscode.Disposable {
   private outgoing: OutgoingState | null = null;
   private outgoingFolderSelection = '';
   private outgoingLoading = false;
+  private outgoingPreviewRevision = 0;
+  private outgoingPreview: { revision: number; index: IndexedCarrierPackage } | null = null;
   private transport: TransportPackageState[] = [];
   private transportLoading = new Set<string>();
   private transportPreparedState: Record<string, TransportPreparedRecord> = {};
@@ -614,7 +616,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     const endpoints = await this.endpointCatalog(workspace);
     const suggestions = (field: 'From' | 'To' | 'Return To') => endpoints.map((item) => ({
       label: item.label,
-      value: item.label,
+      value: item.authoringLabel || item.label,
       description: item.kind === 'role' ? `Role · ${item.workspaceId} · ${item.path}` : item.kind === 'party' ? `Party · ${item.workspaceId} · ${item.path}` : item.kind,
       fills: field === 'Return To'
         ? { 'Return To Reference': item.reference }
@@ -918,7 +920,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     const catalog = await this.endpointCatalog(workspace);
     recordExtensionHostAcceptanceEvent('endpoint-catalog', {
       count: catalog.length,
-      candidates: catalog.map((item) => ({ label: item.label, kind: item.kind, workspaceId: item.workspaceId, path: item.path, reference: item.reference }))
+      candidates: catalog.map((item) => ({ label: item.label, authoringLabel: item.authoringLabel, kind: item.kind, workspaceId: item.workspaceId, path: item.path, reference: item.reference }))
     });
     return catalog;
   }
@@ -944,10 +946,10 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     const toLabel = String(value.toLabel || 'Kodax').trim();
     const returnToLabel = String(value.returnToLabel || 'Anchor').trim();
     const exactEndpoint = (label: string) => {
-      const matches = endpoints.filter((item) => item.kind === 'role' && item.label === label && item.reference);
+      const matches = endpoints.filter((item) => item.kind === 'role' && (item.authoringLabel === label || item.label === label) && item.reference);
       if (matches.length !== 1) throw new Error(`tiinex.extension-host.endpoint-not-exact:${label}:${matches.length}`);
       const item = matches[0];
-      return { label: item.label, value: item.label, kind: item.kind, reference: item.reference, workspaceId: item.workspaceId, path: item.path };
+      return { label: item.label, value: item.authoringLabel || item.label, kind: item.kind, reference: item.reference, workspaceId: item.workspaceId, path: item.path };
     };
     const fromEndpoint = exactEndpoint(fromLabel);
     const toEndpoint = exactEndpoint(toLabel);
@@ -2207,7 +2209,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     this.outgoing.localMajorParent = true;
     this.outgoing.packageMajorReason = 'VS Code allocated the next carrier Major because this Outgoing prefix is already occupied';
     this.outgoing.carrierPrefix = prefix;
-    this.outgoing.lastBuilt = undefined;
+    this.invalidateOutgoingDerivedState();
     this.outgoingProvider.refresh();
     await this.updateUiContexts();
     return true;
@@ -2226,7 +2228,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     this.outgoing.packageParentRoutePointer = '';
     this.outgoing.packageParentRouteId = '';
     this.outgoing.packageConsolidation = false;
-    if (this.outgoing) this.outgoing.lastBuilt = undefined;
+    this.invalidateOutgoingDerivedState();
     await this.refreshOutgoingCollisionInstance();
     this.outgoingProvider.refresh();
     await this.updateUiContexts();
@@ -2245,10 +2247,16 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       this.outgoing.packageParentRouteId = topology.routeId;
       this.outgoing.packageConsolidation = topology.consolidation;
     }
-    if (this.outgoing) this.outgoing.lastBuilt = undefined;
+    this.invalidateOutgoingDerivedState();
     await this.refreshOutgoingCollisionInstance();
     this.outgoingProvider.refresh();
     await this.updateUiContexts();
+  }
+
+  private invalidateOutgoingDerivedState(): void {
+    if (this.outgoing) this.outgoing.lastBuilt = undefined;
+    this.outgoingPreviewRevision += 1;
+    this.outgoingPreview = null;
   }
 
   private setOutgoingLoading(value: boolean): void {
@@ -2259,6 +2267,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
 
   private closeOutgoing(): void {
     this.outgoingLoading = false;
+    this.invalidateOutgoingDerivedState();
     this.outgoing = null;
     this.outgoingProvider.refresh();
     void this.updateUiContexts();
@@ -2266,6 +2275,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
 
   private async refreshOutgoing(): Promise<void> {
     await this.requalifyOutgoingWorkspaceSources();
+    this.invalidateOutgoingDerivedState();
     this.outgoingProvider.refresh();
     await this.updateUiContexts();
   }
@@ -2304,7 +2314,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       workspace.ref = fresh.ref;
       workspace.sourceKey = localOutgoingSourceKey(workspace.workspaceId, workspace.root, workspace.workspaceTargetPath);
     }
-    if (invalidWorkspaceIds.length) this.outgoing.lastBuilt = undefined;
+    if (invalidWorkspaceIds.length) this.invalidateOutgoingDerivedState();
     recordExtensionHostAcceptanceEvent('outgoing-source-requalification', {
       ready: invalidWorkspaceIds.length === 0,
       invalidWorkspaceIds,
@@ -2336,6 +2346,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
 
   private async setOutgoingBootstrapPayload(included: boolean): Promise<void> {
     await this.context.workspaceState.update('tiinex.outgoing.bootstrapPayloadIncluded', included);
+    this.invalidateOutgoingDerivedState();
     this.outgoingProvider.refresh();
   }
 
@@ -2348,7 +2359,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
         return;
       }
       workspace.payloadIncluded = true;
-      if (this.outgoing) this.outgoing.lastBuilt = undefined;
+      this.invalidateOutgoingDerivedState();
       workspace.checkoutRepository = undefined;
       workspace.checkoutRef = undefined;
       this.outgoingProvider.refresh();
@@ -2365,7 +2376,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
         return;
       }
       workspace.payloadIncluded = false;
-      if (this.outgoing) this.outgoing.lastBuilt = undefined;
+      this.invalidateOutgoingDerivedState();
       workspace.checkoutRepository = eligibility.repository;
       workspace.checkoutRef = eligibility.ref;
       workspace.repository = eligibility.repository;
@@ -2381,7 +2392,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       return;
     }
     workspace.payloadIncluded = false;
-    if (this.outgoing) this.outgoing.lastBuilt = undefined;
+    this.invalidateOutgoingDerivedState();
     workspace.checkoutRepository = repository;
     workspace.checkoutRef = ref;
     this.outgoingProvider.refresh();
@@ -2557,7 +2568,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       } : source;
     });
     this.outgoing.drafts = this.outgoing.drafts.filter((item) => !changedDraftWorkspaceIds.has(item.draft.workspaceId));
-    if (this.outgoing) this.outgoing.lastBuilt = undefined;
+    this.invalidateOutgoingDerivedState();
     this.outgoingProvider.refresh();
     await this.updateUiContexts();
     return true;
@@ -2597,6 +2608,21 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
         workspace.sourceQualification !== 'invalid',
         workspace.sourceQualification === 'invalid' ? `${workspace.sourceLabel} · source invalid` : workspace.sourceLabel
       ));
+    }
+    const previewIndex = this.outgoingPreview?.index;
+    const previewPackagePath = previewIndex?.packagePath ? path.resolve(previewIndex.packagePath) : '';
+    const nodePackagePath = node.data.packagePath ? path.resolve(node.data.packagePath) : '';
+    const fromExactPreview = Boolean(previewIndex && previewPackagePath && nodePackagePath === previewPackagePath);
+    if (fromExactPreview && node.data.kind === 'workspaceArchive') {
+      const carried = previewIndex!.workspaces.find((item) => item.workspaceId === node.data.workspaceId);
+      return carried ? this.fileArtifactRoots('outgoing', carried.workspaceId, carried.artifacts, previewIndex!.packagePath) : [];
+    }
+    if (fromExactPreview && node.data.kind === 'directory' && node.data.pathPrefix?.startsWith('outer:')) {
+      return this.outerCarrierFileChildren('outgoing', previewIndex!, node.data.pathPrefix.slice('outer:'.length));
+    }
+    if (fromExactPreview && node.data.workspaceId) {
+      const carried = previewIndex!.workspaces.find((item) => item.workspaceId === node.data.workspaceId);
+      if (carried) return this.artifactProjectionChildren('outgoing', node, artifactsForLineageMode(carried.artifacts, this.lineage('outgoing')));
     }
     if (node.data.kind === 'workspaceArchive') {
       const workspace = this.outgoing.workspaces.find((item) => item.workspaceId === node.data.workspaceId);
@@ -2827,59 +2853,72 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     return artifactsForLineageMode(indexed.artifacts, this.lineage('outgoing'));
   }
 
-  private outgoingCarrierFileChildren(): OperatorNode[] {
+  private async outgoingCarrierFileChildren(): Promise<OperatorNode[]> {
     if (!this.outgoing) return [];
-    // Before Pack there are no carrier bytes to inspect, so Files must not
-    // counterfeit Package V1 paths from host-side numbering rules. Preserve the
-    // useful carrier-shape preview, but leave exact path allocation to shared Core.
-    const pending = 'Core allocation · final carrier path pending Pack';
-    const nodes: OperatorNode[] = [
-      projectedPendingCarrierFileNode('Start artifact', pending, 'tiinex.outgoingStartProjected')
-    ];
+    try {
+      const index = await this.outgoingExactCarrierPreview();
+      return this.outerCarrierFileChildren('outgoing', index, '');
+    } catch (error) {
+      return [messageNode('outgoing', `Exact Core carrier preview blocked · ${shortMessage(error)}`)];
+    }
+  }
 
-    const bootstrapIncluded = this.bootstrapPayloadIncluded();
-    nodes.push(projectedPendingCarrierFileNode(
-      'Bootstrap descriptor',
-      bootstrapIncluded ? `bootstrap · embedded · ${pending}` : `bootstrap · omitted · ${pending}`,
-      bootstrapIncluded ? 'tiinex.outgoingBootstrapDescriptorEmbedded' : 'tiinex.outgoingBootstrapDescriptorOmitted'
-    ));
-    if (bootstrapIncluded) nodes.push(projectedPendingCarrierFileNode('Bootstrap payload', `bootstrap · embedded · ${pending}`, 'tiinex.outgoingBootstrapPayloadProjected'));
+  private async outgoingExactCarrierPreview(): Promise<IndexedCarrierPackage> {
+    if (!this.outgoing) throw new Error('tiinex.outgoing.preview-context-required');
+    if (this.outgoingPreview?.revision === this.outgoingPreviewRevision) return this.outgoingPreview.index;
 
-    const ordered = [...this.outgoing.workspaces].sort((a, b) => a.workspaceId.localeCompare(b.workspaceId, undefined, { sensitivity: 'base' }));
-    for (const workspace of ordered) {
-      const checkoutRef = workspace.checkoutRef || workspace.ref;
-      const descriptorDescription = workspace.payloadIncluded
-        ? `workspace · embedded · ${pending}`
-        : `workspace · checkout ${shortRef(checkoutRef)} · ${pending}`;
-      nodes.push(new OperatorNode({
-        kind: 'projectedFile', section: 'outgoing', id: `outgoing:workspace-descriptor:${workspace.workspaceId}`,
-        label: `${workspace.workspaceId} Workspace descriptor`, description: descriptorDescription,
-        tooltip: workspace.payloadIncluded ? `${workspace.workspaceId} Workspace descriptor\n${pending}` : `${workspace.workspaceId} Workspace descriptor\ncheckout ${workspace.checkoutRepository || workspace.repository}@${checkoutRef}\n${pending}`,
-        workspaceId: workspace.workspaceId,
-        contextValue: workspace.payloadIncluded ? 'tiinex.outgoingWorkspaceDescriptorEmbedded' : 'tiinex.outgoingWorkspaceDescriptorCheckout'
-      }));
-      if (workspace.payloadIncluded) {
-        nodes.push(new OperatorNode({
-          kind: 'workspaceArchive', section: 'outgoing', id: `outgoing:projected-archive:${workspace.workspaceId}`,
-          label: `${workspace.workspaceId} Workspace payload`, description: pending, tooltip: `${workspace.workspaceId} Workspace payload\n${pending}`,
-          workspaceId: workspace.workspaceId, packagePath: workspace.packagePath, contextValue: 'tiinex.outgoingWorkspaceArchive',
-          collapsible: vscode.TreeItemCollapsibleState.Collapsed
-        }));
-      }
+    const checkoutOnly = this.outgoing.workspaces.filter((item) => !item.payloadIncluded);
+    if (checkoutOnly.length) throw new Error(`shared Core does not yet manufacture checkout-only Workspace payloads: ${checkoutOnly.map((item) => item.workspaceId).join(',')}`);
+    if (!this.bootstrapPayloadIncluded()) throw new Error('shared Core does not yet manufacture bootstrap-omitted carriers');
+
+    const previewDir = path.join(this.context.globalStorageUri.fsPath, 'outgoing-carrier-preview');
+    await rm(previewDir, { recursive: true, force: true });
+    await mkdir(previewDir, { recursive: true });
+
+    const routes = this.outgoing.drafts.filter((item) => item.writtenPath && item.routeIncluded);
+    const incomingWorkspaceSources: IncomingPackageWorkspaceSource[] = this.outgoing.workspaces
+      .filter((item) => item.source === 'incoming' && item.packagePath && item.archivePath)
+      .map((item) => ({ workspaceId: item.workspaceId, packagePath: item.packagePath!, archivePath: item.archivePath! }));
+    const workspaceSourceOverrides = await this.qualifiedOutgoingWorkspaceSourceOverrides();
+    const workspaceIds = this.outgoing.workspaces.map((item) => item.workspaceId);
+
+    const inputBase = {
+      workspaceIds,
+      packageParentPath: this.outgoing.packageParentPath || '',
+      packageMajorReason: this.outgoing.packageMajorReason || '',
+      incomingWorkspaceSources,
+      workspaceSourceOverrides,
+      outputDirectory: previewDir
+    };
+
+    let built;
+    if (!routes.length) {
+      built = await buildHandoffPackageFromForm(this.extensionPath, {
+        ...inputBase,
+        routeId: routeChoiceKey({ pointerless: true })
+      });
+    } else {
+      const mechanicalAnchor = routes[0];
+      const discoveryWorkspaceSourceOverrides = await this.qualifiedOpenWorkspaceSourceOverrides();
+      built = await buildHandoffPackageFromForm(this.extensionPath, {
+        ...inputBase,
+        routeId: routeChoiceKeyForHandoff(mechanicalAnchor.draft.workspaceId, mechanicalAnchor.draft.path),
+        routeInputs: routes.map((item) => ({
+          routeId: routeChoiceKeyForHandoff(item.draft.workspaceId, item.draft.path),
+          participantRoles: item.participantSelections,
+          endpointRoles: item.endpointRoles
+        })),
+        carrierPrefix: this.outgoing.carrierPrefix || rootOutgoingPrefix(this.outgoing.name || ''),
+        packageParentRoutePointer: this.outgoing.packageParentRoutePointer || '',
+        packageParentRouteId: this.outgoing.packageParentRouteId || '',
+        packageConsolidation: this.outgoing.packageConsolidation === true,
+        discoveryWorkspaceSourceOverrides
+      });
     }
 
-    const fullLineage = this.lineage('outgoing') === 'lineage';
-    const draftsByWorkspace = new Map<string, OutgoingDraft[]>();
-    for (const draft of this.outgoing.drafts.filter((item) => item.writtenPath && item.routeIncluded)) {
-      draftsByWorkspace.set(draft.draft.workspaceId, [...(draftsByWorkspace.get(draft.draft.workspaceId) || []), draft]);
-    }
-    for (const workspace of ordered) {
-      const routeDrafts = draftsByWorkspace.get(workspace.workspaceId) || [];
-      for (const draft of routeDrafts) nodes.push(...projectedOutgoingRoutePointerNodes({ draft, fullLineage }));
-    }
-
-    nodes.push(projectedPendingCarrierFileNode('Package root', pending, 'tiinex.outgoingPackageRootProjected'));
-    return nodes.sort((a, b) => String(a.label ?? '').localeCompare(String(b.label ?? ''), undefined, { numeric: true, sensitivity: 'base' }));
+    const index = await indexCarrierPackage(built.outputPath);
+    this.outgoingPreview = { revision: this.outgoingPreviewRevision, index };
+    return index;
   }
 
   private async prepareAuthoringSubmission(
@@ -3003,7 +3042,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       existing.to = to;
       existing.sourceKey = workspace.sourceKey;
       existing.artifactSha256 = artifactSha256;
-      if (this.outgoing) this.outgoing.lastBuilt = undefined;
+      this.invalidateOutgoingDerivedState();
       return existing;
     }
     const tracked: OutgoingDraft = {
@@ -3023,7 +3062,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       artifactSha256
     };
     this.outgoing.drafts.push(tracked);
-    if (this.outgoing) this.outgoing.lastBuilt = undefined;
+    this.invalidateOutgoingDerivedState();
     return tracked;
   }
 
@@ -3046,7 +3085,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     const catalog = await this.endpointCatalog(workspace);
     const roles: PackageParticipantRole[] = catalog
       .filter((item) => item.kind === 'role' && item.reference && item.workspaceId && item.path)
-      .map((item) => ({ label: item.label, reference: item.reference, workspaceId: item.workspaceId, path: item.path }));
+      .map((item) => ({ label: item.label, authoringLabel: item.authoringLabel || item.label, reference: item.reference, workspaceId: item.workspaceId, path: item.path }));
     return selectAdditionalParticipantRoles(roles);
   }
 
@@ -3528,7 +3567,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     const tracked = this.outgoingDraftForPath(node.data.workspaceId, node.data.artifact.path);
     if (!tracked?.routeIncluded) return;
     tracked.routeIncluded = false;
-    if (this.outgoing) this.outgoing.lastBuilt = undefined;
+    this.invalidateOutgoingDerivedState();
     this.outgoingProvider.refresh();
     await this.updateUiContexts();
   }
@@ -3541,7 +3580,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     tracked.routeIncluded = false;
     tracked.participants = [];
     tracked.participantSelections = [];
-    this.outgoing.lastBuilt = undefined;
+    this.invalidateOutgoingDerivedState();
     this.outgoingProvider.refresh();
     await this.updateUiContexts();
   }
@@ -3615,7 +3654,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     const item = this.outgoing?.drafts.find((draft) => draft.id === draftId);
     if (!item?.writtenPath) return;
     item.routeIncluded = included;
-    if (this.outgoing) this.outgoing.lastBuilt = undefined;
+    this.invalidateOutgoingDerivedState();
     this.outgoingProvider.refresh();
     void this.updateUiContexts();
   }
@@ -3839,7 +3878,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     await this.updateUiContexts();
   }
 
-  private async endpointCatalog(authoringWorkspace: OutgoingWorkspace): Promise<Array<{ label: string; kind: 'role' | 'party' | 'unknown'; reference: string; workspaceId: string; path: string }>> {
+  private async endpointCatalog(authoringWorkspace: OutgoingWorkspace): Promise<Array<{ label: string; authoringLabel: string; kind: 'role' | 'party' | 'unknown'; reference: string; workspaceId: string; path: string }>> {
     // Endpoint semantics come only from Core. The host contributes the exact
     // operator-selected Workspace roots and never expands that authority from
     // repository-wide discovery, nested fixtures, labels, chronology or proximity.
@@ -3848,6 +3887,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     const projected = await loadHandoffEndpointChoicesForSources(this.extensionPath, sources);
     return projected.map((item) => ({
       label: item.label,
+      authoringLabel: item.authoringLabel || item.label,
       kind: item.kind,
       reference: item.reference || item.target,
       workspaceId: item.workspaceId,
@@ -3855,7 +3895,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     }));
   }
 
-  private async pickEndpoint(title: string, catalog: Array<{ label: string; kind: 'role' | 'party' | 'unknown'; reference: string; workspaceId: string; path: string }>, preferred = ''): Promise<{ label: string; kind: 'role' | 'party' | 'unknown'; reference: string; workspaceId: string; path: string } | null> {
+  private async pickEndpoint(title: string, catalog: Array<{ label: string; authoringLabel: string; kind: 'role' | 'party' | 'unknown'; reference: string; workspaceId: string; path: string }>, preferred = ''): Promise<{ label: string; authoringLabel: string; kind: 'role' | 'party' | 'unknown'; reference: string; workspaceId: string; path: string } | null> {
     const preferredKey = preferred.trim().toLocaleLowerCase();
     const items = catalog.map((item) => ({ label: item.label, description: item.kind === 'role' ? `Role · ${item.workspaceId} · ${item.path}` : `Party · ${item.workspaceId} · ${item.path}`, item, picked: item.label.toLocaleLowerCase() === preferredKey }));
     items.sort((a, b) => Number(b.picked) - Number(a.picked) || a.label.localeCompare(b.label));
@@ -3865,7 +3905,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     if (selected.item) return selected.item;
     const label = await vscode.window.showInputBox({ title: `${title} label`, prompt: 'Label only; no Role/Party authority is inferred.', value: preferred || '', ignoreFocusOut: true });
     if (!label?.trim()) return null;
-    return { label: label.trim(), kind: 'unknown', reference: '', workspaceId: '', path: '' };
+    return { label: label.trim(), authoringLabel: label.trim(), kind: 'unknown', reference: '', workspaceId: '', path: '' };
   }
 
   private defaultIncomingReturnRole(workspaceId: string): string {
