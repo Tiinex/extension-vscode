@@ -7,7 +7,8 @@ import { nodeProcessEnvironment, ProcessRunner, runChecked, runProcess } from '.
 import { preferredNodeExecutable } from '../host/nodeExecutable';
 import { LandingPlan, OrientResult } from './types';
 
-const START_ENTRY = '001-1-READ-BEFORE-PROCEEDING.trace.md';
+const BOOTSTRAP_MANIFEST_ROOT = 'tiinex.bootstrap';
+const BOOTSTRAP_MANIFEST_PATH = `${BOOTSTRAP_MANIFEST_ROOT}/manifest.json`;
 const DEFAULT_ENTRYPOINT = 'runtime/tools/tiinex-portable.mjs';
 
 export interface PackageRuntime {
@@ -49,21 +50,54 @@ export function parseBootstrapDescriptor(startMarkdown: string, bootstrapTraceMa
   return { packagePath, bytes, sha256, entrypoint };
 }
 
-export async function preparePackageRuntime(packagePath: string, nodeExecutable = preferredNodeExecutable()): Promise<PackageRuntime> {
-  const start = (await readExactZipEntryFromFile(packagePath, START_ENTRY)).toString('utf8');
-  const tracePath = markdownLinkTarget(start, /portable tooling bootstrap|bootstrap payload trace/i) || firstMatch(start, [/Bootstrap Payload Trace\s*:\s*`?([^`\s]+)`?/i]);
-  if (!tracePath) throw new Error('tiinex.bootstrap.trace-path-missing');
-  const trace = (await readExactZipEntryFromFile(packagePath, tracePath)).toString('utf8');
-  const descriptor = parseBootstrapDescriptor(start, trace);
-  const payload = await readExactZipEntryFromFile(packagePath, descriptor.packagePath);
-  if (payload.byteLength !== descriptor.bytes) throw new Error(`tiinex.bootstrap.byte-size-mismatch:${payload.byteLength}:${descriptor.bytes}`);
-  if (sha256Hex(payload) !== descriptor.sha256) throw new Error('tiinex.bootstrap.sha256-mismatch');
+interface QualifiedBootstrapInspection { status?: string; descriptorPath?: string; payloadPath?: string; entrypoint?: string }
+
+function parseBootstrapPayloadDescriptor(bootstrapTraceMarkdown: string): Omit<BootstrapDescriptor, 'entrypoint'> {
+  const packagePath = markdownLinkTarget(bootstrapTraceMarkdown, /bootstrap payload|location/i) || firstMatch(bootstrapTraceMarkdown, [/(?:Payload|Location|Bootstrap Payload)\s*:\s*`?([^`\s]+\.zip)`?/i]);
+  const bytesText = firstMatch(bootstrapTraceMarkdown, [/(?:Byte Size|Bytes)\s*:\s*`?([0-9]+)`?/i]);
+  const sha256 = firstMatch(bootstrapTraceMarkdown, [/(?:Integrity Value|SHA-?256)\s*:\s*`?([a-f0-9]{64})`?/i]).toLowerCase();
+  const bytes = Number(bytesText);
+  if (!packagePath || !Number.isSafeInteger(bytes) || bytes <= 0 || !/^[a-f0-9]{64}$/.test(sha256)) throw new Error('tiinex.bootstrap.descriptor-invalid');
+  return { packagePath, bytes, sha256 };
+}
+
+/**
+ * Materialize the carrier's embedded runtime only from bootstrap coordinates
+ * already qualified by shared Core orientation. The VS Code host does not
+ * discover Start, infer carrier lineage, or guess package-local filenames.
+ */
+export async function preparePackageRuntime(
+  packagePath: string,
+  nodeExecutable = preferredNodeExecutable(),
+  bootstrapInspection: QualifiedBootstrapInspection | null = null
+): Promise<PackageRuntime> {
+  const descriptorPath = String(bootstrapInspection?.descriptorPath || '').trim();
+  const payloadPath = String(bootstrapInspection?.payloadPath || '').trim();
+  if (String(bootstrapInspection?.status || '').toLowerCase() !== 'valid' || !descriptorPath || !payloadPath) throw new Error('tiinex.bootstrap.qualified-coordinates-required');
+  const trace = (await readExactZipEntryFromFile(packagePath, descriptorPath)).toString('utf8');
+  const payloadDescriptor = parseBootstrapPayloadDescriptor(trace);
+  if (payloadDescriptor.packagePath !== payloadPath) throw new Error(`tiinex.bootstrap.payload-path-mismatch:${payloadDescriptor.packagePath}:${payloadPath}`);
+  const payload = await readExactZipEntryFromFile(packagePath, payloadPath);
+  if (payload.byteLength !== payloadDescriptor.bytes) throw new Error(`tiinex.bootstrap.byte-size-mismatch:${payload.byteLength}:${payloadDescriptor.bytes}`);
+  if (sha256Hex(payload) !== payloadDescriptor.sha256) throw new Error('tiinex.bootstrap.sha256-mismatch');
   const root = await mkdtemp(path.join(os.tmpdir(), 'tiinex-vscode-bootstrap-'));
   try {
     await extractZipBuffer(payload, root);
-    const entrypoint = path.resolve(root, ...descriptor.entrypoint.replace(/\\/g, '/').split('/'));
-    const rel = path.relative(root, entrypoint);
-    if (!rel || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) throw new Error('tiinex.bootstrap.entrypoint-outside-runtime');
+
+    // Core's bootstrap contract defines one manifest root, `tiinex.bootstrap/`.
+    // The manifest entrypoint is relative to that root, not to the ZIP extraction
+    // root. Read the exact declared manifest instead of flattening those two
+    // coordinate systems or searching the extracted payload.
+    const manifestPath = path.resolve(root, ...BOOTSTRAP_MANIFEST_PATH.split('/'));
+    let manifest: any;
+    try { manifest = JSON.parse(await readFile(manifestPath, 'utf8')); }
+    catch (error) { throw new Error(`tiinex.bootstrap.manifest-invalid:${error instanceof Error ? error.message : String(error)}`); }
+    const runtimeEntrypoint = String(manifest?.entrypoint || '').trim();
+    if (!runtimeEntrypoint || runtimeEntrypoint !== DEFAULT_ENTRYPOINT) throw new Error(`tiinex.bootstrap.entrypoint-invalid:${runtimeEntrypoint || 'missing'}`);
+    const manifestRoot = path.resolve(root, BOOTSTRAP_MANIFEST_ROOT);
+    const entrypoint = path.resolve(manifestRoot, ...runtimeEntrypoint.replace(/\\/g, '/').split('/'));
+    const rel = path.relative(manifestRoot, entrypoint);
+    if (!rel || rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) throw new Error('tiinex.bootstrap.entrypoint-outside-runtime');
     await access(entrypoint);
     return { root, entrypoint, nodeExecutable, dispose: () => rm(root, { recursive: true, force: true }) };
   } catch (error) {
@@ -145,42 +179,55 @@ export async function preparePackageRuntimeWithRecovery(
   nodeExecutable = preferredNodeExecutable(),
   runner: ProcessRunner = runProcess
 ): Promise<PreparedPackageRuntimeResult> {
-  let packageRuntime: PackageRuntime | null = null;
-  let packageFailure = '';
-  try {
-    packageRuntime = await preparePackageRuntime(packagePath, nodeExecutable);
-    const orientation = await inspectPackageOrientation(packageRuntime, packagePath, runner);
-    if (String(orientation.status || '').toLowerCase() === 'ready') {
-      return { runtime: packageRuntime, orientation, recovery: { state: 'package-bootstrap', detail: 'qualified package bootstrap' } };
-    }
-    packageFailure = `tiinex.package.not-ready:${String(orientation.status || 'unknown')}`;
-  } catch (error) {
-    packageFailure = messageOf(error);
-  }
-  if (packageRuntime) await packageRuntime.dispose();
-
+  // Shared host Core is the only package-orientation authority available before
+  // the carrier runtime is extracted. It qualifies the exact package-local
+  // bootstrap coordinates; the host then verifies/extracts only those bytes and
+  // re-orients with the embedded runtime.
   const bundled = await prepareBundledRuntime(extensionPath, nodeExecutable);
+  let hostOrientation: OrientResult;
   try {
-    const orientation = await inspectPackageOrientation(bundled, packagePath, runner);
-    const recovery = (orientation as any)?.bootstrapRecovery || null;
-    if (recovery?.state === 'eligible' && recovery?.eligibleWithQualifiedHostBootstrap === true) {
-      return { runtime: bundled, orientation, recovery: { state: 'host-bootstrap-recovery', detail: packageFailure || 'package bootstrap unavailable' } };
-    }
-    const blocking = Array.isArray(recovery?.blockingFindingCodes) ? recovery.blockingFindingCodes.join(',') : '';
-    const ignored = Array.isArray(recovery?.ignoredFindingCodes) ? recovery.ignoredFindingCodes.join(',') : '';
-    const artifact = String(recovery?.packageBootstrap?.artifactPath || '');
-    const detail = [
-      `package=${packageFailure || String(orientation.status || 'blocked')}`,
-      `recovery=${String(recovery?.state || 'unavailable')}`,
-      artifact ? `bootstrap=${artifact}` : '',
-      blocking ? `blocking=${blocking}` : '',
-      ignored ? `ignored=${ignored}` : ''
-    ].filter(Boolean).join(';');
-    throw new Error(`tiinex.bootstrap.recovery-ineligible:${detail}`);
+    hostOrientation = await inspectPackageOrientation(bundled, packagePath, runner);
   } catch (error) {
     await bundled.dispose();
     throw error;
   }
+
+  let packageRuntime: PackageRuntime | null = null;
+  let packageFailure = '';
+  const bootstrapInspection = (hostOrientation as any)?.bootstrapInspection || null;
+  if (String(hostOrientation.status || '').toLowerCase() === 'ready' && String(bootstrapInspection?.status || '').toLowerCase() === 'valid') {
+    try {
+      packageRuntime = await preparePackageRuntime(packagePath, nodeExecutable, bootstrapInspection);
+      const orientation = await inspectPackageOrientation(packageRuntime, packagePath, runner);
+      if (String(orientation.status || '').toLowerCase() === 'ready') {
+        await bundled.dispose();
+        return { runtime: packageRuntime, orientation, recovery: { state: 'package-bootstrap', detail: 'qualified shared-Core coordinates; verified package bootstrap' } };
+      }
+      packageFailure = `tiinex.package.not-ready:${String(orientation.status || 'unknown')}`;
+    } catch (error) {
+      packageFailure = messageOf(error);
+    }
+    if (packageRuntime) await packageRuntime.dispose();
+  } else {
+    packageFailure = `tiinex.package.bootstrap-not-qualified:${String(bootstrapInspection?.status || hostOrientation.status || 'unknown')}`;
+  }
+
+  const recovery = (hostOrientation as any)?.bootstrapRecovery || null;
+  if (recovery?.state === 'eligible' && recovery?.eligibleWithQualifiedHostBootstrap === true) {
+    return { runtime: bundled, orientation: hostOrientation, recovery: { state: 'host-bootstrap-recovery', detail: packageFailure || 'package bootstrap unavailable' } };
+  }
+  const blocking = Array.isArray(recovery?.blockingFindingCodes) ? recovery.blockingFindingCodes.join(',') : '';
+  const ignored = Array.isArray(recovery?.ignoredFindingCodes) ? recovery.ignoredFindingCodes.join(',') : '';
+  const artifact = String(recovery?.packageBootstrap?.artifactPath || bootstrapInspection?.descriptorPath || '');
+  const detail = [
+    `package=${packageFailure || String(hostOrientation.status || 'blocked')}`,
+    `recovery=${String(recovery?.state || 'unavailable')}`,
+    artifact ? `bootstrap=${artifact}` : '',
+    blocking ? `blocking=${blocking}` : '',
+    ignored ? `ignored=${ignored}` : ''
+  ].filter(Boolean).join(';');
+  await bundled.dispose();
+  throw new Error(`tiinex.bootstrap.recovery-ineligible:${detail}`);
 }
 
 export async function orientPackage(runtime: PackageRuntime, packagePath: string, runner: ProcessRunner = runProcess): Promise<OrientResult> {

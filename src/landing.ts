@@ -19,7 +19,7 @@ import {
   switchToExistingLocalBranch
 } from './host/git';
 import { extractZipBuffer, inspectZipBuffer, readExactZipEntryFromFile, sha256Hex } from './host/zip';
-import { groundPackageForReview, orientPackage, prepareBundledRuntime, preparePackageRuntime, projectWorkspaceLanding } from './tiinex/bootstrap';
+import { groundPackageForReview, prepareBundledRuntime, preparePackageRuntimeWithRecovery, projectWorkspaceLanding } from './tiinex/bootstrap';
 import { LandingPlan, LandingWorkspace, OrientResult } from './tiinex/types';
 import { implicitQualifiedRoute, qualifiedRoutes, QualifiedRouteReceipt, receivedHandoffContext, ReceivedHandoffContext, withWorkspaceRoots } from './core/receivedHandoff';
 import { addRepositoryToCurrentWorkspace, repositoryRoots, setRepositoryInput } from './vscode/gitApi';
@@ -336,10 +336,11 @@ function routeForGrounding(orientation: OrientResult, preferred: QualifiedRouteR
 function policySummary(): string { return `Post-landing policy: stage=${landingStagePolicy()}, postStage=${postStagePolicy()}. Handoff preview is controlled separately by Incoming. Shared Tiinex Tooling qualifies package/Workspace targeting; the VS Code host owns only explicit local UX and Git actions.`; }
 
 export async function landHandoffPackage(packagePath: string, extensionPath: string, requestedWorkspaceIds: string[] = []): Promise<LandingResult | null> {
-  const ingressRuntime = await preparePackageRuntime(packagePath, nodeExecutable());
+  const ingress = await preparePackageRuntimeWithRecovery(packagePath, extensionPath, nodeExecutable());
+  const ingressRuntime = ingress.runtime;
   let sharedRuntime: Awaited<ReturnType<typeof prepareBundledRuntime>> | null = null;
   try {
-    const orientation = await orientPackage(ingressRuntime, packagePath);
+    const orientation = ingress.orientation;
     const preferredRoutes = routesPreferredForRole(qualifiedRoutes(orientation), rolePreference());
     const groundingRoute = routeForGrounding(orientation, preferredRoutes);
     const receivedBeforeLanding = groundingRoute

@@ -101,6 +101,11 @@
         "icon": "$(refresh)"
       },
       {
+        "command": "tiinex.incoming.groundHandoff",
+        "title": "Tiinex: Ground Handoff",
+        "icon": "$(target)"
+      },
+      {
         "command": "tiinex.incoming.displayOptions",
         "title": "Tiinex: Incoming Display Options",
         "icon": "$(settings)"
@@ -680,6 +685,11 @@
           "group": "inline@2"
         },
         {
+          "command": "tiinex.incoming.groundHandoff",
+          "when": "view == tiinex.incoming && (viewItem == tiinex.incomingResolvedHandoff || viewItem == tiinex.incomingResolvedHandoffUnavailable)",
+          "group": "inline@1"
+        },
+        {
           "command": "tiinex.transport.send",
           "when": "view == tiinex.incoming && viewItem == tiinex.incomingPackage",
           "group": "inline@3"
@@ -902,6 +912,10 @@
         },
         {
           "command": "tiinex.outgoing.newHandoffFromArtifact",
+          "when": "false"
+        },
+        {
+          "command": "tiinex.incoming.groundHandoff",
           "when": "false"
         }
       ],

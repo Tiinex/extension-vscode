@@ -8,13 +8,13 @@ import { preferredNodeExecutable } from './host/nodeExecutable';
 import { indexCarrierPackage, indexLocalWorkspace, indexLocalWorkspaceFiles, discoveryPackages, IndexedCarrierPackage, IndexedWorkspaceFile } from './carrierIndex';
 import { alphabeticalWorkspaceIds, artifactFeedTime, artifactsByModifiedNewest, artifactsForLineageMode, IndexedArtifact, leafArtifactPathSet, logicalGroupForArtifact, normalizePath, schemaDisplayLabel, TreeLineageMode, TreeProjectionMode } from './core/artifactTree';
 import { preferredRepositoryParent } from './core/receiveUx';
-import { qualifiedRoutes, QualifiedRouteReceipt } from './core/receivedHandoff';
+import { qualifiedRoutes, QualifiedRouteReceipt, receivedHandoffContext, receivedGroundingProjection } from './core/receivedHandoff';
 import { mergeTransportRouteSelection, selectedTransportRouteIds, StoredTransportQueueItem, transportPrepared, transportPreparedKey, TransportPreparedRecord } from './core/transportQueue';
 import { loadHandoffEndpointChoicesForSources, loadHandoffRouteChoicesForSource, loadLocalWorkspaceChoices, buildHandoffPackageFromForm, announceBuiltCarrier, routeChoiceKeyForHandoff, IncomingPackageWorkspaceSource, PackageWorkspaceChoice, PackageWorkspaceSourceOverride, PackageRouteRouting, PackageParticipantProjection, PackageParticipantRole, projectHandoffPackageParticipants, qualifyLocalWorkspaceChoice } from './packageBuilder';
 import { ArtifactAuthoringCatalog, ArtifactDraftParent, loadArtifactAuthoringCatalog, loadArtifactAuthoringModel, prepareArtifactDraft, PreparedArtifactDraft, qualifyArtifactDraftParent, qualifyExistingHandoff, writePreparedArtifactDraft } from './authoring';
 import { initializeRepositoryWorkspace } from './workspaceInitialization';
 import { repositoryRootForResource } from './vscode/gitApi';
-import { compareIncomingWorkspaceToLocal, orientPackage, prepareBundledRuntime, preparePackageRuntime, preparePackageRuntimeWithRecovery, projectPackageTransport } from './tiinex/bootstrap';
+import { compareIncomingWorkspaceToLocal, groundPackageForReview, GroundingResult, orientPackage, prepareBundledRuntime, preparePackageRuntimeWithRecovery, projectPackageTransport } from './tiinex/bootstrap';
 import { applyIncomingWorkspaces, IncomingApplyStrategy } from './incomingApply';
 import { operatorMatchedWorkspaceIds, resolvePrioritizedWorkspaceDuplicates } from './core/sourceSelection';
 import { carrierFilenameForCollisionInstance, chooseNextMajorParent, comparePackageRecency, inheritedOutgoingLabel, majorOutgoingLabel, rootOutgoingLabel, rootOutgoingPrefix, carrierPrefixForDimension } from './core/outgoingUx';
@@ -161,6 +161,7 @@ interface IncomingState {
   orientation: any;
   appliedWorkspaceIds: Set<string>;
   bootstrapRecovery?: { state: string; detail: string };
+  groundingByRouteId: Map<string, GroundingResult>;
 }
 
 interface PackageHandoffLink {
@@ -611,11 +612,13 @@ export class TiinexOperatorTrees implements vscode.Disposable {
 
   private async handoffAuthoringPresentation(workspace: OutgoingWorkspace): Promise<{ fieldAssists: any[]; templates: any[]; selectedTemplateId: string }> {
     const endpoints = await this.endpointCatalog(workspace);
-    const suggestions = (field: 'From' | 'To') => endpoints.map((item) => ({
+    const suggestions = (field: 'From' | 'To' | 'Return To') => endpoints.map((item) => ({
       label: item.label,
       value: item.label,
       description: item.kind === 'role' ? `Role · ${item.workspaceId} · ${item.path}` : item.kind === 'party' ? `Party · ${item.workspaceId} · ${item.path}` : item.kind,
-      fills: { [`${field} Kind`]: item.kind, [`${field} Reference`]: item.reference },
+      fills: field === 'Return To'
+        ? { 'Return To Reference': item.reference }
+        : { [`${field} Kind`]: item.kind, [`${field} Reference`]: item.reference },
       kind: item.kind,
       reference: item.reference,
       workspaceId: item.workspaceId,
@@ -630,7 +633,8 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     return {
       fieldAssists: [
         { field: 'From', suggestions: suggestions('From') },
-        { field: 'To', suggestions: suggestions('To') }
+        { field: 'To', suggestions: suggestions('To') },
+        { field: 'Return To', suggestions: suggestions('Return To') }
       ],
       templates: [
         {
@@ -779,6 +783,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     register('tiinex.discovery.toggleDelta', () => this.toggleDelta('discovery'));
     register('tiinex.discovery.setIncoming', (node?: OperatorNode) => this.setIncoming(node?.data.packagePath || ''));
     register('tiinex.incoming.refresh', () => this.refreshIncoming());
+    register('tiinex.incoming.groundHandoff', (node?: OperatorNode) => this.groundIncomingHandoff(node));
     register('tiinex.incoming.close', (node?: OperatorNode) => this.closeIncoming(node?.data.packagePath || ''));
     register('tiinex.incoming.displayOptions', () => this.showDisplayOptions('incoming'));
     register('tiinex.incoming.toggleProjection', () => this.toggleProjection('incoming'));
@@ -850,6 +855,17 @@ export class TiinexOperatorTrees implements vscode.Disposable {
         packagePath: item.index.packagePath,
         workspaceIds: item.index.workspaces.map((workspace) => workspace.workspaceId),
         routeCount: qualifiedRoutes(item.orientation).length,
+        routes: qualifiedRoutes(item.orientation).map((route) => ({
+          routeId: route.id,
+          workspaceId: route.workspaceId,
+          handoffPath: route.workspaceRelativeHandoffPath,
+          pointerPath: route.pointerPath,
+          from: route.from,
+          to: route.to,
+          grounding: item.groundingByRouteId.has(route.id)
+            ? receivedGroundingProjection(item.groundingByRouteId.get(route.id))
+            : null
+        })),
         appliedWorkspaceIds: [...item.appliedWorkspaceIds].sort()
       })),
       outgoing: this.outgoing ? {
@@ -926,6 +942,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     const endpoints = await this.endpointCatalog(workspace);
     const fromLabel = String(value.fromLabel || 'Anchor').trim();
     const toLabel = String(value.toLabel || 'Kodax').trim();
+    const returnToLabel = String(value.returnToLabel || 'Anchor').trim();
     const exactEndpoint = (label: string) => {
       const matches = endpoints.filter((item) => item.kind === 'role' && item.label === label && item.reference);
       if (matches.length !== 1) throw new Error(`tiinex.extension-host.endpoint-not-exact:${label}:${matches.length}`);
@@ -934,6 +951,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     };
     const fromEndpoint = exactEndpoint(fromLabel);
     const toEndpoint = exactEndpoint(toLabel);
+    const returnToEndpoint = exactEndpoint(returnToLabel);
     const submission: ArtifactAuthoringSubmission = {
       workspaceId,
       title: String(value.title || 'Extension Host Authored Handoff').trim(),
@@ -951,18 +969,19 @@ export class TiinexOperatorTrees implements vscode.Disposable {
         'Exclusions And Dependencies': 'none',
         'Signal Kind': 'return',
         'Signal Meaning': 'Return the bounded Extension Host acceptance result.',
+        'Return To': returnToEndpoint.label,
         'Does Not Mean': 'This acceptance Handoff does not grant authority beyond the fixture.',
         'Must Not Be Used To Claim': 'Do not infer endpoint Role reference authority from labels alone.'
       },
-      endpointSelections: { From: fromEndpoint, To: toEndpoint },
+      endpointSelections: { From: fromEndpoint, To: toEndpoint, 'Return To': returnToEndpoint },
       attachToOutgoing: true,
       closeWhenDone: true
     };
     const result = await this.createAuthoredArtifact(workspace, 'tiinex.handoff.v1', submission, parentArtifact, '', true);
     if (result.followUpError) throw new Error(`tiinex.extension-host.authored-handoff-follow-up:${result.followUpError}`);
     if (!result.attachedToOutgoing) throw new Error('tiinex.extension-host.authored-handoff-not-attached');
-    recordExtensionHostAcceptanceEvent('handoff-authored', { workspaceId, path: result.draft.path, fromReference: fromEndpoint.reference, toReference: toEndpoint.reference });
-    return { workspaceId, path: result.draft.path, title: result.draft.title, fromReference: fromEndpoint.reference, toReference: toEndpoint.reference };
+    recordExtensionHostAcceptanceEvent('handoff-authored', { workspaceId, path: result.draft.path, fromReference: fromEndpoint.reference, toReference: toEndpoint.reference, returnToReference: returnToEndpoint.reference });
+    return { workspaceId, path: result.draft.path, title: result.draft.title, fromReference: fromEndpoint.reference, toReference: toEndpoint.reference, returnToReference: returnToEndpoint.reference };
   }
 
   private corruptExtensionHostAcceptanceParticipantSnapshot(): any {
@@ -1066,18 +1085,28 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     if (!info.isFile()) throw new Error('tiinex.transport.package-not-file');
     const bytes = await readFile(resolved);
     const sha256 = createHash('sha256').update(bytes).digest('hex');
-    const runtime = await preparePackageRuntime(resolved, nodeExecutable());
+    const prepared = await preparePackageRuntimeWithRecovery(resolved, this.extensionPath, nodeExecutable());
+    const runtime = prepared.runtime;
     try {
-      const orientation = await orientPackage(runtime, resolved);
+      const orientation = prepared.orientation;
       const orientationRoutes = Array.isArray(orientation.routes) ? orientation.routes : [];
       const routes: TransportRouteState[] = [];
       let genericTransportText = '';
       let presentationLabel = '';
 
       if (!orientationRoutes.length) {
-        // Route-less workspace carriers have no Handoff selector. Keep this
-        // bounded to orientation rather than forcing a Handoff projection.
-        presentationLabel = 'Workspace carrier';
+        // Pointerless/bootstrap carriers still have a Core-owned transport
+        // projection. The host presents that exact generic text and never
+        // invents Continue From or recipient semantics.
+        const projection = await projectPackageTransport(runtime, resolved);
+        if (projection.status !== 'ready') {
+          const codes = [...(projection.findings || []), ...(projection.humanOutput?.findings || []), ...(projection.carrierInspection?.findings || [])]
+            .map((finding) => String(finding?.code || '').trim()).filter(Boolean);
+          throw new Error(`tiinex.transport.pointerless-projection-${projection.status || 'blocked'}${codes.length ? `;findings=${[...new Set(codes)].join(',')}` : ''}`);
+        }
+        genericTransportText = String(projection.humanOutput?.normalInlineRouting?.content || '');
+        presentationLabel = String(projection.humanOutput?.presentation?.label || projection.humanOutput?.primary?.kind || '').trim();
+        if (!genericTransportText) throw new Error('tiinex.transport.pointerless-output-incomplete');
       } else {
         // Orientation already qualifies the exact carried routes. Project each
         // explicit route directly. An unselected package-wide Handoff projection
@@ -1531,7 +1560,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       const ready = String(orientation.status || '').toLowerCase() === 'ready' || orientation.ready === true;
       const recovered = prepared.recovery.state === 'host-bootstrap-recovery';
       if (!ready && !recovered) throw new Error(`package orientation is ${String(orientation.status || 'not ready')}`);
-      return { index, orientation, appliedWorkspaceIds, bootstrapRecovery: prepared.recovery };
+      return { index, orientation, appliedWorkspaceIds, bootstrapRecovery: prepared.recovery, groundingByRouteId: new Map() };
     } finally { await prepared.runtime.dispose(); }
   }
 
@@ -1601,6 +1630,50 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       await vscode.window.showErrorMessage(`Tiinex Incoming blocked: ${presentation.summary}`, 'Show Details').then(async (choice: string | undefined) => {
         if (choice === 'Show Details') await vscode.window.showErrorMessage(incomingBlockedDetail(error, presentation.detail), { modal: true });
       });
+    }
+  }
+
+  private async groundIncomingHandoff(node?: OperatorNode): Promise<void> {
+    const packagePath = String(node?.data.packagePath || '').trim();
+    const groupName = String(node?.data.groupName || '');
+    const pointerPath = groupName.startsWith('resolved-handoff:') ? normalizePath(groupName.slice('resolved-handoff:'.length)) : '';
+    if (!packagePath || !pointerPath) return;
+    const state = this.incomingState(packagePath);
+    if (!state) throw new Error('tiinex.incoming.grounding-package-unavailable');
+    const matches = qualifiedRoutes(state.orientation).filter((route) => normalizePath(route.pointerPath) === pointerPath);
+    if (matches.length !== 1) throw new Error(matches.length ? 'tiinex.incoming.grounding-route-ambiguous' : 'tiinex.incoming.grounding-route-unresolved');
+    const route = matches[0];
+    const prepared = await preparePackageRuntimeWithRecovery(packagePath, this.extensionPath, nodeExecutable());
+    try {
+      const grounding = await vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Notification, title: `Tiinex grounding ${route.from || 'unknown'} → ${route.to || 'unknown'}`, cancellable: false },
+        () => groundPackageForReview(prepared.runtime, packagePath, route.pointerPath)
+      );
+      receivedHandoffContext(packagePath, state.orientation, grounding, route.id);
+      state.groundingByRouteId.set(route.id, grounding);
+      this.incomingProvider.refresh();
+      const projected = receivedGroundingProjection(grounding);
+      recordExtensionHostAcceptanceEvent('incoming-grounded', {
+        packagePath: path.resolve(packagePath),
+        routeId: route.id,
+        workspaceId: route.workspaceId,
+        pointerPath: route.pointerPath,
+        readiness: projected.readiness,
+        completion: projected.completion,
+        returnTransition: projected.returnTransition,
+        returnTiming: projected.returnTiming
+      });
+      const details = [
+        projected.readiness && `readiness ${projected.readiness}`,
+        projected.completion && `completion ${projected.completion}`,
+        projected.returnTransition && `return ${projected.returnTransition}`
+      ].filter(Boolean).join(' · ');
+      await vscode.window.showInformationMessage(`Tiinex grounded ${route.from || 'unknown'} → ${route.to || 'unknown'}${details ? ` · ${details}` : ''}`);
+    } catch (error) {
+      const presentation = presentOperatorError(error);
+      await vscode.window.showErrorMessage(`Tiinex grounding blocked: ${presentation.summary}`);
+    } finally {
+      await prepared.runtime.dispose();
     }
   }
 
@@ -2756,39 +2829,39 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
 
   private outgoingCarrierFileChildren(): OperatorNode[] {
     if (!this.outgoing) return [];
+    // Before Pack there are no carrier bytes to inspect, so Files must not
+    // counterfeit Package V1 paths from host-side numbering rules. Preserve the
+    // useful carrier-shape preview, but leave exact path allocation to shared Core.
+    const pending = 'Core allocation · final carrier path pending Pack';
     const nodes: OperatorNode[] = [
-      projectedCarrierFileNode('outgoing', '001-1-READ-BEFORE-PROCEEDING.trace.md', 'pointer')
+      projectedPendingCarrierFileNode('Start artifact', pending, 'tiinex.outgoingStartProjected')
     ];
 
     const bootstrapIncluded = this.bootstrapPayloadIncluded();
-    nodes.push(new OperatorNode({
-      kind: 'projectedFile', section: 'outgoing', id: 'outgoing:bootstrap-descriptor',
-      label: '001-2-bootstrap.trace.md', description: bootstrapIncluded ? 'bootstrap · embedded' : 'bootstrap · omitted',
-      tooltip: bootstrapIncluded ? '001-2-bootstrap.trace.md · payload embedded' : '001-2-bootstrap.trace.md · payload omission planned',
-      contextValue: bootstrapIncluded ? 'tiinex.outgoingBootstrapDescriptorEmbedded' : 'tiinex.outgoingBootstrapDescriptorOmitted'
-    }));
-    if (bootstrapIncluded) nodes.push(projectedCarrierFileNode('outgoing', '001-2-bootstrap.zip', 'bootstrap'));
+    nodes.push(projectedPendingCarrierFileNode(
+      'Bootstrap descriptor',
+      bootstrapIncluded ? `bootstrap · embedded · ${pending}` : `bootstrap · omitted · ${pending}`,
+      bootstrapIncluded ? 'tiinex.outgoingBootstrapDescriptorEmbedded' : 'tiinex.outgoingBootstrapDescriptorOmitted'
+    ));
+    if (bootstrapIncluded) nodes.push(projectedPendingCarrierFileNode('Bootstrap payload', `bootstrap · embedded · ${pending}`, 'tiinex.outgoingBootstrapPayloadProjected'));
 
     const ordered = [...this.outgoing.workspaces].sort((a, b) => a.workspaceId.localeCompare(b.workspaceId, undefined, { sensitivity: 'base' }));
-    for (const [index, workspace] of ordered.entries()) {
-      const prefix = `001-${index + 3}`;
-      const slug = filenameToken(workspace.workspaceId);
-      const descriptorName = `${prefix}-${slug}.workspace.md`;
+    for (const workspace of ordered) {
       const checkoutRef = workspace.checkoutRef || workspace.ref;
       const descriptorDescription = workspace.payloadIncluded
-        ? 'workspace · embedded'
-        : `workspace · checkout ${shortRef(checkoutRef)}`;
+        ? `workspace · embedded · ${pending}`
+        : `workspace · checkout ${shortRef(checkoutRef)} · ${pending}`;
       nodes.push(new OperatorNode({
         kind: 'projectedFile', section: 'outgoing', id: `outgoing:workspace-descriptor:${workspace.workspaceId}`,
-        label: descriptorName, description: descriptorDescription,
-        tooltip: workspace.payloadIncluded ? `${descriptorName} · payload embedded` : `${descriptorName} · checkout ${workspace.checkoutRepository || workspace.repository}@${checkoutRef}`,
+        label: `${workspace.workspaceId} Workspace descriptor`, description: descriptorDescription,
+        tooltip: workspace.payloadIncluded ? `${workspace.workspaceId} Workspace descriptor\n${pending}` : `${workspace.workspaceId} Workspace descriptor\ncheckout ${workspace.checkoutRepository || workspace.repository}@${checkoutRef}\n${pending}`,
         workspaceId: workspace.workspaceId,
         contextValue: workspace.payloadIncluded ? 'tiinex.outgoingWorkspaceDescriptorEmbedded' : 'tiinex.outgoingWorkspaceDescriptorCheckout'
       }));
       if (workspace.payloadIncluded) {
         nodes.push(new OperatorNode({
           kind: 'workspaceArchive', section: 'outgoing', id: `outgoing:projected-archive:${workspace.workspaceId}`,
-          label: `${prefix}-${slug}.workspace.zip`, description: workspace.label, tooltip: `${prefix}-${slug}.workspace.zip`,
+          label: `${workspace.workspaceId} Workspace payload`, description: pending, tooltip: `${workspace.workspaceId} Workspace payload\n${pending}`,
           workspaceId: workspace.workspaceId, packagePath: workspace.packagePath, contextValue: 'tiinex.outgoingWorkspaceArchive',
           collapsible: vscode.TreeItemCollapsibleState.Collapsed
         }));
@@ -2805,7 +2878,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       for (const draft of routeDrafts) nodes.push(...projectedOutgoingRoutePointerNodes({ draft, fullLineage }));
     }
 
-    nodes.push(projectedCarrierFileNode('outgoing', '001-tiinex-handoff-package.trace.md', 'artifact'));
+    nodes.push(projectedPendingCarrierFileNode('Package root', pending, 'tiinex.outgoingPackageRootProjected'));
     return nodes.sort((a, b) => String(a.label ?? '').localeCompare(String(b.label ?? ''), undefined, { numeric: true, sensitivity: 'base' }));
   }
 
@@ -2819,7 +2892,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     const root = await this.ensureOutgoingAuthoringRoot(workspace);
     const values = { ...submission.values };
     if (schemaId === 'tiinex.handoff.v1') {
-      for (const field of ['From', 'To'] as const) {
+      for (const field of ['From', 'To', 'Return To'] as const) {
         const selected = submission.endpointSelections?.[field];
         if (!selected) {
           // Manual/unknown authoring remains identity-less. Raw Reference fields
@@ -2828,12 +2901,15 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
           continue;
         }
         const reference = String(selected.reference || '').trim();
-        const kind = String(selected.kind || '').trim();
         const label = String(selected.value || selected.label || '').trim();
-        if (!reference || !kind || !label) throw new Error(`tiinex.authoring.endpoint-selection-incomplete:${field}`);
+        if (!reference || !label) throw new Error(`tiinex.authoring.endpoint-selection-incomplete:${field}`);
         values[field] = label;
-        values[`${field} Kind`] = kind;
         values[`${field} Reference`] = reference;
+        if (field !== 'Return To') {
+          const kind = String(selected.kind || '').trim();
+          if (!kind) throw new Error(`tiinex.authoring.endpoint-selection-incomplete:${field}`);
+          values[`${field} Kind`] = kind;
+        }
       }
     }
     return prepareArtifactDraft(this.extensionPath, {
@@ -4216,9 +4292,18 @@ Core will materialize the participant Role pointer during carrier manufacture.`,
       const artifact = workspace.artifacts.find((item) => normalizePath(item.path) === link.handoffPath);
       const pointer = index.carrierArtifacts.find((item) => normalizePath(item.path) === link.pointerPath);
       if (artifact) {
+        const route = section === 'incoming' ? qualifiedRoutes(this.incomingState(packagePath)?.orientation).find((item) => normalizePath(item.pointerPath) === normalizePath(link.pointerPath)) : undefined;
+        const grounding = route ? this.incomingState(packagePath)?.groundingByRouteId.get(route.id) : undefined;
+        const projected = grounding ? receivedGroundingProjection(grounding) : null;
+        const groundingDescription = projected
+          ? [projected.readiness, projected.completion && `completion ${projected.completion}`, projected.returnTransition && `return ${projected.returnTransition}`].filter(Boolean).join(' · ')
+          : section === 'incoming' ? 'not grounded' : '';
+        const groundingTooltip = projected
+          ? [`Core readiness: ${projected.readiness || '(not projected)'}`, `Completion: ${projected.completion || '(not projected)'}`, `Return transition: ${projected.returnTransition || '(not projected)'}`, `Return timing: ${projected.returnTiming || '(not projected)'}`].join('\n')
+          : '';
         const node = new OperatorNode({
           kind: 'artifact', section, id: `${section}:resolved-handoff:${packagePath}:${link.pointerPath}`,
-          label: artifact.title || path.posix.basename(link.handoffPath), description: 'handoff', tooltip: artifact.path,
+          label: artifact.title || path.posix.basename(link.handoffPath), description: ['handoff', groundingDescription].filter(Boolean).join(' · '), tooltip: [artifact.path, groundingTooltip].filter(Boolean).join('\n'),
           contextValue: `tiinex.${section}ResolvedHandoff`, artifact, packagePath, workspaceId,
           groupName: `resolved-handoff:${link.pointerPath}`,
           collapsible: pointer ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None
@@ -4226,9 +4311,18 @@ Core will materialize the participant Role pointer during carrier manufacture.`,
         node.iconPath = new vscode.ThemeIcon('git-pull-request');
         nodes.push(node);
       } else {
+        const route = section === 'incoming' ? qualifiedRoutes(this.incomingState(packagePath)?.orientation).find((item) => normalizePath(item.pointerPath) === normalizePath(link.pointerPath)) : undefined;
+        const grounding = route ? this.incomingState(packagePath)?.groundingByRouteId.get(route.id) : undefined;
+        const projected = grounding ? receivedGroundingProjection(grounding) : null;
+        const groundingDescription = projected
+          ? [projected.readiness, projected.completion && `completion ${projected.completion}`, projected.returnTransition && `return ${projected.returnTransition}`].filter(Boolean).join(' · ')
+          : section === 'incoming' ? 'not grounded' : '';
+        const groundingTooltip = projected
+          ? [`Core readiness: ${projected.readiness || '(not projected)'}`, `Completion: ${projected.completion || '(not projected)'}`, `Return transition: ${projected.returnTransition || '(not projected)'}`, `Return timing: ${projected.returnTiming || '(not projected)'}`].join('\n')
+          : '';
         const node = new OperatorNode({
           kind: 'projectedFile', section, id: `${section}:resolved-handoff:${packagePath}:${link.pointerPath}`,
-          label: path.posix.basename(link.handoffPath), description: 'handoff · checkout required', tooltip: link.handoffPath,
+          label: path.posix.basename(link.handoffPath), description: ['handoff · checkout required', groundingDescription].filter(Boolean).join(' · '), tooltip: [link.handoffPath, groundingTooltip].filter(Boolean).join('\n'),
           contextValue: `tiinex.${section}ResolvedHandoffUnavailable`, packagePath, workspaceId,
           groupName: `resolved-handoff:${link.pointerPath}`,
           collapsible: pointer ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None
@@ -4678,6 +4772,14 @@ function logicalLineageChildren(section: OperatorSection, workspaceId: string, a
     return node;
   }));
   return nodes;
+}
+
+function projectedPendingCarrierFileNode(label: string, description: string, contextValue: string): OperatorNode {
+  return new OperatorNode({
+    kind: 'projectedFile', section: 'outgoing', id: `outgoing:pending-control:${label}`,
+    label, description, tooltip: `${label}\n${description}\nShared Core manufacture owns the exact Package V1 path and bytes.`,
+    contextValue
+  });
 }
 
 function projectedCarrierFileNode(section: OperatorSection, label: string, description = ''): OperatorNode {

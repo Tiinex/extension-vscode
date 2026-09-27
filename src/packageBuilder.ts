@@ -82,6 +82,39 @@ function assertCoreCarrierFilenameStable(preview: any, built: any): void {
   const actual = qualifiedCoreCarrierFilename(built);
   if (actual !== expected) throw new Error(`tiinex.package-builder.carrier-filename-preview-build-mismatch:preview=${expected};built=${actual}`);
 }
+
+function qualifiedCoreRouteSelector(receipt: any, route: RouteChoice): string {
+  const workspaceId = String(route.workspaceId || '').trim();
+  const handoffPath = String(route.path || '').replace(/\\/g, '/').trim();
+  if (!workspaceId || !handoffPath) throw new Error('tiinex.package-builder.route-selector-source-incomplete');
+  const matches = (Array.isArray(receipt?.carrierProjection?.routes) ? receipt.carrierProjection.routes : []).filter((item: any) => {
+    if (String(item?.state || '') !== 'qualified') return false;
+    const itemWorkspaceId = String(item?.workspaceId || '').trim();
+    const itemPath = String(item?.workspaceRelativeHandoffPath || item?.workspaceRelativePath || '').replace(/\\/g, '/').trim();
+    return itemWorkspaceId === workspaceId && itemPath === handoffPath;
+  });
+  if (matches.length !== 1) throw new Error(`tiinex.package-builder.core-route-selector-${matches.length ? 'ambiguous' : 'missing'}:${workspaceId}:${handoffPath}`);
+  const selector = String(matches[0]?.id || matches[0]?.routeId || '').trim();
+  if (!selector) throw new Error(`tiinex.package-builder.core-route-selector-missing-id:${workspaceId}:${handoffPath}`);
+  return selector;
+}
+
+function withCoreRouteSelector(args: string[], selector: string): string[] {
+  const next = [...args];
+  const index = next.indexOf('--route');
+  if (index >= 0) {
+    if (index + 1 >= next.length) throw new Error('tiinex.package-builder.route-selector-argument-incomplete');
+    next[index + 1] = selector;
+  } else next.push('--route', selector);
+  return next;
+}
+
+function humanOutputMatchesRoute(receipt: any, route: RouteChoice): boolean {
+  const primary = receipt?.humanOutput?.primary || null;
+  if (!primary) return false;
+  return String(primary.workspaceId || '').trim() === String(route.workspaceId || '').trim()
+    && String(primary.workspaceRelativeHandoffPath || '').replace(/\\/g, '/').trim() === String(route.path || '').replace(/\\/g, '/').trim();
+}
 function assertExactWorkspaceSelection(receipt: any, requestedWorkspaceIds: string[]): void {
   const actual = receiptWorkspaceIds(receipt);
   if (!actual.length) throw new Error('tiinex.package-builder.workspace-selection-unavailable');
@@ -410,17 +443,30 @@ export async function announceBuiltCarrier(outputPath: string, label: string, no
 function routeRoutingTexts(receipt: any, routeInputs: Array<{ route: RouteChoice }>, fallback = ''): PackageRouteRouting[] {
   const shared = Array.isArray(receipt?.humanOutput?.sharedRouting?.routes) ? receipt.humanOutput.sharedRouting.routes : [];
   if (shared.length) {
-    const byId = new Map(routeInputs.map((entry) => [String(entry.route.id || ''), entry.route]));
+    const projectionById = new Map<string, {
+      workspaceId?: string;
+      workspaceRelativeHandoffPath?: string;
+      workspaceRelativePath?: string;
+      to?: string;
+      parties?: { to?: string };
+    }>((Array.isArray(receipt?.carrierProjection?.routes) ? receipt.carrierProjection.routes : [])
+      .map((item: any) => [String(item?.id || item?.routeId || ''), item] as const)
+      .filter(([id]: readonly [string, any]) => Boolean(id)));
+    const inputByLocation = new Map(routeInputs.map((entry) => [`${String(entry.route.workspaceId || '')}\u0000${String(entry.route.path || '').replace(/\\/g, '/')}`, entry.route]));
     return shared.map((item: any) => {
-      const route = byId.get(String(item.routeId || ''));
+      const routeId = String(item.routeId || '');
+      const projected = projectionById.get(routeId);
+      const workspaceId = String(projected?.workspaceId || item.workspaceId || '').trim();
+      const handoffPath = String(projected?.workspaceRelativeHandoffPath || projected?.workspaceRelativePath || item.workspaceRelativeHandoffPath || '').replace(/\\/g, '/').trim();
+      const route = inputByLocation.get(`${workspaceId}\u0000${handoffPath}`);
       return {
-        routeId: String(item.routeId || ''),
-        workspaceId: String(item.workspaceId || ''),
-        handoffPath: String(item.workspaceRelativeHandoffPath || ''),
-        recipientLabel: String(route?.to || '').trim(),
+        routeId,
+        workspaceId,
+        handoffPath,
+        recipientLabel: String(route?.to || projected?.to || projected?.parties?.to || '').trim(),
         text: String(item.transportText || '').trim()
       };
-    }).filter((item: PackageRouteRouting) => item.routeId && item.text);
+    }).filter((item: PackageRouteRouting) => item.routeId && item.workspaceId && item.handoffPath && item.text);
   }
   const primary = routeInputs.find((entry) => String(entry.route.id || '') === String(receipt?.humanOutput?.primary?.routeId || ''))?.route || routeInputs[0]?.route;
   const text = String(fallback || receipt?.humanOutput?.normalInlineRouting?.content || '').trim();
@@ -650,9 +696,11 @@ export async function buildHandoffPackageFromForm(extensionPath: string, input: 
       assertExactWorkspaceSelection(built, requestedWorkspaceIds);
       const filename = checkedCarrierFilename(String(built.humanOutput?.primary?.filename || ''));
       if (path.basename(built.primaryOutput.path) !== filename || path.resolve(path.dirname(built.primaryOutput.path)) !== path.resolve(stage)) throw new Error('tiinex.package-builder.output-path-mismatch');
+      const routingText = String(built?.humanOutput?.normalInlineRouting?.content || '').trim();
+      if (!routingText) throw new Error('tiinex.package-builder.workspace-transport-text-missing');
       reportProgress(input, 'Publishing carrier…');
       const outputPath = await publishCarrierFile(built.primaryOutput.path, folder, filename);
-      return { outputPath, routingText: '', routeRoutingTexts: [], autoCopiedTransportText: false, routeId: route.id, routeIds: [route.id], workspaceIds: selectedSources.map((item) => item.workspaceId) };
+      return { outputPath, routingText, routeRoutingTexts: [], autoCopiedTransportText: false, routeId: route.id, routeIds: [route.id], workspaceIds: selectedSources.map((item) => item.workspaceId) };
     }
     if (!route.workspaceId || !selectedSources.some((item) => item.workspaceId === route.workspaceId)) throw new Error('tiinex.package-builder.route-workspace-not-selected');
     for (const item of routeInputs) {
@@ -675,15 +723,33 @@ ${participantProjection.detail}`);
     // only consumes and cross-checks the returned allocation/lineage projection,
     // then applies destination-local collision suffixing to Core's projected filename.
     reportProgress(input, 'Running Core route/allocation preflight and package preview…');
-    const preview = await manufactureHandoffPackage(runtime, args);
-    if (preview.status !== 'ready' || preview.transportExecutable === false) throw new Error(`tiinex.package-builder.preview-blocked:\n${receiptBlocker(preview)}`);
-    assertExactWorkspaceSelection(preview, requestedWorkspaceIds);
-    if (input.packageParentPath && !input.packageMajorReason) qualifiedCarrierAllocationFromManufactureReceipt(preview);
+    const topologyPreview = await manufactureHandoffPackage(runtime, args);
+    if (topologyPreview.status !== 'ready' || topologyPreview.transportExecutable === false) throw new Error(`tiinex.package-builder.preview-blocked:\n${receiptBlocker(topologyPreview)}`);
+    assertExactWorkspaceSelection(topologyPreview, requestedWorkspaceIds);
+    if (input.packageParentPath && !input.packageMajorReason) qualifiedCarrierAllocationFromManufactureReceipt(topologyPreview);
+
+    // VS Code's route key is host UI state, not a Core transport selector. For a
+    // multi-route carrier Core deliberately returns selection-required until one
+    // exact qualified route is selected for human presentation. Resolve that
+    // selector only from Core's own route projection; never reconstruct a Core id.
+    let manufactureArgs = args;
+    let preview = topologyPreview;
+    if (!humanOutputMatchesRoute(topologyPreview, route)) {
+      const coreRouteSelector = qualifiedCoreRouteSelector(topologyPreview, route);
+      manufactureArgs = withCoreRouteSelector(args, coreRouteSelector);
+      reportProgress(input, 'Selecting exact Core-qualified transport route…');
+      preview = await manufactureHandoffPackage(runtime, manufactureArgs);
+      if (preview.status !== 'ready' || preview.transportExecutable === false || !humanOutputMatchesRoute(preview, route)) {
+        throw new Error(`tiinex.package-builder.route-presentation-blocked:\n${receiptBlocker(preview)}`);
+      }
+      assertExactWorkspaceSelection(preview, requestedWorkspaceIds);
+      if (input.packageParentPath && !input.packageMajorReason) assertStableQualifiedCarrierAllocation(topologyPreview, preview);
+    }
     const coreFilename = qualifiedCoreCarrierFilename(preview);
     const folder = await outputDirectory(input, 'Select Tiinex outgoing folder');
     const stage = path.join(scratch, 'manufactured');
     reportProgress(input, 'Manufacturing and requalifying finished carrier…');
-    const built = await manufactureHandoffPackage(runtime, [...args, '--output-dir', stage]);
+    const built = await manufactureHandoffPackage(runtime, [...manufactureArgs, '--output-dir', stage]);
     if (built.status !== 'ready' || !built.primaryOutput?.path) throw new Error(`tiinex.package-builder.manufacture-blocked:\n${receiptBlocker(built)}`);
     assertExactWorkspaceSelection(built, requestedWorkspaceIds);
     if (input.packageParentPath && !input.packageMajorReason) assertStableQualifiedCarrierAllocation(preview, built);

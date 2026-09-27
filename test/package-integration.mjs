@@ -42,16 +42,18 @@ try {
   Module._load = function(request, parent, isMain) {
     return request === 'vscode' ? vscode : originalLoad.call(this, request, parent, isMain);
   };
-  const { buildHandoffPackageFromForm } = require('../dist/packageBuilder.js');
-  const { prepareBundledRuntime, runTiinexJson } = require('../dist/tiinex/bootstrap.js');
+  const { buildHandoffPackageFromForm, loadHandoffRouteChoicesForSource } = require('../dist/packageBuilder.js');
+  const { prepareBundledRuntime, preparePackageRuntimeWithRecovery, runTiinexJson } = require('../dist/tiinex/bootstrap.js');
   const { extractZipBuffer } = require('../dist/host/zip.js');
   const filename = 'business-001-9-2.handoff-package.zip';
   const input = { routeId: 'workspace-carrier:none', workspaceIds: ['vscode'], outputDirectory: output, expectedCarrierFilename: filename };
   const built = await buildHandoffPackageFromForm(root, input);
   assert.equal(path.basename(built.outputPath), filename);
   assert.deepEqual(await readdir(output), [filename]);
-  assert.equal(built.routingText, '');
-  pass('real extension package builder writes the displayed pointerless filename');
+  assert.match(built.routingText, /Start:\n001-1-READ-BEFORE-PROCEEDING\.trace\.md/);
+  assert.match(built.routingText, /pointerless Workspace carrier/);
+  assert.doesNotMatch(built.routingText, /Continue from:/i);
+  pass('real extension package builder writes the displayed pointerless filename with Core-owned generic transport text');
   const runtime = await prepareBundledRuntime(root, process.execPath);
   try {
     const orientation = await runTiinexJson(runtime, ['orient-handoff-package', built.outputPath]);
@@ -61,6 +63,49 @@ try {
     assert.equal(orientation.carrierLineage.dimension, '001');
     pass('result re-orients with exact Workspace selection and no invented Handoff or lineage');
   } finally { await runtime.dispose(); }
+  const packagePrepared = await preparePackageRuntimeWithRecovery(built.outputPath, root, process.execPath);
+  try {
+    assert.equal(packagePrepared.recovery.state, 'package-bootstrap');
+    assert.equal(packagePrepared.orientation.status, 'ready');
+    assert.match(packagePrepared.runtime.entrypoint.replace(/\\/g, '/'), /tiinex-vscode-bootstrap-[^/]+\/tiinex\.bootstrap\/runtime\/tools\/tiinex-portable\.mjs$/);
+    pass('freshly packed carrier starts from its embedded current-Core bootstrap using the manifest-root coordinate');
+  } finally { await packagePrepared.runtime.dispose(); }
+  const routedFixture = path.join(scratch, 'routed-fixture');
+  const routedOutput = path.join(scratch, 'routed-outgoing');
+  await cp(path.join(root, 'test', 'extension-host', 'fixtures', 'source-workspace'), routedFixture, { recursive: true });
+  const routedGit = (...args) => run('git', args, { cwd: routedFixture });
+  await routedGit('init', '-q');
+  await routedGit('config', 'user.name', 'Tiinex Test');
+  await routedGit('config', 'user.email', 'tiinex@example.invalid');
+  await routedGit('remote', 'add', 'origin', 'https://github.com/Tiinex/extension-host-acceptance.git');
+  await routedGit('add', '-A');
+  await routedGit('commit', '-qm', 'fixture');
+  const routedChoices = await loadHandoffRouteChoicesForSource(root, { workspaceId: 'extension-host-acceptance', root: routedFixture });
+  assert.equal(routedChoices.length, 2);
+  const routed = await buildHandoffPackageFromForm(root, {
+    routeId: routedChoices[0].id,
+    routeInputs: routedChoices.map((route) => ({ routeId: route.id })),
+    workspaceIds: ['extension-host-acceptance'],
+    workspaceSourceOverrides: [{ workspaceId: 'extension-host-acceptance', root: routedFixture }],
+    carrierPrefix: 'business-001',
+    packageParentPath: built.outputPath,
+    outputDirectory: routedOutput
+  });
+  assert.equal(routed.routeIds.length, 2);
+  assert.equal(routed.routeRoutingTexts.length, 2);
+  assert.deepEqual(routed.routeRoutingTexts.map((item) => [item.workspaceId, item.handoffPath, item.recipientLabel]), [
+    ['extension-host-acceptance', '.topics/handoffs/acceptance-route-one.trace.md', 'Loom'],
+    ['extension-host-acceptance', '.topics/handoffs/acceptance-route-two.trace.md', 'Kodax']
+  ]);
+  const routedOrientation = await runTiinexJson(runtime, ['orient-handoff-package', routed.outputPath, '--full']);
+  assert.equal(routedOrientation.status, 'ready');
+  assert.deepEqual(routedOrientation.workspaces.map((item) => item.id), ['extension-host-acceptance']);
+  assert.deepEqual(routedOrientation.routes.map((item) => [item.workspaceId, item.workspaceRelativeHandoffPath, item.from, item.to]), [
+    ['extension-host-acceptance', '.topics/handoffs/acceptance-route-one.trace.md', 'Anchor', 'Loom'],
+    ['extension-host-acceptance', '.topics/handoffs/acceptance-route-two.trace.md', 'Anchor', 'Kodax']
+  ]);
+  pass('multi-route Pack consumes Core-qualified route ids for presentation and preserves every routed Handoff in one carrier');
+
   const originalBytes = await readFile(built.outputPath);
   const retry = await buildHandoffPackageFromForm(root, input);
   assert.equal(retry.outputPath, built.outputPath);

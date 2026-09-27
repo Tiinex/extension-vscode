@@ -43,6 +43,22 @@ export interface QualifiedRouteReceipt {
 
 function text(value: unknown): string { return String(value ?? '').trim(); }
 
+export interface ReceivedGroundingProjection {
+  readiness: string;
+  completion: string;
+  returnTransition: string;
+  returnTiming: string;
+}
+
+export function receivedGroundingProjection(grounding: any): ReceivedGroundingProjection {
+  return {
+    readiness: text(grounding?.readiness?.state),
+    completion: text(grounding?.completionQualification?.state),
+    returnTransition: text(grounding?.completionQualification?.returnTransition),
+    returnTiming: text(grounding?.completionQualification?.returnTiming)
+  };
+}
+
 export function qualifiedRoutes(orientation: any): QualifiedRouteReceipt[] {
   const routes = Array.isArray(orientation?.routes) ? orientation.routes : [];
   return routes

@@ -11,7 +11,7 @@ import { ignoredPathCollisions, safeRelativePath, safeTarget } from '../dist/cor
 import { preferredRepositoryParent, routesPreferredForRole } from '../dist/core/receiveUx.js';
 import { alphabeticalWorkspaceIds, artifactsForLineageMode, currentRoleArtifacts, currentRoleChoices, makeIndexedArtifact } from '../dist/core/artifactTree.js';
 import { artifactReferenceAvailable, markdownLinkTargets, materialTargetKey, resolveArtifactReference } from '../dist/core/artifactNavigation.js';
-import { receivedHandoffContext, withWorkspaceRoots } from '../dist/core/receivedHandoff.js';
+import { receivedHandoffContext, receivedGroundingProjection, withWorkspaceRoots } from '../dist/core/receivedHandoff.js';
 import { operatorMatchedWorkspaceIds, resolvePrioritizedWorkspaceDuplicates } from '../dist/core/sourceSelection.js';
 import { carrierFilenameForCollisionInstance, carrierPrefixForDimension, chooseNextMajorParent, comparePackageRecency, inheritedOutgoingLabel, majorOutgoingLabel, rootOutgoingLabel, rootOutgoingPrefix } from '../dist/core/outgoingUx.js';
 import { projectArtifactAuthoringModel } from '../dist/core/artifactAuthoringModel.js';
@@ -599,6 +599,8 @@ await test('Discovery settings are non-mutating and ordinary builds avoid relink
   assert.match(linker, /\[AllowEmptyCollection\(\)\]\[object\[\]\]\$Entries/);
   const gitignore = await fs.readFile(path.join(root, '.gitignore'), 'utf8');
   assert.match(gitignore, /^\.vscode\/link\/$/m);
+  assert.match(gitignore, /^\*\.zip$/m);
+  await assert.rejects(fs.access(path.join(root, 'test', 'extension-host', 'fixtures', 'incoming-pointerless.handoff-package.zip')));
 });
 
 await test('extension activation synchronously registers all native Tiinex views and refresh commands before async startup', async () => {
@@ -785,11 +787,23 @@ await test('received carrier context stays qualified when only a subset of carri
   assert.deepEqual(partial.carriedWorkspaceIds, ['business', 'core', 'extension-vscode']);
   assert.deepEqual(partial.requiredWorkspaceIds, ['business', 'extension-vscode']);
   assert.deepEqual(partial.workspaceRoots, { 'extension-vscode': path.resolve('/repos/vscode') });
+  assert.deepEqual(receivedGroundingProjection({
+    readiness: { state: 'grounded-to-act' },
+    completionQualification: { state: 'not-established', returnTransition: 'not-established-by-grounding', returnTiming: 'not-qualified-by-grounding' }
+  }), {
+    readiness: 'grounded-to-act',
+    completion: 'not-established',
+    returnTransition: 'not-established-by-grounding',
+    returnTiming: 'not-qualified-by-grounding'
+  });
 });
 
 await test('native tree operator keeps projection choices separate from canonical item actions', async () => {
   const fs = await import('node:fs/promises');
   const source = await fs.readFile(path.resolve(HERE, '..', 'src', 'operatorTrees.ts'), 'utf8');
+  assert.match(source, /tiinex\.incoming\.groundHandoff/);
+  assert.match(source, /groundPackageForReview/);
+  assert.match(source, /receivedGroundingProjection/);
   assert.match(source, /TreeProjectionMode/);
   assert.match(source, /TreeLineageMode/);
   assert.match(source, /showDisplayOptions\('discovery'\)/);
@@ -814,6 +828,8 @@ await test('native tree operator keeps projection choices separate from canonica
     await assert.rejects(() => fs.stat(path.resolve(HERE, '..', retired)), { code: 'ENOENT' });
   }
   const manifest = JSON.parse(await fs.readFile(path.resolve(HERE, '..', 'package.json'), 'utf8'));
+  assert.equal(manifest.contributes.commands.some((item) => item.command === 'tiinex.incoming.groundHandoff'), true);
+  assert.equal(manifest.contributes.menus['view/item/context'].some((item) => item.command === 'tiinex.incoming.groundHandoff' && item.when.includes('tiinex.incomingResolvedHandoff')), true);
   const titles = new Map(manifest.contributes.commands.map((item) => [item.command, item.title]));
   assert.equal(titles.get('tiinex.openOperator'), 'Tiinex: Open Operator');
   assert.equal(titles.get('tiinex.landHandoffPackage'), 'Tiinex: Open Handoff Package as Incoming');
@@ -1402,6 +1418,9 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(panel, /Array\.isArray\(value\)/);
   assert.match(panel, /panel\.dispose\(\)/);
   assert.match(panel, /fieldAssists/);
+  assert.match(panel, /'Return To'/);
+  assert.match(tree, /field: 'Return To'/);
+  assert.match(tree, /'Return To Reference'/);
   assert.match(tree, /beginArtifactAuthoring/);
   assert.match(tree, /attachHandoffFromWorkspace/);
   assert.match(tree, /Core-qualified Handoff artifacts only/);
@@ -1579,6 +1598,9 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(packageBuilder, /revealInExplorer/);
   assert.match(packageBuilder, /revealFileInOS/);
   assert.match(packageBuilder, /routeRoutingTexts/);
+  assert.match(packageBuilder, /qualifiedCoreRouteSelector/);
+  assert.match(packageBuilder, /Selecting exact Core-qualified transport route/);
+  assert.match(packageBuilder, /never reconstruct a Core id/);
   assert.match(packageBuilder, /routeTexts\.length === 1/);
   assert.match(tree, /qualifiedOutgoingWorkspaceSourceOverrides/);
   assert.doesNotMatch(packageBuilder, /Build qualified pointerless Workspace carrier\?|Build qualified Handoff carrier\?/);
@@ -1642,14 +1664,15 @@ await test('Transport prepared state is keyed by immutable package SHA plus exac
   assert.throws(() => transportPreparedKey('not-a-sha'), /tiinex\.transport\.sha256-invalid/);
 });
 
-await test('Pointerless transport queue tolerates package-only carriers without Handoff transport text', async () => {
+await test('Pointerless transport queue requires Core-owned generic transport text without inventing Handoff semantics', async () => {
   const fs = await import('node:fs/promises');
   const root = path.resolve(HERE, '..');
   const tree = await fs.readFile(path.join(root, 'src', 'operatorTrees.ts'), 'utf8');
-  assert.doesNotMatch(tree, /tiinex\.transport\.package-transport-text-missing/);
-  assert.match(tree, /const orientation = await orientPackage\(runtime, resolved\)/);
-  assert.match(tree, /presentationLabel = 'Workspace carrier'/);
-  assert.match(tree, /This Workspace carrier has no Handoff route-specific transport text/);
+  assert.match(tree, /preparePackageRuntimeWithRecovery\(resolved, this\.extensionPath/);
+  assert.match(tree, /const orientation = prepared\.orientation/);
+  assert.match(tree, /const projection = await projectPackageTransport\(runtime, resolved\)/);
+  assert.match(tree, /genericTransportText = String\(projection\.humanOutput\?\.normalInlineRouting\?\.content/);
+  assert.match(tree, /tiinex\.transport\.pointerless-output-incomplete/);
   assert.match(tree, /const textRequired = Boolean\(item\.routes\.length \|\| item\.genericTransportText\)/);
 });
 
@@ -1809,6 +1832,10 @@ await test('installed Core exposes Handoff endpoint References as writable optio
     assert.ok(parties);
     assert.equal(parties.fields.some((field) => field.key === 'From Reference'), true);
     assert.equal(parties.fields.some((field) => field.key === 'To Reference'), true);
+    const completion = model.sections.find((section) => section.key === 'Completion Expectation');
+    assert.ok(completion);
+    assert.equal(completion.fields.some((field) => field.key === 'Return To'), true);
+    assert.equal(completion.fields.some((field) => field.key === 'Return To Reference'), true);
     const gap = model.capabilityGaps.find((item) => item.section === 'Handoff Parties');
     assert.equal(Boolean(gap?.fields.includes('From Reference')), false);
     assert.equal(Boolean(gap?.fields.includes('To Reference')), false);
@@ -1906,9 +1933,12 @@ await test('multi-Incoming and Merge/Replace remain selection-first, dry until f
   assert.doesNotMatch(tree, /tracked\.participants\.splice/);
   assert.match(tree, /removeOutgoingHandoffPointer/);
   assert.match(tree, /tracked\.participants = \[\]/);
-  assert.match(tree, /001-1-READ-BEFORE-PROCEEDING\.trace\.md/);
-  assert.match(tree, /001-2-bootstrap\.zip/);
-  assert.match(tree, /001-tiinex-handoff-package\.trace\.md/);
+  const outgoingFilesBody = tree.slice(tree.indexOf('private outgoingCarrierFileChildren()'), tree.indexOf('private async prepareAuthoringSubmission'));
+  assert.match(outgoingFilesBody, /Start artifact/);
+  assert.match(outgoingFilesBody, /Bootstrap descriptor/);
+  assert.match(outgoingFilesBody, /Package root/);
+  assert.match(outgoingFilesBody, /Core allocation · final carrier path pending Pack/);
+  assert.doesNotMatch(outgoingFilesBody, /001-1-READ-BEFORE-PROCEEDING|001-2-bootstrap|001-tiinex-handoff-package/);
   assert.match(tree, /Keep Incoming and Outgoing package roots visually identical/);
   assert.doesNotMatch(tree, /\$\{parentDimension\}-\?/);
   assert.doesNotMatch(tree, /: '…'/);
@@ -2242,8 +2272,10 @@ await test('routed Handoff Pack takes filename and collision allocation from qua
   const buildStart = builder.indexOf('export async function buildHandoffPackageFromForm');
   const start = builder.indexOf('const args = await handoffArgs', buildStart);
   const branch = builder.slice(start, builder.indexOf('return { outputPath', start));
-  assert.match(branch, /const preview = await manufactureHandoffPackage/);
-  assert.match(branch, /qualifiedCarrierAllocationFromManufactureReceipt\(preview\)/);
+  assert.match(branch, /const topologyPreview = await manufactureHandoffPackage/);
+  assert.match(branch, /qualifiedCarrierAllocationFromManufactureReceipt\(topologyPreview\)/);
+  assert.match(branch, /qualifiedCoreRouteSelector\(topologyPreview, route\)/);
+  assert.match(branch, /manufactureArgs = withCoreRouteSelector/);
   assert.match(branch, /qualifiedCoreCarrierFilename\(preview\)/);
   assert.match(branch, /assertStableQualifiedCarrierAllocation\(preview, built\)/);
   assert.match(branch, /assertCoreCarrierFilenameStable\(preview, built\)/);
@@ -2438,10 +2470,10 @@ await test('installed Core editor assistance withholds mixed-revision schema lin
     const roleMarkdown = '# Continuity Context\n\n- Envelope Schema: [tiinex.root.v1](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.schemas/tiinex.root.v1.schema.md)\n- Current\n  - Current Schema: [tiinex.party.role.v1](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.schemas/party/role/tiinex.party.role.v1.schema.md)\n  - Created At: 2026-09-06 20:00:00\n  - Summary: fixture\n  - Status: accepted/local\n  - Why: fixture\n\n---\n\n# Role\n';
     await fs.writeFile(path.join(root, rolePath), roleMarkdown, 'utf8');
     const role = await projectEditorAssistanceText(runtime, root, rolePath, roleMarkdown);
-    assert.equal(role.documents[0].validator.authorityState, 'unavailable');
-    assert.equal(role.documents[0].validator.authorityBasis, 'unavailable');
-    assert.ok(role.documents[0].validator.authorityFindings?.some((item) => /substitutes source authority/.test(item)));
-    assert.ok(role.documents[0].diagnostics.some((item) => item.code === 'audit.schema-authority.unqualified'));
+    assert.equal(role.documents[0].validator.authorityState, 'qualified');
+    assert.equal(role.documents[0].validator.authorityBasis, 'qualified-workspace-local-authority');
+    assert.deepEqual(role.documents[0].validator.authorityFindings || [], []);
+    assert.equal(role.documents[0].diagnostics.some((item) => item.code === 'audit.schema-authority.unqualified'), false);
 
     const legacyIntegrityTarget = 'https://github.com/Tiinex/docs/blob/4cb7046454f1cf75333097fc1a3d4562838afc26/.topics/.validators/sha256-base64url-c14n-v2.validator.md';
     const preferredIntegrityTarget = 'https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md';

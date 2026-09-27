@@ -8,14 +8,13 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FIXTURE_ROOT = path.join(ROOT, 'test', 'extension-host', 'fixtures');
 const FIXTURE_SOURCE = path.join(FIXTURE_ROOT, 'source-workspace');
-const FIXTURE_PACKAGE = path.join(FIXTURE_ROOT, 'incoming-pointerless.handoff-package.zip');
 const FIXTURE_MANIFEST = path.join(FIXTURE_ROOT, 'manifest.json');
 const args = parseArgs(process.argv.slice(2));
 const cli = await resolveVsCodeCli(args.cli || process.env.TIINEX_VSCODE_CLI || '');
 if (!cli) throw new Error('tiinex.extension-host.vscode-cli-unavailable');
 await run(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'build'], { cwd: ROOT });
 await access(path.join(ROOT, 'dist', 'extension.js')).catch(() => { throw new Error('tiinex.extension-host.dist-unavailable:build-did-not-emit-extension'); });
-const fixture = await verifyFixture();
+const fixture = await verifyFixtureSource();
 
 const modes = args.mode === 'both' ? ['local', 'published'] : [args.mode];
 const scratch = await mkdtemp(path.join(os.tmpdir(), 'tiinex-vscode-extension-host-'));
@@ -31,6 +30,7 @@ try {
     const state = mode === 'local' ? { mode, coreRoot: path.resolve(args.localCore) } : { mode };
     await writeFile(modePath, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
 
+    const generatedFixture = await manufactureFixturePackage({ mode, localCore: args.localCore, scratch, fixture });
     const userData = path.join(scratch, `user-${mode}`);
     const extensionsDir = path.join(scratch, `extensions-${mode}`);
     const workspace = path.join(scratch, `workspace-${mode}`);
@@ -54,7 +54,8 @@ try {
           TIINEX_EXTENSION_HOST_ACCEPTANCE: '1',
           TIINEX_EXTENSION_HOST_ACCEPTANCE_MODE: mode,
           TIINEX_EXTENSION_HOST_ACCEPTANCE_RESTART: String(restart),
-          TIINEX_EXTENSION_HOST_FIXTURE_PACKAGE: FIXTURE_PACKAGE,
+          TIINEX_EXTENSION_HOST_FIXTURE_PACKAGE: generatedFixture.path,
+          TIINEX_EXTENSION_HOST_FIXTURE_PACKAGE_SHA256: generatedFixture.sha256,
           TIINEX_EXTENSION_HOST_FIXTURE_MANIFEST: FIXTURE_MANIFEST,
           TIINEX_EXTENSION_HOST_WORKSPACE_ROOT: workspace,
           TIINEX_EXTENSION_HOST_WORKSPACE_ID: fixture.workspaceId,
@@ -70,12 +71,9 @@ try {
   else console.log(`Tiinex Extension Host scratch retained: ${scratch}`);
 }
 
-async function verifyFixture() {
+async function verifyFixtureSource() {
   const manifest = JSON.parse(await readFile(FIXTURE_MANIFEST, 'utf8'));
-  const bytes = await readFile(FIXTURE_PACKAGE);
-  const actual = createHash('sha256').update(bytes).digest('hex');
-  if (actual !== String(manifest?.package?.sha256 || '')) throw new Error(`tiinex.extension-host.fixture-sha256-mismatch:${actual}`);
-  if (!manifest.workspaceId || !Array.isArray(manifest.handoffs) || manifest.handoffs.length !== 2 || !Array.isArray(manifest.participants) || manifest.participants.length < 1) {
+  if (!manifest.workspaceId || !manifest.workspaceTargetPath || manifest?.package?.generated !== true || !manifest?.package?.filename || !Array.isArray(manifest.handoffs) || manifest.handoffs.length !== 2 || !Array.isArray(manifest.participants) || manifest.participants.length < 1) {
     throw new Error('tiinex.extension-host.fixture-manifest-invalid');
   }
   const declaredFiles = Object.keys(manifest.sourceFiles || {}).sort();
@@ -86,6 +84,34 @@ async function verifyFixture() {
     if (actualFileSha !== String(manifest.sourceFiles[relative] || '')) throw new Error(`tiinex.extension-host.fixture-source-sha256-mismatch:${relative}`);
   }
   return manifest;
+}
+
+
+async function manufactureFixturePackage({ mode, localCore, scratch, fixture }) {
+  const coreRoot = mode === 'local' ? path.resolve(localCore) : path.join(ROOT, 'node_modules', '@tiinex', 'core');
+  const entrypoint = path.join(coreRoot, 'tools', 'tiinex-portable.mjs');
+  await access(entrypoint).catch(() => { throw new Error(`tiinex.extension-host.fixture-core-tooling-unavailable:${entrypoint}`); });
+  const outputDir = path.join(scratch, `fixture-package-${mode}`);
+  await mkdir(outputDir, { recursive: true });
+  const filename = String(fixture.package.filename || 'incoming-pointerless.handoff-package.zip');
+  const receipt = await run(process.execPath, [
+    entrypoint,
+    'manufacture-handoff-package', FIXTURE_SOURCE,
+    '--carrier-mode', 'workspace',
+    '--workspace-id', fixture.workspaceId,
+    '--workspace-target', fixture.workspaceTargetPath,
+    '--tooling-bootstrap', 'embedded',
+    '--projected-filename', filename,
+    '--output-dir', outputDir,
+    '--compact'
+  ], { cwd: ROOT, capture: true });
+  let parsed;
+  try { parsed = JSON.parse(receipt.stdout.trim()); }
+  catch { throw new Error(`tiinex.extension-host.fixture-manufacture-invalid-json:${receipt.stdout.trim().slice(0, 200)}`); }
+  if (parsed?.status !== 'ready') throw new Error(`tiinex.extension-host.fixture-manufacture-blocked:${parsed?.status || 'unknown'}`);
+  const packagePath = path.join(outputDir, filename);
+  const bytes = await readFile(packagePath);
+  return { path: packagePath, sha256: createHash('sha256').update(bytes).digest('hex') };
 }
 
 async function listFiles(root, current = root) {

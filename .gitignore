@@ -9,3 +9,4 @@ last-message-to-user-from-other-llm.md
 test-environment-full-conversation.md
 dist
 .vscode/link/
+*.zip

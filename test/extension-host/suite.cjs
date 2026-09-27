@@ -13,14 +13,15 @@ async function run() {
   const restart = Number(process.env.TIINEX_EXTENSION_HOST_ACCEPTANCE_RESTART || 0);
   const fixturePackage = path.resolve(String(process.env.TIINEX_EXTENSION_HOST_FIXTURE_PACKAGE || ''));
   const fixtureManifestPath = path.resolve(String(process.env.TIINEX_EXTENSION_HOST_FIXTURE_MANIFEST || ''));
+  const fixturePackageSha256 = String(process.env.TIINEX_EXTENSION_HOST_FIXTURE_PACKAGE_SHA256 || '').trim().toLowerCase();
   const outputDir = path.resolve(String(process.env.TIINEX_EXTENSION_HOST_OUTPUT_DIR || ''));
   const workspaceRoot = path.resolve(String(process.env.TIINEX_EXTENSION_HOST_WORKSPACE_ROOT || ''));
   assert.ok(mode === 'local' || mode === 'published', `unexpected acceptance mode: ${mode}`);
   assert.ok(restart >= 1, `unexpected restart: ${restart}`);
-  assert.ok(fixturePackage && fixtureManifestPath && outputDir && workspaceRoot, 'fixture paths must be supplied by the repository-owned runner');
+  assert.ok(fixturePackage && fixtureManifestPath && fixturePackageSha256 && outputDir && workspaceRoot, 'fixture paths and generated package identity must be supplied by the repository-owned runner');
 
   const manifest = JSON.parse(await fs.readFile(fixtureManifestPath, 'utf8'));
-  assert.equal(await sha256File(fixturePackage), manifest.package.sha256, 'fixture package SHA-256 must match the pinned manifest');
+  assert.equal(await sha256File(fixturePackage), fixturePackageSha256, 'generated fixture package SHA-256 must remain exact for this acceptance run');
   const commands = await vscode.commands.getCommands(true);
   for (const command of [
     'tiinex.discovery.setIncoming', 'tiinex.incoming.replace', 'tiinex.outgoing.new', 'tiinex.outgoing.attachHandoff',
@@ -155,9 +156,12 @@ async function firstHostRun({ manifest, fixturePackage, workspaceRoot }) {
   const authored = await vscode.commands.executeCommand('tiinex.acceptance.authorHandoff', { workspaceId: manifest.workspaceId, title: 'Extension Host Authored Handoff', fromLabel: 'Anchor', toLabel: 'Kodax' });
   assert.equal(authored.fromReference, anchorEndpoint.reference, 'production Handoff authoring must bind the exact Core-projected From Reference');
   assert.equal(authored.toReference, kodaxEndpoint.reference, 'production Handoff authoring must bind the exact Core-projected To Reference');
+  assert.equal(authored.returnToReference, anchorEndpoint.reference, 'production Handoff authoring must bind the exact Core-projected Return To Reference');
   const authoredMarkdown = await fs.readFile(path.join(workspaceRoot, authored.path), 'utf8');
   assert.ok(authoredMarkdown.includes(anchorEndpoint.reference), 'durable authored Handoff bytes must contain the exact From Reference');
   assert.ok(authoredMarkdown.includes(kodaxEndpoint.reference), 'durable authored Handoff bytes must contain the exact To Reference');
+  assert.match(authoredMarkdown, /- Return To: Anchor/);
+  assert.ok(authoredMarkdown.includes(`- Return To Reference: [Anchor](${anchorEndpoint.reference})`) || authoredMarkdown.includes(`- Return To Reference: [Anchor Role](${anchorEndpoint.reference})`), 'durable authored Handoff bytes must contain the exact Return To Reference');
   snapshot = await vscode.commands.executeCommand('tiinex.acceptance.snapshot');
   assert.equal(snapshot.outgoing.drafts.length, 3, 'two fixture Handoffs plus one production-authored Handoff must be attached through the production controller path');
   const fixtureDrafts = snapshot.outgoing.drafts.filter((draft) => manifest.handoffs.includes(draft.path));
@@ -194,6 +198,27 @@ async function firstHostRun({ manifest, fixturePackage, workspaceRoot }) {
     assert.ok(route.transportText.includes(route.handoffPath) || /001-3-/.test(route.transportText), 'route transport text must carry an exact route pointer projection');
   }
   assert.ok(snapshot.events.some((item) => item.type === 'transport-qualified' && item.detail.source === 'queue' && item.detail.routeCount === 3 && path.resolve(String(item.detail.packagePath || '')) === path.resolve(routed[0].packagePath)), 'freshly built carrier must be reopened and qualified through Core before Transport accepts it');
+
+  // Re-open the actual host-produced routed carrier as Incoming and exercise the
+  // production Ground Handoff command. The host must present Core grounding; it
+  // must not infer readiness, completion, or return timing from labels or package placement.
+  await vscode.commands.executeCommand('tiinex.discovery.setIncoming', { data: { packagePath: routed[0].packagePath } });
+  snapshot = await vscode.commands.executeCommand('tiinex.acceptance.snapshot');
+  const routedIncoming = snapshot.incoming.find((item) => path.resolve(item.packagePath) === path.resolve(routed[0].packagePath));
+  assert.ok(routedIncoming, 'host-produced routed carrier must qualify back into Incoming');
+  assert.equal(routedIncoming.routeCount, 3, 'reopened routed carrier must expose exactly the three Core-qualified routes');
+  assert.equal(routedIncoming.routes.every((route) => route.grounding === null), true, 'Incoming routes must begin ungrounded; host bookkeeping cannot pre-authorize them');
+  const routeToGround = routedIncoming.routes.find((route) => route.handoffPath === authored.path) || routedIncoming.routes[0];
+  assert.ok(routeToGround?.pointerPath, 'qualified routed Incoming must expose the exact Core pointer coordinate for grounding');
+  await vscode.commands.executeCommand('tiinex.incoming.groundHandoff', { data: { packagePath: routed[0].packagePath, groupName: `resolved-handoff:${routeToGround.pointerPath}` } });
+  snapshot = await vscode.commands.executeCommand('tiinex.acceptance.snapshot');
+  const groundedIncoming = snapshot.incoming.find((item) => path.resolve(item.packagePath) === path.resolve(routed[0].packagePath));
+  const groundedRoute = groundedIncoming.routes.find((route) => route.routeId === routeToGround.routeId);
+  assert.ok(groundedRoute?.grounding, 'Ground Handoff must retain the exact Core grounding projection for the selected route');
+  assert.match(String(groundedRoute.grounding.readiness || ''), /^grounded-to-/, 'readiness must be Core-grounded, not host-inferred');
+  assert.equal(groundedRoute.grounding.completion, 'not-established', 'grounding must not fabricate Task completion');
+  assert.equal(groundedRoute.grounding.returnTiming, 'not-qualified-by-grounding', 'grounding must not fabricate return timing');
+  assert.ok(snapshot.events.some((item) => item.type === 'incoming-grounded' && item.detail.routeId === routeToGround.routeId && item.detail.completion === 'not-established'), 'real-host grounding must emit an acceptance observation of the exact Core projection');
 }
 
 async function restartHostRun({ fixturePackage }) {

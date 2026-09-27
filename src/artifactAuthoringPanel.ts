@@ -134,7 +134,7 @@ function html(input: ArtifactAuthoringPanelInput, nonce: string): string {
   const workspaceOptions = input.workspaces.map((item) => `<option value="${escapeHtml(item.workspaceId)}"${item.workspaceId === input.selectedWorkspaceId ? ' selected' : ''}>${escapeHtml(item.label)} — ${escapeHtml(item.description)}</option>`).join('');
   const templateOptions = templates.map((item) => `<option value="${escapeHtml(item.id)}"${item.id === input.selectedTemplateId ? ' selected' : ''}>${escapeHtml(item.label)}</option>`).join('');
   const assistLists = fieldAssists.map((assist, index) => `<datalist id="assist-${index}">${assist.suggestions.map((item) => `<option value="${escapeHtml(item.value || item.label)}">${escapeHtml(item.description || item.label)}</option>`).join('')}</datalist>`).join('');
-  const endpointAssists = fieldAssists.filter((assist) => (assist.field === 'From' || assist.field === 'To') && assist.suggestions.length);
+  const endpointAssists = fieldAssists.filter((assist) => ['From', 'To', 'Return To'].includes(assist.field) && assist.suggestions.length);
   const endpointControls = endpointAssists.length
     ? `<div class="grid endpoint-grid">${endpointAssists.map((assist) => `<label class="field"><span>${escapeHtml(assist.field)} endpoint</span><select data-endpoint-assist="${escapeHtml(assist.field)}"><option value="">Select…</option>${assist.suggestions.map((item, index) => `<option value="${index}">${escapeHtml(item.label)}${item.description ? ` — ${escapeHtml(item.description)}` : ''}</option>`).join('')}<option value="__manual__">Manual / unknown…</option></select></label>`).join('')}</div>`
     : '';

@@ -20,7 +20,7 @@ const enabled = String(process.env.TIINEX_EXTENSION_HOST_ACCEPTANCE || '') === '
 const config: AcceptanceConfig = {
   incomingPackagePath: String(process.env.TIINEX_EXTENSION_HOST_FIXTURE_PACKAGE || '').trim(),
   outgoingFolder: String(process.env.TIINEX_EXTENSION_HOST_OUTPUT_DIR || '').trim(),
-  outgoingWorkspaceId: String(process.env.TIINEX_EXTENSION_HOST_WORKSPACE_ID || 'acceptance').trim() || 'acceptance',
+  outgoingWorkspaceId: String(process.env.TIINEX_EXTENSION_HOST_WORKSPACE_ID || 'extension-host-acceptance').trim() || 'extension-host-acceptance',
   participantSelection: 'exact',
   additionalParticipantReferences: []
 };
