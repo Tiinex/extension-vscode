@@ -30,7 +30,7 @@ import { routeChoiceKey } from './core/operatorModel';
 import { consumeIncomingMultiRootResume, prepareIncomingMultiRootSession } from './vscode/incomingWorkspaceSession';
 import { nextCarrierCollisionInstance } from './host/carrierPublish';
 import { presentOperatorError } from './core/operatorError';
-import { confirmExactCoreParticipantProjection, participantPresentation } from './vscode/outgoingParticipantController';
+import { acceptCoreParticipantProjection, participantPresentation, selectAdditionalParticipantRoles } from './vscode/outgoingParticipantController';
 import { configureExtensionHostAcceptance, extensionHostAcceptanceEnabled, extensionHostAcceptanceEvents, extensionHostAcceptanceOutgoingFolder, extensionHostAcceptanceOutgoingParent, extensionHostAcceptanceOutgoingSourceKeys, recordExtensionHostAcceptanceEvent } from './vscode/extensionHostAcceptance';
 
 export type OperatorSection = 'discovery' | 'incoming' | 'outgoing';
@@ -1104,7 +1104,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     const runtime = prepared.runtime;
     try {
       const orientation = prepared.orientation;
-      const orientationRoutes = Array.isArray(orientation.routes) ? orientation.routes : [];
+      const orientationRoutes = qualifiedRoutes(orientation);
       const routes: TransportRouteState[] = [];
       let genericTransportText = '';
       let presentationLabel = '';
@@ -1130,8 +1130,11 @@ export class TiinexOperatorTrees implements vscode.Disposable {
         for (const item of orientationRoutes) {
           const workspaceId = String(item.workspaceId || '').trim();
           const handoffPath = normalizePath(String(item.workspaceRelativeHandoffPath || ''));
-          if (!workspaceId || !handoffPath) throw new Error('tiinex.transport.route-selector-unavailable');
-          const projection = await projectPackageTransport(runtime, resolved, `${workspaceId}:${handoffPath}`);
+          const pointerPath = normalizePath(String(item.pointerPath || ''));
+          if (!workspaceId || !handoffPath || !pointerPath) throw new Error('tiinex.transport.route-selector-unavailable');
+          // Core orientation already owns the exact route coordinate. Reuse its
+          // qualified Pointer path verbatim instead of synthesizing a host route id.
+          const projection = await projectPackageTransport(runtime, resolved, pointerPath);
           if (projection.status !== 'ready') {
             const codes = [...(projection.findings || []), ...(projection.humanOutput?.findings || []), ...(projection.carrierInspection?.findings || [])]
               .map((finding) => String(finding?.code || '').trim()).filter(Boolean);
@@ -2632,6 +2635,10 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     const previewPackagePath = previewIndex?.packagePath ? path.resolve(previewIndex.packagePath) : '';
     const nodePackagePath = node.data.packagePath ? path.resolve(node.data.packagePath) : '';
     const fromExactPreview = Boolean(previewIndex && previewPackagePath && nodePackagePath === previewPackagePath);
+    if (fromExactPreview) {
+      const pointerChildren = await this.pointerTargetChildren('outgoing', node, previewIndex!);
+      if (pointerChildren) return pointerChildren;
+    }
     if (fromExactPreview && node.data.kind === 'workspaceArchive') {
       const carried = previewIndex!.workspaces.find((item) => item.workspaceId === node.data.workspaceId);
       return carried ? this.fileArtifactRoots('outgoing', carried.workspaceId, carried.artifacts, previewIndex!.packagePath) : [];
@@ -2949,9 +2956,20 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
   ): Promise<PreparedArtifactDraft> {
     const root = await this.ensureOutgoingAuthoringRoot(workspace);
     const values = { ...submission.values };
+    let pathTitle = submission.title;
     if (schemaId === 'tiinex.handoff.v1') {
       for (const field of ['From', 'To', 'Return To'] as const) {
         applyExactHandoffEndpointSelection(values, field, submission.endpointSelections?.[field]);
+      }
+      const explicitSlug = String(submission.slug || '').trim();
+      if (explicitSlug) pathTitle = explicitSlug;
+      else {
+        const from = String(values.From || '').trim();
+        const to = String(values.To || '').trim();
+        if (!from || !to) throw new Error('tiinex.authoring.handoff-auto-slug-endpoints-required');
+        // This is only the operator-facing path label. Core still owns
+        // slugification, lineage dimensioning, collision handling and allocation.
+        pathTitle = `${from} to ${to}`;
       }
     }
     return prepareArtifactDraft(this.extensionPath, {
@@ -2959,6 +2977,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       workspaceId: workspace.workspaceId,
       schemaId,
       title: submission.title,
+      pathTitle,
       values,
       parentArtifact,
       targetDirectory
@@ -3076,6 +3095,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       schemaId: 'tiinex.handoff.v1',
       path: item.path,
       title: item.title,
+      pathTitle: item.title,
       markdown: item.markdown,
       values: {},
       parentPath: item.parentPath,
@@ -3084,11 +3104,19 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     };
   }
 
-  private async coreQualifiedOutgoingParticipants(workspace: OutgoingWorkspace, handoffPath: string): Promise<PackageParticipantProjection | null> {
-    // Participant authority is route-semantic Core output. Role/endpoint inventory
-    // is material availability only and must never become a semantic choice list.
-    const projection = await this.projectOutgoingParticipants(workspace, handoffPath, []);
-    return confirmExactCoreParticipantProjection(projection);
+  private async coreQualifiedOutgoingParticipants(workspace: OutgoingWorkspace, handoffPath: string): Promise<{ projection: PackageParticipantProjection; selections: PackageParticipantRole[] } | null> {
+    // Use the exact same Core-projected endpoint catalog as Handoff From/To.
+    // Inventory is presentation-only: the operator explicitly selects 0..n Roles,
+    // then Core requalifies the route and remains semantic participant authority.
+    const catalog = await this.endpointCatalog(workspace);
+    const candidates: PackageParticipantRole[] = catalog
+      .filter((item) => item.kind === 'role' && item.reference && item.workspaceId && item.path)
+      .map((item) => ({ label: item.label, authoringLabel: item.authoringLabel, reference: item.reference, workspaceId: item.workspaceId, path: item.path }));
+    const selections = await selectAdditionalParticipantRoles(candidates);
+    if (selections === null) return null;
+    const projection = await this.projectOutgoingParticipants(workspace, handoffPath, selections);
+    const accepted = await acceptCoreParticipantProjection(projection, selections);
+    return accepted ? { projection: accepted, selections } : null;
   }
 
   private async projectOutgoingParticipants(workspace: OutgoingWorkspace, handoffPath: string, participantSelections: PackageParticipantRole[] = []): Promise<PackageParticipantProjection> {
@@ -3280,9 +3308,9 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       if (submission.attachToOutgoing) {
         if (!attachAvailable || schemaId !== 'tiinex.handoff.v1') throw new Error('tiinex.authoring.attach-outgoing-unavailable');
         const qualified = await qualifyExistingHandoff(this.extensionPath, root, workspace.workspaceId, draft.path);
-        const selectedParticipantProjection = await this.coreQualifiedOutgoingParticipants(workspace, qualified.path);
-        if (selectedParticipantProjection) {
-          this.trackOutgoingHandoff(workspace, draft, writtenPath, qualified.from, qualified.to, selectedParticipantProjection, 'created', true, this.endpointRoleBindingsFromSubmission(submission), selectedParticipantProjection.roles);
+        const participantSelection = await this.coreQualifiedOutgoingParticipants(workspace, qualified.path);
+        if (participantSelection) {
+          this.trackOutgoingHandoff(workspace, draft, writtenPath, qualified.from, qualified.to, participantSelection.projection, 'created', true, this.endpointRoleBindingsFromSubmission(submission), participantSelection.selections);
           workspace.payloadIncluded = true;
           workspace.checkoutRepository = undefined;
           workspace.checkoutRef = undefined;
@@ -3471,9 +3499,9 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       if (!extensionHostAcceptanceEnabled()) void vscode.window.showInformationMessage('This exact Handoff is already attached to Outgoing.');
       return;
     }
-    const selectedParticipantProjection = await this.coreQualifiedOutgoingParticipants(workspace, qualified.path);
-    if (!selectedParticipantProjection) return;
-    this.trackOutgoingHandoff(workspace, this.preparedFromQualifiedHandoff(qualified), path.join(root, ...normalizePath(qualified.path).split('/')), qualified.from, qualified.to, selectedParticipantProjection, 'existing', true, [], selectedParticipantProjection.roles);
+    const participantSelection = await this.coreQualifiedOutgoingParticipants(workspace, qualified.path);
+    if (!participantSelection) return;
+    this.trackOutgoingHandoff(workspace, this.preparedFromQualifiedHandoff(qualified), path.join(root, ...normalizePath(qualified.path).split('/')), qualified.from, qualified.to, participantSelection.projection, 'existing', true, [], participantSelection.selections);
     this.outgoingProvider.refresh();
     await this.updateUiContexts();
     await this.revealOutgoingPanel();

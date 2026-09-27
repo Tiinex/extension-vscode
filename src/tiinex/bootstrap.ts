@@ -653,7 +653,7 @@ export async function createArtifactDraft(
   schemaId: string,
   materialRoot: string,
   childPath: string,
-  _title: string,
+  title: string,
   values: unknown,
   parentRecord: unknown = null,
   transition: 'create-artifact' | 'continue-from-record' = parentRecord ? 'continue-from-record' : 'create-artifact',
@@ -666,10 +666,11 @@ export async function createArtifactDraft(
     const isolatedMaterialRoot = path.join(scratch, 'material');
     await mkdir(isolatedMaterialRoot, { recursive: true });
     await writeFile(valuesPath, JSON.stringify(values), 'utf8');
-    // Title is a materialization/path-planning hint, not a schema-generic render input.
-    // Core derives concrete artifact title/summary representation from the schema values;
-    // forcing a host title can contradict bindings such as Task Summary -> body title.
+    // Core owns rendering semantics. Handoff creation explicitly accepts an
+    // operator Title that Core renders as H1/Summary; other schemas keep deriving
+    // title/summary from their own creation bindings (for example Task Summary).
     const args = ['create-local-draft', isolatedMaterialRoot, '--schema', schemaId, '--transition', transition, '--path', childPath, '--values', valuesPath];
+    if (schemaId === 'tiinex.handoff.v1' && String(title || '').trim()) args.push('--title', String(title).trim());
     if (transition === 'continue-from-record') {
       if (!parentRecord) throw new Error('tiinex.authoring.parent-required');
       const parentPath = path.join(scratch, 'parent.json');

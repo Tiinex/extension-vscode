@@ -80,15 +80,6 @@ export function extensionHostAcceptanceAdditionalParticipantReferences(reference
   return candidates.filter((reference) => config.additionalParticipantReferences.includes(reference));
 }
 
-export function extensionHostAcceptanceParticipantReferences(references: string[]): string[] | null | undefined {
-  if (!enabled) return undefined;
-  const exact = [...references];
-  recordExtensionHostAcceptanceEvent('participant-presented', { references: exact, selection: config.participantSelection });
-  if (config.participantSelection === 'cancel') return null;
-  if (config.participantSelection === 'weaken') return exact.slice(0, Math.max(0, exact.length - 1));
-  return exact;
-}
-
 export function recordExtensionHostAcceptanceEvent(type: string, detail: Record<string, unknown> = {}): void {
   if (!enabled) return;
   events.push(Object.freeze({ at: Date.now(), type: String(type || ''), detail: Object.freeze({ ...detail }) }));

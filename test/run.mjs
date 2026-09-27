@@ -552,7 +552,9 @@ await test('extension contributes stable Discovery, Incoming, Outgoing and Trans
   assert.doesNotMatch(treeSource, /rememberManufacturedTransportReceipt|manufacturedTransportReceipt|tiinex\.transport\.receipts\.v1/);
   assert.match(treeSource, /projectPackageTransport\(runtime, resolved/);
   assert.match(treeSource, /for \(const item of orientationRoutes\)/);
-  assert.match(treeSource, /projectPackageTransport\(runtime, resolved, `\$\{workspaceId\}:\$\{handoffPath\}`\)/);
+  assert.match(treeSource, /const pointerPath = normalizePath\(String\(item\.pointerPath \|\| ''\)\)/);
+  assert.match(treeSource, /projectPackageTransport\(runtime, resolved, pointerPath\)/);
+  assert.doesNotMatch(treeSource, /projectPackageTransport\(runtime, resolved, `\$\{workspaceId\}:\$\{handoffPath\}`\)/);
   assert.doesNotMatch(treeSource, /const base = orientationRoutes\.length \? await projectPackageTransport\(runtime, resolved\) : null/);
   assert.match(treeSource, /tiinex\.transport\.queue\.v1/);
   assert.match(treeSource, /tiinex\.transport\.prepared\.v1/);
@@ -753,12 +755,12 @@ await test('participant controller selects zero/one/many qualified extras and st
     assert.deepEqual((await controller.selectAdditionalParticipantRoles(projection.roles))?.map((item) => item.label), ['Sigma']);
     selectionMode = 'all';
     assert.deepEqual((await controller.selectAdditionalParticipantRoles(projection.roles))?.map((item) => item.label), ['Sigma', 'Reviewer']);
-    assert.equal(await controller.confirmExactCoreParticipantProjection(projection), projection);
-    selectionMode = 'partial';
-    assert.equal(await controller.confirmExactCoreParticipantProjection(projection), null);
-    assert.ok(warnings.some((value) => value.includes('exact Core-qualified set')));
+    assert.equal(await controller.acceptCoreParticipantProjection(projection, [projection.roles[0]]), projection);
+    const incompleteProjection = { ...projection, roles: [projection.roles[1]] };
+    assert.equal(await controller.acceptCoreParticipantProjection(incompleteProjection, [projection.roles[0]]), null);
+    assert.ok(errors.some((value) => value.includes('did not project the explicitly selected Role reference')));
     const blocked = { state: 'blocked', roles: [], detail: 'Core rejected participant authority.', findings: [{ severity: 'error', code: 'participant.blocked', message: 'Core rejected participant authority.' }] };
-    assert.equal(await controller.confirmExactCoreParticipantProjection(blocked), null);
+    assert.equal(await controller.acceptCoreParticipantProjection(blocked), null);
     assert.ok(errors.some((value) => value.includes('Core rejected participant authority')));
   } finally {
     Module._load = originalLoad;
@@ -1477,11 +1479,11 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(participantPicker, /projection\.state !== 'qualified' \|\| !projection\.roles\.length/);
   assert.match(participantPicker, /No additional Core-qualified participants are established/);
   assert.match(participantPicker, /attached without participant Role pointers/);
-  assert.match(participantPicker, /Additional participants · Core-qualified/);
-  assert.match(participantPicker, /exact Core-qualified participant set/);
+  assert.match(participantPicker, /Additional participant Roles · qualified open Workspaces/);
   assert.match(participantPicker, /canPickMany: true/);
-  assert.match(participantPicker, /picked: true/);
-  assert.match(participantPicker, /must keep the exact Core-qualified set/);
+  assert.match(participantPicker, /Core requalifies the exact set before Attach and Pack/);
+  assert.match(participantPicker, /acceptCoreParticipantProjection/);
+  assert.match(participantPicker, /selected-not-projected/);
   assert.match(participantPicker, /showQuickPick/);
   assert.doesNotMatch(participantPicker, /endpointCatalog|currentRoleChoices|loadHandoffEndpointChoices/);
   assert.match(tree, /projectOutgoingParticipants/);
@@ -1504,6 +1506,9 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(tree, /parentArtifact\.qualifiedRecord = await vscode\.window\.withProgress/);
   assert.match(tree, /parentArtifact \? \(parentArtifact\.qualifiedRecord \|\| qualifyArtifactDraftParent/);
   assert.match(tree, /showArtifactAuthoring/);
+  assert.match(tree, /const explicitSlug = String\(submission\.slug \|\| ''\)\.trim\(\)/);
+  assert.match(tree, /pathTitle = `\$\{from\} to \$\{to\}`/);
+  assert.match(tree, /Core still owns[\s\S]*slugification, lineage dimensioning, collision handling and allocation/);
   assert.match(tree, /loadArtifactAuthoringModel\(this\.extensionPath, schemaId, transition\)/);
   assert.match(tree, /schemaId === 'tiinex\.handoff\.v1' && options\.attachAvailable/);
   assert.match(tree, /Handoff artifacts only/);
@@ -1691,6 +1696,20 @@ await test('generic materialization and draft wrappers stay schema-neutral for a
   await assert.rejects(fs.access(valuesPath));
 });
 
+await test('Handoff draft wrapper passes operator Title to Core while path allocation remains a separate Core-planned label', async () => {
+  const fs = await import('node:fs/promises');
+  const runtime = { root: '/runtime', entrypoint: '/runtime/tiinex-portable.mjs', nodeExecutable: 'node', dispose: async () => undefined };
+  const fx = fakeRunner(async (_key, _index, call) => {
+    assert.equal(call.args[1], 'create-local-draft');
+    assert.equal(call.args[call.args.indexOf('--schema') + 1], 'tiinex.handoff.v1');
+    assert.equal(call.args[call.args.indexOf('--title') + 1], 'Discuss transport routing');
+    assert.equal(call.args[call.args.indexOf('--path') + 1], '.topics/001-anchor-to-sigma.trace.md');
+    return { code: 0, stdout: JSON.stringify({ status: 'created-clean', draft: { path: '.topics/001-anchor-to-sigma.trace.md', markdown: '# Discuss transport routing\n' }, findingSummary: { counts: { error: 0 } } }), stderr: '' };
+  });
+  const created = await createArtifactDraft(runtime, 'tiinex.handoff.v1', '/repo', '.topics/001-anchor-to-sigma.trace.md', 'Discuss transport routing', { From: 'Anchor', To: 'Sigma' }, null, 'create-artifact', fx.runner);
+  assert.equal(created.draft.markdown, '# Discuss transport routing\n');
+});
+
 await test('Transport prepared state is keyed by immutable package SHA plus exact route selection', async () => {
   const sha = 'a'.repeat(64);
   assert.equal(transportPreparedKey(sha), `${sha}:@package`);
@@ -1727,9 +1746,11 @@ await test('Outgoing participant affordance consumes exact Core route projection
   const end = tree.indexOf('private async projectOutgoingParticipants', start);
   const body = tree.slice(start, end);
   assert.ok(start >= 0 && end > start);
-  assert.match(body, /projectOutgoingParticipants\(workspace, handoffPath, \[\]\)/);
-  assert.match(body, /confirmExactCoreParticipantProjection\(projection\)/);
-  assert.doesNotMatch(body, /endpointCatalog|selectAdditionalParticipantRoles/);
+  assert.match(body, /const catalog = await this\.endpointCatalog\(workspace\)/);
+  assert.match(body, /item\.kind === 'role'/);
+  assert.match(body, /selectAdditionalParticipantRoles\(candidates\)/);
+  assert.match(body, /projectOutgoingParticipants\(workspace, handoffPath, selections\)/);
+  assert.match(body, /acceptCoreParticipantProjection\(projection, selections\)/);
   assert.doesNotMatch(tree, /private async selectAdditionalParticipants/);
 });
 
@@ -1740,6 +1761,7 @@ await test('Outgoing Files projection indexes exact temporary Core-manufactured 
   assert.match(tree, /private async outgoingCarrierFileChildren\(\): Promise<OperatorNode\[]>/);
   assert.match(tree, /const index = await this\.outgoingExactCarrierPreview\(\)/);
   assert.match(tree, /return this\.outerCarrierFileChildren\('outgoing', index, ''\)/);
+  assert.match(tree, /pointerTargetChildren\('outgoing', node, previewIndex!\)/);
   assert.match(tree, /buildHandoffPackageFromForm\(this\.extensionPath/);
   assert.match(tree, /const index = await indexCarrierPackage\(built\.outputPath\)/);
   assert.doesNotMatch(tree, /Start artifact', pending/);

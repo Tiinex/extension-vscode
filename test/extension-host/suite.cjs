@@ -135,13 +135,7 @@ async function firstHostRun({ manifest, fixturePackage, workspaceRoot }) {
   assert.ok(snapshot.events.some((item) => item.type === 'attach-rejected' && item.detail.path === invalidPath), 'early Handoff rejection must be observable in the host gate');
   await fs.rm(path.join(workspaceRoot, invalidPath), { force: true });
 
-  await vscode.commands.executeCommand('tiinex.acceptance.configure', { participantSelection: 'weaken' });
-  await vscode.commands.executeCommand('tiinex.outgoing.attachHandoff', handoffNode(manifest.workspaceId, manifest.handoffs[0]));
-  snapshot = await vscode.commands.executeCommand('tiinex.acceptance.snapshot');
-  assert.equal(snapshot.outgoing.drafts.length, 0, 'attempted participant-set weakening must prevent Handoff attachment');
-  assert.ok(snapshot.events.some((item) => item.type === 'participant-confirmation' && item.detail.state === 'rejected-weakened-set'), 'the exact-set guard must reject the weakened presentation selection');
-
-  await vscode.commands.executeCommand('tiinex.acceptance.configure', { participantSelection: 'exact' });
+  await vscode.commands.executeCommand('tiinex.acceptance.configure', { additionalParticipantReferences: [] });
   await vscode.commands.executeCommand('tiinex.outgoing.attachHandoff', handoffNode(manifest.workspaceId, manifest.handoffs[0]));
   snapshot = await vscode.commands.executeCommand('tiinex.acceptance.snapshot');
   assert.equal(snapshot.outgoing.drafts.length, 1, 'first exact Handoff attach must create one route');
@@ -152,12 +146,15 @@ async function firstHostRun({ manifest, fixturePackage, workspaceRoot }) {
   assert.equal(snapshot.outgoing.drafts[0].artifactSha256, firstDraftSha, 'idempotent attach must preserve exact artifact identity');
   assert.ok(snapshot.events.some((item) => item.type === 'attach-idempotent-exact' && item.detail.path === manifest.handoffs[0]), 'duplicate exact attach must be observable as an idempotent host event');
   for (const handoffPath of manifest.handoffs.slice(1)) await vscode.commands.executeCommand('tiinex.outgoing.attachHandoff', handoffNode(manifest.workspaceId, handoffPath));
-  await vscode.commands.executeCommand('tiinex.acceptance.configure', { participantSelection: 'exact', additionalParticipantReferences: [loomEndpoint.reference] });
+  await vscode.commands.executeCommand('tiinex.acceptance.configure', { additionalParticipantReferences: [loomEndpoint.reference] });
   const authored = await vscode.commands.executeCommand('tiinex.acceptance.authorHandoff', { workspaceId: manifest.workspaceId, title: 'Extension Host Authored Handoff', fromLabel: 'Anchor', toLabel: 'Kodax' });
   assert.equal(authored.fromReference, anchorEndpoint.reference, 'production Handoff authoring must bind the exact Core-projected From Reference');
   assert.equal(authored.toReference, kodaxEndpoint.reference, 'production Handoff authoring must bind the exact Core-projected To Reference');
   assert.equal(authored.returnToReference, anchorEndpoint.reference, 'production Handoff authoring must bind the exact Core-projected Return To Reference');
   const authoredMarkdown = await fs.readFile(path.join(workspaceRoot, authored.path), 'utf8');
+  assert.match(authoredMarkdown, /^# Continuity Context[\s\S]*\n# Extension Host Authored Handoff\n/m, 'operator Title must become the durable Handoff H1');
+  assert.match(authoredMarkdown, /- Summary: Extension Host Authored Handoff/ , 'operator Title must become the durable Handoff Summary');
+  assert.ok(/anchor-to-kodax/i.test(authored.path), 'blank Slug must delegate the From-to-To path label to Core allocation');
   assert.ok(authoredMarkdown.includes(anchorEndpoint.reference), 'durable authored Handoff bytes must contain the exact From Reference');
   assert.ok(authoredMarkdown.includes(kodaxEndpoint.reference), 'durable authored Handoff bytes must contain the exact To Reference');
   assert.match(authoredMarkdown, /- Return To: Anchor/);

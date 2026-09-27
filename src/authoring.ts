@@ -25,6 +25,7 @@ export interface ArtifactDraftSpec {
   workspaceId: string;
   schemaId: string;
   title: string;
+  pathTitle?: string;
   values: Record<string, unknown>;
   parentArtifact?: ArtifactDraftParent | null;
   targetDirectory?: string;
@@ -36,6 +37,7 @@ export interface PreparedArtifactDraft {
   schemaId: string;
   path: string;
   title: string;
+  pathTitle: string;
   markdown: string;
   values: Record<string, unknown>;
   parentPath: string;
@@ -123,6 +125,7 @@ export async function qualifyArtifactDraftParent(extensionPath: string, parentAr
 export async function prepareArtifactDraft(extensionPath: string, spec: ArtifactDraftSpec): Promise<PreparedArtifactDraft> {
   const root = required(spec.root, 'tiinex.authoring.repository-required');
   const title = required(spec.title, 'tiinex.authoring.title-required');
+  const pathTitle = required(spec.pathTitle || spec.title, 'tiinex.authoring.path-title-required');
   const schemaId = required(spec.schemaId, 'tiinex.authoring.schema-required');
   const runtime = await prepareBundledRuntime(extensionPath, nodeExecutable());
   const scratch = await mkdtemp(path.join(os.tmpdir(), 'tiinex-vscode-artifact-preview-'));
@@ -147,7 +150,7 @@ export async function prepareArtifactDraft(extensionPath: string, spec: Artifact
         parentRecord = await projectAuthoringParent(runtime, parentSourcePath, parentReference);
       }
     }
-    const proposal = authoringProposal({ workspaceId: spec.workspaceId, schemaId, title, values: spec.values, targetDirectory: spec.targetDirectory || '' }, parentReference, parentRecord);
+    const proposal = authoringProposal({ workspaceId: spec.workspaceId, schemaId, title: pathTitle, values: spec.values, targetDirectory: spec.targetDirectory || '' }, parentReference, parentRecord);
     const plan = await projectArtifactMaterialization(runtime, scratch, [proposal]);
     const planned = plannedArtifact(plan, String(proposal.id));
     const transition = planned.parent ? 'continue-from-record' : 'create-artifact';
@@ -158,6 +161,7 @@ export async function prepareArtifactDraft(extensionPath: string, spec: Artifact
       schemaId,
       path: safeRelativePath(planned.path),
       title,
+      pathTitle,
       markdown: String(created.draft.markdown),
       values: spec.values,
       parentPath: parentReference,
@@ -183,7 +187,7 @@ export async function writePreparedArtifactDraft(extensionPath: string, draft: P
         parentRecord = await projectAuthoringParent(runtime, parentSourcePath, draft.parentPath);
       }
     }
-    const proposal = authoringProposal({ workspaceId: draft.workspaceId, schemaId: draft.schemaId, title: draft.title, values: draft.values, targetDirectory: draft.targetDirectory }, draft.parentPath, parentRecord);
+    const proposal = authoringProposal({ workspaceId: draft.workspaceId, schemaId: draft.schemaId, title: draft.pathTitle || draft.title, values: draft.values, targetDirectory: draft.targetDirectory }, draft.parentPath, parentRecord);
     const plan = await projectArtifactMaterialization(runtime, draft.root, [proposal]);
     const planned = plannedArtifact(plan, String(proposal.id));
     if (safeRelativePath(planned.path) !== draft.path) throw new Error('tiinex.authoring.preview-stale-recreate-required');
