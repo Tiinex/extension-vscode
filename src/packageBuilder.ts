@@ -273,36 +273,45 @@ async function ignoredPathsWithoutRepository(root: string, candidates: string[],
   return result.stdout.split('\0').map((item) => String(item || '').replace(/\\/g, '/')).filter(Boolean).sort();
 }
 
+async function mapBounded<T, R>(items: T[], limit: number, worker: (item: T, index: number) => Promise<R>): Promise<R[]> {
+  if (!items.length) return [];
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const run = async (): Promise<void> => {
+    for (;;) {
+      const index = next++;
+      if (index >= items.length) return;
+      results[index] = await worker(items[index], index);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(Math.max(1, limit), items.length) }, () => run()));
+  return results;
+}
+
 async function qualifyIncomingWorkspaceSources(runtime: Awaited<ReturnType<typeof prepareBundledRuntime>>, scratch: string, sources: IncomingPackageWorkspaceSource[]): Promise<WorkspaceSource[]> {
-  const out: WorkspaceSource[] = [];
-  let index = 0;
-  for (const source of sources) {
+  return mapBounded(sources, 4, async (source, index) => {
     const workspaceId = String(source.workspaceId || '').trim();
     if (!workspaceId || !source.packagePath || !source.archivePath) throw new Error('tiinex.package-builder.incoming-source-invalid');
-    const root = path.join(scratch, `incoming-${index++}-${workspaceId.replace(/[^a-z0-9._-]+/gi, '-')}`);
+    const root = path.join(scratch, `incoming-${index}-${workspaceId.replace(/[^a-z0-9._-]+/gi, '-')}`);
     const archive = await readExactZipEntryFromFile(source.packagePath, source.archivePath);
     await extractZipBuffer(archive, root);
     const projected = await projectWorkspacePackageSources(runtime, [root]);
     const matches = (projected.candidates || []).filter((item) => item.workspaceId === workspaceId);
     if (projected.status !== 'ready' || matches.length !== 1) throw new Error(`tiinex.package-builder.incoming-source-unqualified:${workspaceId}`);
-    out.push({ ...matches[0], root });
-  }
-  return out;
+    return { ...matches[0], root };
+  });
 }
 
-
 async function qualifyWorkspaceSourceOverrides(runtime: Awaited<ReturnType<typeof prepareBundledRuntime>>, overrides: PackageWorkspaceSourceOverride[]): Promise<WorkspaceSource[]> {
-  const out: WorkspaceSource[] = [];
-  for (const override of overrides) {
+  return mapBounded(overrides, 4, async (override) => {
     const workspaceId = String(override.workspaceId || '').trim();
     const root = path.resolve(String(override.root || '').trim());
     if (!workspaceId || !root) throw new Error('tiinex.package-builder.workspace-source-override-invalid');
     const projected = await projectWorkspacePackageSources(runtime, [root]);
     const matches = (projected.candidates || []).filter((item) => item.workspaceId === workspaceId);
     if (projected.status !== 'ready' || matches.length !== 1) throw new Error(`tiinex.package-builder.workspace-source-override-unqualified:${workspaceId}`);
-    out.push({ ...matches[0], root });
-  }
-  return out;
+    return { ...matches[0], root };
+  });
 }
 
 type MaterialBinding = { sourcePath: string; referenceTarget: string; provenance: { workspaceId: string; path: string } };
@@ -314,16 +323,16 @@ async function materialBindingsForDiscoverySources(
 ): Promise<Record<string, MaterialBinding>> {
   const carriedWorkspaceIds = new Set(selectedSources.map((item) => item.workspaceId));
   const bindings: Record<string, MaterialBinding> = {};
-  for (const source of discoverySources) {
-    // A selected Outgoing Workspace is already authoritative source material for
-    // Core manufacture. Discovery roots are availability-only and must never
-    // cause that Workspace to be carried a second time or added to Outgoing.
-    if (carriedWorkspaceIds.has(source.workspaceId)) continue;
+  const externalDiscoverySources = discoverySources.filter((source) => !carriedWorkspaceIds.has(source.workspaceId));
+  const projectedDiscovery = await mapBounded(externalDiscoverySources, 4, async (source) => {
     const projection = await projectHandoffEndpoints(runtime, source.root, source.workspaceId);
     if (projection.status !== 'ready' || (projection.findings || []).some((item) => item.severity === 'error')) {
-      throw new Error(`tiinex.package-builder.discovery-material-source-unqualified:${source.workspaceId}:\n${presentActionableFindings(projection.findings || [], projection.status)}`);
+      throw new Error(`tiinex.package-builder.discovery-material-source-unqualified:${source.workspaceId}:
+${presentActionableFindings(projection.findings || [], projection.status)}`);
     }
-    const candidates = endpointCandidatesForExplicitSource(source, projection.candidates || []);
+    return { source, candidates: endpointCandidatesForExplicitSource(source, projection.candidates || []) };
+  });
+  for (const { source, candidates } of projectedDiscovery) {
     for (const candidate of candidates) {
       const reference = String(candidate.reference || candidate.target || '').trim();
       const artifactPath = String(candidate.artifactPath || '').replace(/\\/g, '/').replace(/^\/+/, '');
@@ -333,38 +342,26 @@ async function materialBindingsForDiscoverySources(
       if (existing && (path.resolve(existing.sourcePath) !== sourcePath || existing.provenance.workspaceId !== source.workspaceId || existing.provenance.path !== artifactPath)) {
         throw new Error(`tiinex.package-builder.discovery-material-reference-ambiguous:${reference}`);
       }
-      bindings[reference] = {
-        sourcePath,
-        referenceTarget: reference,
-        provenance: { workspaceId: source.workspaceId, path: artifactPath }
-      };
+      bindings[reference] = { sourcePath, referenceTarget: reference, provenance: { workspaceId: source.workspaceId, path: artifactPath } };
     }
   }
   return bindings;
 }
 
 async function handoffRouteChoicesForSources(runtime: Awaited<ReturnType<typeof prepareBundledRuntime>>, sources: WorkspaceSource[]): Promise<RouteChoice[]> {
-  const out: RouteChoice[] = [];
-  for (const source of sources) {
+  const groups = await mapBounded(sources, 4, async (source) => {
     const projected = await projectHandoffLeaves(runtime, [source.root]);
     if (projected.status !== 'ready' || (projected.findings || []).some((item) => item.severity === 'error')) {
-      throw new Error(`tiinex.package-builder.handoff-routes-unqualified:${source.workspaceId}:\n${presentActionableFindings(projected.findings || [], projected.status)}`);
+      throw new Error(`tiinex.package-builder.handoff-routes-unqualified:${source.workspaceId}:
+${presentActionableFindings(projected.findings || [], projected.status)}`);
     }
-    for (const candidate of handoffRouteCandidatesForExplicitSource(source, projected.candidates || [], projected.leaves || [])) {
+    return handoffRouteCandidatesForExplicitSource(source, projected.candidates || [], projected.leaves || []).map((candidate) => {
       const base = { pointerless: false, workspaceId: source.workspaceId, path: candidate.path };
-      out.push({
-        id: routeChoiceKey(base),
-        ...base,
-        label: candidate.title || candidate.path,
-        description: `${candidate.from} → ${candidate.to}`,
-        detail: `${source.workspaceId}: ${candidate.path}\n${candidate.purpose || ''}`,
-        from: candidate.from,
-        to: candidate.to,
-        leaf: candidate.leaf
-      });
-    }
-  }
-  return out;
+      return { id: routeChoiceKey(base), ...base, label: candidate.title || candidate.path, description: `${candidate.from} → ${candidate.to}`, detail: `${source.workspaceId}: ${candidate.path}
+${candidate.purpose || ''}`, from: candidate.from, to: candidate.to, leaf: candidate.leaf } as RouteChoice;
+    });
+  });
+  return groups.flat();
 }
 
 export async function loadHandoffRouteChoicesForSource(extensionPath: string, source: HandoffEndpointSource): Promise<RouteChoice[]> {
@@ -405,14 +402,14 @@ export async function loadHandoffEndpointChoicesForSources(extensionPath: string
 
   const runtime = await prepareHostCoreRuntime(extensionPath, [...new Set(explicit.map((source) => source.root))]);
   try {
-    const groups: HandoffEndpointChoice[][] = [];
-    for (const source of explicit) {
+    const groups = await mapBounded(explicit, 4, async (source) => {
       const projection = await projectHandoffEndpoints(runtime, source.root, source.workspaceId);
       if (projection.status !== 'ready' || (projection.findings || []).some((item) => item.severity === 'error')) {
-        throw new Error(`tiinex.package-builder.endpoint-source-unqualified:${source.workspaceId}:\n${presentActionableFindings(projection.findings || [], projection.status)}`);
+        throw new Error(`tiinex.package-builder.endpoint-source-unqualified:${source.workspaceId}:
+${presentActionableFindings(projection.findings || [], projection.status)}`);
       }
-      groups.push(endpointCandidatesForExplicitSource(source, projection.candidates || []));
-    }
+      return endpointCandidatesForExplicitSource(source, projection.candidates || []);
+    });
     return mergeExactHandoffEndpointChoices(groups);
   } finally { await runtime.dispose(); }
 }
@@ -653,27 +650,48 @@ export async function buildHandoffPackageFromForm(extensionPath: string, input: 
   try {
     reportProgress(input, 'Preparing qualified Core runtime…');
     runtime = await prepareSelectedCoreManufactureRuntime(extensionPath, input, scratch);
-    reportProgress(input, 'Qualifying local Workspace context…');
-    const current = await loadModelWithRuntime(runtime);
     reportProgress(input, 'Qualifying selected Workspace sources…');
     const incomingSources = await qualifyIncomingWorkspaceSources(runtime, scratch, input.incomingWorkspaceSources || []);
     const overrideSources = await qualifyWorkspaceSourceOverrides(runtime, input.workspaceSourceOverrides || []);
     const discoverySources = await qualifyWorkspaceSourceOverrides(runtime, input.discoveryWorkspaceSourceOverrides || []);
+    const requestedWorkspaceIds = [...new Set(input.workspaceIds.map((item) => String(item || '').trim()).filter(Boolean))].sort();
+    const explicitSourceById = new Map<string, WorkspaceSource>();
+    for (const item of incomingSources) explicitSourceById.set(item.workspaceId, item);
+    for (const item of overrideSources) explicitSourceById.set(item.workspaceId, item);
+    const unresolvedExplicitIds = requestedWorkspaceIds.filter((workspaceId) => !explicitSourceById.has(workspaceId));
+    // Normal VS Code Outgoing supplies exact selected roots. Avoid a second
+    // repository-wide operator-context scan when those exact sources already
+    // close the request; retain the shared fallback only for legacy callers.
+    const current = unresolvedExplicitIds.length
+      ? await loadModelWithRuntime(runtime)
+      : { sources: [] as WorkspaceSource[], routes: [] as RouteChoice[] };
     const sourceById = new Map<string, WorkspaceSource>(current.sources.map((item) => [item.workspaceId, item]));
-    for (const item of incomingSources) sourceById.set(item.workspaceId, item);
-    for (const item of overrideSources) sourceById.set(item.workspaceId, item);
-    reportProgress(input, 'Qualifying Handoff routes…');
-    const sourceRoutes = await handoffRouteChoicesForSources(runtime, [...incomingSources, ...overrideSources]);
-    const routeMap = new Map<string, RouteChoice>();
+    for (const [workspaceId, item] of explicitSourceById) sourceById.set(workspaceId, item);
+    const requestedRouteShape = routeChoiceFromKey(input.routeId);
+    const requestedRouteInputs = input.routeInputs?.length ? input.routeInputs : [{ routeId: input.routeId }];
+    const requestedRouteWorkspaceIds = new Set(
+      requestedRouteInputs
+        .map((item) => routeChoiceFromKey(item.routeId))
+        .filter((item) => !item.pointerless && item.workspaceId)
+        .map((item) => String(item.workspaceId))
+    );
+    if (!requestedRouteShape.pointerless && requestedRouteShape.workspaceId) requestedRouteWorkspaceIds.add(String(requestedRouteShape.workspaceId));
+    const routeSources = [...incomingSources, ...overrideSources].filter((source) => requestedRouteWorkspaceIds.has(source.workspaceId));
+    const sourceRoutes = requestedRouteShape.pointerless
+      ? []
+      : await (async () => {
+          reportProgress(input, 'Qualifying selected Handoff route Workspaces…');
+          return handoffRouteChoicesForSources(runtime, routeSources);
+        })();
+    const pointerlessRoute: RouteChoice = { id: routeChoiceKey({ pointerless: true }), pointerless: true, label: 'No Handoff pointer', description: 'Workspace transport only — no Handoff semantics' };
+    const routeMap = new Map<string, RouteChoice>([[pointerlessRoute.id, pointerlessRoute]]);
     for (const item of [...current.routes, ...sourceRoutes]) routeMap.set(item.id, item);
     const availableRoutes = [...routeMap.values()];
     const route = exactRouteByKey(availableRoutes, input.routeId);
-    const requestedRouteInputs = input.routeInputs?.length ? input.routeInputs : [{ routeId: input.routeId }];
     const uniqueRouteInputs = new Map<string, PackageRouteInput>();
     for (const item of requestedRouteInputs) uniqueRouteInputs.set(item.routeId, item);
     if (!uniqueRouteInputs.has(input.routeId)) uniqueRouteInputs.set(input.routeId, { routeId: input.routeId });
     const routeInputs = [...uniqueRouteInputs.values()].map((item) => ({ route: exactRouteByKey(availableRoutes, item.routeId), participantRoles: item.participantRoles || [], endpointRoles: item.endpointRoles || [] }));
-    const requestedWorkspaceIds = [...new Set(input.workspaceIds.map((item) => String(item || '').trim()).filter(Boolean))].sort();
     const selectedSources = requestedWorkspaceIds.map((workspaceId) => sourceById.get(workspaceId)).filter((item): item is WorkspaceSource => Boolean(item));
     const selectedIds = new Set(selectedSources.map((item) => item.workspaceId));
     const missingWorkspaceIds = requestedWorkspaceIds.filter((item) => !selectedIds.has(item));
@@ -682,15 +700,12 @@ export async function buildHandoffPackageFromForm(extensionPath: string, input: 
     const materialBindings = await materialBindingsForDiscoverySources(runtime, selectedSources, discoverySources);
     if (route.pointerless) {
       const args = await workspaceCarrierArgs(selectedSources, scratch, String(input.expectedCarrierFilename || ''), String(input.packageParentPath || ''), String(input.packageMajorReason || '').trim());
-      reportProgress(input, 'Running Core package preview…');
-      const preview = await manufactureHandoffPackage(runtime, args);
-      if (preview.status !== 'ready' || preview.transportExecutable === false || preview?.carrierProjection?.mode !== 'workspace' || (preview?.carrierProjection?.routes || []).length !== 0) throw new Error(`tiinex.package-builder.workspace-preview-blocked:\n${receiptBlocker(preview)}`);
-      assertExpectedCarrierDimension(preview, String(input.expectedCarrierDimension || ''));
-      assertExpectedCarrierFilename(preview, String(input.expectedCarrierFilename || ''));
-      assertExactWorkspaceSelection(preview, requestedWorkspaceIds);
+      // Manufacture once into a disposable stage. The returned Core receipt plus
+      // physical bytes are the exact qualification boundary; a separate dry-run
+      // preview duplicated the same expensive Core work without adding authority.
       const folder = await outputDirectory(input, 'Select Tiinex outgoing folder');
       const stage = path.join(scratch, 'manufactured');
-      reportProgress(input, 'Manufacturing qualified carrier…');
+      reportProgress(input, 'Manufacturing and qualifying carrier…');
       const built = await manufactureHandoffPackage(runtime, [...args, '--output-dir', stage]);
       if (built.status !== 'ready' || !built.primaryOutput?.path || built?.carrierProjection?.mode !== 'workspace' || (built?.carrierProjection?.routes || []).length !== 0) throw new Error(`tiinex.package-builder.workspace-manufacture-blocked:\n${receiptBlocker(built)}`);
       assertExpectedCarrierDimension(built, String(input.expectedCarrierDimension || ''));
@@ -735,27 +750,23 @@ ${participantProjection.detail}`);
     // exact qualified route is selected for human presentation. Resolve that
     // selector only from Core's own route projection; never reconstruct a Core id.
     let manufactureArgs = args;
-    let preview = topologyPreview;
     if (!humanOutputMatchesRoute(topologyPreview, route)) {
       const coreRouteSelector = qualifiedCoreRouteSelector(topologyPreview, route);
       manufactureArgs = withCoreRouteSelector(args, coreRouteSelector);
-      reportProgress(input, 'Selecting exact Core-qualified transport route…');
-      preview = await manufactureHandoffPackage(runtime, manufactureArgs);
-      if (preview.status !== 'ready' || preview.transportExecutable === false || !humanOutputMatchesRoute(preview, route)) {
-        throw new Error(`tiinex.package-builder.route-presentation-blocked:\n${receiptBlocker(preview)}`);
-      }
-      assertExactWorkspaceSelection(preview, requestedWorkspaceIds);
-      if (input.packageParentPath && !input.packageMajorReason) assertStableQualifiedCarrierAllocation(topologyPreview, preview);
     }
-    const coreFilename = qualifiedCoreCarrierFilename(preview);
     const folder = await outputDirectory(input, 'Select Tiinex outgoing folder');
     const stage = path.join(scratch, 'manufactured');
+    // The topology pass is required to consume Core's exact route selector and
+    // continuation allocation. Once that selector is known, manufacture directly
+    // into the disposable stage and validate that exact finished receipt instead
+    // of paying for a second route-selected dry run plus the real manufacture.
     reportProgress(input, 'Manufacturing and requalifying finished carrier…');
     const built = await manufactureHandoffPackage(runtime, [...manufactureArgs, '--output-dir', stage]);
-    if (built.status !== 'ready' || !built.primaryOutput?.path) throw new Error(`tiinex.package-builder.manufacture-blocked:\n${receiptBlocker(built)}`);
+    if (built.status !== 'ready' || !built.primaryOutput?.path || !humanOutputMatchesRoute(built, route)) throw new Error(`tiinex.package-builder.manufacture-blocked:
+${receiptBlocker(built)}`);
     assertExactWorkspaceSelection(built, requestedWorkspaceIds);
-    if (input.packageParentPath && !input.packageMajorReason) assertStableQualifiedCarrierAllocation(preview, built);
-    assertCoreCarrierFilenameStable(preview, built);
+    if (input.packageParentPath && !input.packageMajorReason) assertStableQualifiedCarrierAllocation(topologyPreview, built);
+    const coreFilename = qualifiedCoreCarrierFilename(built);
     const routing = String(built?.humanOutput?.normalInlineRouting?.content || '').trim();
     if (!routing) throw new Error('tiinex.package-builder.routing-text-missing');
     const routeTexts = routeRoutingTexts(built, routeInputs, routing);

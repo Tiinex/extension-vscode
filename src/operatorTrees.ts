@@ -11,7 +11,7 @@ import { preferredRepositoryParent } from './core/receiveUx';
 import { qualifiedRoutes, QualifiedRouteReceipt, receivedHandoffContext, receivedGroundingProjection } from './core/receivedHandoff';
 import { mergeTransportRouteSelection, selectedTransportRouteIds, StoredTransportQueueItem, transportPrepared, transportPreparedKey, TransportPreparedRecord } from './core/transportQueue';
 import { loadHandoffEndpointChoicesForSources, loadHandoffRouteChoicesForSource, loadLocalWorkspaceChoices, buildHandoffPackageFromForm, announceBuiltCarrier, routeChoiceKeyForHandoff, IncomingPackageWorkspaceSource, PackageWorkspaceChoice, PackageWorkspaceSourceOverride, PackageRouteRouting, PackageParticipantProjection, PackageParticipantRole, projectHandoffPackageParticipants, qualifyLocalWorkspaceChoice } from './packageBuilder';
-import { exactHandoffEndpointMarkdownLink } from './core/handoffEndpointSelection';
+import { applyExactHandoffEndpointSelection } from './core/handoffEndpointSelection';
 import { ArtifactAuthoringCatalog, ArtifactDraftParent, loadArtifactAuthoringCatalog, loadArtifactAuthoringModel, prepareArtifactDraft, PreparedArtifactDraft, qualifyArtifactDraftParent, qualifyExistingHandoff, writePreparedArtifactDraft } from './authoring';
 import { initializeRepositoryWorkspace } from './workspaceInitialization';
 import { repositoryRootForResource } from './vscode/gitApi';
@@ -30,7 +30,7 @@ import { routeChoiceKey } from './core/operatorModel';
 import { consumeIncomingMultiRootResume, prepareIncomingMultiRootSession } from './vscode/incomingWorkspaceSession';
 import { nextCarrierCollisionInstance } from './host/carrierPublish';
 import { presentOperatorError } from './core/operatorError';
-import { confirmExactCoreParticipantProjection, participantPresentation, selectAdditionalParticipantRoles } from './vscode/outgoingParticipantController';
+import { confirmExactCoreParticipantProjection, participantPresentation } from './vscode/outgoingParticipantController';
 import { configureExtensionHostAcceptance, extensionHostAcceptanceEnabled, extensionHostAcceptanceEvents, extensionHostAcceptanceOutgoingFolder, extensionHostAcceptanceOutgoingParent, extensionHostAcceptanceOutgoingSourceKeys, recordExtensionHostAcceptanceEvent } from './vscode/extensionHostAcceptance';
 
 export type OperatorSection = 'discovery' | 'incoming' | 'outgoing';
@@ -647,10 +647,14 @@ export class TiinexOperatorTrees implements vscode.Disposable {
             Purpose: 'Perform the bounded work described by this Handoff and return the result.',
             Transfers: [{ name: 'bounded-work', fields: { 'Transfer Kind': 'work-and-responsibility', Description: 'Perform the bounded work described by this Handoff and return the qualified result.' } }],
             ...noneSections,
-            'Signal Kind': 'return',
-            'Signal Meaning': 'Return the completed result, qualification evidence, and any blockers.',
-            'Does Not Mean': 'This Handoff does not grant authority beyond the explicit transfer and carried context.',
-            'Must Not Be Used To Claim': 'Do not infer acceptance, completion, or authority beyond the explicit Handoff content.'
+            'Completion Expectation': {
+              'Signal Kind': 'return',
+              'Signal Meaning': 'Return the completed result, qualification evidence, and any blockers.'
+            },
+            'Interpretation Limits': {
+              'Does Not Mean': 'This Handoff does not grant authority beyond the explicit transfer and carried context.',
+              'Must Not Be Used To Claim': 'Do not infer acceptance, completion, or authority beyond the explicit Handoff content.'
+            }
           }
         },
         {
@@ -660,10 +664,14 @@ export class TiinexOperatorTrees implements vscode.Disposable {
             Purpose: 'Open an interactive bounded conversation with the receiving role about the subject described by this Handoff.',
             Transfers: [{ name: 'bounded-conversation', fields: { 'Transfer Kind': 'work', Description: 'Participate in the bounded live conversation or brainstorm. Respond conversationally; do not turn the exchange into a durable result artifact unless explicitly requested.' } }],
             ...noneSections,
-            'Signal Kind': 'none',
-            'Signal Meaning': 'This Handoff opens a live conversation. No automatic completion artifact, disposition, or return package is expected; continue the conversation until the participants explicitly choose a next action.',
-            'Does Not Mean': 'Opening the conversation does not transfer implementation authority or require the receiving role to manufacture a durable discussion result.',
-            'Must Not Be Used To Claim': 'Do not infer implementation, acceptance, completion, or a required return artifact from conversational participation alone.'
+            'Completion Expectation': {
+              'Signal Kind': 'none',
+              'Signal Meaning': 'This Handoff opens a live conversation. No automatic completion artifact, disposition, or return package is expected; continue the conversation until the participants explicitly choose a next action.'
+            },
+            'Interpretation Limits': {
+              'Does Not Mean': 'Opening the conversation does not transfer implementation authority or require the receiving role to manufacture a durable discussion result.',
+              'Must Not Be Used To Claim': 'Do not infer implementation, acceptance, completion, or a required return artifact from conversational participation alone.'
+            }
           }
         },
         {
@@ -673,10 +681,14 @@ export class TiinexOperatorTrees implements vscode.Disposable {
             Purpose: 'Discuss or review the bounded subject described by this Handoff and return a disposition.',
             Transfers: [{ name: 'bounded-review', fields: { 'Transfer Kind': 'work', Description: 'Review the bounded subject described by this Handoff and return a disposition without assuming implementation authority.' } }],
             ...noneSections,
-            'Signal Kind': 'disposition',
-            'Signal Meaning': 'Return the discussion outcome, relevant findings, and unresolved questions.',
-            'Does Not Mean': 'This Handoff does not by itself transfer implementation authority.',
-            'Must Not Be Used To Claim': 'Do not infer implementation, acceptance, or broader authority from discussion alone.'
+            'Completion Expectation': {
+              'Signal Kind': 'disposition',
+              'Signal Meaning': 'Return the discussion outcome, relevant findings, and unresolved questions.'
+            },
+            'Interpretation Limits': {
+              'Does Not Mean': 'This Handoff does not by itself transfer implementation authority.',
+              'Must Not Be Used To Claim': 'Do not infer implementation, acceptance, or broader authority from discussion alone.'
+            }
           }
         },
         { id: 'blank', label: 'Blank / explicit', description: 'No preset values. Fill the Core-required contract directly.', defaults: {} }
@@ -2275,13 +2287,13 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
   }
 
   private async refreshOutgoing(): Promise<void> {
-    await this.requalifyOutgoingWorkspaceSources();
+    await this.requalifyOutgoingWorkspaceSources(true);
     this.invalidateOutgoingDerivedState();
     this.outgoingProvider.refresh();
     await this.updateUiContexts();
   }
 
-  private async requalifyOutgoingWorkspaceSources(): Promise<{ ready: boolean; invalidWorkspaceIds: string[] }> {
+  private async requalifyOutgoingWorkspaceSources(force = false): Promise<{ ready: boolean; invalidWorkspaceIds: string[] }> {
     if (!this.outgoing) return { ready: true, invalidWorkspaceIds: [] };
     const localWorkspaces = this.outgoing.workspaces.filter((item) => item.source === 'local');
     if (!localWorkspaces.length) return { ready: true, invalidWorkspaceIds: [] };
@@ -2289,7 +2301,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     let freshLocalChoices: PackageWorkspaceChoice[] = [];
     let loadFailure = '';
     try {
-      freshLocalChoices = await loadLocalWorkspaceChoices(this.extensionPath);
+      freshLocalChoices = await this.localWorkspaceChoices(force);
     } catch (error) {
       loadFailure = shortMessage(error);
     }
@@ -2336,7 +2348,13 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
 
   private async qualifiedOpenWorkspaceSourceOverrides(): Promise<PackageWorkspaceSourceOverride[]> {
     const choices = await this.localWorkspaceChoices();
-    return choices.map((item) => ({ workspaceId: item.workspaceId, root: item.root }));
+    const selectedIds = new Set((this.outgoing?.workspaces || []).map((item) => item.workspaceId));
+    // Discovery sources exist only to close exact material that is not already
+    // carried by the Outgoing Workspace set. Requalifying selected Workspaces a
+    // second time as discovery material is redundant and was a major latency source.
+    return choices
+      .filter((item) => !selectedIds.has(item.workspaceId))
+      .map((item) => ({ workspaceId: item.workspaceId, root: item.root }));
   }
 
   private bootstrapPayloadIncluded(): boolean {
@@ -2933,27 +2951,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     const values = { ...submission.values };
     if (schemaId === 'tiinex.handoff.v1') {
       for (const field of ['From', 'To', 'Return To'] as const) {
-        const selected = submission.endpointSelections?.[field];
-        if (!selected) {
-          // Manual/unknown authoring remains identity-less. Raw Reference fields
-          // are never accepted as host-authored authority.
-          delete values[`${field} Reference`];
-          continue;
-        }
-        const reference = String(selected.reference || '').trim();
-        const label = String(selected.value || selected.label || '').trim();
-        if (!reference || !label) throw new Error(`tiinex.authoring.endpoint-selection-incomplete:${field}`);
-        values[field] = label;
-        values[`${field} Reference`] = exactHandoffEndpointMarkdownLink({
-          reference,
-          authoringLabel: label,
-          label: String(selected.label || label).trim()
-        });
-        if (field !== 'Return To') {
-          const kind = String(selected.kind || '').trim();
-          if (!kind) throw new Error(`tiinex.authoring.endpoint-selection-incomplete:${field}`);
-          values[`${field} Kind`] = kind;
-        }
+        applyExactHandoffEndpointSelection(values, field, submission.endpointSelections?.[field]);
       }
     }
     return prepareArtifactDraft(this.extensionPath, {
@@ -3086,12 +3084,11 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     };
   }
 
-  private async selectAdditionalParticipants(workspace: OutgoingWorkspace): Promise<PackageParticipantRole[] | null> {
-    const catalog = await this.endpointCatalog(workspace);
-    const roles: PackageParticipantRole[] = catalog
-      .filter((item) => item.kind === 'role' && item.reference && item.workspaceId && item.path)
-      .map((item) => ({ label: item.label, authoringLabel: item.authoringLabel || item.label, reference: item.reference, workspaceId: item.workspaceId, path: item.path }));
-    return selectAdditionalParticipantRoles(roles);
+  private async coreQualifiedOutgoingParticipants(workspace: OutgoingWorkspace, handoffPath: string): Promise<PackageParticipantProjection | null> {
+    // Participant authority is route-semantic Core output. Role/endpoint inventory
+    // is material availability only and must never become a semantic choice list.
+    const projection = await this.projectOutgoingParticipants(workspace, handoffPath, []);
+    return confirmExactCoreParticipantProjection(projection);
   }
 
   private async projectOutgoingParticipants(workspace: OutgoingWorkspace, handoffPath: string, participantSelections: PackageParticipantRole[] = []): Promise<PackageParticipantProjection> {
@@ -3124,7 +3121,8 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
   }
 
 
-  private async localWorkspaceChoices(): Promise<PackageWorkspaceChoice[]> {
+  private async localWorkspaceChoices(force = false): Promise<PackageWorkspaceChoice[]> {
+    if (force) this.localWorkspaceChoicesCache = null;
     const cached = this.localWorkspaceChoicesCache;
     if (cached && Date.now() - cached.at < 10_000) return cached.value;
     const value = loadLocalWorkspaceChoices(this.extensionPath);
@@ -3282,17 +3280,13 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       if (submission.attachToOutgoing) {
         if (!attachAvailable || schemaId !== 'tiinex.handoff.v1') throw new Error('tiinex.authoring.attach-outgoing-unavailable');
         const qualified = await qualifyExistingHandoff(this.extensionPath, root, workspace.workspaceId, draft.path);
-        const participantSelections = await this.selectAdditionalParticipants(workspace);
-        if (participantSelections !== null) {
-          const participantProjection = await this.projectOutgoingParticipants(workspace, qualified.path, participantSelections);
-          const selectedParticipantProjection = await confirmExactCoreParticipantProjection(participantProjection);
-          if (selectedParticipantProjection) {
-            this.trackOutgoingHandoff(workspace, draft, writtenPath, qualified.from, qualified.to, selectedParticipantProjection, 'created', true, this.endpointRoleBindingsFromSubmission(submission), participantSelections);
-            workspace.payloadIncluded = true;
-            workspace.checkoutRepository = undefined;
-            workspace.checkoutRef = undefined;
-            attachedToOutgoing = true;
-          }
+        const selectedParticipantProjection = await this.coreQualifiedOutgoingParticipants(workspace, qualified.path);
+        if (selectedParticipantProjection) {
+          this.trackOutgoingHandoff(workspace, draft, writtenPath, qualified.from, qualified.to, selectedParticipantProjection, 'created', true, this.endpointRoleBindingsFromSubmission(submission), selectedParticipantProjection.roles);
+          workspace.payloadIncluded = true;
+          workspace.checkoutRepository = undefined;
+          workspace.checkoutRef = undefined;
+          attachedToOutgoing = true;
         }
       }
       this.refresh();
@@ -3477,12 +3471,9 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       if (!extensionHostAcceptanceEnabled()) void vscode.window.showInformationMessage('This exact Handoff is already attached to Outgoing.');
       return;
     }
-    const participantSelections = await this.selectAdditionalParticipants(workspace);
-    if (participantSelections === null) return;
-    const participantProjection = await this.projectOutgoingParticipants(workspace, qualified.path, participantSelections);
-    const selectedParticipantProjection = await confirmExactCoreParticipantProjection(participantProjection);
+    const selectedParticipantProjection = await this.coreQualifiedOutgoingParticipants(workspace, qualified.path);
     if (!selectedParticipantProjection) return;
-    this.trackOutgoingHandoff(workspace, this.preparedFromQualifiedHandoff(qualified), path.join(root, ...normalizePath(qualified.path).split('/')), qualified.from, qualified.to, selectedParticipantProjection, 'existing', true, [], participantSelections);
+    this.trackOutgoingHandoff(workspace, this.preparedFromQualifiedHandoff(qualified), path.join(root, ...normalizePath(qualified.path).split('/')), qualified.from, qualified.to, selectedParticipantProjection, 'existing', true, [], selectedParticipantProjection.roles);
     this.outgoingProvider.refresh();
     await this.updateUiContexts();
     await this.revealOutgoingPanel();

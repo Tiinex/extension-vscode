@@ -23,7 +23,7 @@ import { planWorkspaceSession, validateWorkspaceTargetMapping } from '../dist/co
 import { representativeWorkspaceChoicesForRoot } from '../dist/core/workspaceChoice.js';
 import { participantProjectionFromManufactureReceipt } from '../dist/core/participantProjection.js';
 import { assertStableQualifiedCarrierAllocation, qualifiedCarrierAllocationFromManufactureReceipt } from '../dist/core/carrierAllocation.js';
-import { endpointCandidatesForExplicitSource, exactHandoffEndpointMarkdownLink, mergeExactHandoffEndpointChoices } from '../dist/core/handoffEndpointSelection.js';
+import { applyExactHandoffEndpointSelection, endpointCandidatesForExplicitSource, exactHandoffEndpointMarkdownLink, mergeExactHandoffEndpointChoices } from '../dist/core/handoffEndpointSelection.js';
 import { handoffRouteCandidatesForExplicitSource } from '../dist/core/handoffRouteSelection.js';
 import { checkIgnoredPaths, commitPreparedGitOperator, commitPreparedReviewedStaged, commitWorkingTree, deriveGitOperatorCommitMessage, dirtyWorkingTreePaths, discardWorkingTree, generateTiinexCommitMessage, listStagedConflictMarkerPaths, listStagedMutationPaths, listStagedPaths, materializeUnmergedFileConflicts, mergeCommitNoCommit, payloadCheckoutEligibility, preflightExistingLocalBranch, prepareGitOperatorCommit, prepareReviewedStagedCommit, pushExactGitOperatorCommit, pushExactLandingCommit, pushExactReviewedStagedCommit, stageCommitPush, stageLandingChanges, stageLandingCommit, stashWorkingTree, unstageLandingPaths } from '../dist/host/git.js';
 import { preferredNodeExecutable } from '../dist/host/nodeExecutable.js';
@@ -102,6 +102,28 @@ await test('Handoff endpoint authoring serializes qualified dropdown identity as
   }), '[Glimmer](business::.topics/roles/001-5-1-glimmer-canonical-holder-cutover-role.trace.md)');
   assert.throws(() => exactHandoffEndpointMarkdownLink({ label: 'bad]label', reference: 'business::.topics/roles/x.trace.md' }), /endpoint-link-label-invalid/);
   assert.throws(() => exactHandoffEndpointMarkdownLink({ label: 'Glimmer', reference: 'business::.topics/roles/bad path.trace.md' }), /endpoint-link-target-invalid/);
+});
+
+await test('Handoff endpoint dropdown writes References into the exact Core-projected group container', async () => {
+  const values = {
+    From: 'Manual From', 'From Kind': 'role',
+    To: 'Manual To', 'To Kind': 'role',
+    'Completion Expectation': { 'Signal Kind': 'return', 'Signal Meaning': 'Return result.', 'Return To': 'Manual Return' },
+    'Interpretation Limits': { 'Does Not Mean': 'No broader authority.', 'Must Not Be Used To Claim': 'No acceptance implied.' }
+  };
+  applyExactHandoffEndpointSelection(values, 'From', {
+    label: 'Glimmer Role — Canonical Holder Cutover Continuation', value: 'Glimmer', kind: 'role',
+    reference: 'business::.topics/roles/001-5-1-glimmer-canonical-holder-cutover-role.trace.md'
+  });
+  applyExactHandoffEndpointSelection(values, 'Return To', {
+    label: 'Anchor Role — Canonical Holder Cutover Continuation', value: 'Anchor', kind: 'role',
+    reference: 'business::.topics/roles/001-1-1-1-1-1-anchor-canonical-holder-cutover-role.trace.md'
+  });
+  assert.equal(values['From Reference'], '[Glimmer](business::.topics/roles/001-5-1-glimmer-canonical-holder-cutover-role.trace.md)');
+  assert.equal(values.From, 'Glimmer');
+  assert.equal(values['Completion Expectation']['Return To'], 'Anchor');
+  assert.equal(values['Completion Expectation']['Return To Reference'], '[Anchor](business::.topics/roles/001-1-1-1-1-1-anchor-canonical-holder-cutover-role.trace.md)');
+  assert.equal(Object.prototype.hasOwnProperty.call(values, 'Return To Reference'), false);
 });
 
 await test('Handoff route host scoping consumes Core qualification and rejects nested fixture paths', async () => {
@@ -1558,6 +1580,8 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   const createCall = tree.indexOf('this.createAuthoredArtifact(workspace, schemaId, submission', previewCall);
   assert.ok(previewCall >= 0 && createCall > previewCall);
   assert.match(tree, /writePreparedArtifactDraft\(this\.extensionPath, draft\)/);
+  assert.match(tree, /selectedIds = new Set\(\(this\.outgoing\?\.workspaces \|\| \[\]\)\.map/);
+  assert.match(tree, /\.filter\(\(item\) => !selectedIds\.has\(item\.workspaceId\)\)/);
   const packageBuilder = await fs.readFile(path.resolve(HERE, '..', 'src', 'packageBuilder.ts'), 'utf8');
   const participantProjection = await fs.readFile(path.resolve(HERE, '..', 'src', 'core', 'participantProjection.ts'), 'utf8');
   assert.match(packageBuilder, /prepareWorkspaceCoreRuntime/);
@@ -1570,11 +1594,16 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.doesNotMatch(participantProjection, /endpointCatalog|currentRoleChoices|activeSpeaker/);
   assert.match(packageBuilder, /Projecting Core-qualified participant authority/);
   assert.match(packageBuilder, /Preparing qualified Core runtime/);
-  assert.match(packageBuilder, /Qualifying local Workspace context/);
+  assert.doesNotMatch(packageBuilder, /Qualifying local Workspace context/);
+  assert.match(packageBuilder, /unresolvedExplicitIds\.length/);
   assert.match(packageBuilder, /Qualifying selected Workspace sources/);
-  assert.match(packageBuilder, /Qualifying Handoff routes/);
-  assert.match(packageBuilder, /Running Core package preview/);
-  assert.match(packageBuilder, /Manufacturing qualified carrier/);
+  assert.match(packageBuilder, /mapBounded\(overrides, 4/);
+  assert.match(packageBuilder, /mapBounded\(sources, 4/);
+  assert.match(packageBuilder, /mapBounded\(explicit, 4/);
+  assert.match(packageBuilder, /Qualifying selected Handoff route Workspaces/);
+  assert.match(packageBuilder, /Running Core route\/allocation preflight and package preview/);
+  assert.match(packageBuilder, /Manufacturing and qualifying carrier/);
+  assert.match(packageBuilder, /Manufacturing and requalifying finished carrier/);
   assert.match(packageBuilder, /Publishing carrier/);
   assert.match(packageBuilder, /tiinex\.package-builder\.preview-blocked/);
   assert.match(packageBuilder, /tiinex\.package-builder\.manufacture-blocked/);
@@ -1613,7 +1642,7 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(packageBuilder, /revealFileInOS/);
   assert.match(packageBuilder, /routeRoutingTexts/);
   assert.match(packageBuilder, /qualifiedCoreRouteSelector/);
-  assert.match(packageBuilder, /Selecting exact Core-qualified transport route/);
+  assert.match(packageBuilder, /Once that selector is known, manufacture directly/);
   assert.match(packageBuilder, /never reconstruct a Core id/);
   assert.match(packageBuilder, /routeTexts\.length === 1/);
   assert.match(tree, /qualifiedOutgoingWorkspaceSourceOverrides/);
@@ -1688,6 +1717,20 @@ await test('Pointerless transport queue requires Core-owned generic transport te
   assert.match(tree, /genericTransportText = String\(projection\.humanOutput\?\.normalInlineRouting\?\.content/);
   assert.match(tree, /tiinex\.transport\.pointerless-output-incomplete/);
   assert.match(tree, /const textRequired = Boolean\(item\.routes\.length \|\| item\.genericTransportText\)/);
+});
+
+await test('Outgoing participant affordance consumes exact Core route projection and never falls back to endpoint inventory', async () => {
+  const fs = await import('node:fs/promises');
+  const root = path.resolve(HERE, '..');
+  const tree = await fs.readFile(path.join(root, 'src', 'operatorTrees.ts'), 'utf8');
+  const start = tree.indexOf('private async coreQualifiedOutgoingParticipants');
+  const end = tree.indexOf('private async projectOutgoingParticipants', start);
+  const body = tree.slice(start, end);
+  assert.ok(start >= 0 && end > start);
+  assert.match(body, /projectOutgoingParticipants\(workspace, handoffPath, \[\]\)/);
+  assert.match(body, /confirmExactCoreParticipantProjection\(projection\)/);
+  assert.doesNotMatch(body, /endpointCatalog|selectAdditionalParticipantRoles/);
+  assert.doesNotMatch(tree, /private async selectAdditionalParticipants/);
 });
 
 await test('Outgoing Files projection indexes exact temporary Core-manufactured carrier bytes instead of host pending-shape paths', async () => {
@@ -2026,9 +2069,7 @@ await test('multi-Incoming and Merge/Replace remain selection-first, dry until f
   assert.match(packageBuilderAllocation, /assertStableQualifiedCarrierAllocation/);
   assert.match(packageBuilderAllocation, /carrier-dimension-shared-contract-mismatch/);
   assert.match(packageBuilderAllocation, /carrier-filename-shared-contract-mismatch/);
-  assert.match(packageBuilderAllocation, /assertExpectedCarrierDimension\(preview/);
   assert.match(packageBuilderAllocation, /assertExpectedCarrierDimension\(built/);
-  assert.match(packageBuilderAllocation, /assertExpectedCarrierFilename\(preview/);
   assert.match(packageBuilderAllocation, /assertExpectedCarrierFilename\(built/);
   assert.match(tree, /expectedCarrierFilename: this\.outgoingProjectedFilename\(\)/);
   assert.match(tree, /fileArtifactRoots\('discovery',[\s\S]*index\.packagePath/);
@@ -2276,7 +2317,7 @@ await test('carrier names are labels and never filesystem paths', async () => {
   }
 });
 
-await test('pointerless Pack passes the displayed filename and verifies both receipts', async () => {
+await test('pointerless Pack passes the displayed filename and qualifies the exact manufactured receipt once', async () => {
   const fs = await import('node:fs/promises');
   const root = path.resolve(HERE, '..');
   const tree = await fs.readFile(path.join(root, 'src', 'operatorTrees.ts'), 'utf8');
@@ -2285,14 +2326,14 @@ await test('pointerless Pack passes the displayed filename and verifies both rec
   assert.match(section, /expectedCarrierFilename: this\.outgoingProjectedFilename\(\)/);
   const builder = await fs.readFile(path.join(root, 'src', 'packageBuilder.ts'), 'utf8');
   const branch = builder.slice(builder.indexOf('if (route.pointerless) {'), builder.indexOf('if (!route.workspaceId', builder.indexOf('if (route.pointerless) {')));
-  assert.match(branch, /assertExpectedCarrierFilename\(preview/);
+  assert.doesNotMatch(branch, /Running Core package preview|workspace-preview-blocked/);
   assert.match(branch, /assertExpectedCarrierFilename\(built/);
-  assert.match(branch, /assertExactWorkspaceSelection\(preview/);
+  assert.equal((branch.match(/manufactureHandoffPackage\(/g) || []).length, 1);
   assert.match(branch, /assertExactWorkspaceSelection\(built/);
   assert.match(branch, /publishCarrierFile/);
 });
 
-await test('routed Handoff Pack takes filename and collision allocation from qualified Core preview', async () => {
+await test('routed Handoff Pack consumes Core topology then qualifies the exact physical manufacture once', async () => {
   const fs = await import('node:fs/promises');
   const root = path.resolve(HERE, '..');
   const builder = await fs.readFile(path.join(root, 'src', 'packageBuilder.ts'), 'utf8');
@@ -2303,9 +2344,9 @@ await test('routed Handoff Pack takes filename and collision allocation from qua
   assert.match(branch, /qualifiedCarrierAllocationFromManufactureReceipt\(topologyPreview\)/);
   assert.match(branch, /qualifiedCoreRouteSelector\(topologyPreview, route\)/);
   assert.match(branch, /manufactureArgs = withCoreRouteSelector/);
-  assert.match(branch, /qualifiedCoreCarrierFilename\(preview\)/);
-  assert.match(branch, /assertStableQualifiedCarrierAllocation\(preview, built\)/);
-  assert.match(branch, /assertCoreCarrierFilenameStable\(preview, built\)/);
+  assert.match(branch, /qualifiedCoreCarrierFilename\(built\)/);
+  assert.match(branch, /assertStableQualifiedCarrierAllocation\(topologyPreview, built\)/);
+  assert.doesNotMatch(branch, /preview = await manufactureHandoffPackage\(runtime, manufactureArgs\)/);
   assert.match(branch, /nextCarrierCollisionInstance\(folder, coreFilename\)/);
   assert.match(branch, /carrierFilenameForCollisionInstance\(coreFilename, collisionInstance\)/);
   assert.match(branch, /publishCarrierFile\(built\.primaryOutput\.path, folder, filename\)/);
@@ -2340,8 +2381,11 @@ await test('Handoff endpoint selections persist exact Core References and Pack c
   assert.match(panel, /field\+' Reference'/);
   const tree = await fs.readFile(path.join(root, 'src', 'operatorTrees.ts'), 'utf8');
   assert.match(tree, /\[`\$\{field\} Reference`\]: item\.reference/);
-  assert.match(tree, /values\[`\$\{field\} Reference`\] = exactHandoffEndpointMarkdownLink/);
-  assert.match(tree, /delete values\[`\$\{field\} Reference`\]/);
+  assert.match(tree, /applyExactHandoffEndpointSelection\(values, field, submission\.endpointSelections\?\.\[field\]\)/);
+  const endpointSelection = await fs.readFile(path.join(root, 'src', 'core', 'handoffEndpointSelection.ts'), 'utf8');
+  assert.match(endpointSelection, /endpointFieldContainer\(values, field\)/);
+  assert.match(endpointSelection, /container\[field\] = label/);
+  assert.match(endpointSelection, /container\[`\$\{field\} Reference`\] = exactHandoffEndpointMarkdownLink/);
   assert.match(tree, /const sources = \(await this\.localWorkspaceChoices\(\)\)/);
   assert.match(tree, /discoveryWorkspaceSourceOverrides/);
   assert.doesNotMatch(tree, /const selected = this\.outgoing\?\.workspaces\?\.length \? this\.outgoing\.workspaces/);
@@ -2349,7 +2393,8 @@ await test('Handoff endpoint selections persist exact Core References and Pack c
   assert.match(builder, /materialBindingsForDiscoverySources/);
   assert.match(builder, /--material-bindings/);
   assert.match(builder, /referenceTarget: reference/);
-  assert.match(builder, /discovery Workspace to be carried a second time|must never/);
+  assert.match(builder, /const carriedWorkspaceIds = new Set\(selectedSources\.map/);
+  assert.match(builder, /discoverySources\.filter\(\(source\) => !carriedWorkspaceIds\.has\(source\.workspaceId\)\)/);
   assert.match(builder, /participantRoles\?: PackageParticipantRole\[\]/);
 });
 

@@ -20,6 +20,56 @@ export function exactHandoffEndpointMarkdownLink(candidate: Pick<ExactHandoffEnd
   return `[${label}](${target})`;
 }
 
+
+export interface ExactHandoffEndpointSelectionValue {
+  label?: string;
+  value?: string;
+  kind?: string;
+  reference?: string;
+}
+
+function endpointFieldContainer(values: Record<string, unknown>, field: string): Record<string, unknown> {
+  if (Object.prototype.hasOwnProperty.call(values, field)) return values;
+  const matches = Object.values(values).filter((value): value is Record<string, unknown> =>
+    Boolean(value && typeof value === 'object' && !Array.isArray(value) && Object.prototype.hasOwnProperty.call(value, field))
+  );
+  if (matches.length !== 1) throw new Error(`tiinex.authoring.field-container-${matches.length ? 'ambiguous' : 'unresolved'}:${field}`);
+  return matches[0];
+}
+
+function deleteEndpointReference(values: Record<string, unknown>, field: string): void {
+  delete values[field];
+  for (const value of Object.values(values)) {
+    if (value && typeof value === 'object' && !Array.isArray(value)) delete (value as Record<string, unknown>)[field];
+  }
+}
+
+export function applyExactHandoffEndpointSelection(
+  values: Record<string, unknown>,
+  field: 'From' | 'To' | 'Return To',
+  selected: ExactHandoffEndpointSelectionValue | null | undefined
+): void {
+  if (!selected) {
+    deleteEndpointReference(values, `${field} Reference`);
+    return;
+  }
+  const reference = String(selected.reference || '').trim();
+  const label = String(selected.value || selected.label || '').trim();
+  if (!reference || !label) throw new Error(`tiinex.authoring.endpoint-selection-incomplete:${field}`);
+  const container = endpointFieldContainer(values, field);
+  container[field] = label;
+  container[`${field} Reference`] = exactHandoffEndpointMarkdownLink({
+    reference,
+    authoringLabel: label,
+    label: String(selected.label || label).trim()
+  });
+  if (field !== 'Return To') {
+    const kind = String(selected.kind || '').trim();
+    if (!kind) throw new Error(`tiinex.authoring.endpoint-selection-incomplete:${field}`);
+    container[`${field} Kind`] = kind;
+  }
+}
+
 export interface ExplicitHandoffEndpointSource {
   workspaceId: string;
   root: string;
