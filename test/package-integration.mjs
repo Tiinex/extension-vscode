@@ -44,7 +44,7 @@ try {
   };
   const { buildHandoffPackageFromForm, loadHandoffRouteChoicesForSource } = require('../dist/packageBuilder.js');
   const { prepareBundledRuntime, preparePackageRuntimeWithRecovery, runTiinexJson } = require('../dist/tiinex/bootstrap.js');
-  const { extractZipBuffer } = require('../dist/host/zip.js');
+  const { extractZipBuffer, inspectZipBuffer } = require('../dist/host/zip.js');
   const filename = 'business-001-9-2.handoff-package.zip';
   const input = { routeId: 'workspace-carrier:none', workspaceIds: ['vscode'], outputDirectory: output, expectedCarrierFilename: filename };
   const built = await buildHandoffPackageFromForm(root, input);
@@ -82,9 +82,21 @@ try {
   await routedGit('commit', '-qm', 'fixture');
   const routedChoices = await loadHandoffRouteChoicesForSource(root, { workspaceId: 'extension-host-acceptance', root: routedFixture });
   assert.equal(routedChoices.length, 2);
+  const participantByRoute = new Map([
+    [routedChoices[0].id, {
+      label: 'Sigma Role — fixture presentation', authoringLabel: 'Sigma',
+      reference: 'extension-host-acceptance::.topics/roles/sigma-role.trace.md',
+      workspaceId: 'extension-host-acceptance', path: '.topics/roles/sigma-role.trace.md'
+    }],
+    [routedChoices[1].id, {
+      label: 'Pilot Role — fixture presentation', authoringLabel: 'Pilot',
+      reference: 'extension-host-acceptance::.topics/roles/pilot-role.trace.md',
+      workspaceId: 'extension-host-acceptance', path: '.topics/roles/pilot-role.trace.md'
+    }]
+  ]);
   const routed = await buildHandoffPackageFromForm(root, {
     routeId: routedChoices[0].id,
-    routeInputs: routedChoices.map((route) => ({ routeId: route.id })),
+    routeInputs: routedChoices.map((route) => ({ routeId: route.id, participantRoles: [participantByRoute.get(route.id)] })),
     workspaceIds: ['extension-host-acceptance'],
     workspaceSourceOverrides: [{ workspaceId: 'extension-host-acceptance', root: routedFixture }],
     carrierPrefix: 'business-001',
@@ -104,7 +116,12 @@ try {
     ['extension-host-acceptance', '.topics/handoffs/acceptance-route-one.trace.md', 'Anchor', 'Loom'],
     ['extension-host-acceptance', '.topics/handoffs/acceptance-route-two.trace.md', 'Anchor', 'Kodax']
   ]);
-  pass('multi-route Pack consumes Core-qualified route ids for presentation and preserves every routed Handoff in one carrier');
+  const routedEntries = await inspectZipBuffer(await readFile(routed.outputPath));
+  const routedPaths = routedEntries.filter((item) => !item.directory).map((item) => item.path);
+  assert.equal(routedPaths.filter((item) => /-handoff-pointer\.trace\.md$/.test(item)).length, 2);
+  assert.ok(routedPaths.some((item) => /-sigma-role-pointer\.trace\.md$/.test(item)), 'Sigma participant Role pointer must be a physical carrier file');
+  assert.ok(routedPaths.some((item) => /-pilot-role-pointer\.trace\.md$/.test(item)), 'Pilot participant Role pointer must be a physical carrier file');
+  pass('multi-route Pack preserves Core-qualified routes and physical Handoff/participant pointer files in the finished carrier');
 
   const originalBytes = await readFile(built.outputPath);
   const retry = await buildHandoffPackageFromForm(root, input);

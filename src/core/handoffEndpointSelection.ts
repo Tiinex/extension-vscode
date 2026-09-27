@@ -11,6 +11,15 @@ export interface ExactHandoffEndpointCandidate {
   qualification: string;
 }
 
+
+export function exactHandoffEndpointMarkdownLink(candidate: Pick<ExactHandoffEndpointCandidate, 'reference' | 'authoringLabel' | 'label'>): string {
+  const label = String(candidate.authoringLabel || candidate.label || '').trim();
+  const target = String(candidate.reference || '').trim();
+  if (!label || /[\]\r\n]/u.test(label)) throw new Error('tiinex.authoring.endpoint-link-label-invalid');
+  if (!target || /[)\s]/u.test(target)) throw new Error('tiinex.authoring.endpoint-link-target-invalid');
+  return `[${label}](${target})`;
+}
+
 export interface ExplicitHandoffEndpointSource {
   workspaceId: string;
   root: string;

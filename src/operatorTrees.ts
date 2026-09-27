@@ -11,6 +11,7 @@ import { preferredRepositoryParent } from './core/receiveUx';
 import { qualifiedRoutes, QualifiedRouteReceipt, receivedHandoffContext, receivedGroundingProjection } from './core/receivedHandoff';
 import { mergeTransportRouteSelection, selectedTransportRouteIds, StoredTransportQueueItem, transportPrepared, transportPreparedKey, TransportPreparedRecord } from './core/transportQueue';
 import { loadHandoffEndpointChoicesForSources, loadHandoffRouteChoicesForSource, loadLocalWorkspaceChoices, buildHandoffPackageFromForm, announceBuiltCarrier, routeChoiceKeyForHandoff, IncomingPackageWorkspaceSource, PackageWorkspaceChoice, PackageWorkspaceSourceOverride, PackageRouteRouting, PackageParticipantProjection, PackageParticipantRole, projectHandoffPackageParticipants, qualifyLocalWorkspaceChoice } from './packageBuilder';
+import { exactHandoffEndpointMarkdownLink } from './core/handoffEndpointSelection';
 import { ArtifactAuthoringCatalog, ArtifactDraftParent, loadArtifactAuthoringCatalog, loadArtifactAuthoringModel, prepareArtifactDraft, PreparedArtifactDraft, qualifyArtifactDraftParent, qualifyExistingHandoff, writePreparedArtifactDraft } from './authoring';
 import { initializeRepositoryWorkspace } from './workspaceInitialization';
 import { repositoryRootForResource } from './vscode/gitApi';
@@ -2943,7 +2944,11 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
         const label = String(selected.value || selected.label || '').trim();
         if (!reference || !label) throw new Error(`tiinex.authoring.endpoint-selection-incomplete:${field}`);
         values[field] = label;
-        values[`${field} Reference`] = reference;
+        values[`${field} Reference`] = exactHandoffEndpointMarkdownLink({
+          reference,
+          authoringLabel: label,
+          label: String(selected.label || label).trim()
+        });
         if (field !== 'Return To') {
           const kind = String(selected.kind || '').trim();
           if (!kind) throw new Error(`tiinex.authoring.endpoint-selection-incomplete:${field}`);

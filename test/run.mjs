@@ -23,7 +23,7 @@ import { planWorkspaceSession, validateWorkspaceTargetMapping } from '../dist/co
 import { representativeWorkspaceChoicesForRoot } from '../dist/core/workspaceChoice.js';
 import { participantProjectionFromManufactureReceipt } from '../dist/core/participantProjection.js';
 import { assertStableQualifiedCarrierAllocation, qualifiedCarrierAllocationFromManufactureReceipt } from '../dist/core/carrierAllocation.js';
-import { endpointCandidatesForExplicitSource, mergeExactHandoffEndpointChoices } from '../dist/core/handoffEndpointSelection.js';
+import { endpointCandidatesForExplicitSource, exactHandoffEndpointMarkdownLink, mergeExactHandoffEndpointChoices } from '../dist/core/handoffEndpointSelection.js';
 import { handoffRouteCandidatesForExplicitSource } from '../dist/core/handoffRouteSelection.js';
 import { checkIgnoredPaths, commitPreparedGitOperator, commitPreparedReviewedStaged, commitWorkingTree, deriveGitOperatorCommitMessage, dirtyWorkingTreePaths, discardWorkingTree, generateTiinexCommitMessage, listStagedConflictMarkerPaths, listStagedMutationPaths, listStagedPaths, materializeUnmergedFileConflicts, mergeCommitNoCommit, payloadCheckoutEligibility, preflightExistingLocalBranch, prepareGitOperatorCommit, prepareReviewedStagedCommit, pushExactGitOperatorCommit, pushExactLandingCommit, pushExactReviewedStagedCommit, stageCommitPush, stageLandingChanges, stageLandingCommit, stashWorkingTree, unstageLandingPaths } from '../dist/host/git.js';
 import { preferredNodeExecutable } from '../dist/host/nodeExecutable.js';
@@ -93,6 +93,16 @@ await test('Handoff endpoint host scoping preserves exact same-label choices and
   assert.equal(merged[1].authoringLabel, 'Sigma');
 });
 
+
+await test('Handoff endpoint authoring serializes qualified dropdown identity as exact schema-required Markdown Link', async () => {
+  assert.equal(exactHandoffEndpointMarkdownLink({
+    label: 'Glimmer Role — Canonical Holder Cutover Continuation',
+    authoringLabel: 'Glimmer',
+    reference: 'business::.topics/roles/001-5-1-glimmer-canonical-holder-cutover-role.trace.md'
+  }), '[Glimmer](business::.topics/roles/001-5-1-glimmer-canonical-holder-cutover-role.trace.md)');
+  assert.throws(() => exactHandoffEndpointMarkdownLink({ label: 'bad]label', reference: 'business::.topics/roles/x.trace.md' }), /endpoint-link-label-invalid/);
+  assert.throws(() => exactHandoffEndpointMarkdownLink({ label: 'Glimmer', reference: 'business::.topics/roles/bad path.trace.md' }), /endpoint-link-target-invalid/);
+});
 
 await test('Handoff route host scoping consumes Core qualification and rejects nested fixture paths', async () => {
   const source = { workspaceId: 'business', root: '/repo/business' };
@@ -2330,7 +2340,7 @@ await test('Handoff endpoint selections persist exact Core References and Pack c
   assert.match(panel, /field\+' Reference'/);
   const tree = await fs.readFile(path.join(root, 'src', 'operatorTrees.ts'), 'utf8');
   assert.match(tree, /\[`\$\{field\} Reference`\]: item\.reference/);
-  assert.match(tree, /values\[`\$\{field\} Reference`\] = reference/);
+  assert.match(tree, /values\[`\$\{field\} Reference`\] = exactHandoffEndpointMarkdownLink/);
   assert.match(tree, /delete values\[`\$\{field\} Reference`\]/);
   assert.match(tree, /const sources = \(await this\.localWorkspaceChoices\(\)\)/);
   assert.match(tree, /discoveryWorkspaceSourceOverrides/);
