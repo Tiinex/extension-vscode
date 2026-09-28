@@ -10,3 +10,5 @@ test-environment-full-conversation.md
 dist
 .vscode/link/
 *.zip
+
+dist-audit/

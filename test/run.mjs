@@ -11,7 +11,7 @@ import { ignoredPathCollisions, safeRelativePath, safeTarget } from '../dist/cor
 import { preferredRepositoryParent, routesPreferredForRole } from '../dist/core/receiveUx.js';
 import { alphabeticalWorkspaceIds, artifactsForLineageMode, currentRoleArtifacts, currentRoleChoices, makeIndexedArtifact } from '../dist/core/artifactTree.js';
 import { artifactReferenceAvailable, markdownLinkTargets, materialTargetKey, resolveArtifactReference } from '../dist/core/artifactNavigation.js';
-import { receivedHandoffContext, receivedGroundingProjection, withWorkspaceRoots } from '../dist/core/receivedHandoff.js';
+import { qualifiedRoutes, receivedHandoffContext, receivedGroundingProjection, withWorkspaceRoots } from '../dist/core/receivedHandoff.js';
 import { operatorMatchedWorkspaceIds, resolvePrioritizedWorkspaceDuplicates } from '../dist/core/sourceSelection.js';
 import { carrierFilenameForCollisionInstance, carrierPrefixForDimension, chooseNextMajorParent, comparePackageRecency, inheritedOutgoingLabel, majorOutgoingLabel, rootOutgoingLabel, rootOutgoingPrefix } from '../dist/core/outgoingUx.js';
 import { projectArtifactAuthoringModel } from '../dist/core/artifactAuthoringModel.js';
@@ -555,6 +555,10 @@ await test('extension contributes stable Discovery, Incoming, Outgoing and Trans
   assert.match(treeSource, /const pointerPath = normalizePath\(String\(item\.pointerPath \|\| ''\)\)/);
   assert.match(treeSource, /projectPackageTransport\(runtime, resolved, pointerPath\)/);
   assert.doesNotMatch(treeSource, /projectPackageTransport\(runtime, resolved, `\$\{workspaceId\}:\$\{handoffPath\}`\)/);
+  assert.match(treeSource, /if \(link\?\.pointerPath\) routeSelector = link\.pointerPath/);
+  assert.doesNotMatch(treeSource, /routeSelector = `\$\{link\.workspaceId\}:\$\{link\.handoffPath\}`/);
+  assert.match(treeSource, /routes\.push\(\{ routeId, workspaceId, handoffPath, pointerPath, recipientLabel, transportText \}\)/);
+  assert.match(treeSource, /route\.routeId === value \|\| normalizePath\(route\.pointerPath\) === pointerPath/);
   assert.doesNotMatch(treeSource, /const base = orientationRoutes\.length \? await projectPackageTransport\(runtime, resolved\) : null/);
   assert.match(treeSource, /tiinex\.transport\.queue\.v1/);
   assert.match(treeSource, /tiinex\.transport\.prepared\.v1/);
@@ -809,6 +813,9 @@ await test('received carrier context stays qualified when only a subset of carri
     routes: [{
       id: 'route-1', state: 'qualified', workspaceId: 'extension-vscode',
       workspaceRelativeHandoffPath: '.topics/handoff.trace.md', pointerPath: '001-pointer.trace.md', from: 'Anchor', to: 'Sigma',
+      endpointRolePointers: ['001-from-role-pointer.trace.md', '001-to-role-pointer.trace.md'],
+      participantRolePointers: ['001-participant-role-pointer.trace.md'],
+      groundingPointers: ['001-grounding-pointer.trace.md'],
       requiredClosure: { state: 'qualified', requiredCount: 2, qualifiedCount: 2, requirements: [
         { state: 'qualified', resolution: { workspaceId: 'business' } },
         { state: 'qualified', resolution: { workspaceId: 'extension-vscode' } }
@@ -820,6 +827,10 @@ await test('received carrier context stays qualified when only a subset of carri
     authority: { route: { id: 'route-1', pointerPath: '001-pointer.trace.md', workspaceId: 'extension-vscode' } },
     currentWork: { frontier: [{ id: 'extension-vscode/.topics/task.trace.md', path: 'extension-vscode/.topics/task.trace.md', title: 'Task' }] }
   };
+  const projectedRoute = qualifiedRoutes(orientation)[0];
+  assert.deepEqual(projectedRoute.endpointRolePointers, ['001-from-role-pointer.trace.md', '001-to-role-pointer.trace.md']);
+  assert.deepEqual(projectedRoute.participantRolePointers, ['001-participant-role-pointer.trace.md']);
+  assert.deepEqual(projectedRoute.groundingPointers, ['001-grounding-pointer.trace.md']);
   const received = receivedHandoffContext('/carrier.zip', orientation, grounding, 'route-1');
   const partial = withWorkspaceRoots(received, { 'extension-vscode': '/repos/vscode' });
   assert.deepEqual(partial.carriedWorkspaceIds, ['business', 'core', 'extension-vscode']);
@@ -1521,8 +1532,8 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(tree, /trackOutgoingHandoff/);
   assert.match(tree, /root: parentRoot/);
   assert.match(tree, /root: local\.choice\.root/);
-  assert.match(tree, /Participant Role ·/);
-  assert.match(tree, /pointer pending Pack/);
+  assert.match(tree, /Participant Role pointer ·/);
+  assert.match(tree, /final carrier path pending Pack/);
   assert.match(tree, /Participant Role:/);
   assert.match(tree, /attachOutgoingHandoffNode/);
   assert.match(tree, /detachOutgoingHandoffNode/);
@@ -2045,6 +2056,14 @@ await test('multi-Incoming and Merge/Replace remain selection-first, dry until f
   assert.match(tree, /logicalWorkspaceHandoffTargets/);
   assert.match(tree, /resolved-handoff:/);
   assert.match(tree, /logicalHandoffProvenance/);
+  assert.match(tree, /projectedOutgoingRoutePointerNodes\(\{ draft: tracked, fullLineage: false \}\)/);
+  assert.match(tree, /collapsible: vscode\.TreeItemCollapsibleState\.Collapsed,[\s\S]*draftId: item\.id, workspaceId/);
+  assert.doesNotMatch(tree, /collapsible: item\.participants\.length \? vscode\.TreeItemCollapsibleState\.Collapsed/);
+  assert.match(tree, /route\?\.participantRolePointers \|\| \[\]/);
+  assert.match(tree, /const paths = \[exactPointerPath\]/);
+  assert.match(tree, /'Handoff pointer'[\s\S]*'Core allocation · final carrier path pending Pack'/);
+  assert.match(tree, /`Participant Role pointer · \$\{participant\.label\}`/);
+  assert.doesNotMatch(tree, /outgoingParticipantRolePointerPreview/);
   assert.match(tree, /pointerTargetChildren/);
   assert.match(tree, /workspaceFileTreeChildren/);
   assert.match(tree, /logicalLineageChildren/);

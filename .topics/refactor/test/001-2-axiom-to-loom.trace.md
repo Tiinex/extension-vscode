@@ -9,29 +9,29 @@
     - [relative](001-test.trace.md)
 - Current
   - Current Schema: [tiinex.handoff.v1](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.schemas/coordination/handoff/tiinex.handoff.v1.schema.md)
-  - Created At: 2026-09-27 20:58:46
-  - Summary: Handoff Draft
+  - Created At: 2026-09-28 11:20:14
+  - Summary: Test Igen
   - Status: draft/local
 
 ---
 
-# Handoff Draft
+# Test Igen
 
 ## Handoff Parties
 
-- Purpose: Perform the bounded work described by this Handoff and return the result.
-- From: Sigma
+- Purpose: Open an interactive bounded conversation with the receiving role about the subject described by this Handoff.
+- From: Axiom
 - From Kind: role
-- To: Anchor
+- To: Loom
 - To Kind: role
-- From Reference: [Sigma](business::.topics/roles/001-4-1-sigma-canonical-holder-cutover-role.trace.md)
-- To Reference: [Anchor](business::.topics/roles/001-1-1-1-1-1-anchor-canonical-holder-cutover-role.trace.md)
+- From Reference: [Axiom](business::.topics/roles/001-2-1-axiom-canonical-holder-cutover-role.trace.md)
+- To Reference: [Loom](business::.topics/roles/001-3-1-loom-canonical-holder-cutover-role.trace.md)
 
 ## Transfers
 
-- bounded-work
-  - Transfer Kind: work-and-responsibility
-  - Description: Perform the bounded work described by this Handoff and return the qualified result.
+- bounded-conversation
+  - Transfer Kind: work
+  - Description: Participate in the bounded live conversation or brainstorm. Respond conversationally; do not turn the exchange into a durable result artifact unless explicitly requested.
 
 ## Required Context
 
@@ -51,13 +51,15 @@
 
 ## Completion Expectation
 
-- Signal Kind: return
-- Signal Meaning: Return the completed result, qualification evidence, and any blockers.
+- Signal Kind: none
+- Signal Meaning: This Handoff opens a live conversation. No automatic completion artifact, disposition, or return package is expected; continue the conversation until the participants explicitly choose a next action.
+- Return To: Pilot
+- Return To Reference: [Pilot](business::.topics/roles/001-7-1-pilot-canonical-holder-cutover-role.trace.md)
 
 ## Interpretation Limits
 
-- Does Not Mean: This Handoff does not grant authority beyond the explicit transfer and carried context.
-- Must Not Be Used To Claim: Do not infer acceptance, completion, or authority beyond the explicit Handoff content.
+- Does Not Mean: Opening the conversation does not transfer implementation authority or require the receiving role to manufacture a durable discussion result.
+- Must Not Be Used To Claim: Do not infer implementation, acceptance, completion, or a required return artifact from conversational participation alone.
 
 ---
 
@@ -69,4 +71,4 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: QRBXik7KdV8Y5wO8N_wrZtR1PfLNg7i2wo-5J1qJxv4
+  - Value: rDinGpIwg0RDe4DN26JCmP-nAvzM6FSJcQlODow3NOI

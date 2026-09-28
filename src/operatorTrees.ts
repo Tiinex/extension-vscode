@@ -177,6 +177,7 @@ interface TransportRouteState {
   routeId: string;
   workspaceId: string;
   handoffPath: string;
+  pointerPath: string;
   recipientLabel: string;
   transportText: string;
 }
@@ -875,6 +876,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
           workspaceId: route.workspaceId,
           handoffPath: route.workspaceRelativeHandoffPath,
           pointerPath: route.pointerPath,
+          participantRolePointers: [...route.participantRolePointers],
           from: route.from,
           to: route.to,
           grounding: item.groundingByRouteId.has(route.id)
@@ -910,6 +912,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
         filename: item.filename,
         sha256: item.sha256,
         genericTransportText: item.genericTransportText,
+        routeIds: item.routeIds === null ? null : [...item.routeIds],
         routes: item.routes.map((route) => ({ ...route }))
       })),
       events: [...extensionHostAcceptanceEvents()]
@@ -1017,7 +1020,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       const pointerPath = String(node.data.groupName || '').replace(/^resolved-handoff:/, '');
       const link = this.packageHandoffLinks(node.data.section, node.data.workspaceId, packagePath)
         .find((item) => normalizePath(item.pointerPath) === normalizePath(pointerPath));
-      if (link?.handoffPath) routeSelector = `${link.workspaceId}:${link.handoffPath}`;
+      if (link?.pointerPath) routeSelector = link.pointerPath;
     }
     await this.queueTransportPackage(packagePath, routeSelector, true);
   }
@@ -1146,7 +1149,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
           const recipientLabel = String(projection.humanOutput?.presentation?.recipientLabel || selected?.parties?.to || '').trim();
           if (!routeId || !transportText) throw new Error(`tiinex.transport.route-output-incomplete:${workspaceId}:${handoffPath}`);
           if (!presentationLabel) presentationLabel = String(projection.humanOutput?.primary?.kind || '').trim();
-          routes.push({ routeId, workspaceId, handoffPath, recipientLabel, transportText });
+          routes.push({ routeId, workspaceId, handoffPath, pointerPath, recipientLabel, transportText });
         }
       }
 
@@ -1169,7 +1172,8 @@ export class TiinexOperatorTrees implements vscode.Disposable {
 
   private transportRouteForSelector(item: TransportPackageState, selector: string): TransportRouteState | undefined {
     const value = String(selector || '').trim();
-    return item.routes.find((route) => route.routeId === value || `${route.workspaceId}:${normalizePath(route.handoffPath)}` === value);
+    const pointerPath = normalizePath(value);
+    return item.routes.find((route) => route.routeId === value || normalizePath(route.pointerPath) === pointerPath);
   }
 
   private visibleTransportRoutes(item: TransportPackageState): TransportRouteState[] {
@@ -4240,15 +4244,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     if (section === 'outgoing' && node.data.kind === 'draft' && node.data.draftId) {
       const tracked = this.outgoing?.drafts.find((item) => item.id === node.data.draftId);
       if (!tracked) return [];
-      return tracked.participants.map((participant, index) => new OperatorNode({
-        kind: 'projectedFile', section: 'outgoing', id: `outgoing:participant-role:${tracked.id}:${index + 1}`,
-        label: `Participant Role · ${participant.label}`,
-        description: 'pointer pending Pack',
-        tooltip: `${participant.reference}
-Core will materialize the participant Role pointer during carrier manufacture.`,
-        contextValue: 'tiinex.outgoingParticipantRolePointerPreview', workspaceId,
-        draftId: tracked.id, pointerKind: 'participant'
-      }));
+      return projectedOutgoingRoutePointerNodes({ draft: tracked, fullLineage: false });
     }
 
     if (node.data.kind === 'directory' && node.data.pathPrefix?.startsWith('logical-files:')) {
@@ -4341,7 +4337,10 @@ Core will materialize the participant Role pointer during carrier manufacture.`,
               : 'handoff · preview only',
             tooltip: [item.draft.path, item.participantProjectionDetail, ...participantLines, ACTIVE_SPEAKER_NON_AUTHORITY].filter(Boolean).join('\n'),
             contextValue: item.writtenPath ? (item.routeIncluded ? 'tiinex.outgoingDraftRoute' : 'tiinex.outgoingDraftWritten') : 'tiinex.outgoingDraft',
-            collapsible: item.participants.length ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None,
+            // Every included written Handoff has at least the Core-owned Handoff pointer
+            // projection as a child. Participant count must not decide whether that
+            // provenance row is reachable (zero additional participants is valid).
+            collapsible: vscode.TreeItemCollapsibleState.Collapsed,
             draftId: item.id, workspaceId
           });
         });
@@ -4400,11 +4399,26 @@ Core will materialize the participant Role pointer during carrier manufacture.`,
 
   private async logicalHandoffProvenance(section: OperatorSection, workspaceId: string, packagePath: string, pointerPath: string): Promise<OperatorNode[]> {
     const index = await this.logicalCarrierIndex(section, packagePath);
-    const pointer = index?.carrierArtifacts.find((item) => normalizePath(item.path) === normalizePath(pointerPath));
+    if (!index) return [];
+    const exactPointerPath = normalizePath(pointerPath);
+    const pointer = index.carrierArtifacts.find((item) => normalizePath(item.path) === exactPointerPath);
     if (!pointer) return [];
-    const node = fileArtifactNode(section, pointer, packagePath);
-    node.data.workspaceId = workspaceId;
-    return [node];
+    const paths = [exactPointerPath];
+    if (section === 'incoming') {
+      const route = qualifiedRoutes(this.incomingState(packagePath)?.orientation)
+        .find((item) => normalizePath(item.pointerPath) === exactPointerPath);
+      for (const participantPointerPath of route?.participantRolePointers || []) {
+        const normalized = normalizePath(participantPointerPath);
+        if (normalized && !paths.includes(normalized)) paths.push(normalized);
+      }
+    }
+    return paths.flatMap((candidatePath) => {
+      const artifact = index.carrierArtifacts.find((item) => normalizePath(item.path) === candidatePath);
+      if (!artifact) return [];
+      const node = fileArtifactNode(section, artifact, packagePath);
+      node.data.workspaceId = workspaceId;
+      return [node];
+    });
   }
 
   private resolveCarrierPointerTarget(index: IndexedCarrierPackage, pointer: IndexedArtifact): { workspaceId: string; targetPath: string; artifact?: IndexedArtifact } | null {
@@ -4886,8 +4900,13 @@ function nextMajorDimension(value: string): string {
 
 function projectedOutgoingRoutePointerNodes(input: { draft: OutgoingDraft; fullLineage: boolean }): OperatorNode[] {
   const { draft, fullLineage } = input;
-  const nodes: OperatorNode[] = [];
-  if (fullLineage && draft.participantProjectionState === 'qualified') {
+  const nodes: OperatorNode[] = [projectedPendingSemanticNode(
+    'Handoff pointer',
+    'Core allocation · final carrier path pending Pack',
+    draft.draft.workspaceId,
+    { contextValue: 'tiinex.outgoingHandoffPointerProjected', draftId: draft.id, pointerKind: 'handoff' }
+  )];
+  if (draft.participantProjectionState === 'qualified') {
     for (const participant of draft.participants) {
       nodes.push(projectedPendingSemanticNode(
         `Participant Role pointer · ${participant.label}`,
@@ -4908,12 +4927,6 @@ function projectedOutgoingRoutePointerNodes(input: { draft: OutgoingDraft; fullL
       ));
     }
   }
-  nodes.push(projectedPendingSemanticNode(
-    'Handoff pointer',
-    'Core allocation · final carrier path pending Pack',
-    draft.draft.workspaceId,
-    { contextValue: 'tiinex.outgoingHandoffPointerProjected', draftId: draft.id, pointerKind: 'handoff' }
-  ));
   return nodes;
 }
 

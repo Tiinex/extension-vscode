@@ -9,27 +9,29 @@
     - [relative](001-test.trace.md)
 - Current
   - Current Schema: [tiinex.handoff.v1](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.schemas/coordination/handoff/tiinex.handoff.v1.schema.md)
-  - Created At: 2026-09-21 20:52:35
-  - Summary: Handoff Draft
+  - Created At: 2026-09-28 11:00:52
+  - Summary: Test Handoff 1
   - Status: draft/local
 
 ---
 
-# Handoff Draft
+# Test Handoff 1
 
 ## Handoff Parties
 
-- Purpose: Open an interactive bounded conversation with the receiving role about the subject described by this Handoff.
-- From: Sigma
+- Purpose: Perform the bounded work described by this Handoff and return the result.
+- From: Glimmer
 - From Kind: role
-- To: Anchor
+- To: Loom
 - To Kind: role
+- From Reference: [Glimmer](business::.topics/roles/001-5-1-glimmer-canonical-holder-cutover-role.trace.md)
+- To Reference: [Loom](business::.topics/roles/001-3-1-loom-canonical-holder-cutover-role.trace.md)
 
 ## Transfers
 
-- bounded-conversation
-  - Transfer Kind: work
-  - Description: Participate in the bounded live conversation or brainstorm. Respond conversationally; do not turn the exchange into a durable result artifact unless explicitly requested.
+- bounded-work
+  - Transfer Kind: work-and-responsibility
+  - Description: Perform the bounded work described by this Handoff and return the qualified result.
 
 ## Required Context
 
@@ -49,13 +51,15 @@
 
 ## Completion Expectation
 
-- Signal Kind: none
-- Signal Meaning: This Handoff opens a live conversation. No automatic completion artifact, disposition, or return package is expected; continue the conversation until the participants explicitly choose a next action.
+- Signal Kind: return
+- Signal Meaning: Return the completed result, qualification evidence, and any blockers.
+- Return To: Sigma
+- Return To Reference: [Sigma](business::.topics/roles/001-4-1-sigma-canonical-holder-cutover-role.trace.md)
 
 ## Interpretation Limits
 
-- Does Not Mean: Opening the conversation does not transfer implementation authority or require the receiving role to manufacture a durable discussion result.
-- Must Not Be Used To Claim: Do not infer implementation, acceptance, completion, or a required return artifact from conversational participation alone.
+- Does Not Mean: This Handoff does not grant authority beyond the explicit transfer and carried context.
+- Must Not Be Used To Claim: Do not infer acceptance, completion, or authority beyond the explicit Handoff content.
 
 ---
 
@@ -67,4 +71,4 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: Mw9QS-ymrcRvBJeikFJhQW3JyTLrn0lnXhhiqITQpro
+  - Value: tdQnONKdCx975vQWHE-Q_1_Qq4yvQFhVBOS_F6H-7UA

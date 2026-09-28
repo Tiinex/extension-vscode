@@ -116,12 +116,17 @@ try {
     ['extension-host-acceptance', '.topics/handoffs/acceptance-route-one.trace.md', 'Anchor', 'Loom'],
     ['extension-host-acceptance', '.topics/handoffs/acceptance-route-two.trace.md', 'Anchor', 'Kodax']
   ]);
+  assert.ok(routedOrientation.routes.every((item) => Array.isArray(item.participantRolePointers) && item.participantRolePointers.length >= 1), 'Core orientation must preserve participant Role pointer ancestry for every qualified route');
   const routedEntries = await inspectZipBuffer(await readFile(routed.outputPath));
   const routedPaths = routedEntries.filter((item) => !item.directory).map((item) => item.path);
   assert.equal(routedPaths.filter((item) => /-handoff-pointer\.trace\.md$/.test(item)).length, 2);
   assert.ok(routedPaths.some((item) => /-sigma-role-pointer\.trace\.md$/.test(item)), 'Sigma participant Role pointer must be a physical carrier file');
   assert.ok(routedPaths.some((item) => /-pilot-role-pointer\.trace\.md$/.test(item)), 'Pilot participant Role pointer must be a physical carrier file');
-  pass('multi-route Pack preserves Core-qualified routes and physical Handoff/participant pointer files in the finished carrier');
+  for (const route of routedOrientation.routes) {
+    assert.ok(routedPaths.includes(route.pointerPath), `Core-projected Handoff pointer must exist physically: ${route.pointerPath}`);
+    for (const pointerPath of route.participantRolePointers) assert.ok(routedPaths.includes(pointerPath), `Core-projected participant Role pointer must exist physically: ${pointerPath}`);
+  }
+  pass('multi-route Pack preserves Core-qualified routes, route-to-participant pointer ancestry, and physical Handoff/participant pointer files in the finished carrier');
 
   const originalBytes = await readFile(built.outputPath);
   const retry = await buildHandoffPackageFromForm(root, input);
