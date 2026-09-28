@@ -9,29 +9,27 @@
     - [relative](001-test.trace.md)
 - Current
   - Current Schema: [tiinex.handoff.v1](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.schemas/coordination/handoff/tiinex.handoff.v1.schema.md)
-  - Created At: 2026-09-28 11:00:52
-  - Summary: Test Handoff 1
+  - Created At: 2026-09-21 20:52:35
+  - Summary: Handoff Draft
   - Status: draft/local
 
 ---
 
-# Test Handoff 1
+# Handoff Draft
 
 ## Handoff Parties
 
-- Purpose: Perform the bounded work described by this Handoff and return the result.
-- From: Glimmer
+- Purpose: Open an interactive bounded conversation with the receiving role about the subject described by this Handoff.
+- From: Sigma
 - From Kind: role
-- To: Loom
+- To: Anchor
 - To Kind: role
-- From Reference: [Glimmer](business::.topics/roles/001-5-1-glimmer-canonical-holder-cutover-role.trace.md)
-- To Reference: [Loom](business::.topics/roles/001-3-1-loom-canonical-holder-cutover-role.trace.md)
 
 ## Transfers
 
-- bounded-work
-  - Transfer Kind: work-and-responsibility
-  - Description: Perform the bounded work described by this Handoff and return the qualified result.
+- bounded-conversation
+  - Transfer Kind: work
+  - Description: Participate in the bounded live conversation or brainstorm. Respond conversationally; do not turn the exchange into a durable result artifact unless explicitly requested.
 
 ## Required Context
 
@@ -51,15 +49,13 @@
 
 ## Completion Expectation
 
-- Signal Kind: return
-- Signal Meaning: Return the completed result, qualification evidence, and any blockers.
-- Return To: Sigma
-- Return To Reference: [Sigma](business::.topics/roles/001-4-1-sigma-canonical-holder-cutover-role.trace.md)
+- Signal Kind: none
+- Signal Meaning: This Handoff opens a live conversation. No automatic completion artifact, disposition, or return package is expected; continue the conversation until the participants explicitly choose a next action.
 
 ## Interpretation Limits
 
-- Does Not Mean: This Handoff does not grant authority beyond the explicit transfer and carried context.
-- Must Not Be Used To Claim: Do not infer acceptance, completion, or authority beyond the explicit Handoff content.
+- Does Not Mean: Opening the conversation does not transfer implementation authority or require the receiving role to manufacture a durable discussion result.
+- Must Not Be Used To Claim: Do not infer implementation, acceptance, completion, or a required return artifact from conversational participation alone.
 
 ---
 
@@ -71,4 +67,4 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: tdQnONKdCx975vQWHE-Q_1_Qq4yvQFhVBOS_F6H-7UA
+  - Value: Mw9QS-ymrcRvBJeikFJhQW3JyTLrn0lnXhhiqITQpro

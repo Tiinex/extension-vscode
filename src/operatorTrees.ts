@@ -177,7 +177,6 @@ interface TransportRouteState {
   routeId: string;
   workspaceId: string;
   handoffPath: string;
-  pointerPath: string;
   recipientLabel: string;
   transportText: string;
 }
@@ -876,7 +875,6 @@ export class TiinexOperatorTrees implements vscode.Disposable {
           workspaceId: route.workspaceId,
           handoffPath: route.workspaceRelativeHandoffPath,
           pointerPath: route.pointerPath,
-          participantRolePointers: [...route.participantRolePointers],
           from: route.from,
           to: route.to,
           grounding: item.groundingByRouteId.has(route.id)
@@ -912,7 +910,6 @@ export class TiinexOperatorTrees implements vscode.Disposable {
         filename: item.filename,
         sha256: item.sha256,
         genericTransportText: item.genericTransportText,
-        routeIds: item.routeIds === null ? null : [...item.routeIds],
         routes: item.routes.map((route) => ({ ...route }))
       })),
       events: [...extensionHostAcceptanceEvents()]
@@ -1020,7 +1017,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       const pointerPath = String(node.data.groupName || '').replace(/^resolved-handoff:/, '');
       const link = this.packageHandoffLinks(node.data.section, node.data.workspaceId, packagePath)
         .find((item) => normalizePath(item.pointerPath) === normalizePath(pointerPath));
-      if (link?.pointerPath) routeSelector = link.pointerPath;
+      if (link?.handoffPath) routeSelector = `${link.workspaceId}:${link.handoffPath}`;
     }
     await this.queueTransportPackage(packagePath, routeSelector, true);
   }
@@ -1149,7 +1146,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
           const recipientLabel = String(projection.humanOutput?.presentation?.recipientLabel || selected?.parties?.to || '').trim();
           if (!routeId || !transportText) throw new Error(`tiinex.transport.route-output-incomplete:${workspaceId}:${handoffPath}`);
           if (!presentationLabel) presentationLabel = String(projection.humanOutput?.primary?.kind || '').trim();
-          routes.push({ routeId, workspaceId, handoffPath, pointerPath, recipientLabel, transportText });
+          routes.push({ routeId, workspaceId, handoffPath, recipientLabel, transportText });
         }
       }
 
@@ -1172,8 +1169,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
 
   private transportRouteForSelector(item: TransportPackageState, selector: string): TransportRouteState | undefined {
     const value = String(selector || '').trim();
-    const pointerPath = normalizePath(value);
-    return item.routes.find((route) => route.routeId === value || normalizePath(route.pointerPath) === pointerPath);
+    return item.routes.find((route) => route.routeId === value || `${route.workspaceId}:${normalizePath(route.handoffPath)}` === value);
   }
 
   private visibleTransportRoutes(item: TransportPackageState): TransportRouteState[] {
@@ -1237,7 +1233,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     const insideWorkspace = (vscode.workspace.workspaceFolders || []).some((folder: vscode.WorkspaceFolder) => repositoryContainsPath(folder.uri.fsPath, target));
     try {
       if (insideWorkspace) await vscode.commands.executeCommand('revealInExplorer', vscode.Uri.file(target));
-      else await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(target));
+      else await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(path.dirname(target)));
       await this.markTransportPrepared(item, routeId, 'packagePrepared');
     } catch (error) {
       await vscode.window.showWarningMessage(`Tiinex could not reveal ${item.filename}: ${shortMessage(error)}`);
@@ -1826,8 +1822,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
 
 does not qualify as the selected Tiinex Workspace ${workspaceId}. No source was changed.`,
           { modal: true },
-          'Choose Another',
-          'Cancel'
+          'Choose Another'
         );
         if (choice !== 'Choose Another') return null;
       }
@@ -1872,8 +1867,7 @@ ${mapping}
 
 Tiinex will open a dedicated temporary multi-root workspace in a new VS Code window containing only these repositories. The current window/workspace is not modified, and no repository source changes occur before the resumed Review Plan reaches its final Execute step.`,
       { modal: true },
-      'Open Multi-Repo Workspace',
-      'Cancel'
+      'Open Multi-Repo Workspace'
     );
     if (accepted !== 'Open Multi-Repo Workspace') return 'cancelled';
     const prepared = await prepareIncomingMultiRootSession(this.context.globalStorageUri.fsPath, {
@@ -2577,8 +2571,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       const accepted = await vscode.window.showWarningMessage(
         `Changing Workspace source will remove ${this.outgoing.drafts.filter((item) => changedDraftWorkspaceIds.has(item.draft.workspaceId)).length} Outgoing Handoff draft(s) tied to: ${[...changedDraftWorkspaceIds].join(', ')}.`,
         { modal: true },
-        'Continue',
-        'Cancel'
+        'Continue'
       );
       if (accepted !== 'Continue') return false;
     }
@@ -4244,7 +4237,10 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     if (section === 'outgoing' && node.data.kind === 'draft' && node.data.draftId) {
       const tracked = this.outgoing?.drafts.find((item) => item.id === node.data.draftId);
       if (!tracked) return [];
-      return projectedOutgoingRoutePointerNodes({ draft: tracked, fullLineage: false });
+      // Lineage controls which authored artifacts are visible, not whether a
+      // Handoff row exposes its carrier-bound pointer/reference detail. These
+      // projected rows remain identical in Leaves and Full Lineage modes.
+      return projectedOutgoingRoutePointerNodes({ draft: tracked });
     }
 
     if (node.data.kind === 'directory' && node.data.pathPrefix?.startsWith('logical-files:')) {
@@ -4337,9 +4333,6 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
               : 'handoff · preview only',
             tooltip: [item.draft.path, item.participantProjectionDetail, ...participantLines, ACTIVE_SPEAKER_NON_AUTHORITY].filter(Boolean).join('\n'),
             contextValue: item.writtenPath ? (item.routeIncluded ? 'tiinex.outgoingDraftRoute' : 'tiinex.outgoingDraftWritten') : 'tiinex.outgoingDraft',
-            // Every included written Handoff has at least the Core-owned Handoff pointer
-            // projection as a child. Participant count must not decide whether that
-            // provenance row is reachable (zero additional participants is valid).
             collapsible: vscode.TreeItemCollapsibleState.Collapsed,
             draftId: item.id, workspaceId
           });
@@ -4399,26 +4392,11 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
 
   private async logicalHandoffProvenance(section: OperatorSection, workspaceId: string, packagePath: string, pointerPath: string): Promise<OperatorNode[]> {
     const index = await this.logicalCarrierIndex(section, packagePath);
-    if (!index) return [];
-    const exactPointerPath = normalizePath(pointerPath);
-    const pointer = index.carrierArtifacts.find((item) => normalizePath(item.path) === exactPointerPath);
+    const pointer = index?.carrierArtifacts.find((item) => normalizePath(item.path) === normalizePath(pointerPath));
     if (!pointer) return [];
-    const paths = [exactPointerPath];
-    if (section === 'incoming') {
-      const route = qualifiedRoutes(this.incomingState(packagePath)?.orientation)
-        .find((item) => normalizePath(item.pointerPath) === exactPointerPath);
-      for (const participantPointerPath of route?.participantRolePointers || []) {
-        const normalized = normalizePath(participantPointerPath);
-        if (normalized && !paths.includes(normalized)) paths.push(normalized);
-      }
-    }
-    return paths.flatMap((candidatePath) => {
-      const artifact = index.carrierArtifacts.find((item) => normalizePath(item.path) === candidatePath);
-      if (!artifact) return [];
-      const node = fileArtifactNode(section, artifact, packagePath);
-      node.data.workspaceId = workspaceId;
-      return [node];
-    });
+    const node = fileArtifactNode(section, pointer, packagePath);
+    node.data.workspaceId = workspaceId;
+    return [node];
   }
 
   private resolveCarrierPointerTarget(index: IndexedCarrierPackage, pointer: IndexedArtifact): { workspaceId: string; targetPath: string; artifact?: IndexedArtifact } | null {
@@ -4898,14 +4876,9 @@ function nextMajorDimension(value: string): string {
   return String(current + 1).padStart(3, '0');
 }
 
-function projectedOutgoingRoutePointerNodes(input: { draft: OutgoingDraft; fullLineage: boolean }): OperatorNode[] {
-  const { draft, fullLineage } = input;
-  const nodes: OperatorNode[] = [projectedPendingSemanticNode(
-    'Handoff pointer',
-    'Core allocation · final carrier path pending Pack',
-    draft.draft.workspaceId,
-    { contextValue: 'tiinex.outgoingHandoffPointerProjected', draftId: draft.id, pointerKind: 'handoff' }
-  )];
+function projectedOutgoingRoutePointerNodes(input: { draft: OutgoingDraft }): OperatorNode[] {
+  const { draft } = input;
+  const nodes: OperatorNode[] = [];
   if (draft.participantProjectionState === 'qualified') {
     for (const participant of draft.participants) {
       nodes.push(projectedPendingSemanticNode(
@@ -4916,17 +4889,21 @@ function projectedOutgoingRoutePointerNodes(input: { draft: OutgoingDraft; fullL
       ));
     }
   }
-  if (fullLineage) {
-    for (const [field, party] of [['From Reference', 'From'], ['To Reference', 'To']] as const) {
-      const reference = handoffRoleReference(draft.draft.markdown, field);
-      if (!reference) continue;
-      nodes.push(projectedPendingSemanticNode(
-        `${party} endpoint reference`,
-        'Durable Handoff Reference · Core materialization pending Pack',
-        draft.draft.workspaceId
-      ));
-    }
+  for (const [field, party] of [['From Reference', 'From'], ['To Reference', 'To']] as const) {
+    const reference = handoffRoleReference(draft.draft.markdown, field);
+    if (!reference) continue;
+    nodes.push(projectedPendingSemanticNode(
+      `${party} endpoint reference`,
+      'Durable Handoff Reference · Core materialization pending Pack',
+      draft.draft.workspaceId
+    ));
   }
+  nodes.push(projectedPendingSemanticNode(
+    'Handoff pointer',
+    'Core allocation · final carrier path pending Pack',
+    draft.draft.workspaceId,
+    { contextValue: 'tiinex.outgoingHandoffPointerProjected', draftId: draft.id, pointerKind: 'handoff' }
+  ));
   return nodes;
 }
 

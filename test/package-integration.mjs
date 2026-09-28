@@ -26,6 +26,21 @@ const vscode = {
   Uri: { file: (fsPath) => ({ fsPath }) },
   window: { showOpenDialog: async () => { throw new Error('unexpected folder prompt'); } }
 };
+
+async function listFiles(root) {
+  const out = [];
+  async function visit(dir, prefix = '') {
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) await visit(path.join(dir, entry.name), rel);
+      else if (entry.isFile()) out.push(rel);
+    }
+  }
+  await visit(root);
+  return out.sort();
+}
+
+
 try {
   await mkdir(path.join(fixture, '.topics', '.workspaces'), { recursive: true });
   for (const name of ['tiinex-vscode.workspace.md']) {
@@ -116,17 +131,12 @@ try {
     ['extension-host-acceptance', '.topics/handoffs/acceptance-route-one.trace.md', 'Anchor', 'Loom'],
     ['extension-host-acceptance', '.topics/handoffs/acceptance-route-two.trace.md', 'Anchor', 'Kodax']
   ]);
-  assert.ok(routedOrientation.routes.every((item) => Array.isArray(item.participantRolePointers) && item.participantRolePointers.length >= 1), 'Core orientation must preserve participant Role pointer ancestry for every qualified route');
   const routedEntries = await inspectZipBuffer(await readFile(routed.outputPath));
   const routedPaths = routedEntries.filter((item) => !item.directory).map((item) => item.path);
   assert.equal(routedPaths.filter((item) => /-handoff-pointer\.trace\.md$/.test(item)).length, 2);
   assert.ok(routedPaths.some((item) => /-sigma-role-pointer\.trace\.md$/.test(item)), 'Sigma participant Role pointer must be a physical carrier file');
   assert.ok(routedPaths.some((item) => /-pilot-role-pointer\.trace\.md$/.test(item)), 'Pilot participant Role pointer must be a physical carrier file');
-  for (const route of routedOrientation.routes) {
-    assert.ok(routedPaths.includes(route.pointerPath), `Core-projected Handoff pointer must exist physically: ${route.pointerPath}`);
-    for (const pointerPath of route.participantRolePointers) assert.ok(routedPaths.includes(pointerPath), `Core-projected participant Role pointer must exist physically: ${pointerPath}`);
-  }
-  pass('multi-route Pack preserves Core-qualified routes, route-to-participant pointer ancestry, and physical Handoff/participant pointer files in the finished carrier');
+  pass('multi-route Pack preserves Core-qualified routes and physical Handoff/participant pointer files in the finished carrier');
 
   const originalBytes = await readFile(built.outputPath);
   const retry = await buildHandoffPackageFromForm(root, input);
@@ -143,6 +153,15 @@ try {
   await extractZipBuffer(await readFile(receipt.output), installed);
   const installedRoot = path.join(installed, 'extension');
   await readFile(path.join(installedRoot, 'package-lock.json'));
+  const packagedCoreRoot = path.join(installedRoot, 'node_modules', '@tiinex', 'core');
+  const packagedCorePaths = (await listFiles(packagedCoreRoot)).map((item) => item.replace(/\\/g, '/'));
+  assert.ok(packagedCorePaths.includes('package.json'));
+  assert.ok(packagedCorePaths.includes('tools/tiinex-portable.mjs'));
+  assert.ok(packagedCorePaths.some((item) => item.startsWith('src/')));
+  assert.equal(packagedCorePaths.some((item) => item.startsWith('.topics/')), false, 'VSIX must honor Core package files contract and omit Core continuity source');
+  assert.equal(packagedCorePaths.some((item) => item.startsWith('test/')), false, 'VSIX must omit Core tests');
+  assert.equal(packagedCorePaths.some((item) => item.startsWith('.github/')), false, 'VSIX must omit Core repository automation');
+  assert.equal(packagedCorePaths.length, receipt.runtime.files);
   // Load from the extracted VSIX, not from the development checkout.
   const installedBootstrap = require(path.join(installedRoot, 'dist', 'tiinex', 'bootstrap.js'));
   const packagedRuntime = await installedBootstrap.prepareBundledRuntime(installedRoot, process.execPath);

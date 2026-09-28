@@ -33,9 +33,6 @@ export interface QualifiedRouteReceipt {
   pointerPath: string;
   from: string;
   to: string;
-  endpointRolePointers: string[];
-  participantRolePointers: string[];
-  groundingPointers: string[];
   requiredClosure?: {
     state?: string;
     requiredCount?: number;
@@ -74,9 +71,6 @@ export function qualifiedRoutes(orientation: any): QualifiedRouteReceipt[] {
       pointerPath: text(item?.pointerPath),
       from: text(item?.from),
       to: text(item?.to),
-      endpointRolePointers: Array.isArray(item?.endpointRolePointers) ? item.endpointRolePointers.map(text).filter(Boolean) : [],
-      participantRolePointers: Array.isArray(item?.participantRolePointers) ? item.participantRolePointers.map(text).filter(Boolean) : [],
-      groundingPointers: Array.isArray(item?.groundingPointers) ? item.groundingPointers.map(text).filter(Boolean) : [],
       requiredClosure: item?.requiredClosure
     }))
     .filter((item: QualifiedRouteReceipt) => Boolean(item.id && item.workspaceId && item.workspaceRelativeHandoffPath && item.pointerPath));

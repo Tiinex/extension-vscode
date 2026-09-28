@@ -7,3 +7,10 @@ tsconfig.json
 node_modules/@types/**
 node_modules/@vscode/**
 node_modules/typescript/**
+.topics/**
+.vscode/**
+dist-audit/**
+tools/**
+docs/KODAX-CARRIER-MAJOR-002-STATUS.md
+docs/PACK-DOGFOOD.md
+docs/SIGMA-WINDOWS-DOGFOOD.md

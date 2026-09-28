@@ -1,11 +1,14 @@
 import { createHash } from 'node:crypto';
+import { execFile } from 'node:child_process';
 import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
+const run = promisify(execFile);
 const packageJson = JSON.parse(await readFile(path.join(ROOT, 'package.json'), 'utf8'));
 const OUT = path.join(ROOT, 'dist', `tiinex-vscode-${packageJson.version}.vsix`);
 const CORE_NAME = '@tiinex/core';
@@ -32,15 +35,17 @@ if (binding.bindingMode === 'sibling-source') {
 }
 
 const files = [];
-for (const relative of ['LICENSE', 'NOTICE', 'README.md']) files.push([`extension/${relative}`, await readFile(path.join(ROOT, relative))]);
+for (const relative of ['LICENSE', 'NOTICE', 'README.md', 'CHANGELOG.md', 'SUPPORT.md']) files.push([`extension/${relative}`, await readFile(path.join(ROOT, relative))]);
 files.push(['extension/package.json', Buffer.from(`${JSON.stringify(packagedManifest, null, 2)}\n`, 'utf8')]);
 files.push(['extension/package-lock.json', Buffer.from(`${JSON.stringify(packagedLock, null, 2)}\n`, 'utf8')]);
 for (const relative of await walk(path.join(ROOT, 'dist'))) {
-  if (relative.endsWith('.vsix')) continue;
+  if (relative.endsWith('.vsix') || relative.endsWith('.map')) continue;
   files.push([`extension/dist/${relative}`, await readFile(path.join(ROOT, 'dist', relative))]);
 }
 const coreFiles = [];
-for (const relative of await walk(coreRoot)) {
+const packagedCorePaths = await packageRuntimeFiles(coreRoot);
+if (!packagedCorePaths.includes(coreEntrypointRelative)) throw new Error('tiinex.vsix.core-entrypoint-not-packaged');
+for (const relative of packagedCorePaths) {
   const data = await readFile(path.join(coreRoot, relative));
   coreFiles.push([relative, data]);
   files.push([`extension/node_modules/@tiinex/core/${relative}`, data]);
@@ -49,7 +54,7 @@ for (const relative of await walk(path.join(ROOT, 'media'))) files.push([`extens
 
 const coreRepresentation = representationReceipt(coreFiles);
 const contentTypes = `<?xml version="1.0" encoding="utf-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="json" ContentType="application/json"/><Default Extension="js" ContentType="application/javascript"/><Default Extension="mjs" ContentType="application/javascript"/><Default Extension="map" ContentType="application/json"/><Default Extension="md" ContentType="text/markdown"/><Default Extension="txt" ContentType="text/plain"/><Default Extension="" ContentType="application/octet-stream"/><Override PartName="/extension.vsixmanifest" ContentType="text/xml"/></Types>`;
-const manifest = `<?xml version="1.0" encoding="utf-8"?><PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011"><Metadata><Identity Language="en-US" Id="${escapeXml(packageJson.name)}" Version="${escapeXml(packageJson.version)}" Publisher="${escapeXml(packageJson.publisher)}"/><DisplayName>${escapeXml(packageJson.displayName)}</DisplayName><Description xml:space="preserve">${escapeXml(packageJson.description)}</Description><Tags>Tiinex</Tags><Categories>Other</Categories><Properties><Property Id="Microsoft.VisualStudio.Code.Engine" Value="${escapeXml(packageJson.engines.vscode)}"/></Properties></Metadata><Installation><InstallationTarget Id="Microsoft.VisualStudio.Code"/></Installation><Dependencies/><Assets><Asset Type="Microsoft.VisualStudio.Code.Manifest" Path="extension/package.json" Addressable="true"/></Assets></PackageManifest>`;
+const manifest = `<?xml version="1.0" encoding="utf-8"?><PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011"><Metadata><Identity Language="en-US" Id="${escapeXml(packageJson.name)}" Version="${escapeXml(packageJson.version)}" Publisher="${escapeXml(packageJson.publisher)}"/><DisplayName>${escapeXml(packageJson.displayName)}</DisplayName><Description xml:space="preserve">${escapeXml(packageJson.description)}</Description><Tags>${escapeXml((packageJson.keywords || ['tiinex']).join(','))}</Tags><Categories>${escapeXml((packageJson.categories || ['Other']).join(','))}</Categories><Properties><Property Id="Microsoft.VisualStudio.Code.Engine" Value="${escapeXml(packageJson.engines.vscode)}"/></Properties></Metadata><Installation><InstallationTarget Id="Microsoft.VisualStudio.Code"/></Installation><Dependencies/><Assets><Asset Type="Microsoft.VisualStudio.Code.Manifest" Path="extension/package.json" Addressable="true"/></Assets></PackageManifest>`;
 files.unshift(['extension.vsixmanifest', Buffer.from(manifest)], ['[Content_Types].xml', Buffer.from(contentTypes)]);
 files.sort((a,b)=>a[0].localeCompare(b[0]));
 await mkdir(path.dirname(OUT), { recursive: true });
@@ -75,6 +80,29 @@ console.log(JSON.stringify({
   },
   freshness: 'prior-candidate-removed-before-runtime-qualification'
 }));
+
+async function packageRuntimeFiles(root) {
+  const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+  const packed = await run(npm, ['pack', '--dry-run', '--json', root], {
+    cwd: ROOT,
+    maxBuffer: 16 * 1024 * 1024,
+    windowsHide: true
+  });
+  let report;
+  try { report = JSON.parse(packed.stdout); }
+  catch { throw new Error('tiinex.vsix.core-package-packlist-invalid-json'); }
+  const files = Array.isArray(report) ? report[0]?.files : null;
+  if (!Array.isArray(files) || !files.length) throw new Error('tiinex.vsix.core-package-packlist-empty');
+  const selected = [];
+  for (const item of files) {
+    const relative = String(item?.path || '').replace(/\\/g, '/').replace(/^\.\//, '');
+    if (!relative || relative.startsWith('/') || relative.split('/').includes('..')) {
+      throw new Error(`tiinex.vsix.core-package-packlist-path-invalid:${relative || '<empty>'}`);
+    }
+    selected.push(relative);
+  }
+  return [...new Set(selected)].sort((a, b) => a.localeCompare(b));
+}
 
 async function walk(root) {
   const out=[];

@@ -1,10 +1,10 @@
 {
   "name": "tiinex-vscode",
   "displayName": "Tiinex",
-  "description": "Thin native VS Code operator bridge for qualified Tiinex validation, artifact-first Handoff authoring, package construction, Workspace landing, and Git workflow.",
+  "description": "Native Tiinex workflows for qualified Handoffs, Workspace carriers, Incoming/Outgoing review, Transport, and Git in VS Code.",
   "version": "0.1.7",
   "publisher": "tiinex",
-  "license": "SEE LICENSE IN LICENSE",
+  "license": "Apache-2.0",
   "engines": {
     "vscode": "^1.95.0"
   },
@@ -218,7 +218,7 @@
       {
         "command": "tiinex.outgoing.excludeRoute",
         "title": "Tiinex: Exclude Handoff Route",
-        "icon": "$(unlink)"
+        "icon": "$(circle-slash)"
       },
       {
         "command": "tiinex.outgoing.includeRoute",
@@ -273,7 +273,7 @@
       },
       {
         "command": "tiinex.git.commitRepository",
-        "title": "Tiinex: Commit Repository…",
+        "title": "Tiinex: Commit Repository\u2026",
         "icon": "$(check)"
       },
       {
@@ -349,7 +349,7 @@
       {
         "command": "tiinex.outgoing.detachHandoff",
         "title": "Detach Handoff from Outgoing",
-        "icon": "$(unlink)"
+        "icon": "$(debug-disconnect)"
       },
       {
         "command": "tiinex.outgoing.removeHandoffPointer",
@@ -452,10 +452,10 @@
             "commit-push"
           ],
           "enumDescriptions": [
-            "Do Nothing — leave staged changes staged; no Tiinex commit or push is initiated.",
-            "Ask — after a stable staged Tiinex state passes the Git safety gates, ask once for that exact staged state: Commit creates the local commit, Commit + Push creates then publishes only that exact commit through the existing push-safety gates, and Cancel leaves staging unchanged.",
-            "Commit — after a stable staged-state event, auto-commit only the exact staged selection when it contains Tiinex Markdown material and passes the Git safety gates; Tiinex qualification is not re-run here.",
-            "Commit + Push — apply the same staged-selection Git safety gates and require an aligned upstream before committing; then push only the exact commit created by that same Tiinex operation."
+            "Do Nothing \u2014 leave staged changes staged; no Tiinex commit or push is initiated.",
+            "Ask \u2014 after a stable staged Tiinex state passes the Git safety gates, ask once for that exact staged state: Commit creates the local commit, Commit + Push creates then publishes only that exact commit through the existing push-safety gates, and Cancel leaves staging unchanged.",
+            "Commit \u2014 after a stable staged-state event, auto-commit only the exact staged selection when it contains Tiinex Markdown material and passes the Git safety gates; Tiinex qualification is not re-run here.",
+            "Commit + Push \u2014 apply the same staged-selection Git safety gates and require an aligned upstream before committing; then push only the exact commit created by that same Tiinex operation."
           ],
           "default": "ask",
           "description": "Post-stage Git policy over a stable staged Tiinex selection. It is independent of tiinex.landing.stage, never performs Stage All, and does not re-run Tiinex qualification before ordinary commit/push."
@@ -995,7 +995,10 @@
     "dev:unlink": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ensure-windows-main-host-dev-extension-link.ps1 -Unlink",
     "test:package": "npm run build && node test/package-integration.mjs",
     "test:local-core": "node scripts/test-local-core.mjs",
-    "test:extension-host": "node scripts/test-extension-host.mjs"
+    "test:extension-host": "node scripts/test-extension-host.mjs",
+    "release:check": "npm run validate && npm run release:audit",
+    "release:audit": "node scripts/release-check.mjs",
+    "vscode:prepublish": "npm run build && npm run release:audit"
   },
   "dependencies": {
     "@tiinex/core": "^0.45.0"
@@ -1008,5 +1011,35 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Tiinex/extension-vscode.git"
+  },
+  "keywords": [
+    "tiinex",
+    "handoff",
+    "workspace",
+    "continuity",
+    "lineage",
+    "transport",
+    "git",
+    "workflow"
+  ],
+  "homepage": "https://github.com/Tiinex/extension-vscode",
+  "bugs": {
+    "url": "https://github.com/Tiinex/extension-vscode/issues"
+  },
+  "pricing": "Free",
+  "icon": "media/tiinex-marketplace.png",
+  "galleryBanner": {
+    "color": "#123a52",
+    "theme": "dark"
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "Tiinex runs local Tooling, Git, and explicit Workspace mutation flows and therefore requires a trusted Workspace."
+    },
+    "virtualWorkspaces": {
+      "supported": false,
+      "description": "Tiinex requires local filesystem, Node.js Tooling, Git repositories, and physical Handoff packages."
+    }
   }
 }

@@ -207,29 +207,6 @@ async function firstHostRun({ manifest, fixturePackage, workspaceRoot }) {
   assert.equal(routedIncoming.routes.every((route) => route.grounding === null), true, 'Incoming routes must begin ungrounded; host bookkeeping cannot pre-authorize them');
   const routeToGround = routedIncoming.routes.find((route) => route.handoffPath === authored.path) || routedIncoming.routes[0];
   assert.ok(routeToGround?.pointerPath, 'qualified routed Incoming must expose the exact Core pointer coordinate for grounding');
-  assert.ok(routeToGround.participantRolePointers.length >= 1, 'Core orientation must expose exact participant Role pointer ancestry for the authored route');
-
-  // Exercise the route-row Send to Transport seam independently from Pack. Close
-  // the package-wide queue item, send exactly one qualified Handoff row using its
-  // Core-owned pointer coordinate, verify the route selection, then restore the
-  // package-wide selection for the restart gate.
-  await vscode.commands.executeCommand('tiinex.transport.close', { data: { packagePath: routed[0].packagePath } });
-  snapshot = await vscode.commands.executeCommand('tiinex.acceptance.snapshot');
-  assert.equal(snapshot.transport.some((item) => path.resolve(item.packagePath) === path.resolve(routed[0].packagePath)), false, 'test seam must remove the existing package-wide Transport item first');
-  await vscode.commands.executeCommand('tiinex.transport.send', { data: {
-    packagePath: routed[0].packagePath, workspaceId: routeToGround.workspaceId, section: 'incoming',
-    contextValue: 'tiinex.incomingResolvedHandoff', groupName: `resolved-handoff:${routeToGround.pointerPath}`
-  } });
-  snapshot = await vscode.commands.executeCommand('tiinex.acceptance.snapshot');
-  const routeOnlyTransport = snapshot.transport.find((item) => path.resolve(item.packagePath) === path.resolve(routed[0].packagePath));
-  assert.ok(routeOnlyTransport, 'Send to Transport from one Incoming Handoff row must queue the exact carrier bytes');
-  assert.deepEqual(routeOnlyTransport.routeIds, [routeToGround.routeId], 'Handoff-row Send to Transport must select exactly the Core-qualified route id resolved from the Core pointer path');
-  assert.ok(routeOnlyTransport.routes.some((route) => route.routeId === routeToGround.routeId && route.pointerPath === routeToGround.pointerPath), 'queued Transport route must retain the exact Core pointer coordinate');
-  await vscode.commands.executeCommand('tiinex.transport.send', { data: { packagePath: routed[0].packagePath } });
-  snapshot = await vscode.commands.executeCommand('tiinex.acceptance.snapshot');
-  const restoredPackageTransport = snapshot.transport.find((item) => path.resolve(item.packagePath) === path.resolve(routed[0].packagePath));
-  assert.equal(restoredPackageTransport.routeIds, null, 'package-root Send to Transport must restore the whole qualified route set');
-
   await vscode.commands.executeCommand('tiinex.incoming.groundHandoff', { data: { packagePath: routed[0].packagePath, groupName: `resolved-handoff:${routeToGround.pointerPath}` } });
   snapshot = await vscode.commands.executeCommand('tiinex.acceptance.snapshot');
   const groundedIncoming = snapshot.incoming.find((item) => path.resolve(item.packagePath) === path.resolve(routed[0].packagePath));

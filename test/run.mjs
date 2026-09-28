@@ -11,7 +11,7 @@ import { ignoredPathCollisions, safeRelativePath, safeTarget } from '../dist/cor
 import { preferredRepositoryParent, routesPreferredForRole } from '../dist/core/receiveUx.js';
 import { alphabeticalWorkspaceIds, artifactsForLineageMode, currentRoleArtifacts, currentRoleChoices, makeIndexedArtifact } from '../dist/core/artifactTree.js';
 import { artifactReferenceAvailable, markdownLinkTargets, materialTargetKey, resolveArtifactReference } from '../dist/core/artifactNavigation.js';
-import { qualifiedRoutes, receivedHandoffContext, receivedGroundingProjection, withWorkspaceRoots } from '../dist/core/receivedHandoff.js';
+import { receivedHandoffContext, receivedGroundingProjection, withWorkspaceRoots } from '../dist/core/receivedHandoff.js';
 import { operatorMatchedWorkspaceIds, resolvePrioritizedWorkspaceDuplicates } from '../dist/core/sourceSelection.js';
 import { carrierFilenameForCollisionInstance, carrierPrefixForDimension, chooseNextMajorParent, comparePackageRecency, inheritedOutgoingLabel, majorOutgoingLabel, rootOutgoingLabel, rootOutgoingPrefix } from '../dist/core/outgoingUx.js';
 import { projectArtifactAuthoringModel } from '../dist/core/artifactAuthoringModel.js';
@@ -555,10 +555,6 @@ await test('extension contributes stable Discovery, Incoming, Outgoing and Trans
   assert.match(treeSource, /const pointerPath = normalizePath\(String\(item\.pointerPath \|\| ''\)\)/);
   assert.match(treeSource, /projectPackageTransport\(runtime, resolved, pointerPath\)/);
   assert.doesNotMatch(treeSource, /projectPackageTransport\(runtime, resolved, `\$\{workspaceId\}:\$\{handoffPath\}`\)/);
-  assert.match(treeSource, /if \(link\?\.pointerPath\) routeSelector = link\.pointerPath/);
-  assert.doesNotMatch(treeSource, /routeSelector = `\$\{link\.workspaceId\}:\$\{link\.handoffPath\}`/);
-  assert.match(treeSource, /routes\.push\(\{ routeId, workspaceId, handoffPath, pointerPath, recipientLabel, transportText \}\)/);
-  assert.match(treeSource, /route\.routeId === value \|\| normalizePath\(route\.pointerPath\) === pointerPath/);
   assert.doesNotMatch(treeSource, /const base = orientationRoutes\.length \? await projectPackageTransport\(runtime, resolved\) : null/);
   assert.match(treeSource, /tiinex\.transport\.queue\.v1/);
   assert.match(treeSource, /tiinex\.transport\.prepared\.v1/);
@@ -813,9 +809,6 @@ await test('received carrier context stays qualified when only a subset of carri
     routes: [{
       id: 'route-1', state: 'qualified', workspaceId: 'extension-vscode',
       workspaceRelativeHandoffPath: '.topics/handoff.trace.md', pointerPath: '001-pointer.trace.md', from: 'Anchor', to: 'Sigma',
-      endpointRolePointers: ['001-from-role-pointer.trace.md', '001-to-role-pointer.trace.md'],
-      participantRolePointers: ['001-participant-role-pointer.trace.md'],
-      groundingPointers: ['001-grounding-pointer.trace.md'],
       requiredClosure: { state: 'qualified', requiredCount: 2, qualifiedCount: 2, requirements: [
         { state: 'qualified', resolution: { workspaceId: 'business' } },
         { state: 'qualified', resolution: { workspaceId: 'extension-vscode' } }
@@ -827,10 +820,6 @@ await test('received carrier context stays qualified when only a subset of carri
     authority: { route: { id: 'route-1', pointerPath: '001-pointer.trace.md', workspaceId: 'extension-vscode' } },
     currentWork: { frontier: [{ id: 'extension-vscode/.topics/task.trace.md', path: 'extension-vscode/.topics/task.trace.md', title: 'Task' }] }
   };
-  const projectedRoute = qualifiedRoutes(orientation)[0];
-  assert.deepEqual(projectedRoute.endpointRolePointers, ['001-from-role-pointer.trace.md', '001-to-role-pointer.trace.md']);
-  assert.deepEqual(projectedRoute.participantRolePointers, ['001-participant-role-pointer.trace.md']);
-  assert.deepEqual(projectedRoute.groundingPointers, ['001-grounding-pointer.trace.md']);
   const received = receivedHandoffContext('/carrier.zip', orientation, grounding, 'route-1');
   const partial = withWorkspaceRoots(received, { 'extension-vscode': '/repos/vscode' });
   assert.deepEqual(partial.carriedWorkspaceIds, ['business', 'core', 'extension-vscode']);
@@ -899,10 +888,9 @@ await test('operator README and deterministic GIF runbook describe the stabilize
   const capture = await fs.readFile(path.join(root, 'docs', 'GIF-CAPTURE.md'), 'utf8');
   const manifest = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8'));
   const lock = JSON.parse(await fs.readFile(path.join(root, 'package-lock.json'), 'utf8'));
-  assert.match(readme, /one \*\*Display Options\*\* control/);
-  assert.match(readme, /green \*\*qualified match\*\*/);
+  assert.match(readme, /support native display options/);
+  assert.match(readme, /Exact local matches are identified/);
   assert.match(readme, /docs\/GIF-CAPTURE\.md/);
-  assert.match(readme, /"@tiinex\/core": "\^0\.45\.0"/);
   if (process.env.TIINEX_LOCAL_CORE_ACCEPTANCE === '1') {
     assert.match(manifest.dependencies['@tiinex/core'], /^file:/);
     assert.equal(lock.packages[''].dependencies['@tiinex/core'], manifest.dependencies['@tiinex/core']);
@@ -2056,14 +2044,6 @@ await test('multi-Incoming and Merge/Replace remain selection-first, dry until f
   assert.match(tree, /logicalWorkspaceHandoffTargets/);
   assert.match(tree, /resolved-handoff:/);
   assert.match(tree, /logicalHandoffProvenance/);
-  assert.match(tree, /projectedOutgoingRoutePointerNodes\(\{ draft: tracked, fullLineage: false \}\)/);
-  assert.match(tree, /collapsible: vscode\.TreeItemCollapsibleState\.Collapsed,[\s\S]*draftId: item\.id, workspaceId/);
-  assert.doesNotMatch(tree, /collapsible: item\.participants\.length \? vscode\.TreeItemCollapsibleState\.Collapsed/);
-  assert.match(tree, /route\?\.participantRolePointers \|\| \[\]/);
-  assert.match(tree, /const paths = \[exactPointerPath\]/);
-  assert.match(tree, /'Handoff pointer'[\s\S]*'Core allocation · final carrier path pending Pack'/);
-  assert.match(tree, /`Participant Role pointer · \$\{participant\.label\}`/);
-  assert.doesNotMatch(tree, /outgoingParticipantRolePointerPreview/);
   assert.match(tree, /pointerTargetChildren/);
   assert.match(tree, /workspaceFileTreeChildren/);
   assert.match(tree, /logicalLineageChildren/);
@@ -3249,6 +3229,89 @@ await test('Stage Commit Push uses helper after staging and pushes only after su
     assert(commands.indexOf('git add -A') < commands.findIndex((item) => item.startsWith('node ')));
     assert(commands.findIndex((item) => item.startsWith('git commit -m ')) < commands.indexOf('git push'));
   } finally { await fs.rm(tmp, { recursive: true, force: true }); }
+});
+
+
+await test('Candidate 018 keeps lineage as artifact membership and normalizes native VS Code UX affordances', async () => {
+  const fs = await import('node:fs/promises');
+  const root = path.resolve(HERE, '..');
+  const manifest = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8'));
+  const tree = await fs.readFile(path.join(root, 'src', 'operatorTrees.ts'), 'utf8');
+  const packageBuilder = await fs.readFile(path.join(root, 'src', 'packageBuilder.ts'), 'utf8');
+  const commands = new Map((manifest.contributes?.commands || []).map((item) => [item.command, item]));
+  assert.equal(commands.get('tiinex.outgoing.excludeRoute')?.icon, '$(circle-slash)');
+  assert.equal(commands.get('tiinex.outgoing.detachHandoff')?.icon, '$(debug-disconnect)');
+  assert.equal((manifest.contributes?.commands || []).some((item) => item.icon === '$(unlink)'), false);
+  const vscode195CodiconsUsedByTiinex = new Set([
+    'add', 'arrow-down', 'arrow-up', 'check', 'circle-slash', 'clear-all', 'close', 'cloud', 'cloud-download',
+    'comment', 'copy', 'debug-disconnect', 'diff', 'file-zip', 'folder-opened', 'git-merge', 'git-pull-request-create',
+    'link', 'list-selection', 'list-tree', 'new-file', 'package', 'preview', 'references', 'refresh', 'replace-all',
+    'root-folder-opened', 'save', 'send', 'settings', 'target', 'tools', 'trash'
+  ]);
+  const contributedCodicons = (manifest.contributes?.commands || [])
+    .map((item) => typeof item.icon === 'string' && /^\$\(([^)]+)\)$/.exec(item.icon)?.[1])
+    .filter(Boolean);
+  assert.deepEqual([...new Set(contributedCodicons)].sort(), [...vscode195CodiconsUsedByTiinex].sort());
+
+  const changedSourcePrompt = tree.slice(tree.indexOf('Changing Workspace source will remove'), tree.indexOf('const previousBySourceKey'));
+  assert.match(changedSourcePrompt, /'Continue'/);
+  assert.doesNotMatch(changedSourcePrompt, /'Cancel'/);
+
+  const projection = tree.slice(tree.indexOf("if (section === 'outgoing' && node.data.kind === 'draft'"), tree.indexOf("if (node.data.kind === 'directory'", tree.indexOf("if (section === 'outgoing' && node.data.kind === 'draft'")));
+  assert.match(projection, /projectedOutgoingRoutePointerNodes\(\{ draft: tracked \}\)/);
+  const helper = tree.slice(tree.indexOf('function projectedOutgoingRoutePointerNodes'), tree.indexOf('function projectedPendingSemanticNode'));
+  assert.doesNotMatch(helper, /fullLineage|TreeLineageMode|lineage/);
+  assert.match(helper, /Participant Role pointer/);
+  assert.match(helper, /\[\['From Reference', 'From'\], \['To Reference', 'To'\]\]/);
+  assert.match(helper, /`\$\{party\} endpoint reference`/);
+  assert.match(helper, /Handoff pointer/);
+  assert.match(tree, /collapsible: vscode\.TreeItemCollapsibleState\.Collapsed,\n\s+draftId: item\.id, workspaceId/);
+
+  assert.match(tree, /revealFileInOS', vscode\.Uri\.file\(path\.dirname\(target\)\)/);
+  assert.match(packageBuilder, /action === 'Open Folder'[\s\S]*revealFileInOS', vscode\.Uri\.file\(path\.dirname\(target\)\)/);
+});
+
+await test('Marketplace surface is release-auditable without embedding a legacy publishing credential path', async () => {
+  const fs = await import('node:fs/promises');
+  const root = path.resolve(HERE, '..');
+  const manifest = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8'));
+  const readme = await fs.readFile(path.join(root, 'README.md'), 'utf8');
+  const changelog = await fs.readFile(path.join(root, 'CHANGELOG.md'), 'utf8');
+  const support = await fs.readFile(path.join(root, 'SUPPORT.md'), 'utf8');
+  const releaseDoc = await fs.readFile(path.join(root, 'docs', 'MARKETPLACE-RELEASE.md'), 'utf8');
+  const vscodeignore = await fs.readFile(path.join(root, '.vscodeignore'), 'utf8');
+  const gitignore = await fs.readFile(path.join(root, '.gitignore'), 'utf8');
+  const releaseCheck = await fs.readFile(path.join(root, 'scripts', 'release-check.mjs'), 'utf8');
+
+  assert.equal(manifest.publisher, 'tiinex');
+  assert.equal(manifest.license, 'Apache-2.0');
+  assert.match(manifest.repository?.url || '', /github\.com\/Tiinex\/extension-vscode/);
+  assert.equal(manifest.homepage, 'https://github.com/Tiinex/extension-vscode');
+  assert.equal(manifest.bugs?.url, 'https://github.com/Tiinex/extension-vscode/issues');
+  assert.ok(Array.isArray(manifest.keywords) && manifest.keywords.includes('handoff') && manifest.keywords.includes('tiinex'));
+  assert.equal(manifest.pricing, 'Free');
+  assert.equal(manifest.icon, 'media/tiinex-marketplace.png');
+  assert.equal(manifest.galleryBanner?.color, '#123a52');
+  assert.equal(manifest.galleryBanner?.theme, 'dark');
+  assert.equal(manifest.capabilities?.untrustedWorkspaces?.supported, false);
+  assert.equal(manifest.capabilities?.virtualWorkspaces?.supported, false);
+  assert.equal(manifest.scripts['release:audit'], 'node scripts/release-check.mjs');
+  assert.equal(manifest.scripts['vscode:prepublish'], 'npm run build && npm run release:audit');
+  assert.match(manifest.scripts['release:check'], /npm run validate/);
+  assert.match(readme, /Search for \*\*Tiinex\*\*/);
+  assert.match(readme, /Install the extension published by \*\*tiinex\*\*/);
+  assert.match(readme, /Discovery → Incoming → Outgoing → Pack → Transport/);
+  assert.match(readme, /Leaves vs Full Lineage/);
+  assert.match(readme, /npm run release:check/);
+  assert.match(changelog, /## Unreleased/);
+  assert.match(support, /Tiinex VS Code issue tracker/);
+  assert.match(releaseDoc, /Entra\/workload identity/);
+  assert.match(releaseDoc, /official `vsce package`/);
+  for (const pattern of ['src/**', 'test/**', 'scripts/**', '.topics/**', '.vscode/**', 'dist-audit/**']) assert.ok(vscodeignore.split(/\r?\n/).includes(pattern), pattern);
+  assert.ok(gitignore.split(/\r?\n/).includes('dist-audit/'));
+  assert.doesNotMatch(releaseCheck, /VSCE_PAT|Personal Access Token|PAT=/i);
+  assert.match(releaseCheck, /at least 128x128/);
+  assert.doesNotMatch(releaseCheck, /No Marketplace top-level PNG icon/);
 });
 
 console.log(`\n${count}/${count} Tiinex VS Code bridge core cases passed.`);

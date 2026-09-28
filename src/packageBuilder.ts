@@ -433,7 +433,7 @@ export async function announceBuiltCarrier(outputPath: string, label: string, no
   const revealAction = insideWorkspace ? 'Reveal in Explorer' : 'Open Folder';
   const action = await vscode.window.showInformationMessage(`Tiinex ${label} built.${note ? ` ${note}` : ''}`, revealAction, 'Copy path');
   if (action === 'Reveal in Explorer') await vscode.commands.executeCommand('revealInExplorer', vscode.Uri.file(target));
-  else if (action === 'Open Folder') await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(target));
+  else if (action === 'Open Folder') await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(path.dirname(target)));
   else if (action === 'Copy path') await vscode.env.clipboard.writeText(target);
 }
 
