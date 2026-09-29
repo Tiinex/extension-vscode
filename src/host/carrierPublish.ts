@@ -3,20 +3,37 @@ import { constants } from 'node:fs';
 import { copyFile, link, lstat, mkdir, mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { checkedCarrierFilename } from '../core/carrierFilename';
-import { carrierFilenameForCollisionInstance } from '../core/outgoingUx';
 
+export type CarrierDestinationState = 'absent' | 'identical' | 'different';
 
-/** Select a free human-output collision instance without changing carrier lineage. */
-export async function nextCarrierCollisionInstance(folder: string, baseFilename: string): Promise<number> {
+/** Host-owned filesystem fact only: enumerate names currently present in the
+ * selected destination. Core remains the owner of what any collision name means.
+ */
+export async function existingCarrierFilenames(folder: string): Promise<string[]> {
   const targetFolder = path.resolve(String(folder || '').trim());
-  const base = checkedCarrierFilename(baseFilename);
-  let names = new Set<string>();
-  try { names = new Set((await readdir(targetFolder)).map((item) => item.toLocaleLowerCase())); }
-  catch (error) { if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') throw error; }
-  for (let instance = 1; instance < 1000; instance += 1) {
-    if (!names.has(carrierFilenameForCollisionInstance(base, instance).toLocaleLowerCase())) return instance;
+  try { return await readdir(targetFolder); }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') return [];
+    throw error;
   }
-  throw new Error('tiinex.package-builder.output-collision-instance-exhausted');
+}
+
+/** Compare one already-manufactured qualified carrier with an exact destination
+ * filename without mutating either side. Unsafe destination objects fail closed.
+ */
+export async function inspectCarrierDestination(source: string, folder: string, filename: string): Promise<CarrierDestinationState> {
+  const name = checkedCarrierFilename(filename);
+  const destination = path.resolve(folder, name);
+  let info;
+  try { info = await lstat(destination); }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') return 'absent';
+    throw error;
+  }
+  if (!info.isFile() || info.isSymbolicLink()) throw new Error('tiinex.package-builder.output-exists-different');
+  const [existing, prepared] = await Promise.all([readFile(destination), readFile(source)]);
+  const hash = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex');
+  return existing.length === prepared.length && hash(existing) === hash(prepared) ? 'identical' : 'different';
 }
 
 /** Complete the file in destination-local staging, then link it into place.

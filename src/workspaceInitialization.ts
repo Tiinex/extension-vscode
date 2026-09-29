@@ -1,4 +1,4 @@
-import { prepareBundledRuntime, runTiinexJson } from './tiinex/bootstrap';
+import { prepareHostCoreRuntime, runTiinexJson } from './tiinex/bootstrap';
 import { preferredNodeExecutable } from './host/nodeExecutable';
 
 interface WorkspaceInitReceipt {
@@ -16,8 +16,8 @@ interface WorkspaceInitReceipt {
  * Workspace source identity, native schema material, rendering and filesystem
  * write semantics so CLI, LLM sandboxes and this host behave identically.
  */
-export async function initializeWorkspaceDirectory(extensionPath: string, root: string): Promise<WorkspaceInitReceipt> {
-  const runtime = await prepareBundledRuntime(extensionPath, preferredNodeExecutable());
+export async function initializeWorkspaceDirectory(extensionPath: string, root: string, candidateRoots: string[] = []): Promise<WorkspaceInitReceipt> {
+  const runtime = await prepareHostCoreRuntime(extensionPath, candidateRoots, preferredNodeExecutable());
   try {
     return await runTiinexJson<WorkspaceInitReceipt>(runtime, ['init-workspace', root, '--authors', 'local-user', '--compact']);
   } finally {

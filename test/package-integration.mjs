@@ -95,6 +95,26 @@ try {
     assert.match(packagePrepared.runtime.entrypoint.replace(/\\/g, '/'), /tiinex-vscode-bootstrap-[^/]+\/tiinex\.bootstrap\/runtime\/tools\/tiinex-portable\.mjs$/);
     pass('freshly packed carrier starts from its embedded current-Core bootstrap using the manifest-root coordinate');
   } finally { await packagePrepared.runtime.dispose(); }
+  const renamedParentDir = path.join(scratch, 'renamed-parent');
+  const renamedParent = path.join(renamedParentDir, 'tiinex-core-vscode-003-1.handoff-package.zip');
+  const renamedChildOutput = path.join(scratch, 'renamed-child-outgoing');
+  await mkdir(renamedParentDir, { recursive: true });
+  await cp(built.outputPath, renamedParent);
+  const renamedChildFilename = 'tiinex-core-vscode-003-1-1.handoff-package.zip';
+  const renamedChild = await buildHandoffPackageFromForm(root, {
+    routeId: 'workspace-carrier:none',
+    workspaceIds: ['vscode'],
+    packageParentPath: renamedParent,
+    outputDirectory: renamedChildOutput,
+    expectedCarrierFilename: renamedChildFilename
+  });
+  assert.equal(path.basename(renamedChild.outputPath), renamedChildFilename);
+  const renamedChildOrientation = await runTiinexJson(runtime, ['orient-handoff-package', renamedChild.outputPath, '--full']);
+  assert.equal(renamedChildOrientation.status, 'ready');
+  assert.equal(renamedChildOrientation.carrierLineage.parentDimension, '001');
+  assert.equal(renamedChildOrientation.carrierLineage.dimension, '001-1');
+  assert.notEqual(path.basename(renamedChild.outputPath, '.handoff-package.zip'), renamedChildOrientation.carrierLineage.dimension);
+  pass('renamed transport parent continues its exact external filename while qualified carrier lineage advances independently');
   const routedFixture = path.join(scratch, 'routed-fixture');
   const routedOutput = path.join(scratch, 'routed-outgoing');
   await cp(path.join(root, 'test', 'extension-host', 'fixtures', 'source-workspace'), routedFixture, { recursive: true });
@@ -126,8 +146,10 @@ try {
     workspaceSourceOverrides: [{ workspaceId: 'extension-host-acceptance', root: routedFixture }],
     carrierPrefix: 'business-001',
     packageParentPath: built.outputPath,
-    outputDirectory: routedOutput
+    outputDirectory: routedOutput,
+    expectedCarrierFilename: 'business-001-9-2-1.handoff-package.zip'
   });
+  assert.equal(path.basename(routed.outputPath), 'business-001-9-2-1.handoff-package.zip');
   assert.equal(routed.routeIds.length, 2);
   assert.equal(routed.routeRoutingTexts.length, 2);
   assert.deepEqual(routed.routeRoutingTexts.map((item) => [item.workspaceId, item.handoffPath, item.recipientLabel]), [
@@ -151,13 +173,24 @@ try {
   const originalBytes = await readFile(built.outputPath);
   // Bootstrap manifest v2 records exact bundle manufacture time, so rebuilding the
   // same source is a new bundle identity even when runtime composition is equal.
-  // A fixed human-output filename remains immutable and must never be overwritten.
-  await assert.rejects(buildHandoffPackageFromForm(root, input), /output-exists-different/);
+  // The canonical output remains immutable; Core projects a transport-only OS-style
+  // collision name without creating a new carrier lineage sibling.
+  const duplicate = await buildHandoffPackageFromForm(root, input);
   assert.deepEqual(await readFile(built.outputPath), originalBytes);
+  assert.notEqual(path.resolve(duplicate.outputPath), path.resolve(built.outputPath));
+  assert.match(path.basename(duplicate.outputPath), / \(1\)\.handoff-package\.zip$/);
+  assert.doesNotMatch(path.basename(duplicate.outputPath), /--2/);
+  const duplicateOrientation = await runTiinexJson(runtime, ['orient-handoff-package', duplicate.outputPath, '--full']);
+  assert.equal(duplicateOrientation.carrierLineage.dimension, '001');
+
   await writeFile(path.join(fixture, 'README.md'), '# Different payload\n');
-  await assert.rejects(buildHandoffPackageFromForm(root, input), /output-exists-different/);
+  const changed = await buildHandoffPackageFromForm(root, input);
   assert.deepEqual(await readFile(built.outputPath), originalBytes);
-  pass('rebuilt bundle identity and changed payload both fail closed instead of overwriting an existing carrier');
+  assert.match(path.basename(changed.outputPath), / \(2\)\.handoff-package\.zip$/);
+  assert.doesNotMatch(path.basename(changed.outputPath), /--3/);
+  const changedOrientation = await runTiinexJson(runtime, ['orient-handoff-package', changed.outputPath, '--full']);
+  assert.equal(changedOrientation.carrierLineage.dimension, '001');
+  pass('destination collisions preserve canonical bytes and use Core-projected OS-style filenames without changing carrier lineage');
   const packed = await run(process.execPath, ['scripts/package-vsix.mjs'], { cwd: root, maxBuffer: 16 * 1024 * 1024 });
   const receipt = JSON.parse(packed.stdout.trim());
   assert.equal(receipt.status, 'ready');

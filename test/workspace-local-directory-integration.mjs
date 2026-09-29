@@ -52,6 +52,16 @@ try {
   assert.doesNotMatch(descriptor, /- Repository:/);
   pass('actual VS Code initialization adapter turns an ordinary folder into a qualified local-directory Workspace using native Core schema material');
 
+  const bindingFixture = path.join(scratch, 'binding-fixture');
+  const brokenExtension = path.join(scratch, 'extension-without-installed-core');
+  await mkdir(bindingFixture, { recursive: true });
+  await mkdir(brokenExtension, { recursive: true });
+  const localCoreRoot = path.dirname(require.resolve('@tiinex/core/package.json'));
+  const boundCreated = await initializeWorkspaceDirectory(brokenExtension, bindingFixture, [localCoreRoot]);
+  assert.equal(boundCreated.status, 'ready', JSON.stringify(boundCreated.findings || [], null, 2));
+  assert.equal(boundCreated.sourceDetection?.sourceKind, 'local-directory');
+  pass('Workspace initialization prefers an explicitly open Local Core source even when the extension has no usable installed Core binding');
+
   await writeFile(path.join(fixture, '.gitignore'), '*.handoff-package.zip\n*.zip\n!assets/keep.zip\ncache/\n', 'utf8');
   await writeFile(path.join(fixture, 'README.md'), '# ordinary folder\n', 'utf8');
   await writeFile(path.join(fixture, 'bootstrap-999.handoff-package.zip'), 'generated carrier', 'utf8');
@@ -76,6 +86,7 @@ try {
       '--workspace-id', created.workspaceId,
       '--workspace-target', created.writeReceipt.workspaceRelativePath,
       '--tooling-bootstrap', 'embedded',
+      '--new-root',
       '--output-dir', directOutput,
       '--compact'
     ]);

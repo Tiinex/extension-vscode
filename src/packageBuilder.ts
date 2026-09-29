@@ -1,12 +1,12 @@
 import { checkedCarrierFilename } from './core/carrierFilename';
-import { nextCarrierCollisionInstance, publishCarrierFile } from './host/carrierPublish';
+import { existingCarrierFilenames, inspectCarrierDestination, publishCarrierFile } from './host/carrierPublish';
 import os from 'node:os';
 import path from 'node:path';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import * as vscode from 'vscode';
 import { extensionHostAcceptanceEnabled, recordExtensionHostAcceptanceEvent } from './vscode/extensionHostAcceptance';
 import { preferredNodeExecutable } from './host/nodeExecutable';
-import { manufactureHandoffPackage, manufactureHandoffPackageDetailed, projectHandoffParticipants, OperatorContextResult, prepareBundledRuntime, prepareHostCoreRuntime, prepareWorkspaceCoreRuntime, projectHandoffLeaves, projectHandoffEndpoints, projectOperatorContext, projectWorkspacePackageSources, WorkspacePackageSourcesResult } from './tiinex/bootstrap';
+import { manufactureHandoffPackage, manufactureHandoffPackageDetailed, projectHandoffCarrierOutputCollision, projectHandoffParticipants, OperatorContextResult, prepareBundledRuntime, prepareHostCoreRuntime, prepareWorkspaceCoreRuntime, projectHandoffLeaves, projectHandoffEndpoints, projectOperatorContext, projectWorkspacePackageSources, WorkspacePackageSourcesResult } from './tiinex/bootstrap';
 import { workspaceCarrierArgs } from './core/packageArgs';
 import { exactRouteByKey, routeChoiceKey } from './core/operatorModel';
 import { repositoryContainsPath, sameRepositoryRoot } from './core/repositoryPath';
@@ -15,14 +15,13 @@ import { extractZipBuffer, readExactZipEntryFromFile } from './host/zip';
 import { representativeWorkspaceChoicesForRoot } from './core/workspaceChoice';
 import { ParticipantProjection, QualifiedParticipantRole } from './core/participantProjection';
 import { assertStableQualifiedCarrierAllocation, qualifiedCarrierAllocationFromManufactureReceipt } from './core/carrierAllocation';
-import { carrierFilenameForCollisionInstance } from './core/outgoingUx';
 import { endpointCandidatesForExplicitSource, mergeExactHandoffEndpointChoices } from './core/handoffEndpointSelection';
 import { handoffRouteCandidatesForExplicitSource } from './core/handoffRouteSelection';
 import { safeTarget } from './core/paths';
 
 type WorkspaceSource = WorkspacePackageSourcesResult['candidates'][number] & { root: string };
 export type RouteChoice = { id: string; pointerless: boolean; label: string; description: string; detail?: string; path?: string; from?: string; to?: string; workspaceId?: string; leaf?: boolean };
-export interface PackageWorkspaceChoice { workspaceId: string; repository: string; ref: string; root: string; workspaceTargetPath: string; sourceKind?: string }
+export interface PackageWorkspaceChoice { workspaceId: string; title?: string; repository: string; ref: string; root: string; workspaceTargetPath: string; sourceKind?: string }
 export interface IncomingPackageWorkspaceSource { workspaceId: string; packagePath: string; archivePath: string }
 export interface PackageWorkspaceSourceOverride { workspaceId: string; root: string }
 export interface PackageBuilderModel { workspaces: PackageWorkspaceChoice[]; routes: RouteChoice[] }
@@ -35,7 +34,7 @@ export interface PackageEndpointRoleBinding {
   path: string;
 }
 export interface PackageRouteInput { routeId: string; participantRoles?: PackageParticipantRole[]; endpointRoles?: PackageEndpointRoleBinding[] }
-export interface PackageBuildInput { routeId: string; routeInputs?: PackageRouteInput[]; workspaceIds: string[]; carrierPrefix?: string; packageParentPath?: string; packageParentRoutePointer?: string; packageParentRouteId?: string; packageConsolidation?: boolean; packageMajorReason?: string; incomingWorkspaceSources?: IncomingPackageWorkspaceSource[]; workspaceSourceOverrides?: PackageWorkspaceSourceOverride[]; discoveryWorkspaceSourceOverrides?: PackageWorkspaceSourceOverride[]; outputDirectory?: string; expectedCarrierDimension?: string; expectedCarrierFilename?: string; collisionInstance?: number; reportProgress?: (message: string) => void }
+export interface PackageBuildInput { routeId: string; routeInputs?: PackageRouteInput[]; workspaceIds: string[]; carrierPrefix?: string; packageParentPath?: string; packageParentRoutePointer?: string; packageParentRouteId?: string; packageConsolidation?: boolean; packageMajorReason?: string; incomingWorkspaceSources?: IncomingPackageWorkspaceSource[]; workspaceSourceOverrides?: PackageWorkspaceSourceOverride[]; discoveryWorkspaceSourceOverrides?: PackageWorkspaceSourceOverride[]; outputDirectory?: string; expectedCarrierDimension?: string; expectedCarrierFilename?: string; reportProgress?: (message: string) => void }
 export interface PackageRouteRouting { routeId: string; workspaceId: string; handoffPath: string; recipientLabel?: string; text: string }
 export type PackageParticipantProjection = ParticipantProjection;
 export interface PackageBuildResult { outputPath: string; routingText: string; routeRoutingTexts: PackageRouteRouting[]; autoCopiedTransportText: boolean; routeId: string; routeIds: string[]; workspaceIds: string[] }
@@ -72,6 +71,19 @@ function qualifiedCoreCarrierFilename(receipt: any): string {
   const value = String(receipt?.humanOutput?.primary?.filename || receipt?.carrierProjection?.routes?.[0]?.projectedFilename || '').trim();
   if (!value) throw new Error('tiinex.package-builder.carrier-filename-missing');
   return checkedCarrierFilename(value);
+}
+
+async function destinationCarrierFilename(runtime: Awaited<ReturnType<typeof prepareBundledRuntime>>, sourcePath: string, folder: string, coreFilename: string): Promise<string> {
+  const canonical = checkedCarrierFilename(coreFilename);
+  const destinationState = await inspectCarrierDestination(sourcePath, folder, canonical);
+  if (destinationState === 'absent' || destinationState === 'identical') return canonical;
+  const existing = await existingCarrierFilenames(folder);
+  const projection = await projectHandoffCarrierOutputCollision(runtime, canonical, existing);
+  const projected = String(projection?.filename || '').trim();
+  if (projection?.status !== 'ready' || !projected) {
+    throw new Error(`tiinex.package-builder.output-collision-projection-blocked:${projection?.reasonCode || projection?.state || 'unknown'}`);
+  }
+  return checkedCarrierFilename(projected);
 }
 function assertCoreCarrierFilenameStable(preview: any, built: any): void {
   const expected = qualifiedCoreCarrierFilename(preview);
@@ -193,7 +205,7 @@ export async function qualifyLocalWorkspaceChoice(extensionPath: string, rootVal
     const matches = (projected.candidates || []).filter((item) => item.workspaceId === wanted && item.workspaceTargetPath);
     if (matches.length !== 1) return null;
     const item = matches[0];
-    return { workspaceId: item.workspaceId, repository: item.repository, ref: item.ref, root, workspaceTargetPath: item.workspaceTargetPath, sourceKind: item.sourceKind };
+    return { workspaceId: item.workspaceId, title: item.title, repository: item.repository, ref: item.ref, root, workspaceTargetPath: item.workspaceTargetPath, sourceKind: item.sourceKind };
   } finally { await runtime.dispose(); }
 }
 
@@ -222,7 +234,7 @@ export async function loadLocalWorkspaceChoices(extensionPath: string): Promise<
       if (projected?.status !== 'ready') continue;
       for (const item of representativeWorkspaceChoicesForRoot(roots[index], projected.candidates || [])) {
         if (!item.workspaceId || !item.workspaceTargetPath) continue;
-        choices.push({ workspaceId: item.workspaceId, repository: item.repository, ref: item.ref, root: roots[index], workspaceTargetPath: item.workspaceTargetPath, sourceKind: item.sourceKind });
+        choices.push({ workspaceId: item.workspaceId, title: item.title, repository: item.repository, ref: item.ref, root: roots[index], workspaceTargetPath: item.workspaceTargetPath, sourceKind: item.sourceKind });
       }
     }
     const byId = new Map<string, PackageWorkspaceChoice[]>();
@@ -393,7 +405,7 @@ export async function announceBuiltCarrier(outputPath: string, label: string, no
   const revealAction = insideWorkspace ? 'Reveal in Explorer' : 'Open Folder';
   const action = await vscode.window.showInformationMessage(`Tiinex ${label} built.${note ? ` ${note}` : ''}`, revealAction, 'Copy path');
   if (action === 'Reveal in Explorer') await vscode.commands.executeCommand('revealInExplorer', vscode.Uri.file(target));
-  else if (action === 'Open Folder') await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(path.dirname(target)));
+  else if (action === 'Open Folder') await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(target));
   else if (action === 'Copy path') await vscode.env.clipboard.writeText(target);
 }
 
@@ -445,7 +457,7 @@ function routeChoiceFromKey(keyValue: string): RouteChoice {
   return { id: key, pointerless: false, workspaceId, path: routePath, label: routePath, description: `${workspaceId}: ${routePath}` };
 }
 
-async function handoffArgs(selected: WorkspaceSource[], primaryRoute: RouteChoice, routes: Array<{ route: RouteChoice; participantRoles: PackageParticipantRole[]; endpointRoles: PackageEndpointRoleBinding[] }>, scratch: string, packageParentPath = '', packageMajorReason = '', packageParentRoutePointer = '', packageParentRouteId = '', packageConsolidation = false, carrierPrefix = '', materialBindings: Record<string, any> = {}): Promise<string[]> {
+async function handoffArgs(selected: WorkspaceSource[], primaryRoute: RouteChoice, routes: Array<{ route: RouteChoice; participantRoles: PackageParticipantRole[]; endpointRoles: PackageEndpointRoleBinding[] }>, scratch: string, packageParentPath = '', packageMajorReason = '', packageParentRoutePointer = '', packageParentRouteId = '', packageConsolidation = false, carrierPrefix = '', materialBindings: Record<string, any> = {}, projectedFilename = ''): Promise<string[]> {
   if (!primaryRoute.workspaceId || !primaryRoute.path) throw new Error('tiinex.package-builder.route-unresolved');
   const primary = selected.find((item) => item.workspaceId === primaryRoute.workspaceId);
   if (!primary) throw new Error('tiinex.package-builder.route-workspace-not-selected');
@@ -487,6 +499,7 @@ async function handoffArgs(selected: WorkspaceSource[], primaryRoute: RouteChoic
     args.push('--package-major', '--major-reason', packageMajorReason);
   }
   if (String(carrierPrefix || '').trim()) args.push('--carrier-prefix', String(carrierPrefix || '').trim());
+  if (String(projectedFilename || '').trim()) args.push('--projected-filename', checkedCarrierFilename(String(projectedFilename || '').trim()));
   if (Object.keys(materialBindings).length) {
     const bindingsPath = path.join(scratch, 'material-bindings.json');
     await writeFile(bindingsPath, JSON.stringify(materialBindings), 'utf8');
@@ -671,10 +684,12 @@ export async function buildHandoffPackageFromForm(extensionPath: string, input: 
       assertExpectedCarrierDimension(built, String(input.expectedCarrierDimension || ''));
       assertExpectedCarrierFilename(built, String(input.expectedCarrierFilename || ''));
       assertExactWorkspaceSelection(built, requestedWorkspaceIds);
-      const filename = checkedCarrierFilename(String(built.humanOutput?.primary?.filename || ''));
-      if (path.basename(built.primaryOutput.path) !== filename || path.resolve(path.dirname(built.primaryOutput.path)) !== path.resolve(stage)) throw new Error('tiinex.package-builder.output-path-mismatch');
+      const coreFilename = checkedCarrierFilename(String(built.humanOutput?.primary?.filename || ''));
+      if (path.basename(built.primaryOutput.path) !== coreFilename || path.resolve(path.dirname(built.primaryOutput.path)) !== path.resolve(stage)) throw new Error('tiinex.package-builder.output-path-mismatch');
       const routingText = String(built?.humanOutput?.normalInlineRouting?.content || '').trim();
       if (!routingText) throw new Error('tiinex.package-builder.workspace-transport-text-missing');
+      reportProgress(input, 'Projecting destination filename through Core…');
+      const filename = await destinationCarrierFilename(runtime, built.primaryOutput.path, folder, coreFilename);
       reportProgress(input, 'Publishing carrier…');
       const outputPath = await publishCarrierFile(built.primaryOutput.path, folder, filename);
       return { outputPath, routingText, routeRoutingTexts: [], autoCopiedTransportText: false, routeId: route.id, routeIds: [route.id], workspaceIds: selectedSources.map((item) => item.workspaceId) };
@@ -695,10 +710,10 @@ export async function buildHandoffPackageFromForm(extensionPath: string, input: 
 ${participantProjection.detail}`);
       qualifiedRouteInputs.push({ route: item.route, participantRoles: [...participantProjection.roles], endpointRoles: item.endpointRoles });
     }
-    const args = await handoffArgs(selectedSources, route, qualifiedRouteInputs, scratch, String(input.packageParentPath || ''), String(input.packageMajorReason || '').trim(), String(input.packageParentRoutePointer || ''), String(input.packageParentRouteId || ''), input.packageConsolidation === true, String(input.carrierPrefix || '').trim(), materialBindings);
+    const args = await handoffArgs(selectedSources, route, qualifiedRouteInputs, scratch, String(input.packageParentPath || ''), String(input.packageMajorReason || '').trim(), String(input.packageParentRoutePointer || ''), String(input.packageParentRouteId || ''), input.packageConsolidation === true, String(input.carrierPrefix || '').trim(), materialBindings, String(input.expectedCarrierFilename || '').trim());
     // Core owns routed Handoff bytes plus continuation/allocation truth. The host
-    // only consumes and cross-checks the returned allocation/lineage projection,
-    // then applies destination-local collision suffixing to Core's projected filename.
+    // only consumes and cross-checks the returned allocation/lineage projection.
+    // Destination existence is a host fact; Core projects any transport-only collision name.
     reportProgress(input, 'Running Core route/allocation preflight and package preview…');
     const topologyPreview = await manufactureHandoffPackage(runtime, args);
     if (topologyPreview.status !== 'ready' || topologyPreview.transportExecutable === false) throw new Error(`tiinex.package-builder.preview-blocked:\n${receiptBlocker(topologyPreview)}`);
@@ -726,6 +741,7 @@ ${participantProjection.detail}`);
 ${receiptBlocker(built)}`);
     assertExactWorkspaceSelection(built, requestedWorkspaceIds);
     if (input.packageParentPath && !input.packageMajorReason) assertStableQualifiedCarrierAllocation(topologyPreview, built);
+    assertExpectedCarrierFilename(built, String(input.expectedCarrierFilename || ''));
     const coreFilename = qualifiedCoreCarrierFilename(built);
     const routing = String(built?.humanOutput?.normalInlineRouting?.content || '').trim();
     if (!routing) throw new Error('tiinex.package-builder.routing-text-missing');
@@ -733,9 +749,8 @@ ${receiptBlocker(built)}`);
     if (routeTexts.length !== routeInputs.length) throw new Error('tiinex.package-builder.routing-text-route-count-mismatch');
     const builtCoreFilename = checkedCarrierFilename(String(built.humanOutput?.primary?.filename || ''));
     if (path.basename(built.primaryOutput.path) !== builtCoreFilename || path.resolve(path.dirname(built.primaryOutput.path)) !== path.resolve(stage)) throw new Error('tiinex.package-builder.output-path-mismatch');
-    reportProgress(input, 'Allocating Core-derived output filename…');
-    const collisionInstance = await nextCarrierCollisionInstance(folder, coreFilename);
-    const filename = carrierFilenameForCollisionInstance(coreFilename, collisionInstance);
+    reportProgress(input, 'Projecting destination filename through Core…');
+    const filename = await destinationCarrierFilename(runtime, built.primaryOutput.path, folder, coreFilename);
     reportProgress(input, 'Publishing qualified carrier…');
     const outputPath = await publishCarrierFile(built.primaryOutput.path, folder, filename);
     const autoCopied = routeTexts.length === 1;

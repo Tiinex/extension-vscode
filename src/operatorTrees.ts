@@ -15,11 +15,12 @@ import { applyExactHandoffEndpointSelection } from './core/handoffEndpointSelect
 import { ArtifactAuthoringCatalog, ArtifactDraftParent, loadArtifactAuthoringCatalog, loadArtifactAuthoringModel, prepareArtifactDraft, PreparedArtifactDraft, qualifyArtifactDraftParent, qualifyExistingHandoff, writePreparedArtifactDraft } from './authoring';
 import { initializeWorkspaceDirectory } from './workspaceInitialization';
 
-import { compareIncomingWorkspaceToLocal, groundPackageForReview, GroundingResult, orientPackage, prepareBundledRuntime, preparePackageRuntimeWithRecovery, projectPackageTransport } from './tiinex/bootstrap';
+import { compareIncomingWorkspaceToLocal, groundPackageForReview, GroundingResult, orientPackage, prepareBundledRuntime, prepareHostCoreRuntime, preparePackageRuntimeWithRecovery, projectHandoffCarrierMajorFrontier, projectHandoffCarrierTransportName, projectPackageTransport } from './tiinex/bootstrap';
 import { applyIncomingWorkspaces, IncomingApplyStrategy } from './incomingApply';
 import { operatorMatchedWorkspaceIds, resolvePrioritizedWorkspaceDuplicates } from './core/sourceSelection';
-import { carrierFilenameForCollisionInstance, chooseNextMajorParent, comparePackageRecency, inheritedOutgoingLabel, majorOutgoingLabel, rootOutgoingLabel, rootOutgoingPrefix, carrierPrefixForDimension } from './core/outgoingUx';
+import { comparePackageRecency, rootOutgoingLabel, rootOutgoingPrefix } from './core/outgoingUx';
 import { payloadCheckoutEligibility } from './host/git';
+import { existingCarrierFilenames } from './host/carrierPublish';
 import { extractZipBuffer, readExactZipEntryFromBuffer, readExactZipEntryFromFile } from './host/zip';
 import { ArtifactAuthoringSubmission, openArtifactAuthoringPanel } from './artifactAuthoringPanel';
 import { repositoryContainsPath, sameRepositoryRoot } from './core/repositoryPath';
@@ -28,7 +29,6 @@ import { artifactReferenceAvailable, markdownLinkTargets, materialTargetKey, res
 import { planWorkspaceSession, validateWorkspaceTargetMapping } from './core/workspaceSession';
 import { routeChoiceKey } from './core/operatorModel';
 import { consumeIncomingMultiRootResume, prepareIncomingMultiRootSession } from './vscode/incomingWorkspaceSession';
-import { nextCarrierCollisionInstance } from './host/carrierPublish';
 import { presentOperatorError } from './core/operatorError';
 import { acceptCoreParticipantProjection, participantPresentation, selectAdditionalParticipantRoles } from './vscode/outgoingParticipantController';
 import { configureExtensionHostAcceptance, extensionHostAcceptanceEnabled, extensionHostAcceptanceEvents, extensionHostAcceptanceOutgoingFolder, extensionHostAcceptanceOutgoingParent, extensionHostAcceptanceOutgoingSourceKeys, recordExtensionHostAcceptanceEvent } from './vscode/extensionHostAcceptance';
@@ -139,7 +139,6 @@ interface OutgoingState {
   workspaces: OutgoingWorkspace[];
   drafts: OutgoingDraft[];
   packageMajorReason: string;
-  collisionInstance: number;
   lastBuilt?: { outputPath: string; routes: PackageRouteRouting[] };
 }
 
@@ -569,7 +568,8 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       if (!resource || resource.scheme !== 'file') throw new Error('tiinex.workspace-init.file-resource-required');
       const selected = await stat(resource.fsPath);
       const root = selected.isDirectory() ? resource.fsPath : path.dirname(resource.fsPath);
-      const result = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'Tiinex initializing Workspace', cancellable: false }, () => initializeWorkspaceDirectory(this.extensionPath, root));
+      const candidateRoots = (vscode.workspace.workspaceFolders || []).map((folder: vscode.WorkspaceFolder) => folder.uri.fsPath);
+      const result = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'Tiinex initializing Workspace', cancellable: false }, () => initializeWorkspaceDirectory(this.extensionPath, root, candidateRoots));
       if (result.status !== 'ready' || !result.writeReceipt?.path) {
         const detail = (result.findings || []).map((item) => `${item.code || 'finding'}: ${item.message || ''}`).join('\n');
         throw new Error(`tiinex.workspace-init.blocked:${result.status}${detail ? `\n${detail}` : ''}`);
@@ -1431,7 +1431,6 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     if (acceptanceFolder !== undefined) {
       await mkdir(acceptanceFolder, { recursive: true });
       this.outgoingFolderSelection = acceptanceFolder;
-      await this.refreshOutgoingCollisionInstance(acceptanceFolder);
       this.outgoingProvider.refresh();
       return acceptanceFolder;
     }
@@ -1447,7 +1446,6 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       this.outgoingFolderSelection = selected[0].fsPath;
       await this.config().update('outgoing.folder', selected[0].fsPath, vscode.ConfigurationTarget.Global);
     }
-    await this.refreshOutgoingCollisionInstance(selected[0].fsPath);
     this.outgoingProvider.refresh();
     return selected[0].fsPath;
   }
@@ -2045,16 +2043,12 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
         description: 'Start a new carrier at major 001',
         packagePath: ''
       },
-      ...this.incoming.map((state) => {
-        const dimension = String(state.orientation?.carrierLineage?.dimension || '').trim();
-        const ordinal = this.incomingCarrierOrdinal(state.orientation);
-        return {
-          label: `$(archive) ${this.incomingDisplayName(state, ordinal)}`,
-          description: dimension ? `Continue carrier ${dimension}` : 'Continue this Incoming carrier',
-          detail: timestamp(state.index.mtimeMs),
-          packagePath: state.index.packagePath
-        };
-      })
+      ...this.incoming.map((state) => ({
+        label: `$(archive) ${state.index.filename}`,
+        description: 'Continue this exact Incoming package',
+        detail: timestamp(state.index.mtimeMs),
+        packagePath: state.index.packagePath
+      }))
     ];
     const acceptanceParent = extensionHostAcceptanceOutgoingParent(items.map((item) => item.packagePath).filter(Boolean));
     if (acceptanceParent !== undefined) return acceptanceParent;
@@ -2101,11 +2095,17 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     return { routePointer: selected.route?.pointerPath || '', routeId: selected.route?.id || '', consolidation: false };
   }
 
-  private outgoingNameFromIncoming(packagePath: string): string {
-    const state = this.incomingState(packagePath);
-    if (!state) return '';
-    const dimension = String(state.orientation?.carrierLineage?.dimension || '').trim();
-    return this.incomingDisplayName(state, this.incomingCarrierOrdinal(state.orientation), dimension);
+  private async projectOutgoingTransportName(packagePath: string, mode: 'continuation' | 'major', ordinal = 1, folder = ''): Promise<string> {
+    const parentFilename = path.basename(packagePath);
+    if (!parentFilename) throw new Error('tiinex.outgoing.transport-parent-filename-required');
+    const roots = (vscode.workspace.workspaceFolders || []).map((item: vscode.WorkspaceFolder) => item.uri.fsPath);
+    const runtime = await prepareHostCoreRuntime(this.extensionPath, roots, nodeExecutable());
+    try {
+      const existing = mode === 'major' && folder ? await existingCarrierFilenames(folder) : [];
+      const projected = await projectHandoffCarrierTransportName(runtime, parentFilename, mode, ordinal, existing);
+      if (projected.status !== 'ready' || !projected.filename) throw new Error(`tiinex.outgoing.transport-name-blocked:${projected.reasonCode || projected.status}`);
+      return String(projected.filename).replace(/\.handoff-package\.zip$/i, '').trim();
+    } finally { await runtime.dispose(); }
   }
 
   private async newOutgoing(): Promise<void> {
@@ -2124,11 +2124,11 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     let localMajorParent = false;
     let packageMajorReason = '';
     if (packageParentPath) {
-      name = this.outgoingNameFromIncoming(packageParentPath);
+      name = await this.projectOutgoingTransportName(packageParentPath, 'continuation', this.incomingCarrierOrdinal(this.incomingState(packageParentPath)?.orientation));
       const parentState = this.incomingState(packageParentPath);
       resolvedParentDimension = String(parentState?.orientation?.carrierLineage?.dimension || '').trim();
-      carrierPrefix = carrierPrefixForDimension(String(parentState?.index?.filename || ''), resolvedParentDimension) || rootOutgoingPrefix(name);
-      if (!name || !resolvedParentDimension) {
+      carrierPrefix = String(parentState?.orientation?.carrierLineage?.prefix || '').trim();
+      if (!name || !resolvedParentDimension || !carrierPrefix) {
         await vscode.window.showErrorMessage('Tiinex New Outgoing blocked: the selected Incoming carrier has no usable lineage identity.');
         return;
       }
@@ -2160,11 +2160,11 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
         resolvedParentDimension = allocation.dimension;
         localMajorParent = true;
         packageMajorReason = 'VS Code allocated the next carrier Major because this Outgoing prefix is already occupied';
-        name = rootOutgoingLabel(prefix);
+        name = await this.projectOutgoingTransportName(resolvedParentPath, 'major', 1, this.outgoingFolder());
       } else name = rootOutgoingLabel(prefix);
     }
 
-    this.outgoing = { name, carrierPrefix: carrierPrefix || rootOutgoingPrefix(name), packageParentPath: resolvedParentPath, packageParentDimension: resolvedParentDimension, packageParentRoutePointer, packageParentRouteId, packageConsolidation, localMajorParent, workspaces: [], drafts: [], packageMajorReason, collisionInstance: 1 };
+    this.outgoing = { name, carrierPrefix: carrierPrefix || rootOutgoingPrefix(name), packageParentPath: resolvedParentPath, packageParentDimension: resolvedParentDimension, packageParentRoutePointer, packageParentRouteId, packageConsolidation, localMajorParent, workspaces: [], drafts: [], packageMajorReason };
     this.outgoingLoading = true;
     this.outgoingProvider.refresh();
     await this.updateUiContexts();
@@ -2184,27 +2184,43 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     const folder = String(folderOverride || this.outgoingFolder()).trim();
     if (!folder) return { state: 'none' };
     let candidates: Awaited<ReturnType<typeof discoveryPackages>> = [];
-    try { candidates = (await discoveryPackages(folder)).filter((item) => item.filename.toLocaleLowerCase().startsWith(`${prefix}-`)); }
+    try { candidates = await discoveryPackages(folder); }
     catch { return { state: 'none' }; }
-    const qualified: Array<{ packagePath: string; filename: string; dimension: string; mtimeMs: number }> = [];
+
+    const qualified: Array<{ packagePath: string; filename: string; packageSha256: string; carrierLineage: { prefix: string; dimension: string } }> = [];
     for (const candidate of candidates) {
       let prepared: Awaited<ReturnType<typeof preparePackageRuntimeWithRecovery>> | null = null;
       try {
         prepared = await preparePackageRuntimeWithRecovery(candidate.path, this.extensionPath, nodeExecutable());
-        const dimension = String((prepared.orientation as any)?.carrierLineage?.dimension || '').trim();
-        if (!dimension) continue;
-        qualified.push({ packagePath: candidate.path, filename: candidate.filename, dimension, mtimeMs: candidate.mtimeMs });
+        const lineage = (prepared.orientation as any)?.carrierLineage || {};
+        const candidatePrefix = String(lineage?.prefix || '').trim();
+        const dimension = String(lineage?.dimension || '').trim();
+        if (!candidatePrefix || !dimension) continue;
+        const packageSha256 = createHash('sha256').update(await readFile(candidate.path)).digest('hex');
+        qualified.push({ packagePath: candidate.path, filename: candidate.filename, packageSha256, carrierLineage: { prefix: candidatePrefix, dimension } });
       } catch {
-        // Invalid or unrelated package names never become lineage parents merely
-        // because they happen to share a filename prefix.
+        // Invalid packages never become lineage parents merely because they are
+        // present in the destination directory.
       } finally { await prepared?.runtime.dispose(); }
     }
-    const selection: any = chooseNextMajorParent(prefix, qualified);
-    if (selection.state === 'none') return { state: 'none' } as any;
-    if (selection.state === 'ambiguous') return { state: 'ambiguous' } as any;
-    const candidate = selection.candidate;
-    if (!candidate) return { state: 'none' } as any;
-    return { state: 'ready', packagePath: candidate.packagePath, dimension: candidate.dimension, filename: candidate.filename } as any;
+
+    const candidateRoots = (vscode.workspace.workspaceFolders || []).map((item: vscode.WorkspaceFolder) => item.uri.fsPath);
+    const runtime = await prepareHostCoreRuntime(this.extensionPath, candidateRoots, nodeExecutable());
+    let selection: any;
+    try { selection = await projectHandoffCarrierMajorFrontier(runtime, prefix, qualified); }
+    finally { await runtime.dispose(); }
+
+    if (selection?.state === 'none') return { state: 'none' } as any;
+    if (selection?.state === 'ambiguous' || selection?.status === 'blocked') return { state: 'ambiguous', reasonCode: selection?.reasonCode || '' } as any;
+    const candidate = selection?.selected;
+    if (!candidate?.packagePath || !candidate?.dimension) return { state: 'none' } as any;
+    return {
+      state: 'ready',
+      packagePath: String(candidate.packagePath),
+      dimension: String(candidate.dimension),
+      filename: String(candidate.filename || path.basename(candidate.packagePath)),
+      nextMajorDimension: String(selection?.nextMajorDimension || '')
+    } as any;
   }
 
   private async ensureRootOutgoingAllocation(folder: string): Promise<boolean> {
@@ -2223,6 +2239,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     this.outgoing.packageConsolidation = false;
     this.outgoing.localMajorParent = true;
     this.outgoing.packageMajorReason = 'VS Code allocated the next carrier Major because this Outgoing prefix is already occupied';
+    this.outgoing.name = await this.projectOutgoingTransportName(this.outgoing.packageParentPath, 'major', 1, folder);
     this.outgoing.carrierPrefix = prefix;
     this.invalidateOutgoingDerivedState();
     this.outgoingProvider.refresh();
@@ -2239,12 +2256,28 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
 
   private async bumpOutgoingMajor(): Promise<void> {
     if (!this.outgoing?.packageParentPath || this.outgoing.packageMajorReason) return;
+    const prefix = this.outgoing.carrierPrefix || rootOutgoingPrefix(this.outgoing.name);
+    const folder = this.outgoingFolder() || path.dirname(this.outgoing.packageParentPath);
+    const allocation = await this.resolveRootOutgoingAllocation(prefix, folder);
+    if (allocation.state === 'ambiguous') {
+      await vscode.window.showWarningMessage('Tiinex Major bump blocked: the Outgoing folder contains parallel same-prefix Major frontiers. Open the intended frontier as Incoming before advancing the Major.');
+      return;
+    }
+    if (allocation.state === 'ready') {
+      const selectedPath = String(allocation.packagePath || '');
+      const selectedDimension = String(allocation.dimension || '');
+      if (selectedPath && selectedDimension && path.resolve(selectedPath) !== path.resolve(this.outgoing.packageParentPath)) {
+        this.outgoing.packageParentPath = selectedPath;
+        this.outgoing.packageParentDimension = selectedDimension;
+        this.outgoing.localMajorParent = true;
+      }
+    }
+    this.outgoing.name = await this.projectOutgoingTransportName(this.outgoing.packageParentPath, 'major', 1, folder);
     this.outgoing.packageMajorReason = 'VS Code operator selected stable multi-Workspace checkpoint';
     this.outgoing.packageParentRoutePointer = '';
     this.outgoing.packageParentRouteId = '';
     this.outgoing.packageConsolidation = false;
     this.invalidateOutgoingDerivedState();
-    await this.refreshOutgoingCollisionInstance();
     this.outgoingProvider.refresh();
     await this.updateUiContexts();
   }
@@ -2263,7 +2296,6 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       this.outgoing.packageConsolidation = topology.consolidation;
     }
     this.invalidateOutgoingDerivedState();
-    await this.refreshOutgoingCollisionInstance();
     this.outgoingProvider.refresh();
     await this.updateUiContexts();
   }
@@ -2480,7 +2512,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       const key = localOutgoingSourceKey(local.workspaceId, local.root, local.workspaceTargetPath);
       const source: OutgoingWorkspace = {
         workspaceId: local.workspaceId,
-        label: local.workspaceId,
+        label: local.title || local.workspaceId,
         root: local.root,
         repository: local.repository,
         ref: local.ref,
@@ -2492,11 +2524,10 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
         sourceQualification: 'qualified'
       };
       sources.push(source);
-      pickerItems.push({ label: `$(repo) ${local.workspaceId}`, source, key, priority: priority++ });
+      pickerItems.push({ label: `$(repo) ${local.title || local.workspaceId}`, description: local.title && local.title !== local.workspaceId ? local.workspaceId : undefined, source, key, priority: priority++ });
     }
-    for (const [incomingIndex, incoming] of this.incoming.entries()) {
-      const dimension = String(incoming.orientation?.carrierLineage?.dimension || '').trim();
-      const sourceName = this.incomingDisplayName(incoming, this.incomingCarrierOrdinal(incoming.orientation), dimension) || incoming.index.filename.replace(/\.handoff-package\.zip$/i, '');
+    for (const incoming of this.incoming) {
+      const sourceName = incoming.index.filename.replace(/\.handoff-package\.zip$/i, '');
       pickerItems.push({ label: sourceName, kind: vscode.QuickPickItemKind.Separator });
       for (const workspace of incoming.index.workspaces) {
         const key = `incoming:${path.resolve(incoming.index.packagePath)}:${workspace.workspaceId}`;
@@ -2817,9 +2848,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     const majorDimension = selectedMajor ? nextMajorDimension(parentDimension) : '';
 
     if (!primary) {
-      const stem = selectedMajor && majorDimension
-        ? majorOutgoingLabel(this.outgoing.name, parentDimension, majorDimension)
-        : this.outgoing.name.replace(/\.handoff-package\.zip$/i, '').trim().toLocaleLowerCase();
+      const stem = this.outgoing.name.replace(/\.handoff-package\.zip$/i, '').trim().toLocaleLowerCase();
       return `${stem}.handoff-package.zip`;
     }
 
@@ -2835,31 +2864,15 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     const dimension = this.outgoing.packageParentPath ? majorDimension : '001';
     if (!dimension) return `${this.outgoing.name.replace(/\.handoff-package\.zip$/i, '').trim().toLocaleLowerCase()}.handoff-package.zip`;
 
-    let stem = selectedMajor
-      ? majorOutgoingLabel(this.outgoing.name, parentDimension, dimension)
-      : this.outgoing.name.replace(/\.handoff-package\.zip$/i, '').trim().toLocaleLowerCase();
-    if (!selectedMajor) {
-      if (this.outgoing.packageParentPath && parentDimension && stem.endsWith(parentDimension)) {
-        stem = `${stem.slice(0, -parentDimension.length)}${dimension}`;
-      } else if (!stem.endsWith(dimension)) {
-        stem = `${stem}-${dimension}`;
-      }
-    }
+    let stem = this.outgoing.name.replace(/\.handoff-package\.zip$/i, '').trim().toLocaleLowerCase();
+    if (!this.outgoing.packageParentPath && !stem.endsWith(dimension)) stem = `${stem}-${dimension}`;
     const from = filenameToken(primary.from);
     const to = filenameToken(primary.to);
     return `${stem}-${from}-to-${to}.handoff-package.zip`;
   }
 
   private outgoingProjectedFilename(primaryOverride?: OutgoingDraft): string {
-    const base = this.outgoingProjectedBaseFilename(primaryOverride);
-    return carrierFilenameForCollisionInstance(base, this.outgoing?.collisionInstance || 1);
-  }
-
-  private async refreshOutgoingCollisionInstance(folder = this.outgoingFolder(), primaryOverride?: OutgoingDraft): Promise<void> {
-    if (!this.outgoing) return;
-    const base = this.outgoingProjectedBaseFilename(primaryOverride);
-    const targetFolder = String(folder || '').trim();
-    this.outgoing.collisionInstance = base && targetFolder ? await nextCarrierCollisionInstance(targetFolder, base) : 1;
+    return this.outgoingProjectedBaseFilename(primaryOverride);
   }
 
   private async outgoingWorkspaceArtifacts(workspace: OutgoingWorkspace): Promise<IndexedArtifact[]> {
@@ -3709,10 +3722,6 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     return ordinal >= 0 ? ordinal + 1 : 1;
   }
 
-  private incomingDisplayName(state: IncomingState, ordinal = this.incomingCarrierOrdinal(state.orientation), dimension = String(state.orientation?.carrierLineage?.dimension || '').trim()): string {
-    return inheritedOutgoingLabel(state.index.filename, dimension, ordinal);
-  }
-
   private async refreshDiscoveryAfterPack(outputPath: string): Promise<void> {
     const discovery = this.discoveryFolder();
     if (!discovery || path.resolve(path.dirname(outputPath)) !== path.resolve(discovery)) return;
@@ -3748,7 +3757,6 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       const outputDirectory = this.outgoingFolder() || await this.selectOutgoingFolder(this.discoveryFolder() || undefined, false);
       if (!outputDirectory) return;
       if (!await this.ensureRootOutgoingAllocation(outputDirectory)) return;
-      await this.refreshOutgoingCollisionInstance(outputDirectory);
       this.setOutgoingLoading(true);
       try {
         const built = await vscode.window.withProgress(
@@ -3771,7 +3779,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
                 workspaceSourceOverrides,
                 outputDirectory,
                 expectedCarrierDimension,
-                expectedCarrierFilename: this.outgoingProjectedFilename(),
+                expectedCarrierFilename: this.outgoingProjectedBaseFilename(),
                 reportProgress: (message) => heartbeat.report(message)
               });
             } finally { heartbeat.dispose(); }
@@ -3835,6 +3843,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
               workspaceSourceOverrides,
               discoveryWorkspaceSourceOverrides,
               outputDirectory,
+              expectedCarrierFilename: this.outgoingProjectedBaseFilename(mechanicalAnchor),
               reportProgress: (message) => { heartbeat.report(message); recordExtensionHostAcceptanceEvent('pack-progress', { message }); }
             });
           } finally { heartbeat.dispose(); }

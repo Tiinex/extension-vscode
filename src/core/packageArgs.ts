@@ -21,6 +21,7 @@ export async function workspaceCarrierArgs(selected: WorkspaceCarrierSource[], s
   if (filename) args.push('--projected-filename', checkedCarrierFilename(filename));
   const parent = String(packageParentPath || '').trim();
   if (parent) args.push('--package-parent', path.resolve(parent));
+  else args.push('--new-root');
   const majorReason = String(packageMajorReason || '').trim();
   if (majorReason) {
     if (!parent) throw new Error('tiinex.package-builder.package-major-parent-required');

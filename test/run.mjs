@@ -13,7 +13,7 @@ import { alphabeticalWorkspaceIds, artifactsForLineageMode, currentRoleArtifacts
 import { artifactReferenceAvailable, markdownLinkTargets, materialTargetKey, resolveArtifactReference } from '../dist/core/artifactNavigation.js';
 import { receivedHandoffContext, receivedGroundingProjection, withWorkspaceRoots } from '../dist/core/receivedHandoff.js';
 import { operatorMatchedWorkspaceIds, resolvePrioritizedWorkspaceDuplicates } from '../dist/core/sourceSelection.js';
-import { carrierFilenameForCollisionInstance, carrierPrefixForDimension, chooseNextMajorParent, comparePackageRecency, inheritedOutgoingLabel, majorOutgoingLabel, rootOutgoingLabel, rootOutgoingPrefix } from '../dist/core/outgoingUx.js';
+import { comparePackageRecency, rootOutgoingLabel, rootOutgoingPrefix } from '../dist/core/outgoingUx.js';
 import { projectArtifactAuthoringModel } from '../dist/core/artifactAuthoringModel.js';
 import { artifactCreationReady, requireArtifactCreationReady } from '../dist/core/artifactAuthoringQualification.js';
 import { mergeTransportRouteSelection, selectedTransportRouteIds, transportPrepared, transportPreparedKey } from '../dist/core/transportQueue.js';
@@ -28,8 +28,8 @@ import { handoffRouteCandidatesForExplicitSource } from '../dist/core/handoffRou
 import { checkIgnoredPaths, commitPreparedGitOperator, commitPreparedReviewedStaged, commitWorkingTree, deriveGitOperatorCommitMessage, dirtyWorkingTreePaths, discardWorkingTree, generateTiinexCommitMessage, listStagedConflictMarkerPaths, listStagedMutationPaths, listStagedPaths, materializeUnmergedFileConflicts, mergeCommitNoCommit, payloadCheckoutEligibility, preflightExistingLocalBranch, prepareGitOperatorCommit, prepareReviewedStagedCommit, pushExactGitOperatorCommit, pushExactLandingCommit, pushExactReviewedStagedCommit, stageCommitPush, stageLandingChanges, stageLandingCommit, stashWorkingTree, unstageLandingPaths } from '../dist/host/git.js';
 import { preferredNodeExecutable } from '../dist/host/nodeExecutable.js';
 import { copyFileToClipboard } from '../dist/host/fileClipboard.js';
-import { nextCarrierCollisionInstance } from '../dist/host/carrierPublish.js';
-import { compareIncomingWorkspaceToLocal, createArtifactDraft, inspectArtifactCreationContract, manufactureHandoffPackage, manufactureHandoffPackageDetailed, parseBootstrapDescriptor, prepareBundledRuntime, projectArtifactMaterialization, projectArtifactSchemaGuide, runTiinexJson, projectEditorAssistanceText, projectHandoffEndpoints, projectOperatorContext, projectPackageTransport, projectStagedValidation, projectWorkspaceLanding, projectWorkspacePackageSources } from '../dist/tiinex/bootstrap.js';
+import { existingCarrierFilenames, inspectCarrierDestination } from '../dist/host/carrierPublish.js';
+import { compareIncomingWorkspaceToLocal, createArtifactDraft, inspectArtifactCreationContract, manufactureHandoffPackage, manufactureHandoffPackageDetailed, parseBootstrapDescriptor, prepareBundledRuntime, projectArtifactMaterialization, projectArtifactSchemaGuide, runTiinexJson, projectEditorAssistanceText, projectHandoffCarrierMajorFrontier, projectHandoffCarrierOutputCollision, projectHandoffCarrierTransportName, projectHandoffEndpoints, projectOperatorContext, projectPackageTransport, projectStagedValidation, projectWorkspaceLanding, projectWorkspacePackageSources } from '../dist/tiinex/bootstrap.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 let count = 0;
@@ -41,6 +41,22 @@ async function test(name, fn) {
 async function rejectsCode(fn, code) {
   await assert.rejects(fn, (error) => String(error?.message || error).includes(code));
 }
+
+await test('carrier filename collision, transport identity and Major frontier decisions stay behind the shared Core operation seam', async () => {
+  const runtime = { root: '/core', entrypoint: '/core/tools/tiinex-portable.mjs', nodeExecutable: 'node', dispose: async () => {} };
+  const calls = [];
+  const runner = async (command, args) => {
+    calls.push({ command, args });
+    if (args.includes('project-handoff-carrier-output-collision')) return { code: 0, stdout: JSON.stringify({ status: 'ready', state: 'collision-suffixed', filename: 'tiinex-core-002 (1).handoff-package.zip', collisionInstance: 2 }), stderr: '' };
+    return { code: 0, stdout: JSON.stringify({ status: 'ready', state: 'ready', selected: { packagePath: '/out/002.zip', dimension: '002' }, nextMajorDimension: '003' }), stderr: '' };
+  };
+  const collision = await projectHandoffCarrierOutputCollision(runtime, 'tiinex-core-002.handoff-package.zip', ['tiinex-core-002.handoff-package.zip'], runner);
+  assert.equal(collision.filename, 'tiinex-core-002 (1).handoff-package.zip');
+  const frontier = await projectHandoffCarrierMajorFrontier(runtime, 'tiinex-core', [{ packagePath: '/out/002.zip', filename: 'tiinex-core-002.handoff-package.zip', packageSha256: 'a'.repeat(64), carrierLineage: { prefix: 'tiinex-core', dimension: '002' } }], runner);
+  assert.equal(frontier.nextMajorDimension, '003');
+  assert.ok(calls.some((call) => call.args.includes('project-handoff-carrier-output-collision')));
+  assert.ok(calls.some((call) => call.args.includes('project-handoff-carrier-major-frontier')));
+});
 
 await test('participant projection exposes only exact Core-qualified semantic Role material', async () => {
   const receipt = {
@@ -322,41 +338,51 @@ await test('Incoming operator defaults allow multiple matching Workspaces and Ou
   assert.deepEqual(resolution.duplicateWorkspaceIds, ['docs']);
 });
 
-await test('Outgoing source UX inherits Incoming carrier identity and shares Discovery time ordering', async () => {
-  assert.equal(inheritedOutgoingLabel('business-001-1-2-anchor-to-anchor.handoff-package.zip', '001-1-2', 2), 'business-001-1-2-2');
-  assert.equal(inheritedOutgoingLabel('001-3-anchor-to-anchor.handoff-package.zip', '001-3'), '001-3-1');
-  assert.equal(majorOutgoingLabel('tiinex-core-004-1', '004', '005'), 'tiinex-core-005');
-  assert.equal(majorOutgoingLabel('docs-003-2-2-1-anchor-to-anchor.handoff-package.zip', '003-2-2', '004'), 'docs-004');
-  assert.equal(majorOutgoingLabel('004-1', '004', '005'), '005');
+await test('Outgoing transport identity stays separate from internal carrier lineage', async () => {
   assert.equal(rootOutgoingPrefix('test-test-002'), 'test-test');
   assert.equal(rootOutgoingLabel('test-test-002'), 'test-test-001');
   assert.equal(rootOutgoingLabel('TEST test'), 'test-test-001');
-  assert.equal(carrierPrefixForDimension('test-test-001-cartographer-to-pilot.handoff-package.zip', '001'), 'test-test');
-  assert.equal(carrierPrefixForDimension('tiinex-vscode-002-1-1-anchor-to-anchor.handoff-package.zip', '002-1-1'), 'tiinex-vscode');
-  assert.equal(carrierPrefixForDimension('001-1-anchor-to-anchor.handoff-package.zip', '001-1'), '');
-  const nextMajor = chooseNextMajorParent('test-test', [
-    { packagePath: '/out/one.zip', filename: 'test-test-001-cartographer-to-pilot.handoff-package.zip', dimension: '001', mtimeMs: 10 },
-    { packagePath: '/out/two.zip', filename: 'test-test-001-1-pilot-to-anchor.handoff-package.zip', dimension: '001-1', mtimeMs: 20 }
-  ]);
-  assert.equal(nextMajor.state, 'ready');
-  assert.equal(nextMajor.candidate?.dimension, '001-1');
-  assert.equal(chooseNextMajorParent('test-test', [
-    { packagePath: '/out/a.zip', filename: 'test-test-001-1-a-to-b.handoff-package.zip', dimension: '001-1', mtimeMs: 20 },
-    { packagePath: '/out/b.zip', filename: 'test-test-001-2-a-to-c.handoff-package.zip', dimension: '001-2', mtimeMs: 21 }
-  ]).state, 'ambiguous');
-  assert.equal(carrierFilenameForCollisionInstance('tiinex-core-005.handoff-package.zip', 1), 'tiinex-core-005.handoff-package.zip');
-  assert.equal(carrierFilenameForCollisionInstance('tiinex-core-005.handoff-package.zip', 2), 'tiinex-core-005--2.handoff-package.zip');
+  const runtime = { root: '/core', entrypoint: '/core/tools/tiinex-portable.mjs', nodeExecutable: 'node', dispose: async () => {} };
+  const calls = [];
+  const runner = async (command, args) => {
+    calls.push({ command, args });
+    return { code: 0, stdout: JSON.stringify({ status: 'ready', state: 'ready', mode: 'continuation', filename: 'tiinex-core-vscode-003-1-1.handoff-package.zip' }), stderr: '' };
+  };
+  const result = await projectHandoffCarrierTransportName(runtime, 'tiinex-core-vscode-003-1.handoff-package.zip', 'continuation', 1, [], runner);
+  assert.equal(result.filename, 'tiinex-core-vscode-003-1-1.handoff-package.zip');
+  assert.ok(calls.some((call) => call.args.includes('project-handoff-carrier-transport-name')));
 });
 
-await test('outgoing collision allocation stays transport-only and chooses a free filename instance', async () => {
+
+await test('VS Code parent/source UI presents exact transport filenames and Core-qualified Workspace titles', async () => {
+  const fs = await import('node:fs/promises');
+  const root = path.resolve(HERE, '..');
+  const tree = await fs.readFile(path.join(root, 'src', 'operatorTrees.ts'), 'utf8');
+  const builder = await fs.readFile(path.join(root, 'src', 'packageBuilder.ts'), 'utf8');
+  assert.match(tree, /label: `\$\(archive\) \$\{state\.index\.filename\}`/);
+  assert.match(tree, /description: 'Continue this exact Incoming package'/);
+  assert.match(tree, /const sourceName = incoming\.index\.filename\.replace/);
+  assert.match(tree, /projectHandoffCarrierTransportName/);
+  assert.doesNotMatch(tree, /incomingDisplayName|inheritedOutgoingLabel|majorOutgoingLabel|carrierPrefixForDimension/);
+  assert.match(tree, /label: local\.title \|\| local\.workspaceId/);
+  assert.match(builder, /title\?: string/);
+  assert.match(builder, /title: item\.title/);
+});
+
+await test('outgoing destination adapter reports filesystem facts without inventing carrier naming semantics', async () => {
   const fs = await import('node:fs/promises');
   const os = await import('node:os');
   const folder = await fs.mkdtemp(path.join(os.tmpdir(), 'tiinex-collision-test-'));
+  const source = path.join(folder, 'source.zip');
+  const filename = 'tiinex-core-005.handoff-package.zip';
   try {
-    await fs.writeFile(path.join(folder, 'tiinex-core-005.handoff-package.zip'), 'x');
-    await fs.writeFile(path.join(folder, 'tiinex-core-005--2.handoff-package.zip'), 'y');
-    assert.equal(await nextCarrierCollisionInstance(folder, 'tiinex-core-005.handoff-package.zip'), 3);
-    assert.equal(carrierFilenameForCollisionInstance('tiinex-core-005.handoff-package.zip', 3), 'tiinex-core-005--3.handoff-package.zip');
+    await fs.writeFile(source, 'prepared');
+    assert.equal(await inspectCarrierDestination(source, folder, filename), 'absent');
+    await fs.writeFile(path.join(folder, filename), 'prepared');
+    assert.equal(await inspectCarrierDestination(source, folder, filename), 'identical');
+    await fs.writeFile(path.join(folder, filename), 'different');
+    assert.equal(await inspectCarrierDestination(source, folder, filename), 'different');
+    assert.deepEqual((await existingCarrierFilenames(folder)).sort(), [filename, 'source.zip'].sort());
   } finally { await fs.rm(folder, { recursive: true, force: true }); }
 
   const items = [
@@ -561,8 +587,12 @@ await test('extension contributes stable Discovery, Incoming, Outgoing and Trans
   assert.match(treeSource, /restoreTransportQueue[\s\S]*qualifyTransportPackage/);
   assert.doesNotMatch(treeSource, /tiinex\.transport\.receipts\.v1/);
   assert.doesNotMatch(treeSource, /Cold start: read Start directly/);
-  assert.doesNotMatch(treeSource, /chooseOutgoingCarrierParent/);
+  assert.doesNotMatch(treeSource, /chooseOutgoingCarrierParent|chooseNextMajorParent|carrierFilenameForCollisionInstance/);
   assert.match(treeSource, /resolveRootOutgoingAllocation\(prefix/);
+  assert.match(treeSource, /resolveRootOutgoingAllocation[\s\S]*projectHandoffCarrierMajorFrontier\(runtime, prefix, qualified\)/);
+  assert.match(treeSource, /bumpOutgoingMajor[\s\S]*resolveRootOutgoingAllocation\(prefix, folder\)/);
+  const outgoingUxSource = await fs.readFile(path.resolve(HERE, '..', 'src', 'core', 'outgoingUx.ts'), 'utf8');
+  assert.doesNotMatch(outgoingUxSource, /chooseNextMajorParent|carrierFilenameForCollisionInstance/);
   assert.match(treeSource, /ensureRootOutgoingAllocation\(outputDirectory\)/);
   assert.match(treeSource, /packageParentDimension/);
   assert.match(treeSource, /localMajorParent/);
@@ -1616,7 +1646,9 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(packageBuilder, /selected-core-runtime/);
   assert.doesNotMatch(packageBuilder, /--collision-instance/);
   assert.match(packageBuilder, /Core owns routed Handoff bytes plus continuation\/allocation truth/);
-  assert.match(packageBuilder, /nextCarrierCollisionInstance\(folder, coreFilename\)/);
+  assert.match(packageBuilder, /projectHandoffCarrierOutputCollision\(runtime, canonical, existing\)/);
+  assert.match(packageBuilder, /inspectCarrierDestination\(sourcePath, folder, canonical\)/);
+  assert.doesNotMatch(packageBuilder, /nextCarrierCollisionInstance|carrierFilenameForCollisionInstance/);
   assert.doesNotMatch(packageBuilder, /input\.expectedCarrierFilename \|\| coreFilename/);
   assert.match(packageBuilder, /PackageRouteInput/);
   assert.match(packageBuilder, /PackageRouteInput \{[^}]*participantRoles\?: PackageParticipantRole\[\]/);
@@ -2092,7 +2124,7 @@ await test('multi-Incoming and Merge/Replace remain selection-first, dry until f
   assert.match(packageBuilderAllocation, /carrier-filename-shared-contract-mismatch/);
   assert.match(packageBuilderAllocation, /assertExpectedCarrierDimension\(built/);
   assert.match(packageBuilderAllocation, /assertExpectedCarrierFilename\(built/);
-  assert.match(tree, /expectedCarrierFilename: this\.outgoingProjectedFilename\(\)/);
+  assert.match(tree, /expectedCarrierFilename: this\.outgoingProjectedBaseFilename\(\)/);
   assert.match(tree, /fileArtifactRoots\('discovery',[\s\S]*index\.packagePath/);
   assert.match(tree, /index\.carrierFiles/);
   assert.match(apply, /entry\.name === '\.git'/);
@@ -2344,7 +2376,7 @@ await test('pointerless Pack passes the displayed filename and qualifies the exa
   const tree = await fs.readFile(path.join(root, 'src', 'operatorTrees.ts'), 'utf8');
   const start = tree.indexOf('if (!routes.length)', tree.indexOf('private async packageOutgoing'));
   const section = tree.slice(start, tree.indexOf('const selected', start));
-  assert.match(section, /expectedCarrierFilename: this\.outgoingProjectedFilename\(\)/);
+  assert.match(section, /expectedCarrierFilename: this\.outgoingProjectedBaseFilename\(\)/);
   const builder = await fs.readFile(path.join(root, 'src', 'packageBuilder.ts'), 'utf8');
   const branch = builder.slice(builder.indexOf('if (route.pointerless) {'), builder.indexOf('if (!route.workspaceId', builder.indexOf('if (route.pointerless) {')));
   assert.doesNotMatch(branch, /Running Core package preview|workspace-preview-blocked/);
@@ -2368,10 +2400,12 @@ await test('routed Handoff Pack consumes Core topology then qualifies the exact 
   assert.match(branch, /qualifiedCoreCarrierFilename\(built\)/);
   assert.match(branch, /assertStableQualifiedCarrierAllocation\(topologyPreview, built\)/);
   assert.doesNotMatch(branch, /preview = await manufactureHandoffPackage\(runtime, manufactureArgs\)/);
-  assert.match(branch, /nextCarrierCollisionInstance\(folder, coreFilename\)/);
-  assert.match(branch, /carrierFilenameForCollisionInstance\(coreFilename, collisionInstance\)/);
+  assert.match(branch, /destinationCarrierFilename\(runtime, built\.primaryOutput\.path, folder, coreFilename\)/);
+  assert.doesNotMatch(branch, /nextCarrierCollisionInstance|carrierFilenameForCollisionInstance/);
   assert.match(branch, /publishCarrierFile\(built\.primaryOutput\.path, folder, filename\)/);
-  assert.doesNotMatch(branch, /input\.expectedCarrierFilename|assertExpectedCarrierFilename\(|assertExpectedCarrierDimension\(/);
+  assert.match(branch, /input\.expectedCarrierFilename/);
+  assert.match(branch, /assertExpectedCarrierFilename\(built/);
+  assert.doesNotMatch(branch, /assertExpectedCarrierDimension\(/);
   const tree = await fs.readFile(path.join(root, 'src', 'operatorTrees.ts'), 'utf8');
   const packMethodStart = tree.indexOf('private async packageOutgoing()');
   const treeStart = tree.indexOf('const mechanicalAnchor = routes[0]', packMethodStart);
@@ -2381,14 +2415,15 @@ await test('routed Handoff Pack consumes Core topology then qualifies the exact 
   assert.match(treeBranch, /buildHandoffPackageFromForm/);
   assert.match(treeBranch, /routeInputs: routes\.map/);
   assert.match(treeBranch, /carrierPrefix:/);
-  assert.doesNotMatch(treeBranch, /expectedCarrierFilename:|expectedCarrierDimension:|refreshOutgoingCollisionInstance/);
+  assert.match(treeBranch, /expectedCarrierFilename: this\.outgoingProjectedBaseFilename\(mechanicalAnchor\)/);
+  assert.doesNotMatch(treeBranch, /expectedCarrierDimension:|refreshOutgoingCollisionInstance/);
   assert.doesNotMatch(treeBranch, /Primary Outgoing route|primary Handoff does not continue an exact qualified Handoff route/);
   assert.match(treeBranch, /Tiinex packing Handoff carrier/);
   assert.match(tree, /Tiinex finishing Handoff carrier/);
   assert.match(tree, /Queueing finished carrier for Transport/);
   assert.match(branch, /Running Core route\/allocation preflight and package preview/);
   assert.match(branch, /Manufacturing and requalifying finished carrier/);
-  assert.match(branch, /Allocating Core-derived output filename/);
+  assert.match(branch, /Projecting destination filename through Core/);
   assert.match(branch, /Publishing qualified carrier/);
 });
 
@@ -2471,7 +2506,7 @@ await test('routed Handoff Pack reports slow stages in order and clears loading 
   const stages = [
     'Running Core route/allocation preflight and package preview…',
     'Manufacturing and requalifying finished carrier…',
-    'Allocating Core-derived output filename…',
+    'Projecting destination filename through Core…',
     'Publishing qualified carrier…'
   ];
   let prior = -1;
@@ -3268,7 +3303,7 @@ await test('Candidate 018 keeps lineage as artifact membership and normalizes na
   assert.match(tree, /collapsible: vscode\.TreeItemCollapsibleState\.Collapsed,\n\s+draftId: item\.id, workspaceId/);
 
   assert.match(tree, /revealFileInOS', vscode\.Uri\.file\(path\.dirname\(target\)\)/);
-  assert.match(packageBuilder, /action === 'Open Folder'[\s\S]*revealFileInOS', vscode\.Uri\.file\(path\.dirname\(target\)\)/);
+  assert.match(packageBuilder, /action === 'Open Folder'[\s\S]*revealFileInOS', vscode\.Uri\.file\(target\)/);
 });
 
 await test('Marketplace surface is release-auditable without embedding a legacy publishing credential path', async () => {
@@ -3324,12 +3359,16 @@ await test('Workspace initialization delegates source identity and ignore semant
   const packageBuilder = await fs.readFile(path.join(root, 'src', 'packageBuilder.ts'), 'utf8');
   assert.doesNotMatch(init, /repositoryFact|portableRepositoryIdentity|workspaceIdFrom|titleFromRepository/);
   assert.match(init, /initializeWorkspaceDirectory/);
+  assert.match(init, /prepareHostCoreRuntime/);
+  assert.doesNotMatch(init, /prepareBundledRuntime/);
   assert.doesNotMatch(init, /repositoryFact|portableRepositoryIdentity|resolveLatestGitHubSchema|httpsGet|schema-material|schema-target/);
   assert.doesNotMatch(init, /'--repository'|'--ref'|'--workspace-id'|'--title'/);
   assert.match(init, /\['init-workspace', root, '--authors', 'local-user', '--compact'\]/);
   const initializeMethod = tree.slice(tree.indexOf('async initializeWorkspace'), tree.indexOf('private async parentArtifactForResource'));
   assert.doesNotMatch(initializeMethod, /repositoryRootForResource/);
   assert.match(initializeMethod, /selected\.isDirectory\(\) \? resource\.fsPath : path\.dirname\(resource\.fsPath\)/);
+  assert.match(initializeMethod, /workspaceFolders \|\| \[\]/);
+  assert.match(initializeMethod, /initializeWorkspaceDirectory\(this\.extensionPath, root, candidateRoots\)/);
   assert.doesNotMatch(packageBuilder, /ignoredPathsWithoutRepository|check-ignore|workspace-exclusions|repositoryRoots\(\)|repositoryFact\(/);
 });
 console.log(`\n${count}/${count} Tiinex VS Code bridge core cases passed.`);

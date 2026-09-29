@@ -697,6 +697,91 @@ async function runManufactureHandoffPackage(runtime: PackageRuntime, args: strin
 }
 
 
+export interface CarrierMajorFrontierCandidate {
+  packagePath: string;
+  filename: string;
+  packageSha256: string;
+  carrierLineage: { prefix?: string; dimension?: string };
+}
+
+export interface CarrierMajorFrontierResult {
+  status: string;
+  state: 'none' | 'ready' | 'ambiguous' | 'blocked';
+  reasonCode?: string;
+  selected?: { packagePath?: string; filename?: string; packageSha256?: string; prefix?: string; dimension?: string; major?: number } | null;
+  nextMajorDimension?: string;
+}
+
+export async function projectHandoffCarrierMajorFrontier(
+  runtime: PackageRuntime,
+  prefix: string,
+  candidates: CarrierMajorFrontierCandidate[],
+  runner: ProcessRunner = runProcess
+): Promise<CarrierMajorFrontierResult> {
+  const scratch = await mkdtemp(path.join(os.tmpdir(), 'tiinex-vscode-major-frontier-'));
+  try {
+    const candidatesPath = path.join(scratch, 'candidates.json');
+    await writeFile(candidatesPath, JSON.stringify({ candidates }), 'utf8');
+    return await runTiinexJson<CarrierMajorFrontierResult>(runtime, ['project-handoff-carrier-major-frontier', '--prefix', String(prefix || '').trim(), '--candidates', candidatesPath, '--compact'], runner);
+  } finally { await rm(scratch, { recursive: true, force: true }); }
+}
+
+
+
+export interface CarrierTransportNameResult {
+  status: string;
+  state: 'ready' | 'blocked';
+  mode: 'continuation' | 'major' | string;
+  reasonCode?: string;
+  parentFilename?: string;
+  filename?: string;
+  ordinalOrMajor?: number;
+  prefix?: string;
+}
+
+export async function projectHandoffCarrierTransportName(
+  runtime: PackageRuntime,
+  parentFilename: string,
+  mode: 'continuation' | 'major',
+  ordinal = 1,
+  existingFilenames: string[] = [],
+  runner: ProcessRunner = runProcess
+): Promise<CarrierTransportNameResult> {
+  const scratch = await mkdtemp(path.join(os.tmpdir(), 'tiinex-vscode-carrier-transport-name-'));
+  try {
+    const args = ['project-handoff-carrier-transport-name', '--parent-filename', String(parentFilename || '').trim(), '--mode', mode, '--ordinal', String(ordinal)];
+    if (existingFilenames.length) {
+      const namesPath = path.join(scratch, 'names.json');
+      await writeFile(namesPath, JSON.stringify({ existingFilenames }), 'utf8');
+      args.push('--existing', namesPath);
+    }
+    args.push('--compact');
+    return await runTiinexJson<CarrierTransportNameResult>(runtime, args, runner);
+  } finally { await rm(scratch, { recursive: true, force: true }); }
+}
+
+export interface CarrierOutputCollisionResult {
+  status: string;
+  state: 'canonical-free' | 'collision-suffixed' | 'blocked';
+  reasonCode?: string;
+  filename?: string;
+  collisionInstance?: number;
+}
+
+export async function projectHandoffCarrierOutputCollision(
+  runtime: PackageRuntime,
+  filename: string,
+  existingFilenames: string[],
+  runner: ProcessRunner = runProcess
+): Promise<CarrierOutputCollisionResult> {
+  const scratch = await mkdtemp(path.join(os.tmpdir(), 'tiinex-vscode-carrier-collision-'));
+  try {
+    const namesPath = path.join(scratch, 'names.json');
+    await writeFile(namesPath, JSON.stringify({ existingFilenames }), 'utf8');
+    return await runTiinexJson<CarrierOutputCollisionResult>(runtime, ['project-handoff-carrier-output-collision', '--filename', String(filename || '').trim(), '--existing', namesPath, '--compact'], runner);
+  } finally { await rm(scratch, { recursive: true, force: true }); }
+}
+
 export async function projectHandoffParticipants(runtime: PackageRuntime, args: string[], runner: ProcessRunner = runProcess): Promise<any> {
   return runTiinexJson<any>(runtime, ['project-handoff-participants', ...args, '--compact'], runner);
 }
