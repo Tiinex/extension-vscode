@@ -1636,8 +1636,8 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(packageBuilder, /if \(!packageParentPath\)/);
   assert.match(packageBuilder, /explicit-vscode-outgoing-workspace-selection/);
   assert.match(packageBuilder, /participantRoles/);
-  assert.match(packageBuilder, /shouldExposeWorkspaceRoot/);
-  assert.match(packageBuilder, /ignoredPathsWithoutRepository/);
+  assert.doesNotMatch(packageBuilder, /shouldExposeWorkspaceRoot/);
+  assert.doesNotMatch(packageBuilder, /ignoredPathsWithoutRepository|check-ignore|workspace-exclusions|repositoryRoots\(\)|repositoryFact\(/);
   assert.match(packageBuilder, /workspaceSourceOverrides/);
   assert.match(packageBuilder, /Select Tiinex outgoing folder/);
   assert.match(packageBuilder, /showOpenDialog/);
@@ -2557,18 +2557,18 @@ await test('installed Core editor assistance withholds mixed-revision schema lin
     const organization = await projectEditorAssistanceText(runtime, root, organizationPath, organizationMarkdown);
     const orgDocument = organization.documents[0];
     assert.equal(orgDocument.validator.authorityState, 'unavailable');
-    assert.equal(orgDocument.validator.authorityBasis, 'unavailable');
-    assert.ok(orgDocument.validator.authorityFindings?.some((item) => /substitutes source authority/.test(item)));
+    assert.equal(orgDocument.validator.authorityBasis, 'declared-current-schema-target-unqualified');
+    assert.ok(orgDocument.validator.authorityFindings?.some((item) => /not qualified for tiinex\.party\.organization\.v1/.test(item)));
     assert.ok(orgDocument.diagnostics.some((item) => item.code === 'audit.schema-authority.unqualified'));
 
     const rolePath = '.topics/role.trace.md';
     const roleMarkdown = '# Continuity Context\n\n- Envelope Schema: [tiinex.root.v1](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.schemas/tiinex.root.v1.schema.md)\n- Current\n  - Current Schema: [tiinex.party.role.v1](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.schemas/party/role/tiinex.party.role.v1.schema.md)\n  - Created At: 2026-09-06 20:00:00\n  - Summary: fixture\n  - Status: accepted/local\n  - Why: fixture\n\n---\n\n# Role\n';
     await fs.writeFile(path.join(root, rolePath), roleMarkdown, 'utf8');
     const role = await projectEditorAssistanceText(runtime, root, rolePath, roleMarkdown);
-    assert.equal(role.documents[0].validator.authorityState, 'qualified');
-    assert.equal(role.documents[0].validator.authorityBasis, 'qualified-workspace-local-authority');
-    assert.deepEqual(role.documents[0].validator.authorityFindings || [], []);
-    assert.equal(role.documents[0].diagnostics.some((item) => item.code === 'audit.schema-authority.unqualified'), false);
+    assert.equal(role.documents[0].validator.authorityState, 'unavailable');
+    assert.equal(role.documents[0].validator.authorityBasis, 'declared-current-schema-target-unqualified');
+    assert.ok(role.documents[0].validator.authorityFindings?.some((item) => /not qualified for tiinex\.party\.role\.v1/.test(item)));
+    assert.equal(role.documents[0].diagnostics.some((item) => item.code === 'audit.schema-authority.unqualified'), true);
 
     const legacyIntegrityTarget = 'https://github.com/Tiinex/docs/blob/4cb7046454f1cf75333097fc1a3d4562838afc26/.topics/.validators/sha256-base64url-c14n-v2.validator.md';
     const preferredIntegrityTarget = 'https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md';
@@ -3314,4 +3314,22 @@ await test('Marketplace surface is release-auditable without embedding a legacy 
   assert.doesNotMatch(releaseCheck, /No Marketplace top-level PNG icon/);
 });
 
+
+
+await test('Workspace initialization delegates source identity and ignore semantics to shared Core', async () => {
+  const fs = await import('node:fs/promises');
+  const root = path.resolve(HERE, '..');
+  const init = await fs.readFile(path.join(root, 'src', 'workspaceInitialization.ts'), 'utf8');
+  const tree = await fs.readFile(path.join(root, 'src', 'operatorTrees.ts'), 'utf8');
+  const packageBuilder = await fs.readFile(path.join(root, 'src', 'packageBuilder.ts'), 'utf8');
+  assert.doesNotMatch(init, /repositoryFact|portableRepositoryIdentity|workspaceIdFrom|titleFromRepository/);
+  assert.match(init, /initializeWorkspaceDirectory/);
+  assert.doesNotMatch(init, /repositoryFact|portableRepositoryIdentity|resolveLatestGitHubSchema|httpsGet|schema-material|schema-target/);
+  assert.doesNotMatch(init, /'--repository'|'--ref'|'--workspace-id'|'--title'/);
+  assert.match(init, /\['init-workspace', root, '--authors', 'local-user', '--compact'\]/);
+  const initializeMethod = tree.slice(tree.indexOf('async initializeWorkspace'), tree.indexOf('private async parentArtifactForResource'));
+  assert.doesNotMatch(initializeMethod, /repositoryRootForResource/);
+  assert.match(initializeMethod, /selected\.isDirectory\(\) \? resource\.fsPath : path\.dirname\(resource\.fsPath\)/);
+  assert.doesNotMatch(packageBuilder, /ignoredPathsWithoutRepository|check-ignore|workspace-exclusions|repositoryRoots\(\)|repositoryFact\(/);
+});
 console.log(`\n${count}/${count} Tiinex VS Code bridge core cases passed.`);

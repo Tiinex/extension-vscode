@@ -2,20 +2,16 @@ import { checkedCarrierFilename } from './core/carrierFilename';
 import { nextCarrierCollisionInstance, publishCarrierFile } from './host/carrierPublish';
 import os from 'node:os';
 import path from 'node:path';
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import * as vscode from 'vscode';
 import { extensionHostAcceptanceEnabled, recordExtensionHostAcceptanceEvent } from './vscode/extensionHostAcceptance';
 import { preferredNodeExecutable } from './host/nodeExecutable';
 import { manufactureHandoffPackage, manufactureHandoffPackageDetailed, projectHandoffParticipants, OperatorContextResult, prepareBundledRuntime, prepareHostCoreRuntime, prepareWorkspaceCoreRuntime, projectHandoffLeaves, projectHandoffEndpoints, projectOperatorContext, projectWorkspacePackageSources, WorkspacePackageSourcesResult } from './tiinex/bootstrap';
-import { repositoryRoots } from './vscode/gitApi';
-import { repositoryFact } from './host/git';
 import { workspaceCarrierArgs } from './core/packageArgs';
 import { exactRouteByKey, routeChoiceKey } from './core/operatorModel';
 import { repositoryContainsPath, sameRepositoryRoot } from './core/repositoryPath';
 import { presentActionableFindings } from './core/findingPresentation';
 import { extractZipBuffer, readExactZipEntryFromFile } from './host/zip';
-import { indexLocalWorkspaceFiles } from './carrierIndex';
-import { runChecked, runProcess } from './host/process';
 import { representativeWorkspaceChoicesForRoot } from './core/workspaceChoice';
 import { ParticipantProjection, QualifiedParticipantRole } from './core/participantProjection';
 import { assertStableQualifiedCarrierAllocation, qualifiedCarrierAllocationFromManufactureReceipt } from './core/carrierAllocation';
@@ -127,10 +123,8 @@ function assertExactWorkspaceSelection(receipt: any, requestedWorkspaceIds: stri
 }
 
 async function operatorContext(runtime: Awaited<ReturnType<typeof prepareBundledRuntime>>): Promise<OperatorContextResult> {
-  const roots = await repositoryRoots();
-  const facts = [];
-  for (const root of roots) facts.push(await repositoryFact(root));
-  const result = await projectOperatorContext(runtime, roots, facts);
+  const roots = openWorkspaceRoots();
+  const result = await projectOperatorContext(runtime, roots);
   if (result.status !== 'ready' || (result.findings || []).some((item) => item.severity === 'error')) throw new Error(`tiinex.package-builder.operator-context-blocked:\n${presentActionableFindings(result.findings || [], result.status)}`);
   return result;
 }
@@ -226,7 +220,6 @@ export async function loadLocalWorkspaceChoices(extensionPath: string): Promise<
     for (let index = 0; index < roots.length; index += 1) {
       const projected = projectedByRoot[index];
       if (projected?.status !== 'ready') continue;
-      if (await shouldExposeWorkspaceRoot(roots[index]) === false) continue;
       for (const item of representativeWorkspaceChoicesForRoot(roots[index], projected.candidates || [])) {
         if (!item.workspaceId || !item.workspaceTargetPath) continue;
         choices.push({ workspaceId: item.workspaceId, repository: item.repository, ref: item.ref, root: roots[index], workspaceTargetPath: item.workspaceTargetPath, sourceKind: item.sourceKind });
@@ -238,39 +231,6 @@ export async function loadLocalWorkspaceChoices(extensionPath: string): Promise<
     if (ambiguous) throw new Error(`tiinex.package-builder.workspace-id-ambiguous:${ambiguous[0]}`);
     return choices;
   } finally { await runtime.dispose(); }
-}
-
-async function shouldExposeWorkspaceRoot(root: string): Promise<boolean> {
-  const resolved = path.resolve(String(root || '').trim());
-  if (!resolved) return false;
-  if (await hasGitMetadata(resolved)) return true;
-  const entries = await indexLocalWorkspaceFiles(resolved);
-  if (!entries.length) return false;
-  const scratch = await mkdtemp(path.join(os.tmpdir(), 'tiinex-vscode-ignore-filter-'));
-  try {
-    const ignored = await ignoredPathsWithoutRepository(resolved, entries.map((entry) => entry.path), scratch);
-    const ignoredSet = new Set(ignored.map((item) => item.replace(/\\/g, '/')));
-    return entries.some((entry) => !ignoredSet.has(entry.path));
-  } finally { await rm(scratch, { recursive: true, force: true }); }
-}
-
-async function hasGitMetadata(root: string): Promise<boolean> {
-  try {
-    const info = await stat(path.join(root, '.git'));
-    return info.isDirectory() || info.isFile();
-  } catch {
-    return false;
-  }
-}
-
-async function ignoredPathsWithoutRepository(root: string, candidates: string[], scratch: string): Promise<string[]> {
-  if (!candidates.length) return [];
-  const gitRoot = path.join(scratch, `ignore-${Math.random().toString(36).slice(2)}`);
-  await runChecked('git', ['init', '--quiet', gitRoot]);
-  const gitDir = path.join(gitRoot, '.git');
-  const result = await runProcess('git', ['--git-dir', gitDir, '--work-tree', root, 'check-ignore', '--no-index', '-z', '--stdin'], { cwd: root, input: `${candidates.join('\0')}\0` });
-  if (result.code !== 0 && result.code !== 1) throw new Error(`tiinex.package-builder.ignore-check-failed:${result.stderr.trim() || result.stdout.trim() || result.code}`);
-  return result.stdout.split('\0').map((item) => String(item || '').replace(/\\/g, '/')).filter(Boolean).sort();
 }
 
 async function mapBounded<T, R>(items: T[], limit: number, worker: (item: T, index: number) => Promise<R>): Promise<R[]> {

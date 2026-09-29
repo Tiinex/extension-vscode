@@ -47,6 +47,7 @@ try {
     await cp(path.join(root, '.topics', '.workspaces', name), path.join(fixture, '.topics', '.workspaces', name));
   }
   await writeFile(path.join(fixture, 'README.md'), '# Package integration fixture\n');
+  await writeFile(path.join(fixture, '.gitignore'), '*.handoff-package.zip\n', 'utf8');
   const git = (...args) => run('git', args, { cwd: fixture });
   await git('init', '-q');
   await git('config', 'user.name', 'Tiinex Test');
@@ -54,12 +55,13 @@ try {
   await git('remote', 'add', 'origin', 'https://github.com/Tiinex/vscode.git');
   await git('add', '-A');
   await git('commit', '-qm', 'fixture');
+  await writeFile(path.join(fixture, 'bootstrap-999.handoff-package.zip'), 'ignored generated carrier', 'utf8');
   Module._load = function(request, parent, isMain) {
     return request === 'vscode' ? vscode : originalLoad.call(this, request, parent, isMain);
   };
   const { buildHandoffPackageFromForm, loadHandoffRouteChoicesForSource } = require('../dist/packageBuilder.js');
   const { prepareBundledRuntime, preparePackageRuntimeWithRecovery, runTiinexJson } = require('../dist/tiinex/bootstrap.js');
-  const { extractZipBuffer, inspectZipBuffer } = require('../dist/host/zip.js');
+  const { extractZipBuffer, inspectZipBuffer, readExactZipEntryFromBuffer } = require('../dist/host/zip.js');
   const filename = 'business-001-9-2.handoff-package.zip';
   const input = { routeId: 'workspace-carrier:none', workspaceIds: ['vscode'], outputDirectory: output, expectedCarrierFilename: filename };
   const built = await buildHandoffPackageFromForm(root, input);
@@ -68,7 +70,15 @@ try {
   assert.match(built.routingText, /Start:\n001-1-READ-BEFORE-PROCEEDING\.trace\.md/);
   assert.match(built.routingText, /pointerless Workspace carrier/);
   assert.doesNotMatch(built.routingText, /Continue from:/i);
-  pass('real extension package builder writes the displayed pointerless filename with Core-owned generic transport text');
+  const builtOuter = await readFile(built.outputPath);
+  const builtOuterEntries = await inspectZipBuffer(builtOuter);
+  const workspaceArchive = builtOuterEntries.find((item) => !item.directory && /vscode\.workspace\.zip$/i.test(item.path));
+  assert.ok(workspaceArchive, 'pointerless carrier must contain the selected Workspace archive');
+  const workspaceBytes = await readExactZipEntryFromBuffer(builtOuter, workspaceArchive.path);
+  const workspacePaths = (await inspectZipBuffer(workspaceBytes)).filter((item) => !item.directory).map((item) => item.path);
+  assert.equal(workspacePaths.includes('bootstrap-999.handoff-package.zip'), false, 'shared Core enumeration must exclude .gitignored generated carrier bytes');
+  assert.equal(workspacePaths.includes('.gitignore'), true, 'the durable ignore policy file remains part of the Workspace snapshot');
+  pass('real extension package builder writes the displayed pointerless filename and shared Core applies .gitignore to the nested Workspace snapshot');
   const runtime = await prepareBundledRuntime(root, process.execPath);
   try {
     const orientation = await runTiinexJson(runtime, ['orient-handoff-package', built.outputPath]);
@@ -139,13 +149,15 @@ try {
   pass('multi-route Pack preserves Core-qualified routes and physical Handoff/participant pointer files in the finished carrier');
 
   const originalBytes = await readFile(built.outputPath);
-  const retry = await buildHandoffPackageFromForm(root, input);
-  assert.equal(retry.outputPath, built.outputPath);
-  assert.deepEqual(await readFile(retry.outputPath), originalBytes);
+  // Bootstrap manifest v2 records exact bundle manufacture time, so rebuilding the
+  // same source is a new bundle identity even when runtime composition is equal.
+  // A fixed human-output filename remains immutable and must never be overwritten.
+  await assert.rejects(buildHandoffPackageFromForm(root, input), /output-exists-different/);
+  assert.deepEqual(await readFile(built.outputPath), originalBytes);
   await writeFile(path.join(fixture, 'README.md'), '# Different payload\n');
   await assert.rejects(buildHandoffPackageFromForm(root, input), /output-exists-different/);
   assert.deepEqual(await readFile(built.outputPath), originalBytes);
-  pass('exact retry is idempotent and different payload cannot overwrite the existing carrier');
+  pass('rebuilt bundle identity and changed payload both fail closed instead of overwriting an existing carrier');
   const packed = await run(process.execPath, ['scripts/package-vsix.mjs'], { cwd: root, maxBuffer: 16 * 1024 * 1024 });
   const receipt = JSON.parse(packed.stdout.trim());
   assert.equal(receipt.status, 'ready');

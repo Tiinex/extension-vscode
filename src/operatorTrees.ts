@@ -13,8 +13,8 @@ import { mergeTransportRouteSelection, selectedTransportRouteIds, StoredTranspor
 import { loadHandoffEndpointChoicesForSources, loadHandoffRouteChoicesForSource, loadLocalWorkspaceChoices, buildHandoffPackageFromForm, announceBuiltCarrier, routeChoiceKeyForHandoff, IncomingPackageWorkspaceSource, PackageWorkspaceChoice, PackageWorkspaceSourceOverride, PackageRouteRouting, PackageParticipantProjection, PackageParticipantRole, projectHandoffPackageParticipants, qualifyLocalWorkspaceChoice } from './packageBuilder';
 import { applyExactHandoffEndpointSelection } from './core/handoffEndpointSelection';
 import { ArtifactAuthoringCatalog, ArtifactDraftParent, loadArtifactAuthoringCatalog, loadArtifactAuthoringModel, prepareArtifactDraft, PreparedArtifactDraft, qualifyArtifactDraftParent, qualifyExistingHandoff, writePreparedArtifactDraft } from './authoring';
-import { initializeRepositoryWorkspace } from './workspaceInitialization';
-import { repositoryRootForResource } from './vscode/gitApi';
+import { initializeWorkspaceDirectory } from './workspaceInitialization';
+
 import { compareIncomingWorkspaceToLocal, groundPackageForReview, GroundingResult, orientPackage, prepareBundledRuntime, preparePackageRuntimeWithRecovery, projectPackageTransport } from './tiinex/bootstrap';
 import { applyIncomingWorkspaces, IncomingApplyStrategy } from './incomingApply';
 import { operatorMatchedWorkspaceIds, resolvePrioritizedWorkspaceDuplicates } from './core/sourceSelection';
@@ -567,8 +567,9 @@ export class TiinexOperatorTrees implements vscode.Disposable {
   async initializeWorkspace(resource?: vscode.Uri): Promise<void> {
     try {
       if (!resource || resource.scheme !== 'file') throw new Error('tiinex.workspace-init.file-resource-required');
-      const root = await repositoryRootForResource(resource.fsPath);
-      const result = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'Tiinex initializing Workspace', cancellable: false }, () => initializeRepositoryWorkspace(this.extensionPath, root));
+      const selected = await stat(resource.fsPath);
+      const root = selected.isDirectory() ? resource.fsPath : path.dirname(resource.fsPath);
+      const result = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'Tiinex initializing Workspace', cancellable: false }, () => initializeWorkspaceDirectory(this.extensionPath, root));
       if (result.status !== 'ready' || !result.writeReceipt?.path) {
         const detail = (result.findings || []).map((item) => `${item.code || 'finding'}: ${item.message || ''}`).join('\n');
         throw new Error(`tiinex.workspace-init.blocked:${result.status}${detail ? `\n${detail}` : ''}`);
