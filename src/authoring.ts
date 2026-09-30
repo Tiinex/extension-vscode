@@ -14,6 +14,7 @@ import { safeRelativePath, safeTarget } from './core/paths';
 export interface ArtifactDraftParent {
   path: string;
   markdown: string;
+  schemaId?: string;
   workspaceId?: string;
   root?: string;
   reference?: string;

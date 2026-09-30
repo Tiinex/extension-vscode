@@ -29,7 +29,7 @@ import { checkIgnoredPaths, commitPreparedGitOperator, commitPreparedReviewedSta
 import { preferredNodeExecutable } from '../dist/host/nodeExecutable.js';
 import { copyFileToClipboard } from '../dist/host/fileClipboard.js';
 import { existingCarrierFilenames, inspectCarrierDestination } from '../dist/host/carrierPublish.js';
-import { compareIncomingWorkspaceToLocal, createArtifactDraft, inspectArtifactCreationContract, manufactureHandoffPackage, manufactureHandoffPackageDetailed, parseBootstrapDescriptor, prepareBundledRuntime, projectArtifactMaterialization, projectArtifactSchemaGuide, runTiinexJson, projectEditorAssistanceText, projectHandoffCarrierMajorFrontier, projectHandoffCarrierOutputCollision, projectHandoffCarrierTransportName, projectHandoffEndpoints, projectOperatorContext, projectPackageTransport, projectStagedValidation, projectWorkspaceLanding, projectWorkspacePackageSources } from '../dist/tiinex/bootstrap.js';
+import { compareIncomingWorkspaceToLocal, createArtifactDraft, inspectArtifactCreationContract, manufactureHandoffPackage, manufactureHandoffPackageDetailed, parseBootstrapDescriptor, prepareBundledRuntime, projectArtifactMaterialization, projectArtifactSchemaGuide, runTiinexJson, projectEditorAssistanceText, projectHandoffCarrierMajorFrontier, projectHandoffCarrierOutputCollision, projectHandoffCarrierTransportName, projectHandoffEndpoints, projectOperatorContext, projectPackageTransport, projectStagedValidation, projectTransitionCatalog, projectTransitionNeighborhood, projectWorkspaceLanding, projectWorkspacePackageSources } from '../dist/tiinex/bootstrap.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 let count = 0;
@@ -1467,6 +1467,8 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(panel, /Schema and validation are projected by Tiinex Core/);
   assert.match(panel, /Core authoring boundary/);
   assert.match(panel, /not currently bound by Core creation/);
+  assert.match(panel, /Transition neighborhood/);
+  assert.match(panel, /Attachment does not mean applicable, executable, recommended, or ordered/);
   assert.match(panel, /applyAssist/);
   assert.match(panel, /assistCapabilityErrors/);
   assert.match(panel, /cannot be written by the current Core creation contract/);
@@ -1521,6 +1523,22 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(tree, /participant authority unresolved/);
   assert.match(tree, /participant projection blocked/);
   assert.match(tree, /Active speaker labels are host-local presentation only and do not create Party identity, Role holding, holder binding, semantic participation, delegation or acceptance/);
+  assert.match(bootstrap, /projectTransitionCatalog/);
+  assert.match(bootstrap, /project-transition-catalog/);
+  assert.match(bootstrap, /projectTransitionNeighborhood/);
+  assert.match(bootstrap, /project-transition-neighborhood/);
+  assert.match(tree, /schemaTransitionNeighborhood/);
+  assert.match(tree, /projectTransitionNeighborhood/);
+  assert.doesNotMatch(tree, /transitionAuthoringNeighborhood/);
+  assert.match(tree, /Attachment does not mean applicable, executable, recommended, or ordered/);
+  assert.match(tree, /candidate\.authoringProfile\?\.state === 'qualified'/);
+  assert.match(tree, /templateLabel: 'Handoff transition'/);
+  assert.match(tree, /selectedTemplateId: 'direct'/);
+  assert.match(tree, /Direct \/ blank/);
+  assert.doesNotMatch(tree, /id: 'work'|id: 'conversation'|id: 'discuss'/);
+  assert.doesNotMatch(tree, /bounded-work Handoff contract|bounded live conversation or brainstorm|bounded review Handoff contract/);
+  assert.match(panel, /input\.templateLabel \|\| 'Preset'/);
+  assert.match(panel, /resetTemplateField/);
   assert.match(tree, /loadArtifactAuthoringCatalog/);
   assert.match(tree, /pickArtifactSchema/);
   assert.match(tree, /pickArtifactParent/);
@@ -1561,11 +1579,6 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(tree, /continuationModel\.status === 'ready'/);
   assert.match(tree, /register\('tiinex\.artifact\.newFeedback', \(resource\?: vscode\.Uri\) => this\.beginArtifactAuthoring\(resource, 'tiinex\.feedback\.v1'\)\)/);
   assert.match(tree, /register\('tiinex\.artifact\.newHandoff', \(resource\?: vscode\.Uri\) => this\.beginArtifactAuthoring\(resource, 'tiinex\.handoff\.v1'\)\)/);
-  assert.match(tree, /bounded-work/);
-  assert.match(tree, /Open conversation \/ brainstorm/);
-  assert.match(tree, /No automatic completion artifact, disposition, or return package is expected/);
-  assert.match(tree, /'Signal Kind': 'none'/);
-  assert.match(tree, /'Required Context': 'none'/);
   assert.doesNotMatch(tree, /newHandoffFromExplorer/);
   assert.match(tree, /attachHandoffFromExplorer/);
   assert.match(tree, /return exact \|\| null/);
@@ -2823,6 +2836,8 @@ await test('native package and authoring wrappers preserve exact shared CLI oper
   const fx = fakeRunner((key) => {
     if (key.includes('project-workspace-package-sources')) return { code: 0, stdout: JSON.stringify({ status: 'ready', candidates: [] }), stderr: '' };
     if (key.includes('project-handoff-endpoints')) return { code: 0, stdout: JSON.stringify({ status: 'ready', workspaceId: 'business', candidates: [{ id: 'business::.topics/roles/loom.role.trace.md', target: 'business::.topics/roles/loom.role.trace.md', reference: 'business::.topics/roles/loom.role.trace.md', kind: 'role', label: 'Loom', workspaceId: 'business', artifactPath: '.topics/roles/loom.role.trace.md', schemaId: 'tiinex.party.role.v1', qualification: 'qualified-exact' }] }), stderr: '' };
+    if (key.includes('project-transition-neighborhood')) return { code: 0, stdout: JSON.stringify({ status: 'ready', candidates: [{ representationKey: 'fixture:topic-to-task', path: '.topics/processes/topic-to-task.trace.md', canonicalIdentifier: 'example.topic-to-task.v1', humanLabel: 'Topic to task', attachmentQualification: 'explicit-schema-companion', authoringProfile: { state: 'qualified', generationQualification: 'qualified', defaults: { Purpose: 'Fixture default' }, boundary: { explicitSelectionRequired: true, recommendation: 'not-projected', executionAuthorized: false } } }] }), stderr: '' };
+    if (key.includes('project-transition-catalog')) return { code: 0, stdout: JSON.stringify({ status: 'ready', candidates: [{ path: '.topics/processes/create-task.trace.md', canonicalIdentifier: 'example.create-task.v1', humanLabel: 'Create task' }] }), stderr: '' };
     if (key.includes('create-local-draft')) return { code: 0, stdout: JSON.stringify({ status: 'created-local', draft: { markdown: '# sealed' }, findingSummary: { counts: { error: 0 } } }), stderr: '' };
     return undefined;
   });
@@ -2832,13 +2847,23 @@ await test('native package and authoring wrappers preserve exact shared CLI oper
   const endpointArgs = fx.calls[1].args;
   assert.deepEqual(endpointArgs.slice(1), ['project-handoff-endpoints', '/repo-business', '--workspace-id', 'business', '--compact']);
   assert.equal(endpoints.candidates[0].reference, 'business::.topics/roles/loom.role.trace.md');
+  const transitions = await projectTransitionCatalog(runtime, ['/repo-a', '/repo-b', '/repo-a'], 'tiinex.task.v1', '', fx.runner);
+  assert.equal(transitions.candidates[0].canonicalIdentifier, 'example.create-task.v1');
+  const transitionArgs = fx.calls[2].args;
+  assert.deepEqual(transitionArgs.slice(1), ['project-transition-catalog', '/repo-a', '/repo-b', '--output-schema', 'tiinex.task.v1', '--compact']);
+  const neighborhood = await projectTransitionNeighborhood(runtime, ['/repo-a', '/repo-b', '/repo-a'], 'tiinex.task.v1', 'tiinex.topic.v1', fx.runner);
+  assert.equal(neighborhood.candidates[0].attachmentQualification, 'explicit-schema-companion');
+  assert.equal(neighborhood.candidates[0].representationKey, 'fixture:topic-to-task');
+  assert.equal(neighborhood.candidates[0].authoringProfile?.defaults?.Purpose, 'Fixture default');
+  const neighborhoodArgs = fx.calls[3].args;
+  assert.deepEqual(neighborhoodArgs.slice(1), ['project-transition-neighborhood', '/repo-a', '/repo-b', '--output-schema', 'tiinex.task.v1', '--input-schema', 'tiinex.topic.v1', '--compact']);
   await createArtifactDraft(runtime, 'tiinex.task.v1', '/repo-a', '.topics/root-task.trace.md', 'Root', { Summary: 'Root' }, null, 'create-artifact', fx.runner);
-  const rootArgs = fx.calls[2].args;
+  const rootArgs = fx.calls[4].args;
   assert.equal(rootArgs[rootArgs.indexOf('--schema') + 1], 'tiinex.task.v1');
   assert.equal(rootArgs[rootArgs.indexOf('--transition') + 1], 'create-artifact');
   assert.equal(rootArgs.includes('--parent'), false);
   await createArtifactDraft(runtime, 'tiinex.task.v1', '/repo-a', '.topics/child-task.trace.md', 'Child', { Summary: 'Child' }, { path: 'parent' }, 'continue-from-record', fx.runner);
-  const childArgs = fx.calls[3].args;
+  const childArgs = fx.calls[5].args;
   assert.equal(childArgs[childArgs.indexOf('--schema') + 1], 'tiinex.task.v1');
   assert.equal(childArgs[childArgs.indexOf('--transition') + 1], 'continue-from-record');
   assert.equal(childArgs.includes('--parent'), true);
@@ -3302,7 +3327,7 @@ await test('Candidate 018 keeps lineage as artifact membership and normalizes na
   assert.match(helper, /Handoff pointer/);
   assert.match(tree, /collapsible: vscode\.TreeItemCollapsibleState\.Collapsed,\n\s+draftId: item\.id, workspaceId/);
 
-  assert.match(tree, /revealFileInOS', vscode\.Uri\.file\(path\.dirname\(target\)\)/);
+  assert.match(tree, /revealFileInOS', vscode\.Uri\.file\(target\)/);
   assert.match(packageBuilder, /action === 'Open Folder'[\s\S]*revealFileInOS', vscode\.Uri\.file\(target\)/);
 });
 

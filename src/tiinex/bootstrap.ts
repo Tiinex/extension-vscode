@@ -546,6 +546,105 @@ export async function projectStagedValidation(runtime: PackageRuntime, root: str
   }
 }
 
+export interface TransitionCatalogDefinition {
+  representationKey?: string;
+  path: string;
+  humanLabel?: string;
+  canonicalIdentifier: string;
+  version?: string;
+  purpose?: string;
+  semanticBoundary?: string;
+  identityQualification?: string;
+  representationQualification?: string;
+  outputSchemaIds?: string[];
+  inputSchemaIds?: string[];
+  source?: { locator?: { kind?: string; localPath?: string; archivePath?: string; entryPath?: string } };
+}
+
+export interface TransitionCatalogResult {
+  status?: string;
+  schema?: string;
+  candidates: TransitionCatalogDefinition[];
+  counts?: { discovered?: number; readQualified?: number; projectedCandidates?: number };
+  boundary?: Record<string, unknown>;
+  limitations?: string[];
+  findings?: Array<{ severity?: string; code?: string; message?: string }>;
+}
+
+/**
+ * Ask Core to discover/read-qualify Transition Definitions from explicit local
+ * material roots. Discovery does not grant applicability or execution authority.
+ */
+export async function projectTransitionCatalog(
+  runtime: PackageRuntime,
+  roots: string[],
+  outputSchemaId = '',
+  inputSchemaId = '',
+  runner: ProcessRunner = runProcess
+): Promise<TransitionCatalogResult> {
+  const materialRoots = [...new Set((roots || []).map((root) => String(root || '').trim()).filter(Boolean))];
+  if (!materialRoots.length) throw new Error('tiinex.transition-catalog.material-root-required');
+  const args = ['project-transition-catalog', ...materialRoots];
+  if (String(outputSchemaId || '').trim()) args.push('--output-schema', String(outputSchemaId).trim());
+  if (String(inputSchemaId || '').trim()) args.push('--input-schema', String(inputSchemaId).trim());
+  args.push('--compact');
+  return runTiinexJson<TransitionCatalogResult>(runtime, args, runner);
+}
+
+export interface TransitionNeighborhoodDefinition extends TransitionCatalogDefinition {
+  attachmentQualification?: string;
+  authoringProfile?: {
+    state?: string;
+    reason?: string;
+    generationQualification?: string;
+    defaults?: Record<string, unknown>;
+    boundary?: {
+      explicitSelectionRequired?: boolean;
+      recommendation?: string;
+      ordering?: string;
+      transitionApplicability?: string;
+      executionAuthorized?: boolean;
+      defaultsAreAuthoringGuidance?: boolean;
+    };
+  };
+  attachmentProvenance?: Array<{
+    packageManifestPath?: string;
+    packageQualification?: string;
+    schemaPath?: string;
+    companionRepresentationKeys?: string[];
+    attachmentName?: string;
+    attachmentParticipation?: string;
+  }>;
+}
+
+export interface TransitionNeighborhoodResult extends Omit<TransitionCatalogResult, 'candidates' | 'counts'> {
+  candidates: TransitionNeighborhoodDefinition[];
+  counts?: { discovered?: number; readQualified?: number; attachedCandidates?: number };
+}
+
+/**
+ * Ask Core for the schema-local Transition candidate neighborhood explicitly
+ * attached through supplied Semantic Package + Schema Transition Companion
+ * material. Attachment remains read-only context: it does not grant current
+ * applicability, execution authority, recommendation, or ordering.
+ */
+export async function projectTransitionNeighborhood(
+  runtime: PackageRuntime,
+  roots: string[],
+  outputSchemaId: string,
+  inputSchemaId = '',
+  runner: ProcessRunner = runProcess
+): Promise<TransitionNeighborhoodResult> {
+  const materialRoots = [...new Set((roots || []).map((root) => String(root || '').trim()).filter(Boolean))];
+  if (!materialRoots.length) throw new Error('tiinex.transition-neighborhood.material-root-required');
+  const targetSchema = String(outputSchemaId || '').trim();
+  if (!targetSchema) throw new Error('tiinex.transition-neighborhood.output-schema-required');
+  const args = ['project-transition-neighborhood', ...materialRoots, '--output-schema', targetSchema];
+  if (String(inputSchemaId || '').trim()) args.push('--input-schema', String(inputSchemaId).trim());
+  args.push('--compact');
+  return runTiinexJson<TransitionNeighborhoodResult>(runtime, args, runner);
+}
+
 export interface HandoffEndpointProjectionResult {
   status: string;
   workspaceId: string;

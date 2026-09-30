@@ -15,7 +15,7 @@ import { applyExactHandoffEndpointSelection } from './core/handoffEndpointSelect
 import { ArtifactAuthoringCatalog, ArtifactDraftParent, loadArtifactAuthoringCatalog, loadArtifactAuthoringModel, prepareArtifactDraft, PreparedArtifactDraft, qualifyArtifactDraftParent, qualifyExistingHandoff, writePreparedArtifactDraft } from './authoring';
 import { initializeWorkspaceDirectory } from './workspaceInitialization';
 
-import { compareIncomingWorkspaceToLocal, groundPackageForReview, GroundingResult, orientPackage, prepareBundledRuntime, prepareHostCoreRuntime, preparePackageRuntimeWithRecovery, projectHandoffCarrierMajorFrontier, projectHandoffCarrierTransportName, projectPackageTransport } from './tiinex/bootstrap';
+import { compareIncomingWorkspaceToLocal, groundPackageForReview, GroundingResult, orientPackage, prepareBundledRuntime, prepareHostCoreRuntime, preparePackageRuntimeWithRecovery, projectHandoffCarrierMajorFrontier, projectHandoffCarrierTransportName, projectPackageTransport, projectTransitionNeighborhood } from './tiinex/bootstrap';
 import { applyIncomingWorkspaces, IncomingApplyStrategy } from './incomingApply';
 import { operatorMatchedWorkspaceIds, resolvePrioritizedWorkspaceDuplicates } from './core/sourceSelection';
 import { comparePackageRecency, rootOutgoingLabel, rootOutgoingPrefix } from './core/outgoingUx';
@@ -597,7 +597,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     if (!relative || relative.startsWith('../')) throw new Error('tiinex.authoring.selected-parent-outside-workspace');
     const exact = catalog.parents.find((item) => normalizePath(item.path) === relative);
     if (!exact) throw new Error(`tiinex.authoring.selected-parent-unqualified:${relative}`);
-    const parentArtifact: ArtifactDraftParent = { path: relative, markdown: await readFile(safeTarget(root, relative), 'utf8'), workspaceId: choice.workspaceId, root, reference: relative };
+    const parentArtifact: ArtifactDraftParent = { path: relative, markdown: await readFile(safeTarget(root, relative), 'utf8'), schemaId: exact.schemaId, workspaceId: choice.workspaceId, root, reference: relative };
     parentArtifact.qualifiedRecord = await vscode.window.withProgress(
       { location: vscode.ProgressLocation.Notification, title: 'Tiinex qualifying selected Parent', cancellable: false },
       () => qualifyArtifactDraftParent(this.extensionPath, parentArtifact)
@@ -614,7 +614,10 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     return relative && relative !== '.' ? safeRelativePath(relative) : '.';
   }
 
-  private async handoffAuthoringPresentation(workspace: OutgoingWorkspace): Promise<{ fieldAssists: any[]; templates: any[]; selectedTemplateId: string }> {
+  private async handoffAuthoringPresentation(
+    workspace: OutgoingWorkspace,
+    transitionDefinitions: Array<{ representationKey?: string; canonicalIdentifier: string; version?: string; label: string; purpose?: string; sourcePath?: string; identityQualification?: string; authoringProfile?: { state?: string; defaults?: Record<string, unknown>; boundary?: { explicitSelectionRequired?: boolean; recommendation?: string; executionAuthorized?: boolean } } }>
+  ): Promise<{ fieldAssists: any[]; templates: any[]; selectedTemplateId: string; templateLabel: string }> {
     const endpoints = await this.endpointCatalog(workspace);
     const suggestions = (field: 'From' | 'To' | 'Return To') => endpoints.map((item) => ({
       label: item.label,
@@ -628,12 +631,19 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       workspaceId: item.workspaceId,
       path: item.path
     }));
-    const noneSections = {
-      'Required Context': 'none',
-      'Reference Context': 'none',
-      'Retained Responsibilities': 'none',
-      'Exclusions And Dependencies': 'none'
-    };
+    const transitionTemplates = transitionDefinitions
+      .filter((candidate) => candidate.authoringProfile?.state === 'qualified'
+        && candidate.authoringProfile?.boundary?.explicitSelectionRequired === true
+        && candidate.authoringProfile?.boundary?.recommendation === 'not-projected'
+        && candidate.authoringProfile?.boundary?.executionAuthorized === false
+        && candidate.authoringProfile?.defaults
+        && Object.keys(candidate.authoringProfile.defaults).length > 0)
+      .map((candidate) => ({
+        id: `transition:${candidate.representationKey || candidate.canonicalIdentifier}:${candidate.sourcePath || candidate.version || ''}`,
+        label: candidate.label || candidate.canonicalIdentifier,
+        description: [candidate.purpose, candidate.sourcePath ? `Source: ${candidate.sourcePath}` : ''].filter(Boolean).join(' · '),
+        defaults: candidate.authoringProfile?.defaults || {}
+      }));
     return {
       fieldAssists: [
         { field: 'From', suggestions: suggestions('From') },
@@ -641,60 +651,11 @@ export class TiinexOperatorTrees implements vscode.Disposable {
         { field: 'Return To', suggestions: suggestions('Return To') }
       ],
       templates: [
-        {
-          id: 'work', label: 'Perform bounded work',
-          description: 'Prefill the complete bounded-work Handoff contract. Choose Title and endpoints; the remaining required sections are ready to edit or create.',
-          defaults: {
-            Purpose: 'Perform the bounded work described by this Handoff and return the result.',
-            Transfers: [{ name: 'bounded-work', fields: { 'Transfer Kind': 'work-and-responsibility', Description: 'Perform the bounded work described by this Handoff and return the qualified result.' } }],
-            ...noneSections,
-            'Completion Expectation': {
-              'Signal Kind': 'return',
-              'Signal Meaning': 'Return the completed result, qualification evidence, and any blockers.'
-            },
-            'Interpretation Limits': {
-              'Does Not Mean': 'This Handoff does not grant authority beyond the explicit transfer and carried context.',
-              'Must Not Be Used To Claim': 'Do not infer acceptance, completion, or authority beyond the explicit Handoff content.'
-            }
-          }
-        },
-        {
-          id: 'conversation', label: 'Open conversation / brainstorm',
-          description: 'Open an interactive bounded conversation with the receiving role. No automatic result artifact, disposition, or return package is expected; continue in the live conversation until participants explicitly decide otherwise.',
-          defaults: {
-            Purpose: 'Open an interactive bounded conversation with the receiving role about the subject described by this Handoff.',
-            Transfers: [{ name: 'bounded-conversation', fields: { 'Transfer Kind': 'work', Description: 'Participate in the bounded live conversation or brainstorm. Respond conversationally; do not turn the exchange into a durable result artifact unless explicitly requested.' } }],
-            ...noneSections,
-            'Completion Expectation': {
-              'Signal Kind': 'none',
-              'Signal Meaning': 'This Handoff opens a live conversation. No automatic completion artifact, disposition, or return package is expected; continue the conversation until the participants explicitly choose a next action.'
-            },
-            'Interpretation Limits': {
-              'Does Not Mean': 'Opening the conversation does not transfer implementation authority or require the receiving role to manufacture a durable discussion result.',
-              'Must Not Be Used To Claim': 'Do not infer implementation, acceptance, completion, or a required return artifact from conversational participation alone.'
-            }
-          }
-        },
-        {
-          id: 'discuss', label: 'Discuss / review',
-          description: 'Prefill the complete bounded review Handoff contract. Choose Title and endpoints; no implementation authority is implied.',
-          defaults: {
-            Purpose: 'Discuss or review the bounded subject described by this Handoff and return a disposition.',
-            Transfers: [{ name: 'bounded-review', fields: { 'Transfer Kind': 'work', Description: 'Review the bounded subject described by this Handoff and return a disposition without assuming implementation authority.' } }],
-            ...noneSections,
-            'Completion Expectation': {
-              'Signal Kind': 'disposition',
-              'Signal Meaning': 'Return the discussion outcome, relevant findings, and unresolved questions.'
-            },
-            'Interpretation Limits': {
-              'Does Not Mean': 'This Handoff does not by itself transfer implementation authority.',
-              'Must Not Be Used To Claim': 'Do not infer implementation, acceptance, or broader authority from discussion alone.'
-            }
-          }
-        },
-        { id: 'blank', label: 'Blank / explicit', description: 'No preset values. Fill the Core-required contract directly.', defaults: {} }
+        ...transitionTemplates,
+        { id: 'direct', label: 'Direct / blank', description: 'No Transition defaults. Fill the Core-required Handoff contract directly.', defaults: {} }
       ],
-      selectedTemplateId: 'work'
+      selectedTemplateId: 'direct',
+      templateLabel: 'Handoff transition'
     };
   }
 
@@ -1234,7 +1195,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     const insideWorkspace = (vscode.workspace.workspaceFolders || []).some((folder: vscode.WorkspaceFolder) => repositoryContainsPath(folder.uri.fsPath, target));
     try {
       if (insideWorkspace) await vscode.commands.executeCommand('revealInExplorer', vscode.Uri.file(target));
-      else await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(path.dirname(target)));
+      else await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(target));
       await this.markTransportPrepared(item, routeId, 'packagePrepared');
     } catch (error) {
       await vscode.window.showWarningMessage(`Tiinex could not reveal ${item.filename}: ${shortMessage(error)}`);
@@ -3270,6 +3231,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       const parentArtifact: ArtifactDraftParent = {
         path: parentPath,
         markdown: await readFile(safeTarget(choice.root, parentPath), 'utf8'),
+        schemaId: selected.parent.schemaId,
         workspaceId: choice.workspaceId,
         root: choice.root,
         reference
@@ -3337,6 +3299,38 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     return { draft, writtenPath, attachedToOutgoing, followUpError };
   }
 
+  private async schemaTransitionNeighborhood(schemaId: string, inputSchemaId = ''): Promise<Array<{ representationKey?: string; canonicalIdentifier: string; version?: string; label: string; purpose?: string; sourcePath?: string; identityQualification?: string; authoringProfile?: { state?: string; reason?: string; generationQualification?: string; defaults?: Record<string, unknown>; boundary?: { explicitSelectionRequired?: boolean; recommendation?: string; ordering?: string; transitionApplicability?: string; executionAuthorized?: boolean; defaultsAreAuthoringGuidance?: boolean } } }>> {
+    try {
+      const choices = await this.localWorkspaceChoices();
+      const roots = [...new Set(choices.map((choice) => String(choice.root || '').trim()).filter(Boolean))];
+      if (!roots.length) return [];
+      const runtime = await prepareHostCoreRuntime(this.extensionPath, roots, nodeExecutable());
+      try {
+        const neighborhood = await projectTransitionNeighborhood(runtime, roots, schemaId, inputSchemaId);
+        return (neighborhood.candidates || []).map((candidate) => ({
+          representationKey: String(candidate.representationKey || ''),
+          canonicalIdentifier: String(candidate.canonicalIdentifier || ''),
+          version: String(candidate.version || ''),
+          label: String(candidate.humanLabel || candidate.canonicalIdentifier || candidate.path || 'Transition'),
+          purpose: String(candidate.purpose || ''),
+          sourcePath: String(candidate.source?.locator?.localPath || candidate.path || ''),
+          identityQualification: String(candidate.identityQualification || ''),
+          authoringProfile: candidate.authoringProfile ? {
+            state: String(candidate.authoringProfile.state || ''),
+            reason: String(candidate.authoringProfile.reason || ''),
+            generationQualification: String(candidate.authoringProfile.generationQualification || ''),
+            defaults: candidate.authoringProfile.defaults || {},
+            boundary: candidate.authoringProfile.boundary || {}
+          } : undefined
+        })).filter((candidate) => Boolean(candidate.canonicalIdentifier));
+      } finally { await runtime.dispose(); }
+    } catch {
+      // Additive discovery only: unavailable or unresolved Transition context
+      // must not block the existing artifact-authoring workflow.
+      return [];
+    }
+  }
+
   private async showArtifactAuthoring(
     workspace: OutgoingWorkspace,
     schemaId: string,
@@ -3346,9 +3340,10 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     try {
       const root = await this.ensureOutgoingAuthoringRoot(workspace);
       const transition = parentArtifact ? 'continue-from-record' : 'create-artifact';
-      const [model, qualifiedParentRecord] = await Promise.all([
+      const [model, qualifiedParentRecord, transitionDefinitions] = await Promise.all([
         loadArtifactAuthoringModel(this.extensionPath, schemaId, transition),
-        parentArtifact ? (parentArtifact.qualifiedRecord || qualifyArtifactDraftParent(this.extensionPath, parentArtifact)) : Promise.resolve(null)
+        parentArtifact ? (parentArtifact.qualifiedRecord || qualifyArtifactDraftParent(this.extensionPath, parentArtifact)) : Promise.resolve(null),
+        this.schemaTransitionNeighborhood(schemaId, parentArtifact?.schemaId || '')
       ]);
       if (parentArtifact && qualifiedParentRecord) parentArtifact.qualifiedRecord = qualifiedParentRecord;
       const attachAvailable = schemaId === 'tiinex.handoff.v1' && options.attachAvailable;
@@ -3359,7 +3354,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
           : this.outgoing
             ? 'this Workspace is not selected in Outgoing'
             : 'create an Outgoing context first';
-      const handoffPresentation = schemaId === 'tiinex.handoff.v1' ? await this.handoffAuthoringPresentation(workspace) : null;
+      const handoffPresentation = schemaId === 'tiinex.handoff.v1' ? await this.handoffAuthoringPresentation(workspace, transitionDefinitions) : null;
       openArtifactAuthoringPanel({
         model,
         workspaces: [{ workspaceId: workspace.workspaceId, label: workspace.label || workspace.workspaceId, description: workspace.source === 'local' ? 'LOCAL' : `INCOMING · ${workspace.sourceLabel}` }],
@@ -3367,6 +3362,9 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
         fieldAssists: handoffPresentation?.fieldAssists || [],
         templates: handoffPresentation?.templates || [],
         selectedTemplateId: handoffPresentation?.selectedTemplateId || '',
+        templateLabel: handoffPresentation?.templateLabel || 'Preset',
+        transitionDefinitions,
+        transitionBoundary: 'Core-projected Schema Transition Companion neighborhood. Attachment does not mean applicable, executable, recommended, or ordered.',
         attachAvailable,
         attachDefault: attachAvailable && options.attachDefault,
         attachUnavailableReason,
@@ -3410,6 +3408,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       const parentArtifact: ArtifactDraftParent = {
         path: parentPath,
         markdown: node.data.artifact.markdown,
+        schemaId: node.data.artifact.schemaId,
         workspaceId: workspace.workspaceId,
         root: parentRoot,
         reference: parentPath
@@ -3431,6 +3430,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     const parentArtifact: ArtifactDraftParent = {
       path: parentPath,
       markdown: localArtifact.markdown,
+      schemaId: localArtifact.schemaId,
       workspaceId: local.choice.workspaceId,
       root: local.choice.root,
       reference: parentPath
