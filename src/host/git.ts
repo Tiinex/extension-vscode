@@ -758,3 +758,46 @@ export async function mergeCommitNoCommit(root: string, commitSha: string, runne
   if (result.code !== 0 && !conflicts.length) throw new Error(`tiinex.git.merge-failed:${result.stderr.trim() || result.stdout.trim() || result.code}`);
   return { conflicts, alreadyUpToDate: /already up[ -]to[ -]date/i.test(`${result.stdout}\n${result.stderr}`) };
 }
+
+/**
+ * Resolve one exact, committed GitHub blob URL for material that is not carried
+ * by the current package. The reference is intentionally rejected when the
+ * selected path has staged or unstaged edits, so Guided Entry never points a
+ * cold-started model at bytes other than the selected local Role material.
+ */
+export async function qualifiedGitHubBlobReference(root: string, relativePath: string, runner: ProcessRunner = runProcess): Promise<string> {
+  const resolvedRoot = path.resolve(root);
+  const relative = String(relativePath || '').replace(/\\/g, '/').replace(/^\.\//, '').replace(/^\/+/, '').trim();
+  if (!relative || relative.startsWith('../') || path.posix.isAbsolute(relative)) throw new Error(`tiinex.git.pinned-reference-path-invalid:${relative || '(empty)'}`);
+  const fact = await repositoryFact(resolvedRoot, runner);
+  const github = parseGitHubRemote(fact.repository);
+  if (!github) throw new Error(`tiinex.git.pinned-reference.github-remote-required:${fact.repository || '(missing)'}`);
+  const head = await runChecked('git', ['rev-parse', '--verify', 'HEAD^{commit}'], { cwd: resolvedRoot }, runner);
+  const commit = head.stdout.trim().toLowerCase();
+  if (!/^[a-f0-9]{40}$/.test(commit)) throw new Error('tiinex.git.pinned-reference.commit-invalid');
+  const exists = await runner('git', ['cat-file', '-e', `${commit}:${relative}`], { cwd: resolvedRoot });
+  if (exists.code !== 0) throw new Error(`tiinex.git.pinned-reference.path-not-in-head:${relative}`);
+  const unstaged = await runner('git', ['diff', '--quiet', '--', relative], { cwd: resolvedRoot });
+  if (unstaged.code !== 0) throw new Error(`tiinex.git.pinned-reference.path-modified:${relative}`);
+  const staged = await runner('git', ['diff', '--cached', '--quiet', '--', relative], { cwd: resolvedRoot });
+  if (staged.code !== 0) throw new Error(`tiinex.git.pinned-reference.path-staged:${relative}`);
+  const encodedPath = relative.split('/').map(encodeURIComponent).join('/');
+  return `https://github.com/${github.owner}/${github.repo}/blob/${commit}/${encodedPath}`;
+}
+
+function parseGitHubRemote(value: string): { owner: string; repo: string } | null {
+  const raw = String(value || '').trim().replace(/\.git$/i, '').replace(/\/+$/, '');
+  if (!raw) return null;
+  const scp = raw.match(/^[^@\s]+@github\.com:([^/]+)\/([^/]+)$/i);
+  if (scp) return { owner: scp[1], repo: scp[2] };
+  try {
+    const url = new URL(raw);
+    if (!['https:', 'ssh:'].includes(url.protocol)) return null;
+    if (url.hostname.toLowerCase() !== 'github.com') return null;
+    const parts = url.pathname.split('/').filter(Boolean);
+    if (parts.length !== 2) return null;
+    return { owner: decodeURIComponent(parts[0]), repo: decodeURIComponent(parts[1]) };
+  } catch {
+    return null;
+  }
+}

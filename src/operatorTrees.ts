@@ -15,11 +15,11 @@ import { applyExactHandoffEndpointSelection } from './core/handoffEndpointSelect
 import { ArtifactAuthoringCatalog, ArtifactDraftParent, loadArtifactAuthoringCatalog, loadArtifactAuthoringModel, prepareArtifactDraft, PreparedArtifactDraft, qualifyArtifactDraftParent, qualifyExistingHandoff, writePreparedArtifactDraft } from './authoring';
 import { initializeWorkspaceDirectory } from './workspaceInitialization';
 
-import { compareIncomingWorkspaceToLocal, groundPackageForReview, GroundingResult, orientPackage, prepareBundledRuntime, prepareHostCoreRuntime, preparePackageRuntimeWithRecovery, projectHandoffCarrierMajorFrontier, projectHandoffCarrierMajorAllocation, projectHandoffCarrierTransportName, projectPackageTransport, projectWorkspaceCarrierEntry, projectTransitionNeighborhood } from './tiinex/bootstrap';
+import { compareIncomingWorkspaceToLocal, groundPackageForReview, GroundingResult, orientPackage, prepareBundledRuntime, prepareHostCoreRuntime, preparePackageRuntimeWithRecovery, projectHandoffCarrierMajorFrontier, projectHandoffCarrierMajorAllocation, projectHandoffCarrierTransportName, projectPackageTransport, projectWorkspaceCarrierEntry, projectWorkspaceSessionRoles, projectTransitionNeighborhood } from './tiinex/bootstrap';
 import { applyIncomingWorkspaces, IncomingApplyStrategy } from './incomingApply';
 import { operatorMatchedWorkspaceIds, resolvePrioritizedWorkspaceDuplicates } from './core/sourceSelection';
 import { comparePackageRecency, rootOutgoingLabel, rootOutgoingPrefix } from './core/outgoingUx';
-import { payloadCheckoutEligibility } from './host/git';
+import { payloadCheckoutEligibility, qualifiedGitHubBlobReference } from './host/git';
 import { existingCarrierFilenames } from './host/carrierPublish';
 import { extractZipBuffer, readExactZipEntryFromBuffer, readExactZipEntryFromFile } from './host/zip';
 import { ArtifactAuthoringSubmission, openArtifactAuthoringPanel } from './artifactAuthoringPanel';
@@ -1169,7 +1169,9 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       kind: 'package', id: `transport:package:${item.sha256}:${item.packagePath}`, label: item.filename,
       description, tooltip: `${item.packagePath}\nSHA-256 ${item.sha256}`, contextValue: routeLess ? 'tiinex.transportPackagePointerless' : 'tiinex.transportPackage', packagePath: item.packagePath
     }, routes.length ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.None);
-    node.iconPath = new vscode.ThemeIcon(prepared ? 'pass-filled' : 'archive');
+    node.iconPath = prepared
+      ? new vscode.ThemeIcon('pass-filled', new vscode.ThemeColor('testing.iconPassed'))
+      : new vscode.ThemeIcon('archive');
     return node;
   }
 
@@ -1181,7 +1183,9 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       description: prepared ? 'prepared' : route.workspaceId,
       tooltip: `${route.workspaceId}:${route.handoffPath}`, contextValue: 'tiinex.transportRoute', packagePath: item.packagePath, routeId: route.routeId
     });
-    node.iconPath = new vscode.ThemeIcon(prepared ? 'pass-filled' : 'send');
+    node.iconPath = prepared
+      ? new vscode.ThemeIcon('pass-filled', new vscode.ThemeColor('testing.iconPassed'))
+      : new vscode.ThemeIcon('send');
     return node;
   }
 
@@ -1294,12 +1298,32 @@ export class TiinexOperatorTrees implements vscode.Disposable {
         customInstruction = entered.trim();
       }
 
-      let candidates: Array<{ label: string; authoringLabel?: string; kind: 'role' | 'party' | 'unknown'; reference: string; workspaceId: string; path: string }> = [];
+      let candidates: Array<{ label: string; authoringLabel?: string; kind: 'role'; reference: string; workspaceId: string; path: string; root: string }> = [];
       try {
-        const choices = await loadLocalWorkspaceChoices(this.extensionPath);
-        candidates = (await loadHandoffAuthoringEndpointChoicesForSources(this.extensionPath, choices.map((choice) => ({ workspaceId: choice.workspaceId, root: choice.root })), true))
-          .filter((candidate) => candidate.kind === 'role' && candidate.qualification === 'qualified-exact')
-          .map((candidate) => ({ label: candidate.authoringLabel || candidate.label, authoringLabel: candidate.authoringLabel || candidate.label, kind: candidate.kind, reference: candidate.reference || '', workspaceId: candidate.workspaceId, path: candidate.artifactPath }));
+        const choices = await this.localWorkspaceChoices();
+        const groups = await Promise.all(choices.map(async (choice) => {
+          try {
+            const projection = await projectWorkspaceSessionRoles(runtime, choice.root, choice.workspaceId);
+            if (projection.status !== 'ready') return [];
+            return (projection.candidates || []).map((candidate) => ({
+              label: String(candidate.label || '').trim(),
+              authoringLabel: String(candidate.label || '').trim(),
+              kind: 'role' as const,
+              reference: String(candidate.reference || '').trim(),
+              workspaceId: String(candidate.workspaceId || choice.workspaceId).trim(),
+              path: String(candidate.artifactPath || '').replace(/\\/g, '/'),
+              root: choice.root
+            })).filter((candidate) => candidate.label && candidate.workspaceId && candidate.path);
+          } catch {
+            return [];
+          }
+        }));
+        const byIdentity = new Map<string, typeof candidates[number]>();
+        for (const candidate of groups.flat()) {
+          const key = `${candidate.workspaceId}\u0000${candidate.path}`;
+          if (!byIdentity.has(key)) byIdentity.set(key, candidate);
+        }
+        candidates = [...byIdentity.values()].sort((a, b) => a.label.localeCompare(b.label) || a.workspaceId.localeCompare(b.workspaceId) || a.path.localeCompare(b.path));
       } catch {
         candidates = [];
       }
@@ -1350,14 +1374,27 @@ export class TiinexOperatorTrees implements vscode.Disposable {
         excluded.add(roleCandidateKey(participantSelection.candidate));
       }
 
-      const rendered = await projectWorkspaceCarrierEntry(
-        runtime,
-        item.packagePath,
-        modeSelection.mode,
-        customInstruction,
-        primary ? { label: primary.label, reference: primary.reference, workspaceId: primary.workspaceId, path: primary.path } : null,
-        selectedParticipants
-      );
+      const primaryInput = primary ? { label: primary.label, reference: primary.reference, workspaceId: primary.workspaceId, path: primary.path } : null;
+      const participantInputs = selectedParticipants.map((participant) => ({ label: participant.label, reference: participant.reference, workspaceId: participant.workspaceId, path: participant.path }));
+      let rendered = await projectWorkspaceCarrierEntry(runtime, item.packagePath, modeSelection.mode, customInstruction, primaryInput, participantInputs);
+      if (rendered.status !== 'ready' && ['session-role-material-unresolved', 'participant-role-material-unresolved'].includes(String(rendered.reasonCode || ''))) {
+        const selected = [
+          ...(primary ? [primary] : []),
+          ...selectedParticipants
+        ];
+        const pinnedByIdentity = new Map<string, string>();
+        for (const role of selected) {
+          const key = roleCandidateKey(role);
+          if (!key || pinnedByIdentity.has(key)) continue;
+          const candidate = candidates.find((item) => roleCandidateKey(item) === key);
+          if (!candidate) throw new Error(`tiinex.transport.guided-entry.role-candidate-unavailable:${role.label}`);
+          const reference = await qualifiedGitHubBlobReference(candidate.root, candidate.path);
+          pinnedByIdentity.set(key, reference);
+        }
+        const pinnedPrimary = primary ? { ...primaryInput!, reference: pinnedByIdentity.get(roleCandidateKey(primary)) || primary.reference } : null;
+        const pinnedParticipants = selectedParticipants.map((participant) => ({ ...participant, reference: pinnedByIdentity.get(roleCandidateKey(participant)) || participant.reference }));
+        rendered = await projectWorkspaceCarrierEntry(runtime, item.packagePath, modeSelection.mode, customInstruction, pinnedPrimary, pinnedParticipants);
+      }
       if (rendered.status !== 'ready' || !rendered.transportText) throw new Error(`tiinex.transport.guided-entry-render-${rendered.reasonCode || rendered.status || 'blocked'}`);
       return String(rendered.transportText);
     } finally { await runtime.dispose(); }
@@ -2363,11 +2400,22 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     if (!this.outgoing?.packageMajorReason) return;
     this.outgoing.packageMajorReason = '';
     if (this.outgoing.packageParentPath) {
-      const topology = await this.pickOutgoingParentTopology(this.outgoing.packageParentPath);
+      const parentPath = this.outgoing.packageParentPath;
+      const parentState = this.incomingState(parentPath);
+      const topology = await this.pickOutgoingParentTopology(parentPath);
       if (!topology) {
         this.outgoing.packageMajorReason = 'VS Code operator selected stable multi-Workspace checkpoint';
         return;
       }
+      const restoredName = await this.projectOutgoingTransportName(parentPath, 'continuation', this.incomingCarrierOrdinal(parentState?.orientation));
+      if (!restoredName) {
+        this.outgoing.packageMajorReason = 'VS Code operator selected stable multi-Workspace checkpoint';
+        return;
+      }
+      this.outgoing.name = restoredName;
+      this.outgoing.carrierPrefix = String(parentState?.orientation?.carrierLineage?.prefix || this.outgoing.carrierPrefix || rootOutgoingPrefix(restoredName)).trim();
+      this.outgoing.packageParentDimension = String(parentState?.orientation?.carrierLineage?.dimension || '').trim();
+      this.outgoing.localMajorParent = false;
       this.outgoing.packageParentRoutePointer = topology.routePointer;
       this.outgoing.packageParentRouteId = topology.routeId;
       this.outgoing.packageConsolidation = topology.consolidation;

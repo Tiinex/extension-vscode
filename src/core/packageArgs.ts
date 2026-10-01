@@ -20,14 +20,16 @@ export async function workspaceCarrierArgs(selected: WorkspaceCarrierSource[], s
   const filename = String(projectedFilename || '').trim();
   if (filename) args.push('--projected-filename', checkedCarrierFilename(filename));
   const parent = String(packageParentPath || '').trim();
+  const majorReason = String(packageMajorReason || '').trim();
   if (parent) args.push('--package-parent', path.resolve(parent));
-  else if (String(packageMajorReason || '').trim()) {
+  if (majorReason) {
     const prefix = String(carrierPrefix || '').trim();
     if (!prefix) throw new Error('tiinex.package-builder.package-major-prefix-required');
-    args.push('--package-major', '--major-reason', String(packageMajorReason || '').trim(), '--carrier-prefix', prefix);
+    args.push('--package-major', '--major-reason', majorReason, '--carrier-prefix', prefix);
     const namesPath = path.join(scratch, 'carrier-existing-filenames.json');
     await writeFile(namesPath, JSON.stringify({ existingFilenames }), 'utf8');
     args.push('--carrier-existing-filenames', namesPath);
-  } else args.push('--new-root');
+  }
+  if (!parent && !majorReason) args.push('--new-root');
   return args;
 }

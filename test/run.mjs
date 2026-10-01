@@ -29,7 +29,7 @@ import { checkIgnoredPaths, commitPreparedGitOperator, commitPreparedReviewedSta
 import { preferredNodeExecutable } from '../dist/host/nodeExecutable.js';
 import { copyFileToClipboard } from '../dist/host/fileClipboard.js';
 import { existingCarrierFilenames, inspectCarrierDestination } from '../dist/host/carrierPublish.js';
-import { compareIncomingWorkspaceToLocal, createArtifactDraft, inspectArtifactCreationContract, manufactureHandoffPackage, manufactureHandoffPackageDetailed, parseBootstrapDescriptor, prepareBundledRuntime, projectArtifactMaterialization, projectArtifactSchemaGuide, runTiinexJson, projectEditorAssistanceText, projectHandoffCarrierMajorFrontier, projectHandoffCarrierOutputCollision, projectHandoffCarrierTransportName, projectHandoffEndpoints, projectOperatorContext, projectPackageTransport, projectStagedValidation, projectTransitionCatalog, projectTransitionNeighborhood, projectWorkspaceLanding, projectWorkspacePackageSources } from '../dist/tiinex/bootstrap.js';
+import { compareIncomingWorkspaceToLocal, createArtifactDraft, inspectArtifactCreationContract, manufactureHandoffPackage, manufactureHandoffPackageDetailed, parseBootstrapDescriptor, prepareBundledRuntime, projectArtifactMaterialization, projectArtifactSchemaGuide, runTiinexJson, projectEditorAssistanceText, projectHandoffCarrierMajorFrontier, projectHandoffCarrierOutputCollision, projectHandoffCarrierTransportName, projectHandoffEndpoints, projectOperatorContext, projectPackageTransport, projectStagedValidation, projectTransitionCatalog, projectTransitionNeighborhood, projectWorkspaceLanding, projectWorkspacePackageSources, projectWorkspaceSessionRoles } from '../dist/tiinex/bootstrap.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 let count = 0;
@@ -2856,10 +2856,64 @@ await test('pointerless package builder projects exact workspace-carrier args wi
   } finally { await fs.rm(scratch, { recursive: true, force: true }); }
 });
 
+await test('pointerless Workspace carrier args preserve Parent continuity while independently requesting a Major bump', async () => {
+  const fs = await import('node:fs/promises');
+  const os = await import('node:os');
+  const scratch = await fs.mkdtemp(path.join(os.tmpdir(), 'tiinex-vscode-parent-major-test-'));
+  try {
+    const args = await workspaceCarrierArgs([
+      { workspaceId: 'business', root: '/repo-business', workspaceTargetPath: '.topics/.workspaces/tiinex-business.workspace.md' },
+      { workspaceId: 'core', root: '/repo-core', workspaceTargetPath: '.topics/.workspaces/tiinex-core.workspace.md' }
+    ], scratch, 'tiinex-core-vscode-008.handoff-package.zip', '/out/tiinex-core-vscode-007-1.handoff-package.zip', 'Major checkpoint', 'tiinex-core-vscode', ['tiinex-core-vscode-007.handoff-package.zip']);
+    assert.equal(args.includes('--package-parent'), true);
+    assert.equal(args.includes('--package-major'), true);
+    assert.equal(args.includes('--major-reason'), true);
+    assert.equal(args.includes('--carrier-prefix'), true);
+    assert.equal(args.includes('--carrier-existing-filenames'), true);
+    assert.equal(args.includes('--new-root'), false);
+  } finally { await fs.rm(scratch, { recursive: true, force: true }); }
+});
+
+await test('Guided Entry Role discovery uses Core session-role leaves without leaking schema definitions', async () => {
+  const fs = await import('node:fs/promises');
+  const root = path.resolve(HERE, '..');
+  const tree = await fs.readFile(path.join(root, 'src', 'operatorTrees.ts'), 'utf8');
+  const bootstrap = await fs.readFile(path.join(root, 'src', 'tiinex', 'bootstrap.ts'), 'utf8');
+  const git = await fs.readFile(path.join(root, 'src', 'host', 'git.ts'), 'utf8');
+  assert.match(bootstrap, /projectWorkspaceSessionRoles/);
+  assert.match(tree, /projectWorkspaceSessionRoles\(runtime, choice\.root, choice\.workspaceId\)/);
+  const guided = tree.slice(tree.indexOf('private async guidedEntryTransportText'), tree.indexOf('private closeTransport', tree.indexOf('private async guidedEntryTransportText')));
+  assert.doesNotMatch(guided, /loadHandoffAuthoringEndpointChoicesForSources/);
+  assert.match(guided, /\{ label: 'None', description: 'No Session Role binding', candidate: null \}/);
+  assert.match(git, /export async function qualifiedGitHubBlobReference/);
+  assert.match(git, /'cat-file', '-e'/);
+  assert.match(git, /'diff', '--quiet', '--', relative/);
+  assert.match(git, /'diff', '--cached', '--quiet', '--', relative/);
+});
+
+await test('Transport keeps one native Open Folder reveal and uses green prepared indicators', async () => {
+  const fs = await import('node:fs/promises');
+  const tree = await fs.readFile(path.resolve(HERE, '..', 'src', 'operatorTrees.ts'), 'utf8');
+  const reveal = tree.slice(tree.indexOf('private async revealTransportPackage'), tree.indexOf('private async guidedEntryTransport', tree.indexOf('private async revealTransportPackage')));
+  assert.equal((reveal.match(/revealFileInOS/g) || []).length, 1);
+  assert.doesNotMatch(reveal, /path\.dirname\(target\)/);
+  assert.match(tree, /new vscode\.ThemeIcon\('pass-filled', new vscode\.ThemeColor\('testing\.iconPassed'\)\)/);
+});
+
+await test('Use Child Carrier Lineage restores the exact Parent continuation after a Major override', async () => {
+  const fs = await import('node:fs/promises');
+  const tree = await fs.readFile(path.resolve(HERE, '..', 'src', 'operatorTrees.ts'), 'utf8');
+  const clear = tree.slice(tree.indexOf('private async clearOutgoingMajor'), tree.indexOf('private invalidateOutgoingDerivedState', tree.indexOf('private async clearOutgoingMajor')));
+  assert.match(clear, /projectOutgoingTransportName\(parentPath, 'continuation'/);
+  assert.match(clear, /packageParentDimension = String\(parentState\?\.orientation\?\.carrierLineage\?\.dimension/);
+  assert.match(clear, /localMajorParent = false/);
+});
+
 await test('native package and authoring wrappers preserve exact shared CLI operation shapes', async () => {
   const runtime = { root: '/runtime', entrypoint: '/runtime/tiinex-portable.mjs', nodeExecutable: 'node', dispose: async () => undefined };
   const fx = fakeRunner((key) => {
     if (key.includes('project-workspace-package-sources')) return { code: 0, stdout: JSON.stringify({ status: 'ready', candidates: [] }), stderr: '' };
+    if (key.includes('project-workspace-session-roles')) return { code: 0, stdout: JSON.stringify({ status: 'ready', workspaceId: 'business', candidates: [{ label: 'Anchor', workspaceId: 'business', artifactPath: '.topics/roles/anchor.trace.md', qualification: 'session-role-material', currentLeaf: true }] }), stderr: '' };
     if (key.includes('project-handoff-endpoints')) return { code: 0, stdout: JSON.stringify({ status: 'ready', workspaceId: 'business', candidates: [{ id: 'business::.topics/roles/loom.role.trace.md', target: 'business::.topics/roles/loom.role.trace.md', reference: 'business::.topics/roles/loom.role.trace.md', kind: 'role', label: 'Loom', workspaceId: 'business', artifactPath: '.topics/roles/loom.role.trace.md', schemaId: 'tiinex.party.role.v1', qualification: 'qualified-exact' }] }), stderr: '' };
     if (key.includes('project-transition-neighborhood')) return { code: 0, stdout: JSON.stringify({ status: 'ready', candidates: [{ representationKey: 'fixture:topic-to-task', path: '.topics/processes/topic-to-task.trace.md', canonicalIdentifier: 'example.topic-to-task.v1', humanLabel: 'Topic to task', attachmentQualification: 'explicit-schema-companion', authoringProfile: { state: 'qualified', generationQualification: 'qualified', defaults: { Purpose: 'Fixture default' }, boundary: { explicitSelectionRequired: true, recommendation: 'not-projected', executionAuthorized: false } } }] }), stderr: '' };
     if (key.includes('project-transition-catalog')) return { code: 0, stdout: JSON.stringify({ status: 'ready', candidates: [{ path: '.topics/processes/create-task.trace.md', canonicalIdentifier: 'example.create-task.v1', humanLabel: 'Create task' }] }), stderr: '' };
@@ -2872,15 +2926,19 @@ await test('native package and authoring wrappers preserve exact shared CLI oper
   const endpointArgs = fx.calls[1].args;
   assert.deepEqual(endpointArgs.slice(1), ['project-handoff-endpoints', '/repo-business', '--workspace-id', 'business', '--compact']);
   assert.equal(endpoints.candidates[0].reference, 'business::.topics/roles/loom.role.trace.md');
+  const sessionRoles = await projectWorkspaceSessionRoles(runtime, '/repo-business', 'business', fx.runner);
+  const sessionRoleArgs = fx.calls[2].args;
+  assert.deepEqual(sessionRoleArgs.slice(1), ['project-workspace-session-roles', '/repo-business', '--workspace-id', 'business', '--compact']);
+  assert.equal(sessionRoles.candidates[0].label, 'Anchor');
   const transitions = await projectTransitionCatalog(runtime, ['/repo-a', '/repo-b', '/repo-a'], 'tiinex.task.v1', '', fx.runner);
   assert.equal(transitions.candidates[0].canonicalIdentifier, 'example.create-task.v1');
-  const transitionArgs = fx.calls[2].args;
+  const transitionArgs = fx.calls[3].args;
   assert.deepEqual(transitionArgs.slice(1), ['project-transition-catalog', '/repo-a', '/repo-b', '--output-schema', 'tiinex.task.v1', '--compact']);
   const neighborhood = await projectTransitionNeighborhood(runtime, ['/repo-a', '/repo-b', '/repo-a'], 'tiinex.task.v1', 'tiinex.topic.v1', fx.runner);
   assert.equal(neighborhood.candidates[0].attachmentQualification, 'explicit-schema-companion');
   assert.equal(neighborhood.candidates[0].representationKey, 'fixture:topic-to-task');
   assert.equal(neighborhood.candidates[0].authoringProfile?.defaults?.Purpose, 'Fixture default');
-  const neighborhoodArgs = fx.calls[3].args;
+  const neighborhoodArgs = fx.calls[4].args;
   assert.deepEqual(neighborhoodArgs.slice(1), ['project-transition-neighborhood', '/repo-a', '/repo-b', '--output-schema', 'tiinex.task.v1', '--input-schema', 'tiinex.topic.v1', '--compact']);
   await createArtifactDraft(runtime, 'tiinex.task.v1', '/repo-a', '.topics/root-task.trace.md', 'Root', { Summary: 'Root' }, null, 'create-artifact', fx.runner);
   const rootArgs = fx.calls[4].args;

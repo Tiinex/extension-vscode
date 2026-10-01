@@ -827,6 +827,17 @@ export async function projectHandoffCarrierMajorAllocation(
   } finally { await rm(scratch, { recursive: true, force: true }); }
 }
 
+export interface WorkspaceSessionRoleProjectionResult {
+  status: string;
+  state?: string;
+  reasonCode?: string;
+  workspaceId?: string;
+  workspaceTargetPath?: string;
+  materialRoot?: string;
+  candidates?: Array<{ id?: string; target?: string; workspaceCoordinate?: string; reference?: string; referenceQualification?: string; kind?: 'role'; label?: string; workspaceId?: string; artifactPath?: string; schemaId?: string; qualification?: string; schemaAuthority?: string; currentLeaf?: boolean }>;
+  findings?: Array<{ severity?: string; code?: string; message?: string }>;
+}
+
 export interface WorkspaceCarrierEntryProjectionResult {
   status: string;
   state?: string;
@@ -838,6 +849,16 @@ export interface WorkspaceCarrierEntryProjectionResult {
   primaryRole?: { label?: string; reference?: string } | null;
   participants?: Array<{ label?: string; reference?: string }>;
   boundary?: string;
+}
+
+export async function projectWorkspaceSessionRoles(
+  runtime: PackageRuntime,
+  root: string,
+  workspaceId: string,
+  runner: ProcessRunner = runProcess
+): Promise<WorkspaceSessionRoleProjectionResult> {
+  if (!root || !workspaceId) throw new Error('tiinex.workspace-session-roles.workspace-required');
+  return runTiinexJson<WorkspaceSessionRoleProjectionResult>(runtime, ['project-workspace-session-roles', root, '--workspace-id', workspaceId, '--compact'], runner);
 }
 
 export async function projectWorkspaceCarrierEntry(
