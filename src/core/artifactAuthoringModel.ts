@@ -1,5 +1,14 @@
 export type ArtifactAuthoringSectionKind = 'fields' | 'group' | 'repeatable' | 'body';
 
+export interface ArtifactAuthoringAffordance {
+  control: string;
+  candidateSource?: string;
+  displayLabel?: string;
+  selectionKey?: string;
+  manualAllowed?: boolean;
+  fills?: Record<string, string>;
+}
+
 export interface ArtifactAuthoringField {
   key: string;
   label: string;
@@ -8,6 +17,7 @@ export interface ArtifactAuthoringField {
   allowedShapes: string[];
   help: string;
   multiline: boolean;
+  affordance?: ArtifactAuthoringAffordance;
 }
 
 export interface ArtifactAuthoringSection {
@@ -61,7 +71,7 @@ function constraintsBySection(guide: any): Map<string, Map<string, ConstraintLik
   return out;
 }
 
-function fieldModel(name: string, required: boolean, constraint: ConstraintLike | undefined, kind = ''): ArtifactAuthoringField {
+function fieldModel(name: string, required: boolean, constraint: ConstraintLike | undefined, kind = '', affordance?: ArtifactAuthoringAffordance): ArtifactAuthoringField {
   const allowedValues = strings(constraint?.allowedValues);
   const allowedShapes = strings(constraint?.allowedShapes);
   const help = String(constraint?.allowedShapeAuthorities?.find((item) => item?.definition?.humanMeaning)?.definition?.humanMeaning || '').trim();
@@ -72,7 +82,8 @@ function fieldModel(name: string, required: boolean, constraint: ConstraintLike 
     allowedValues,
     allowedShapes,
     help,
-    multiline: !allowedValues.length && kind !== 'ordinary-field'
+    multiline: !allowedValues.length && kind !== 'ordinary-field',
+    affordance
   };
 }
 
@@ -98,6 +109,19 @@ export function projectArtifactAuthoringModel(contractResult: any, schemaGuideRe
   const sections = new Map<string, ArtifactAuthoringSection>();
   const order: string[] = [];
   const capabilityGaps: ArtifactAuthoringCapabilityGap[] = [];
+  const affordanceByInput = new Map<string, ArtifactAuthoringAffordance>();
+  for (const item of contract?.creation?.authoringAffordances || []) {
+    const input = String(item?.input || '').trim();
+    if (!input) continue;
+    affordanceByInput.set(input, {
+      control: String(item?.control || '').trim(),
+      candidateSource: String(item?.candidateSource || '').trim() || undefined,
+      displayLabel: String(item?.displayLabel || '').trim() || undefined,
+      selectionKey: String(item?.selectionKey || '').trim() || undefined,
+      manualAllowed: item?.manualAllowed !== false,
+      fills: item?.fills ? Object.fromEntries(Object.entries(item.fills).map(([key, value]) => [String(key), String(value || '')])) : undefined
+    });
+  }
 
   const ensure = (key: string, kind: ArtifactAuthoringSectionKind, required: boolean, allowNone = false): ArtifactAuthoringSection => {
     const normalized = key || 'Artifact';
@@ -121,24 +145,24 @@ export function projectArtifactAuthoringModel(contractResult: any, schemaGuideRe
     const kind = String(binding?.kind || '').trim();
     if (kind === 'named-declaration-section') {
       const section = ensure(sectionName, 'repeatable', true, Boolean(binding?.allowLiteralNone));
-      for (const field of strings(binding?.requiredFields)) addField(section, fieldModel(field, true, constraints.get(field), kind));
-      for (const field of strings(binding?.optionalFields)) addField(section, fieldModel(field, false, constraints.get(field), kind));
+      for (const field of strings(binding?.requiredFields)) addField(section, fieldModel(field, true, constraints.get(field), kind, affordanceByInput.get(field)));
+      for (const field of strings(binding?.optionalFields)) addField(section, fieldModel(field, false, constraints.get(field), kind, affordanceByInput.get(field)));
       continue;
     }
     if (kind === 'ordinary-group') {
       const section = ensure(sectionName, 'group', true, false);
-      for (const field of strings(binding?.requiredFields)) addField(section, fieldModel(field, true, constraints.get(field), kind));
-      for (const field of strings(binding?.optionalFields)) addField(section, fieldModel(field, false, constraints.get(field), kind));
+      for (const field of strings(binding?.requiredFields)) addField(section, fieldModel(field, true, constraints.get(field), kind, affordanceByInput.get(field)));
+      for (const field of strings(binding?.optionalFields)) addField(section, fieldModel(field, false, constraints.get(field), kind, affordanceByInput.get(field)));
       continue;
     }
     if (kind === 'section-body' || kind === 'root-current-summary-body-title') {
       const section = ensure(sectionName || input, 'body', true, false);
-      addField(section, fieldModel(input, true, constraints.get(input), kind));
+      addField(section, fieldModel(input, true, constraints.get(input), kind, affordanceByInput.get(input)));
       continue;
     }
     const section = ensure(sectionName, 'fields', String(binding?.requirement || '') === 'required', false);
     const fieldName = String(binding?.field || input).trim();
-    if (fieldName) addField(section, fieldModel(fieldName, String(binding?.requirement || '') === 'required', constraints.get(fieldName), kind));
+    if (fieldName) addField(section, fieldModel(fieldName, String(binding?.requirement || '') === 'required', constraints.get(fieldName), kind, affordanceByInput.get(fieldName)));
   }
 
   // Schema guides can expose optional ordinary fields that the current Core

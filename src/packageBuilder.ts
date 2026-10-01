@@ -15,7 +15,7 @@ import { extractZipBuffer, readExactZipEntryFromFile } from './host/zip';
 import { representativeWorkspaceChoicesForRoot } from './core/workspaceChoice';
 import { ParticipantProjection, QualifiedParticipantRole } from './core/participantProjection';
 import { assertStableQualifiedCarrierAllocation, qualifiedCarrierAllocationFromManufactureReceipt } from './core/carrierAllocation';
-import { endpointCandidatesForExplicitSource, mergeExactHandoffEndpointChoices } from './core/handoffEndpointSelection';
+import { endpointCandidatesForAuthoringSource, endpointCandidatesForExplicitSource, mergeExactHandoffEndpointChoices, HandoffEndpointAuthoringCandidate } from './core/handoffEndpointSelection';
 import { handoffRouteCandidatesForExplicitSource } from './core/handoffRouteSelection';
 import { safeTarget } from './core/paths';
 
@@ -386,6 +386,38 @@ ${presentActionableFindings(projection.findings || [], projection.status)}`);
   } finally { await runtime.dispose(); }
 }
 
+export async function loadHandoffAuthoringEndpointChoicesForSources(extensionPath: string, sources: HandoffEndpointSource[], currentRoleLeavesOnly = false): Promise<HandoffEndpointAuthoringCandidate[]> {
+  const explicit = sources.map((source) => ({ workspaceId: String(source.workspaceId || '').trim(), root: path.resolve(String(source.root || '').trim()) }));
+  if (!explicit.length) return [];
+  if (explicit.some((source) => !source.workspaceId || !source.root)) throw new Error('tiinex.package-builder.endpoint-source-invalid');
+  const byWorkspaceId = new Map<string, string[]>();
+  for (const source of explicit) byWorkspaceId.set(source.workspaceId, [...(byWorkspaceId.get(source.workspaceId) || []), source.root]);
+  const ambiguous = [...byWorkspaceId.entries()].find(([, roots]) => new Set(roots).size > 1);
+  if (ambiguous) throw new Error(`tiinex.package-builder.endpoint-source-workspace-ambiguous:${ambiguous[0]}`);
+  const runtime = await prepareHostCoreRuntime(extensionPath, [...new Set(explicit.map((source) => source.root))]);
+  try {
+    const groups = await mapBounded(explicit, 4, async (source) => {
+      const projection = await projectHandoffEndpoints(runtime, source.root, source.workspaceId);
+      if (projection.status !== 'ready' || (projection.findings || []).some((item) => item.severity === 'error')) {
+        throw new Error(`tiinex.package-builder.endpoint-source-unqualified:${source.workspaceId}:\n${presentActionableFindings(projection.findings || [], projection.status)}`);
+      }
+      const sourceCandidates = currentRoleLeavesOnly
+        ? (projection.currentRoleCandidates || [])
+        : [
+            ...(projection.candidates || []),
+            ...(projection.authoringCandidates || [])
+          ];
+      return endpointCandidatesForAuthoringSource(source, sourceCandidates as HandoffEndpointAuthoringCandidate[]);
+    });
+    const byIdentity = new Map<string, HandoffEndpointAuthoringCandidate>();
+    for (const candidate of groups.flat()) {
+      const key = `${candidate.workspaceId}\u0000${candidate.artifactPath}\u0000${candidate.kind}\u0000${candidate.reference || ''}\u0000${candidate.label}`;
+      if (!byIdentity.has(key)) byIdentity.set(key, candidate);
+    }
+    return [...byIdentity.values()].sort((a, b) => a.label.localeCompare(b.label) || a.kind.localeCompare(b.kind) || a.workspaceId.localeCompare(b.workspaceId) || a.artifactPath.localeCompare(b.artifactPath));
+  } finally { await runtime.dispose(); }
+}
+
 /** Compatibility surface for callers that have not yet supplied an explicit source set.
  * It resolves each visible VS Code Workspace independently, then projects only the
  * representative qualified Workspace roots rather than aggregating repository-wide
@@ -457,7 +489,7 @@ function routeChoiceFromKey(keyValue: string): RouteChoice {
   return { id: key, pointerless: false, workspaceId, path: routePath, label: routePath, description: `${workspaceId}: ${routePath}` };
 }
 
-async function handoffArgs(selected: WorkspaceSource[], primaryRoute: RouteChoice, routes: Array<{ route: RouteChoice; participantRoles: PackageParticipantRole[]; endpointRoles: PackageEndpointRoleBinding[] }>, scratch: string, packageParentPath = '', packageMajorReason = '', packageParentRoutePointer = '', packageParentRouteId = '', packageConsolidation = false, carrierPrefix = '', materialBindings: Record<string, any> = {}, projectedFilename = ''): Promise<string[]> {
+async function handoffArgs(selected: WorkspaceSource[], primaryRoute: RouteChoice, routes: Array<{ route: RouteChoice; participantRoles: PackageParticipantRole[]; endpointRoles: PackageEndpointRoleBinding[] }>, scratch: string, packageParentPath = '', packageMajorReason = '', packageParentRoutePointer = '', packageParentRouteId = '', packageConsolidation = false, carrierPrefix = '', materialBindings: Record<string, any> = {}, projectedFilename = '', existingFilenames: string[] = []): Promise<string[]> {
   if (!primaryRoute.workspaceId || !primaryRoute.path) throw new Error('tiinex.package-builder.route-unresolved');
   const primary = selected.find((item) => item.workspaceId === primaryRoute.workspaceId);
   if (!primary) throw new Error('tiinex.package-builder.route-workspace-not-selected');
@@ -495,8 +527,14 @@ async function handoffArgs(selected: WorkspaceSource[], primaryRoute: RouteChoic
     if (packageParentRouteId) args.push('--package-parent-route-id', packageParentRouteId);
   }
   if (packageMajorReason) {
-    if (!packageParentPath) throw new Error('tiinex.package-builder.package-major-parent-required');
+    if (!String(carrierPrefix || '').trim()) throw new Error('tiinex.package-builder.package-major-prefix-required');
     args.push('--package-major', '--major-reason', packageMajorReason);
+    if (!packageParentPath) {
+      const existingNames = existingFilenames;
+      const namesPath = path.join(scratch, 'carrier-existing-filenames.json');
+      await writeFile(namesPath, JSON.stringify({ existingFilenames: existingNames }), 'utf8');
+      args.push('--carrier-existing-filenames', namesPath);
+    }
   }
   if (String(carrierPrefix || '').trim()) args.push('--carrier-prefix', String(carrierPrefix || '').trim());
   if (String(projectedFilename || '').trim()) args.push('--projected-filename', checkedCarrierFilename(String(projectedFilename || '').trim()));
@@ -672,7 +710,8 @@ export async function buildHandoffPackageFromForm(extensionPath: string, input: 
     if (!selectedSources.length) throw new Error('tiinex.package-builder.no-local-workspace-source');
     const materialBindings = await materialBindingsForDiscoverySources(runtime, selectedSources, discoverySources);
     if (route.pointerless) {
-      const args = await workspaceCarrierArgs(selectedSources, scratch, String(input.expectedCarrierFilename || ''), String(input.packageParentPath || ''), String(input.packageMajorReason || '').trim());
+      const existingCarrierNames = input.outputDirectory ? await existingCarrierFilenames(String(input.outputDirectory)) : [];
+      const args = await workspaceCarrierArgs(selectedSources, scratch, String(input.expectedCarrierFilename || ''), String(input.packageParentPath || ''), String(input.packageMajorReason || '').trim(), String(input.carrierPrefix || '').trim(), existingCarrierNames);
       // Manufacture once into a disposable stage. The returned Core receipt plus
       // physical bytes are the exact qualification boundary; a separate dry-run
       // preview duplicated the same expensive Core work without adding authority.
@@ -710,7 +749,7 @@ export async function buildHandoffPackageFromForm(extensionPath: string, input: 
 ${participantProjection.detail}`);
       qualifiedRouteInputs.push({ route: item.route, participantRoles: [...participantProjection.roles], endpointRoles: item.endpointRoles });
     }
-    const args = await handoffArgs(selectedSources, route, qualifiedRouteInputs, scratch, String(input.packageParentPath || ''), String(input.packageMajorReason || '').trim(), String(input.packageParentRoutePointer || ''), String(input.packageParentRouteId || ''), input.packageConsolidation === true, String(input.carrierPrefix || '').trim(), materialBindings, String(input.expectedCarrierFilename || '').trim());
+    const args = await handoffArgs(selectedSources, route, qualifiedRouteInputs, scratch, String(input.packageParentPath || ''), String(input.packageMajorReason || '').trim(), String(input.packageParentRoutePointer || ''), String(input.packageParentRouteId || ''), input.packageConsolidation === true, String(input.carrierPrefix || '').trim(), materialBindings, String(input.expectedCarrierFilename || '').trim(), input.outputDirectory ? await existingCarrierFilenames(String(input.outputDirectory)) : []);
     // Core owns routed Handoff bytes plus continuation/allocation truth. The host
     // only consumes and cross-checks the returned allocation/lineage projection.
     // Destination existence is a host fact; Core projects any transport-only collision name.

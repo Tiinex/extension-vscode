@@ -12,6 +12,13 @@ export interface ExactHandoffEndpointCandidate {
 }
 
 
+export interface HandoffEndpointAuthoringCandidate extends Omit<ExactHandoffEndpointCandidate, 'reference' | 'qualification'> {
+  reference?: string;
+  qualification: 'qualified-exact' | 'authoring-assist';
+  qualificationBoundary?: string;
+}
+
+
 export function exactHandoffEndpointMarkdownLink(candidate: Pick<ExactHandoffEndpointCandidate, 'reference' | 'authoringLabel' | 'label'>): string {
   const label = String(candidate.authoringLabel || candidate.label || '').trim();
   const target = String(candidate.reference || '').trim();
@@ -112,6 +119,24 @@ export function endpointCandidatesForExplicitSource(
     a.artifactPath.localeCompare(b.artifactPath) ||
     a.reference.localeCompare(b.reference)
   );
+}
+
+export function endpointCandidatesForAuthoringSource(
+  source: ExplicitHandoffEndpointSource,
+  candidates: HandoffEndpointAuthoringCandidate[]
+): HandoffEndpointAuthoringCandidate[] {
+  const workspaceId = String(source.workspaceId || '').trim();
+  if (!workspaceId) return [];
+  const byIdentity = new Map<string, HandoffEndpointAuthoringCandidate>();
+  for (const candidate of candidates || []) {
+    const artifactPath = normalizedRelativeArtifactPath(candidate.artifactPath);
+    if (!artifactPath || !artifactPath.startsWith('.topics/')) continue;
+    if (String(candidate.workspaceId || '').trim() !== workspaceId) continue;
+    if (!['qualified-exact', 'authoring-assist'].includes(String(candidate.qualification || ''))) continue;
+    const key = `${workspaceId}\u0000${artifactPath}\u0000${candidate.kind}\u0000${candidate.reference || ''}\u0000${candidate.label}`;
+    if (!byIdentity.has(key)) byIdentity.set(key, { ...candidate, artifactPath });
+  }
+  return [...byIdentity.values()].sort((a, b) => a.label.localeCompare(b.label) || a.kind.localeCompare(b.kind) || a.workspaceId.localeCompare(b.workspaceId) || a.artifactPath.localeCompare(b.artifactPath));
 }
 
 export function mergeExactHandoffEndpointChoices(groups: ExactHandoffEndpointCandidate[][]): ExactHandoffEndpointCandidate[] {

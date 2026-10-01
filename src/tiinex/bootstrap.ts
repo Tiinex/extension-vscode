@@ -649,6 +649,8 @@ export interface HandoffEndpointProjectionResult {
   status: string;
   workspaceId: string;
   candidates: Array<{ id: string; target: string; reference: string; kind: 'role' | 'party'; label: string; authoringLabel?: string; workspaceId: string; artifactPath: string; schemaId: string; qualification: string }>;
+  currentRoleCandidates?: Array<{ id: string; target: string; reference: string; kind: 'role'; label: string; authoringLabel?: string; workspaceId: string; artifactPath: string; schemaId: string; qualification: string; currentLeaf?: boolean }>;
+  authoringCandidates?: Array<{ id: string; target: string; reference?: string; kind: 'role' | 'party'; label: string; authoringLabel?: string; workspaceId: string; artifactPath: string; schemaId: string; qualification: 'qualified-exact' | 'authoring-assist'; qualificationBoundary?: string }>;
   findings?: Array<{ severity: string; code: string; message: string }>;
 }
 
@@ -795,6 +797,77 @@ async function runManufactureHandoffPackage(runtime: PackageRuntime, args: strin
   return parsed;
 }
 
+
+export interface CarrierMajorAllocationResult {
+  status: string;
+  state: 'ready' | 'blocked';
+  reasonCode?: string;
+  prefix?: string;
+  highestObservedMajor?: number;
+  nextMajorDimension?: string;
+  parentOptional?: boolean;
+}
+
+export async function projectHandoffCarrierMajorAllocation(
+  runtime: PackageRuntime,
+  prefix: string,
+  existingFilenames: string[],
+  runner: ProcessRunner = runProcess
+): Promise<CarrierMajorAllocationResult> {
+  const scratch = await mkdtemp(path.join(os.tmpdir(), 'tiinex-vscode-major-allocation-'));
+  try {
+    const namesPath = path.join(scratch, 'names.json');
+    await writeFile(namesPath, JSON.stringify({ existingFilenames }), 'utf8');
+    return await runTiinexJson<CarrierMajorAllocationResult>(runtime, [
+      'project-handoff-carrier-major-allocation',
+      '--prefix', String(prefix || '').trim(),
+      '--existing', namesPath,
+      '--compact'
+    ], runner);
+  } finally { await rm(scratch, { recursive: true, force: true }); }
+}
+
+export interface WorkspaceCarrierEntryProjectionResult {
+  status: string;
+  state?: string;
+  reasonCode?: string;
+  modes?: Array<{ id?: string; label?: string; requiresInstruction?: boolean; summary?: string }>;
+  mode?: string;
+  startPath?: string;
+  transportText?: string;
+  primaryRole?: { label?: string; reference?: string } | null;
+  participants?: Array<{ label?: string; reference?: string }>;
+  boundary?: string;
+}
+
+export async function projectWorkspaceCarrierEntry(
+  runtime: PackageRuntime,
+  packagePath: string,
+  mode = '',
+  customInstruction = '',
+  primaryRole: unknown = null,
+  participants: unknown[] = [],
+  runner: ProcessRunner = runProcess
+): Promise<WorkspaceCarrierEntryProjectionResult> {
+  const scratch = await mkdtemp(path.join(os.tmpdir(), 'tiinex-vscode-workspace-entry-'));
+  try {
+    const args = ['project-workspace-carrier-entry', packagePath];
+    if (mode) args.push('--mode', mode);
+    if (customInstruction) args.push('--custom-instruction', customInstruction);
+    if (primaryRole) {
+      const rolePath = path.join(scratch, 'primary-role.json');
+      await writeFile(rolePath, JSON.stringify({ primaryRole }), 'utf8');
+      args.push('--primary-role', rolePath);
+    }
+    if (participants.length) {
+      const participantsPath = path.join(scratch, 'participants.json');
+      await writeFile(participantsPath, JSON.stringify({ participants }), 'utf8');
+      args.push('--participants', participantsPath);
+    }
+    args.push('--compact');
+    return await runTiinexJson<WorkspaceCarrierEntryProjectionResult>(runtime, args, runner);
+  } finally { await rm(scratch, { recursive: true, force: true }); }
+}
 
 export interface CarrierMajorFrontierCandidate {
   packagePath: string;

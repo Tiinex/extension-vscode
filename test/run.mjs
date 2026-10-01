@@ -471,6 +471,7 @@ await test('extension contributes stable Discovery, Incoming, Outgoing and Trans
   assert.equal(commands.get('tiinex.transport.copyPackage')?.icon, '$(folder-opened)');
   assert.equal(commands.get('tiinex.transport.copyText')?.title, 'Copy Transport Text');
   assert.equal(commands.get('tiinex.transport.copyText')?.icon, '$(copy)');
+  assert.equal(commands.get('tiinex.transport.guidedEntry')?.title, 'Guided Entry');
   assert.notEqual(commands.get('tiinex.transport.copyPackage')?.icon, commands.get('tiinex.transport.copyText')?.icon);
   assert.equal(commands.get('tiinex.transport.close')?.title, 'Close');
   assert.equal(manifest.contributes?.configuration?.properties?.['tiinex.discovery.autoClearDiscovery']?.enum?.join(','), 'no,yes');
@@ -535,7 +536,8 @@ await test('extension contributes stable Discovery, Incoming, Outgoing and Trans
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.send' && /discoveryResolvedHandoff/.test(item.when || '')));
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.send' && /incomingResolvedHandoff/.test(item.when || '')));
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.copyPackage' && /transportPackage/.test(item.when || '') && item.group === 'inline@1'));
-  assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.copyText' && /transportPackage/.test(item.when || '') && item.group === 'inline@2'));
+  assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.guidedEntry' && /transportPackagePointerless/.test(item.when || '') && item.group === 'inline@2'));
+  assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.copyText' && /transportPackage/.test(item.when || '') && !/transportPackagePointerless/.test(item.when || '') && item.group === 'inline@2'));
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.close' && /transportPackage/.test(item.when || '') && item.group === 'inline@9'));
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.copyPackage' && /transportRoute/.test(item.when || '')));
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.copyText' && /transportRoute/.test(item.when || '')));
@@ -981,6 +983,15 @@ await test('artifact-tree helpers keep latest Roles, lineage leaves and alphabet
   assert.deepEqual(sorted.map((item) => item.workspaceId), ['Business', 'core', 'vscode']);
 });
 
+
+await test('authoring discovery remains host-generic and may be scoped to exact selected Workspace roots', async () => {
+  const fs = await import('node:fs/promises');
+  const tree = await fs.readFile(path.resolve(HERE, '..', 'src', 'operatorTrees.ts'), 'utf8');
+  assert.match(tree, /authoringDiscoverySources\(workspace\)/);
+  assert.match(tree, /loadHandoffAuthoringEndpointChoicesForSources\(this\.extensionPath, sources\)/);
+  assert.match(tree, /schemaTransitionNeighborhood\(schemaId, parentArtifact\?\.schemaId \|\| '', authoringRoots\)/);
+  assert.doesNotMatch(tree, /this\.localWorkspaceChoices\(\)\.then\(\(choices\) => loadHandoffAuthoringEndpointChoicesForSources/);
+});
 
 await test('generic authoring exposes only Core-executable ordinary fields and reports schema-only optional gaps', async () => {
   const contract = {
@@ -1933,6 +1944,20 @@ await test('file-safe Incoming conflicts retain exact Git sides, preserve binary
   } finally { await fs.rm(tmp, { recursive: true, force: true }); }
 });
 
+
+await test('pointerless Transport uses Guided Entry while routed Handoffs retain Copy Transport Text', async () => {
+  const fs = await import('node:fs/promises');
+  const root = path.resolve(HERE, '..');
+  const tree = await fs.readFile(path.join(root, 'src', 'operatorTrees.ts'), 'utf8');
+  const manifest = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8'));
+  assert.match(tree, /contextValue: routeLess \? 'tiinex\.transportPackagePointerless' : 'tiinex\.transportPackage'/);
+  assert.match(tree, /register\('tiinex\.transport\.guidedEntry'/);
+  assert.match(tree, /private async guidedEntryTransport\(/);
+  assert.ok(manifest.contributes.commands.some((item) => item.command === 'tiinex.transport.guidedEntry' && item.title === 'Guided Entry'));
+  const itemMenus = manifest.contributes?.menus?.['view/item/context'] || [];
+  assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.guidedEntry' && /transportPackagePointerless/.test(item.when || '')));
+  assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.copyText' && /transportPackage/.test(item.when || '') && !/transportPackagePointerless/.test(item.when || '')));
+});
 
 await test('Artifact Authoring host UX keeps repair and direct-create behavior bounded by Core', async () => {
   const fs = await import('node:fs/promises');

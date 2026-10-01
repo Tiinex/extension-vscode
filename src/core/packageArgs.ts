@@ -8,7 +8,7 @@ export type WorkspaceCarrierSource = {
   workspaceTargetPath: string;
 };
 
-export async function workspaceCarrierArgs(selected: WorkspaceCarrierSource[], scratch: string, projectedFilename = '', packageParentPath = '', packageMajorReason = ''): Promise<string[]> {
+export async function workspaceCarrierArgs(selected: WorkspaceCarrierSource[], scratch: string, projectedFilename = '', packageParentPath = '', packageMajorReason = '', carrierPrefix = '', existingFilenames: string[] = []): Promise<string[]> {
   const ordered = [...selected].sort((a, b) => a.workspaceId.localeCompare(b.workspaceId));
   const primary = ordered[0];
   if (!primary) throw new Error('tiinex.package-builder.workspace-selection-empty');
@@ -21,11 +21,13 @@ export async function workspaceCarrierArgs(selected: WorkspaceCarrierSource[], s
   if (filename) args.push('--projected-filename', checkedCarrierFilename(filename));
   const parent = String(packageParentPath || '').trim();
   if (parent) args.push('--package-parent', path.resolve(parent));
-  else args.push('--new-root');
-  const majorReason = String(packageMajorReason || '').trim();
-  if (majorReason) {
-    if (!parent) throw new Error('tiinex.package-builder.package-major-parent-required');
-    args.push('--package-major', '--major-reason', majorReason);
-  }
+  else if (String(packageMajorReason || '').trim()) {
+    const prefix = String(carrierPrefix || '').trim();
+    if (!prefix) throw new Error('tiinex.package-builder.package-major-prefix-required');
+    args.push('--package-major', '--major-reason', String(packageMajorReason || '').trim(), '--carrier-prefix', prefix);
+    const namesPath = path.join(scratch, 'carrier-existing-filenames.json');
+    await writeFile(namesPath, JSON.stringify({ existingFilenames }), 'utf8');
+    args.push('--carrier-existing-filenames', namesPath);
+  } else args.push('--new-root');
   return args;
 }
