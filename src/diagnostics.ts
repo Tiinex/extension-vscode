@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
+import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { preferredNodeExecutable } from './host/nodeExecutable';
 import { prepareBundledRuntime, prepareWorkspaceCoreRuntime, projectEditorAssistance, projectEditorAssistanceText } from './tiinex/bootstrap';
@@ -277,51 +278,80 @@ export class TiinexDiagnosticsController implements vscode.Disposable {
     return document && !document.isClosed ? this.refresh(document) : null;
   }
 
-  async repair(document: vscode.TextDocument, actionId = ''): Promise<{ state: 'applied' | 'none' | 'selection-required' | 'stale' | 'failed'; snapshot: DiagnosticsSnapshot | null; actions: Array<{ id: string; title: string }> }> {
+  private async workspaceEditForAction(document: vscode.TextDocument, item: any): Promise<{ state: 'ready' | 'stale' | 'failed'; edit?: vscode.WorkspaceEdit }> {
+    const materialRoot = await repositoryRootForResource(document.fileName);
+    const focusPath = relativeRepositoryPath(materialRoot, document.fileName);
+    const replacements = item.kind === 'replace-record-set' && Array.isArray(item.replacements) && item.replacements.length
+      ? item.replacements
+      : [{ path: focusPath, sourceSha256: item.sourceSha256, replacementMarkdown: item.replacementMarkdown }];
+    const edit = new vscode.WorkspaceEdit();
+    for (const replacement of replacements) {
+      const relativePath = String(replacement.path || '').replace(/\\/g, '/').replace(/^\.\//, '').replace(/^\/+/, '');
+      if (!relativePath) return { state: 'failed' };
+      const targetPath = path.resolve(materialRoot, ...relativePath.split('/').filter(Boolean));
+      const escaped = path.relative(materialRoot, targetPath);
+      if (!escaped || escaped === '.') return { state: 'failed' };
+      if (escaped.startsWith(`..${path.sep}`) || escaped === '..' || path.isAbsolute(escaped)) return { state: 'failed' };
+      const uri = vscode.Uri.file(targetPath);
+      const targetDocument = uri.toString() === document.uri.toString() ? document : await vscode.workspace.openTextDocument(uri);
+      if (digest(targetDocument.getText()) !== String(replacement.sourceSha256 || '')) return { state: 'stale' };
+      const end = targetDocument.lineAt(Math.max(0, targetDocument.lineCount - 1)).rangeIncludingLineBreak.end;
+      edit.replace(uri, new vscode.Range(new vscode.Position(0, 0), end), String(replacement.replacementMarkdown || ''));
+    }
+    return { state: 'ready', edit };
+  }
+
+  async repair(document: vscode.TextDocument, actionId = ''): Promise<{ state: 'applied' | 'none' | 'selection-required' | 'stale' | 'failed'; snapshot: DiagnosticsSnapshot | null; actions: Array<{ id: string; title: string }>; appliedCount?: number }> {
     if (document.isClosed || !eligible(document)) return { state: 'none', snapshot: null, actions: [] };
     const snapshot = await this.refresh(document);
     const key = document.uri.toString();
-    const projected = (this.actions.get(key) || []).filter((item) => item.kind === 'replace-document' && String(item.qualification || '').startsWith('deterministic-shared-core'));
+    const projected = (this.actions.get(key) || []).filter((item) => (item.kind === 'replace-document' || item.kind === 'replace-record-set') && String(item.qualification || '').startsWith('deterministic-shared-core'));
     const currentDigest = digest(document.getText());
     const current = projected.filter((item) => item.sourceSha256 === currentDigest);
     if (!current.length) return { state: projected.length ? 'stale' : 'none', snapshot, actions: projected.map((item) => ({ id: String(item.id || ''), title: String(item.title || item.id || 'Repair') })) };
     let selected = actionId ? current.find((item) => String(item.id || '') === actionId) : null;
     if (!selected && current.length === 1) selected = current[0];
     if (!selected) return { state: 'selection-required', snapshot, actions: current.map((item) => ({ id: String(item.id || ''), title: String(item.title || item.id || 'Repair') })) };
-    const edit = new vscode.WorkspaceEdit();
-    const end = document.lineAt(Math.max(0, document.lineCount - 1)).rangeIncludingLineBreak.end;
-    edit.replace(document.uri, new vscode.Range(new vscode.Position(0, 0), end), String(selected.replacementMarkdown || ''));
-    const applied = await vscode.workspace.applyEdit(edit);
+    const prepared = await this.workspaceEditForAction(document, selected);
+    if (prepared.state === 'stale') return { state: 'stale', snapshot, actions: current.map((item) => ({ id: String(item.id || ''), title: String(item.title || item.id || 'Repair') })) };
+    if (prepared.state !== 'ready' || !prepared.edit) return { state: 'failed', snapshot, actions: current.map((item) => ({ id: String(item.id || ''), title: String(item.title || item.id || 'Repair') })) };
+    const applied = await vscode.workspace.applyEdit(prepared.edit);
     if (!applied) return { state: 'failed', snapshot, actions: current.map((item) => ({ id: String(item.id || ''), title: String(item.title || item.id || 'Repair') })) };
     const refreshed = await this.refresh(document);
-    return { state: 'applied', snapshot: refreshed, actions: [] };
+    const appliedCount = selected.kind === 'replace-record-set' && Array.isArray(selected.replacements) ? selected.replacements.length : 1;
+    return { state: 'applied', snapshot: refreshed, actions: [], appliedCount };
   }
 
   private async codeActions(document: vscode.TextDocument, context: vscode.CodeActionContext): Promise<vscode.CodeAction[]> {
     if (document.isClosed || !eligible(document)) return [];
     const key = document.uri.toString();
     let projectedActions = this.actions.get(key) || [];
-    if (!projectedActions.some((item) => item.kind === 'replace-document' && String(item.qualification || '').startsWith('deterministic-shared-core'))) {
+    if (!projectedActions.some((item) => (item.kind === 'replace-document' || item.kind === 'replace-record-set') && String(item.qualification || '').startsWith('deterministic-shared-core'))) {
       await this.refresh(document);
       projectedActions = this.actions.get(key) || [];
     }
-    return projectedActions.filter((item) => item.kind === 'replace-document' && String(item.qualification || '').startsWith('deterministic-shared-core')).map((item) => {
+    const out: vscode.CodeAction[] = [];
+    for (const item of projectedActions.filter((entry) => (entry.kind === 'replace-document' || entry.kind === 'replace-record-set') && String(entry.qualification || '').startsWith('deterministic-shared-core'))) {
       const diagnosticCodes = new Set((item.diagnosticCodes || []).map((value: unknown) => String(value)));
       const matchingDiagnostics = context.diagnostics.filter((diagnostic: vscode.Diagnostic) => !diagnosticCodes.size || diagnosticCodes.has(diagnosticCode(diagnostic.code)));
-      if (diagnosticCodes.size && !matchingDiagnostics.length) return null;
+      if (diagnosticCodes.size && !matchingDiagnostics.length) continue;
       const action = new vscode.CodeAction(item.title, vscode.CodeActionKind.QuickFix);
       if (matchingDiagnostics.length) action.diagnostics = matchingDiagnostics;
       if (item.sourceSha256 !== digest(document.getText())) {
         action.disabled = { reason: 'Document bytes changed after Tiinex qualification.' };
-        return action;
+        out.push(action);
+        continue;
       }
-      const edit = new vscode.WorkspaceEdit();
-      const end = document.lineAt(Math.max(0, document.lineCount - 1)).rangeIncludingLineBreak.end;
-      edit.replace(document.uri, new vscode.Range(new vscode.Position(0, 0), end), item.replacementMarkdown);
-      action.edit = edit;
-      action.isPreferred = true;
-      return action;
-    }).filter((item): item is vscode.CodeAction => Boolean(item));
+      const prepared = await this.workspaceEditForAction(document, item);
+      if (prepared.state === 'stale') action.disabled = { reason: 'One or more lineage documents changed after Tiinex qualification.' };
+      else if (prepared.state !== 'ready' || !prepared.edit) action.disabled = { reason: 'The deterministic Tiinex changeset could not be mapped to this Workspace.' };
+      else {
+        action.edit = prepared.edit;
+        action.isPreferred = true;
+      }
+      out.push(action);
+    }
+    return out;
   }
 
   private updateActiveStatus(): void {

@@ -2061,7 +2061,14 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     let workspaceIds: string[];
     if (node?.data.workspaceId) workspaceIds = [node.data.workspaceId];
     else {
-      const defaults = new Set(operatorMatchedWorkspaceIds(qualifiedRoutes(state.orientation), this.operatorRole()));
+      // Preselection is presentation only: Core's shared source comparison owns
+      // whether an Incoming Workspace is an exact byte match. The VS Code host
+      // merely reflects that qualification in the multi-select UX.
+      const delta = await this.packageDeltaView(state.index);
+      const defaults = new Set(state.index.workspaces
+        .filter((workspace) => !state.appliedWorkspaceIds.has(workspace.workspaceId))
+        .filter((workspace) => delta.workspaces.get(workspace.workspaceId)?.state !== 'exact')
+        .map((workspace) => workspace.workspaceId));
       const choices = state.index.workspaces
         .filter((workspace) => !state.appliedWorkspaceIds.has(workspace.workspaceId))
         .map((workspace) => ({
@@ -2077,7 +2084,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       }
       const selected = await vscode.window.showQuickPick(choices, {
         title: forcedStrategy === 'merge' ? 'Review Merge Plan' : forcedStrategy === 'replace' ? 'Review Replace Plan' : 'Review Incoming Merge / Replace Plan',
-        placeHolder: defaults.size ? 'Operator-matching Handoff workspaces are preselected' : 'Select one or more Workspaces, or Esc to cancel',
+        placeHolder: defaults.size ? 'Workspaces not already qualified-identical are preselected' : 'Select one or more Workspaces, or Esc to cancel',
         canPickMany: true,
         ignoreFocusOut: true
       });

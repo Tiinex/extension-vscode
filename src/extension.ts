@@ -41,7 +41,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         repair = await diagnostics.repair(document, selected.id);
       }
       if (repair.state === 'applied') {
-        await vscode.window.showInformationMessage('Tiinex deterministic repair applied to the current document.');
+        const count = Number(repair.appliedCount || 1);
+        await vscode.window.showInformationMessage(count > 1
+          ? `Tiinex deterministic repair applied to ${count} lineage documents.`
+          : 'Tiinex deterministic repair applied to the current document.');
         return;
       }
       if (repair.state === 'stale') {
