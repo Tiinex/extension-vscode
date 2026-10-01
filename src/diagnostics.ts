@@ -277,6 +277,26 @@ export class TiinexDiagnosticsController implements vscode.Disposable {
     return document && !document.isClosed ? this.refresh(document) : null;
   }
 
+  async repair(document: vscode.TextDocument, actionId = ''): Promise<{ state: 'applied' | 'none' | 'selection-required' | 'stale' | 'failed'; snapshot: DiagnosticsSnapshot | null; actions: Array<{ id: string; title: string }> }> {
+    if (document.isClosed || !eligible(document)) return { state: 'none', snapshot: null, actions: [] };
+    const snapshot = await this.refresh(document);
+    const key = document.uri.toString();
+    const projected = (this.actions.get(key) || []).filter((item) => item.kind === 'replace-document' && String(item.qualification || '').startsWith('deterministic-shared-core'));
+    const currentDigest = digest(document.getText());
+    const current = projected.filter((item) => item.sourceSha256 === currentDigest);
+    if (!current.length) return { state: projected.length ? 'stale' : 'none', snapshot, actions: projected.map((item) => ({ id: String(item.id || ''), title: String(item.title || item.id || 'Repair') })) };
+    let selected = actionId ? current.find((item) => String(item.id || '') === actionId) : null;
+    if (!selected && current.length === 1) selected = current[0];
+    if (!selected) return { state: 'selection-required', snapshot, actions: current.map((item) => ({ id: String(item.id || ''), title: String(item.title || item.id || 'Repair') })) };
+    const edit = new vscode.WorkspaceEdit();
+    const end = document.lineAt(Math.max(0, document.lineCount - 1)).rangeIncludingLineBreak.end;
+    edit.replace(document.uri, new vscode.Range(new vscode.Position(0, 0), end), String(selected.replacementMarkdown || ''));
+    const applied = await vscode.workspace.applyEdit(edit);
+    if (!applied) return { state: 'failed', snapshot, actions: current.map((item) => ({ id: String(item.id || ''), title: String(item.title || item.id || 'Repair') })) };
+    const refreshed = await this.refresh(document);
+    return { state: 'applied', snapshot: refreshed, actions: [] };
+  }
+
   private async codeActions(document: vscode.TextDocument, context: vscode.CodeActionContext): Promise<vscode.CodeAction[]> {
     if (document.isClosed || !eligible(document)) return [];
     const key = document.uri.toString();

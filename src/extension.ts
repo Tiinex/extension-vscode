@@ -29,11 +29,27 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       if (!uri || uri.scheme !== 'file') throw new Error('tiinex.repair.file-resource-required');
       const document = await vscode.workspace.openTextDocument(uri);
       await vscode.window.showTextDocument(document, { preview: false });
-      const snapshot = await diagnostics.refresh(document);
-      if (snapshot?.actions) {
-        await vscode.commands.executeCommand('editor.action.quickFix');
+      let repair = await diagnostics.repair(document);
+      if (repair.state === 'selection-required') {
+        const selected = await vscode.window.showQuickPick(repair.actions.map((item) => ({ label: item.title, description: item.id, id: item.id })), {
+          title: 'Tiinex · Choose deterministic repair',
+          placeHolder: 'Core exposed more than one qualified repair for these exact document bytes',
+          canPickMany: false,
+          ignoreFocusOut: true
+        });
+        if (!selected) return;
+        repair = await diagnostics.repair(document, selected.id);
+      }
+      if (repair.state === 'applied') {
+        await vscode.window.showInformationMessage('Tiinex deterministic repair applied to the current document.');
         return;
       }
+      if (repair.state === 'stale') {
+        await vscode.window.showWarningMessage('Tiinex repair became stale because the document bytes changed after Core qualification. Run Repair again on the current bytes.');
+        return;
+      }
+      if (repair.state === 'failed') throw new Error('tiinex.repair.workspace-edit-not-applied');
+      const snapshot = repair.snapshot;
       const choice = await vscode.window.showWarningMessage(
         snapshot?.state === 'clean'
           ? 'Tiinex Core reports this artifact as clean; no repair is needed.'
