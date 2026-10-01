@@ -550,9 +550,7 @@ await test('extension contributes stable Discovery, Incoming, Outgoing and Trans
   assert.ok(tiinexExplorerMenus.some((item) => item.command === 'tiinex.artifact.newHandoff' && /explorerResourceIsFolder/.test(item.when || '')));
   assert.ok(tiinexExplorerMenus.some((item) => item.command === 'tiinex.artifact.attachHandoff' && /resourceFilename\s*=~\s*\/\\\.trace\\\.md\$\//.test(item.when || '')));
   const viewTitleMenus = manifest.contributes?.menus?.['view/title'] || [];
-  assert.ok(viewTitleMenus.some((item) => item.command === 'tiinex.artifact.new' && item.when === 'view == tiinex.discovery' && item.group === 'navigation@1'));
-  assert.ok(viewTitleMenus.some((item) => item.command === 'tiinex.artifact.newFeedback' && item.when === 'view == tiinex.discovery' && item.group === 'navigation@2'));
-  assert.ok(viewTitleMenus.some((item) => item.command === 'tiinex.artifact.newHandoff' && item.when === 'view == tiinex.discovery' && item.group === 'navigation@3'));
+  assert.equal(viewTitleMenus.some((item) => ['tiinex.artifact.new', 'tiinex.artifact.newFeedback', 'tiinex.artifact.newHandoff'].includes(item.command) && item.when === 'view == tiinex.discovery'), false);
   assert.equal(commands.get('tiinex.artifact.new')?.title, 'Tiinex: New Artifact');
   assert.equal(commands.get('tiinex.artifact.newFeedback')?.title, 'Tiinex: New Feedback');
   assert.equal(commands.get('tiinex.artifact.newHandoff')?.title, 'Tiinex: New Handoff');
@@ -2124,7 +2122,7 @@ await test('multi-Incoming and Merge/Replace remain selection-first, dry until f
   assert.match(tree, /this\.materialProvider\.uriFor/);
   assert.match(tree, /openWorkspaceMarkdownNode/);
   assert.match(tree, /revealIncomingRoute/);
-  assert.match(tree, /VS Code operator selected stable multi-Workspace checkpoint/);
+  assert.match(tree, /Checkpoint promoted to Major after acceptance assessment; material is considered stable\./);
   assert.doesNotMatch(tree, /Why is this multi-Workspace state stable/);
   assert.match(tree, /bootstrapPayloadIncluded/);
   assert.match(tree, /payloadCheckoutEligibility/);

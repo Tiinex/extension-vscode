@@ -436,6 +436,11 @@
           "default": "",
           "description": "Operator role label used only for UI defaults and exact role-matched Handoff preview (for example Sigma). It does not grant Role authority."
         },
+        "tiinex.guidedEntry.showBuiltInEntries": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show Core-native Entry definitions in Guided Entry. Disable to show only qualified Entry artifacts carried by the selected package plus Custom. This setting changes host presentation only; Core still owns Entry qualification."
+        },
         "tiinex.nodePath": {
           "type": "string",
           "default": "",
@@ -514,21 +519,6 @@
         }
       ],
       "view/title": [
-        {
-          "command": "tiinex.artifact.new",
-          "when": "view == tiinex.discovery",
-          "group": "navigation@1"
-        },
-        {
-          "command": "tiinex.artifact.newFeedback",
-          "when": "view == tiinex.discovery",
-          "group": "navigation@2"
-        },
-        {
-          "command": "tiinex.artifact.newHandoff",
-          "when": "view == tiinex.discovery",
-          "group": "navigation@3"
-        },
         {
           "command": "tiinex.discovery.selectFolder",
           "when": "view == tiinex.discovery",

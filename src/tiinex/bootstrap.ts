@@ -842,7 +842,9 @@ export interface WorkspaceCarrierEntryProjectionResult {
   status: string;
   state?: string;
   reasonCode?: string;
-  modes?: Array<{ id?: string; label?: string; requiresInstruction?: boolean; summary?: string }>;
+  modes?: Array<{ id?: string; label?: string; requiresInstruction?: boolean; summary?: string; sourceKind?: string; workspaceId?: string; artifactPath?: string; canonicalIdentifier?: string; version?: string }>;
+  entries?: Array<{ id?: string; label?: string; summary?: string; sourceKind?: string; workspaceId?: string; artifactPath?: string; canonicalIdentifier?: string; version?: string }>;
+  entryId?: string;
   mode?: string;
   startPath?: string;
   transportText?: string;

@@ -20,6 +20,7 @@ import { applyIncomingWorkspaces, IncomingApplyStrategy } from './incomingApply'
 import { operatorMatchedWorkspaceIds, resolvePrioritizedWorkspaceDuplicates } from './core/sourceSelection';
 import { comparePackageRecency, rootOutgoingLabel, rootOutgoingPrefix } from './core/outgoingUx';
 import { payloadCheckoutEligibility, qualifiedGitHubBlobReference } from './host/git';
+import { revealFileInNativeFolder } from './host/reveal';
 import { existingCarrierFilenames } from './host/carrierPublish';
 import { extractZipBuffer, readExactZipEntryFromBuffer, readExactZipEntryFromFile } from './host/zip';
 import { ArtifactAuthoringSubmission, openArtifactAuthoringPanel } from './artifactAuthoringPanel';
@@ -34,6 +35,8 @@ import { acceptCoreParticipantProjection, participantPresentation, selectAdditio
 import { configureExtensionHostAcceptance, extensionHostAcceptanceEnabled, extensionHostAcceptanceEvents, extensionHostAcceptanceOutgoingFolder, extensionHostAcceptanceOutgoingParent, extensionHostAcceptanceOutgoingSourceKeys, recordExtensionHostAcceptanceEvent } from './vscode/extensionHostAcceptance';
 
 export type OperatorSection = 'discovery' | 'incoming' | 'outgoing';
+
+const STABLE_MAJOR_REASON = 'Checkpoint promoted to Major after acceptance assessment; material is considered stable.';
 
 
 function progressHeartbeat(progress: vscode.Progress<{ message?: string; increment?: number }>): { report(message: string): void; dispose(): void } {
@@ -1216,7 +1219,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       // Match the existing notification-level Open Folder behavior: open the
       // native containing folder and select the exact carrier file. The
       // Transport tree is a transport surface, not a second VS Code Explorer.
-      await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(target));
+      await revealFileInNativeFolder(target);
       await this.markTransportPrepared(item, routeId, 'packagePrepared');
     } catch (error) {
       await vscode.window.showWarningMessage(`Tiinex could not reveal ${item.filename}: ${shortMessage(error)}`);
@@ -1273,14 +1276,22 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     try {
       const catalog = await projectWorkspaceCarrierEntry(runtime, item.packagePath);
       if (catalog.status !== 'ready' || !catalog.modes?.length) throw new Error(`tiinex.transport.guided-entry-catalog-${catalog.reasonCode || catalog.status || 'blocked'}`);
-      const modeSelection = await vscode.window.showQuickPick(catalog.modes.map((mode) => ({
+      const showBuiltInEntries = vscode.workspace.getConfiguration('tiinex').get<boolean>('guidedEntry.showBuiltInEntries', true);
+      const visibleEntries = catalog.modes.filter((mode) => showBuiltInEntries || String(mode.sourceKind || '') !== 'native');
+      const modeSelection = await vscode.window.showQuickPick(visibleEntries.map((mode) => ({
         label: String(mode.label || mode.id || ''),
-        description: mode.requiresInstruction ? 'Requires an operator instruction' : '',
+        description: mode.requiresInstruction
+          ? 'Custom operator instruction'
+          : String(mode.sourceKind || '') === 'native'
+            ? 'Built-in Entry'
+            : String(mode.sourceKind || '') === 'carried'
+              ? `Carried Entry · ${String(mode.workspaceId || 'Workspace')}`
+              : '',
         detail: String(mode.summary || ''),
         mode: String(mode.id || '')
       })), {
-        title: 'Guided Entry · Choose session mode',
-        placeHolder: 'Choose how the cold-started Role should begin',
+        title: 'Guided Entry · Choose Entry',
+        placeHolder: 'Choose how the cold-started Role should enter the carried context',
         canPickMany: false,
         ignoreFocusOut: true
       });
@@ -2370,7 +2381,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       }
       this.outgoing.name = `${prefix}-${nextDimension}`;
       this.outgoing.packageParentDimension = this.outgoing.packageParentDimension || this.incomingCarrierDimension(this.outgoing.packageParentPath);
-      this.outgoing.packageMajorReason = 'VS Code operator selected stable multi-Workspace checkpoint';
+      this.outgoing.packageMajorReason = STABLE_MAJOR_REASON;
       this.outgoing.packageParentRoutePointer = '';
       this.outgoing.packageParentRouteId = '';
       this.outgoing.packageConsolidation = false;
@@ -2386,7 +2397,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       this.outgoing.packageParentDimension = String(allocation.dimension || '');
       this.outgoing.localMajorParent = false;
       this.outgoing.name = `${prefix}-${allocation.dimension}`;
-      this.outgoing.packageMajorReason = 'VS Code operator selected the next monotonic carrier Major';
+      this.outgoing.packageMajorReason = STABLE_MAJOR_REASON;
       this.outgoing.packageParentRoutePointer = '';
       this.outgoing.packageParentRouteId = '';
       this.outgoing.packageConsolidation = false;
@@ -2404,12 +2415,12 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       const parentState = this.incomingState(parentPath);
       const topology = await this.pickOutgoingParentTopology(parentPath);
       if (!topology) {
-        this.outgoing.packageMajorReason = 'VS Code operator selected stable multi-Workspace checkpoint';
+        this.outgoing.packageMajorReason = STABLE_MAJOR_REASON;
         return;
       }
       const restoredName = await this.projectOutgoingTransportName(parentPath, 'continuation', this.incomingCarrierOrdinal(parentState?.orientation));
       if (!restoredName) {
-        this.outgoing.packageMajorReason = 'VS Code operator selected stable multi-Workspace checkpoint';
+        this.outgoing.packageMajorReason = STABLE_MAJOR_REASON;
         return;
       }
       this.outgoing.name = restoredName;
