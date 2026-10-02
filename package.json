@@ -12,56 +12,9 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:tiinex.landHandoffPackage",
-    "onCommand:tiinex.git.commitRepository",
-    "onCommand:tiinex.generateCommitMessage",
-    "onCommand:tiinex.stageCommitPush",
-    "onCommand:tiinex.stageCommitPushMany",
     "workspaceContains:.topics",
-    "onCommand:tiinex.createHandoff",
-    "onCommand:tiinex.buildHandoffPackage",
     "onStartupFinished",
-    "onLanguage:markdown",
-    "onCommand:tiinex.openOperator",
-    "onCommand:tiinex.refreshDiagnostics",
-    "onCommand:tiinex.showProblems",
-    "onCommand:tiinex.createHandoffFromArtifact",
-    "onView:tiinex.discovery",
-    "onView:tiinex.incoming",
-    "onView:tiinex.outgoing",
-    "onCommand:tiinex.discovery.selectFolder",
-    "onCommand:tiinex.discovery.clear",
-    "onCommand:tiinex.outgoing.new",
-    "onCommand:tiinex.outgoing.bumpMajor",
-    "onCommand:tiinex.outgoing.clearMajor",
-    "onCommand:tiinex.incoming.refresh",
-    "onCommand:tiinex.incoming.close",
-    "onCommand:tiinex.incoming.mergeReplace",
-    "onCommand:tiinex.outgoing.selectWorkspaces",
-    "onCommand:tiinex.outgoing.refresh",
-    "onCommand:tiinex.outgoing.close",
-    "onCommand:tiinex.incoming.merge",
-    "onCommand:tiinex.incoming.replace",
-    "onCommand:tiinex.outgoing.selectFolder",
-    "onCommand:tiinex.artifact.new",
-    "onCommand:tiinex.artifact.repair",
-    "onCommand:tiinex.artifact.newFeedback",
-    "onCommand:tiinex.artifact.newHandoff",
-    "onCommand:tiinex.artifact.attachHandoff",
-    "onCommand:tiinex.outgoing.attachHandoff",
-    "onCommand:tiinex.outgoing.attachHandoffFromWorkspace",
-    "onCommand:tiinex.outgoing.detachHandoff",
-    "onCommand:tiinex.outgoing.removeHandoffPointer",
-    "onCommand:tiinex.discovery.displayOptions",
-    "onCommand:tiinex.incoming.displayOptions",
-    "onCommand:tiinex.outgoing.displayOptions",
-    "onView:tiinex.transport",
-    "onCommand:tiinex.transport.refresh",
-    "onCommand:tiinex.transport.send",
-    "onCommand:tiinex.transport.copyPackage",
-    "onCommand:tiinex.transport.copyText",
-    "onCommand:tiinex.transport.guidedEntry",
-    "onCommand:tiinex.transport.close"
+    "onLanguage:markdown"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -484,21 +437,25 @@
         {
           "id": "tiinex.discovery",
           "name": "Discovery",
+          "icon": "media/tiinex.svg",
           "visibility": "visible"
         },
         {
           "id": "tiinex.incoming",
           "name": "Incoming",
+          "icon": "media/tiinex.svg",
           "visibility": "visible"
         },
         {
           "id": "tiinex.outgoing",
           "name": "Outgoing",
+          "icon": "media/tiinex.svg",
           "visibility": "visible"
         },
         {
           "id": "tiinex.transport",
           "name": "Transport",
+          "icon": "media/tiinex.svg",
           "visibility": "visible"
         }
       ]

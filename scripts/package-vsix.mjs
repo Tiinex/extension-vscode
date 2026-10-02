@@ -82,11 +82,12 @@ console.log(JSON.stringify({
 }));
 
 async function packageRuntimeFiles(root) {
-  const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-  const packed = await run(npm, ['pack', '--dry-run', '--json', root], {
+  const useWindowsShell = process.platform === 'win32';
+  const packed = await run('npm', ['pack', '--dry-run', '--json', root], {
     cwd: ROOT,
     maxBuffer: 16 * 1024 * 1024,
-    windowsHide: true
+    windowsHide: true,
+    shell: useWindowsShell
   });
   let report;
   try { report = JSON.parse(packed.stdout); }
