@@ -39,19 +39,19 @@
 
 - root-profile-binding
   - Material: fresh-root Handoff packaging derives a sorted unique Workspace ID set from exact selected Outgoing Workspaces, writes `carrier-profile.json`, and passes it through shared Core `--carrier-profile`.
-  - Material Reference: [packageBuilder.ts](../../../../src/packageBuilder.ts)
+  - Material Reference: [packageBuilder.ts](../../../../../src/packageBuilder.ts)
   - Purpose: bind explicit operator Workspace selection instead of unrelated canonical runtime fallback policy.
   - Availability: available
 
 - continuation-profile-boundary
   - Material: host profile injection is guarded by `!packageParentPath`; continuation/package-parent manufacture keeps inherited profile semantics.
-  - Material Reference: [packageBuilder.ts](../../../../src/packageBuilder.ts)
+  - Material Reference: [packageBuilder.ts](../../../../../src/packageBuilder.ts)
   - Purpose: preserve established continuation carrier profile authority.
   - Availability: available
 
 - regression-coverage
   - Material: static tests assert fresh-root profile file creation, stable profile identity/source, `--carrier-profile`, and the fresh-root guard; 51 named tests pass before this host reaches its known missing installed Core runtime gate.
-  - Material Reference: [test/run.mjs](../../../../test/run.mjs)
+  - Material Reference: [test/run.mjs](../../../../../test/run.mjs)
   - Purpose: preserve the exact correction and boundary.
   - Availability: available
 
@@ -117,8 +117,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [015-1-1-1-1-1-vs-code-major-003-root-carrier-profile-binding-correction.trace.md](015-1-1-1-1-1-vs-code-major-003-root-carrier-profile-binding-correction.trace.md)
-  - Value: 9ZV9C5CLpJOgiTWJPZjZjTwcZwak9Ff5tgZhqaowrlk
+  - Value: P_He3Ar7_QddPfek-gc4l2yPEI7tcVz4U7tyb-2aH4U
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: evbjqGFUPPWaN2L9AchzJlbprwNp00PM6rUtnYTW4oQ
+  - Value: IMYpfrXuHXXJf5VPWlNglV-1GikHhvxVxAFsF3Xd-bs

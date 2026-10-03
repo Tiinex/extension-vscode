@@ -33,7 +33,7 @@
 ## Evidence Material
 
 - Material Kind: Node bridge tests, real package-builder integration, extracted VSIX execution and partial TypeScript checks.
-- Material: [Bridge tests](extension-validation.txt), [Package integration](package-integration.txt), [Human test card](../../../../docs/PACK-DOGFOOD.md).
+- Material: [Bridge tests](extension-validation.txt), [Package integration](package-integration.txt), [Human test card](../../../../../docs/PACK-DOGFOOD.md).
 - Bridge Result: 64 of 64 cases passed, including runtime declaration/lock/installed-version drift, safe filenames, collision-safe publication and artifact title extraction.
 - Package Result: Four integration scenarios passed through the real extension package builder, portable Core, Git and filesystem. Only VS Code API calls use a test double. The tests check exact output filename, exact Workspace set, pointerless semantics, exact-byte retry, refusal to overwrite different bytes, and an extracted VSIX running its own locked Core entrypoint.
 - Root Cause: The pointerless branch of packageOutgoing did not pass expectedCarrierFilename from the Outgoing tree. packageBuilder and the installed Core already accepted the option. Both preview and manufacture results are now checked before output publication.
@@ -64,4 +64,4 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: pbBXqSINNjJLTE2HKkKCvf-FdHBVTx3o5NWERVvLrBA
+  - Value: bhstcqkXD0TVITmtQZ2AgOF5QfNvzxVw9hRl_2m9ZFg

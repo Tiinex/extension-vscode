@@ -39,25 +39,25 @@
 
 - merged-source-frontier
   - Material: exact reconciled extension source containing Full Lineage pending pointer projection, route-by-route multi-route Send to Transport projection, and blocked Incoming carrier presentation.
-  - Material Reference: [operatorTrees.ts](../../../../src/operatorTrees.ts)
+  - Material Reference: [operatorTrees.ts](../../../../../src/operatorTrees.ts)
   - Purpose: exercise the final three operator deltas from one source frontier.
   - Availability: available
 
 - blocked-carrier-error-presentation
   - Material: operator error projection now classifies package qualification failure as a blocked carrier state without presenting a raw stack as the ordinary user-facing detail.
-  - Material Reference: [operatorError.ts](../../../../src/core/operatorError.ts)
+  - Material Reference: [operatorError.ts](../../../../../src/core/operatorError.ts)
   - Purpose: keep fail-close behavior visible and actionable when a malformed carrier is opened.
   - Availability: available
 
 - extension-regression-suite
   - Material: extension regression source includes the emergency Full Lineage/Transport assertions, blocked-carrier UX assertions, and the corrected Core compatibility expectation for the 002 source frontier.
-  - Material Reference: [test/run.mjs](../../../../test/run.mjs)
+  - Material Reference: [test/run.mjs](../../../../../test/run.mjs)
   - Purpose: preserve automated regression coverage for the merged candidate.
   - Availability: available
 
 - windows-test-vsix
   - Material: the candidate VSIX is built from the merged extension source and the exact carried sibling Core source through the extension package script.
-  - Material Reference: [tiinex-vscode-0.1.7.vsix](../../../../dist/tiinex-vscode-0.1.7.vsix)
+  - Material Reference: [tiinex-vscode-0.1.7.vsix](../../../../../dist/tiinex-vscode-0.1.7.vsix)
   - Purpose: provide the exact binary for the remaining Sigma Windows observation.
   - Availability: available
 
@@ -114,8 +114,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [015-1-anchor-to-anchor-emergency-vs-code-continuation-at-conversation.trace.md](015-1-anchor-to-anchor-emergency-vs-code-continuation-at-conversation.trace.md)
-  - Value: Cl0w7VQgHuuuIaGHX_uM-SRldsaqwfiB8-1laRBI1Lc
+  - Value: CluOwFtMvY14d4V0TO_2dNSyD5oT8gXUpmi2m5gZfP4
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: bg_NYqBS2Bu3Eg8dCIl9M0fKFhEBbtgnRAxzzqDe32E
+  - Value: 3dn3iCnUymOQvpAlPfR-3mSLZEosGVZQQwYICfJX51o

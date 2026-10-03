@@ -49,19 +49,19 @@
 
 - root-profile-binding
   - Material: fresh-root Handoff packaging derives a deterministic sorted unique Workspace ID set from the exact selected Outgoing Workspaces, writes `carrier-profile.json`, and passes it through shared Core `--carrier-profile`.
-  - Material Reference: [packageBuilder.ts](../../../../src/packageBuilder.ts)
+  - Material Reference: [packageBuilder.ts](../../../../../src/packageBuilder.ts)
   - Purpose: make explicit VS Code operator Workspace selection the explicit Major carrier profile for that fresh root instead of inheriting an unrelated runtime fallback.
   - Availability: available
 
 - continuation-profile-boundary
   - Material: explicit VS Code profile injection is guarded by `!packageParentPath`; package-parent/continuation manufacture therefore retains Core's inherited package profile semantics.
-  - Material Reference: [packageBuilder.ts](../../../../src/packageBuilder.ts)
+  - Material Reference: [packageBuilder.ts](../../../../../src/packageBuilder.ts)
   - Purpose: prevent host policy from overwriting established continuation-carrier profile authority.
   - Availability: available
 
 - regression-coverage
   - Material: static tests assert the fresh-root profile file, stable profile id, explicit source marker, Core CLI flag, and fresh-root guard. Fifty-one named tests pass before the known missing installed `@tiinex/core` host gate on this environment.
-  - Material Reference: [test/run.mjs](../../../../test/run.mjs)
+  - Material Reference: [test/run.mjs](../../../../../test/run.mjs)
   - Purpose: prevent silent removal or broadening of the profile-binding correction.
   - Availability: available
 
@@ -117,8 +117,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [015-1-1-1-1-vs-code-major-003-second-video-outgoing-discoverability-correcti.trace.md](015-1-1-1-1-vs-code-major-003-second-video-outgoing-discoverability-correcti.trace.md)
-  - Value: jHirehrt5Mrp0TAxkoFnwODi-FqxeUysn92PQsz-EDM
+  - Value: yMXOj7F5hb4K_ba-tmZwrXvxQFFJ3F1f4V9nCFACKzU
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: 9ZV9C5CLpJOgiTWJPZjZjTwcZwak9Ff5tgZhqaowrlk
+  - Value: P_He3Ar7_QddPfek-gc4l2yPEI7tcVz4U7tyb-2aH4U

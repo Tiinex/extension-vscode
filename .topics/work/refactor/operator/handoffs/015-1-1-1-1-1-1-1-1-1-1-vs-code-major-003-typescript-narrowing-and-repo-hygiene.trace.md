@@ -39,19 +39,19 @@
 
 - discriminated-root-allocation-result
   - Material: `resolveRootOutgoingAllocation` returns a discriminated union where the `ready` state has required `packagePath`, `dimension`, and `filename` fields.
-  - Material Reference: [operatorTrees.ts](../../../../src/operatorTrees.ts)
+  - Material Reference: [operatorTrees.ts](../../../../../src/operatorTrees.ts)
   - Purpose: resolve Sigma's exact Windows TS2322/TS18048 build errors at the root Outgoing allocation call site while keeping fail-closed `none` and `ambiguous` states explicit.
   - Availability: available
 
 - source-tree-hygiene
   - Material: temporary `src/packageBuilder.ts.before-third-video` and `test/run.mjs.before-third-video` files were removed rather than carried as repo-visible backup artifacts.
-  - Material Reference: [packageBuilder.ts](../../../../src/packageBuilder.ts)
+  - Material Reference: [packageBuilder.ts](../../../../../src/packageBuilder.ts)
   - Purpose: keep the candidate source tree auditable and free of local historical scratch copies.
   - Availability: available
 
 - regression-coverage
   - Material: deterministic source regression reaches 51 named passes and stops only at the known missing installed `@tiinex/core` package gate on this host. The exact linked Windows TypeScript build remains Sigma's acceptance gate.
-  - Material Reference: [run.mjs](../../../../test/run.mjs)
+  - Material Reference: [run.mjs](../../../../../test/run.mjs)
   - Purpose: preserve bounded local evidence without claiming unavailable dependency-qualified build success.
   - Availability: available
 
@@ -102,8 +102,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [015-1-1-1-1-1-1-1-1-1-vs-code-major-003-carrier-allocation-and-transport-receipt-final.trace.md](015-1-1-1-1-1-1-1-1-1-vs-code-major-003-carrier-allocation-and-transport-receipt-final.trace.md)
-  - Value: gQO7u9l7mya-dcIj9ETgZgcgaw0pt4bUnQynRJHUe2Y
+  - Value: lrPZ4j5HmYW9izwvTnpsoWvzcdzhB5LXzr-a8napTaU
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: 9vKlShj0F7JVDLYypssGHzpgHp-I58rV56bouwBxV90
+  - Value: PaO5Bauf-xH7PEXR9nT7A09ISMYaM7S-5vPpn5JUJkk

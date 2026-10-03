@@ -39,25 +39,25 @@
 
 - incoming-root-type-correction
   - Material: exact source correction making ready and pending Incoming package roots share IncomingPendingState fields while retaining ready IncomingState when present.
-  - Material Reference: [operatorTrees.ts](../../../../src/operatorTrees.ts)
+  - Material Reference: [operatorTrees.ts](../../../../../src/operatorTrees.ts)
   - Purpose: remove the three TS2339 errors for phase and blockedSummary observed during Sigma's Windows linked-extension build.
   - Availability: available
 
 - blocked-carrier-error-presentation
   - Material: operator error projection classifies package qualification failure as a blocked carrier state without presenting a raw implementation stack as the ordinary user-facing detail.
-  - Material Reference: [operatorError.ts](../../../../src/core/operatorError.ts)
+  - Material Reference: [operatorError.ts](../../../../../src/core/operatorError.ts)
   - Purpose: preserve fail-close behavior while keeping malformed carriers visible and understandable in Incoming.
   - Availability: available
 
 - extension-regression-suite
   - Material: extension regression source retains the Full Lineage, multi-route Transport, and blocked-carrier UX assertions from the reconciled candidate.
-  - Material Reference: [test/run.mjs](../../../../test/run.mjs)
+  - Material Reference: [test/run.mjs](../../../../../test/run.mjs)
   - Purpose: preserve automated coverage around the final operator deltas.
   - Availability: available
 
 - latest-core-binding
   - Material: extension package manifest and lock select the current carried Core package line used by Sigma's Switch all to Latest flow.
-  - Material Reference: [package-lock.json](../../../../package-lock.json)
+  - Material Reference: [package-lock.json](../../../../../package-lock.json)
   - Purpose: bind the Windows rebuild to the same dependency frontier on which the three compile errors were observed.
   - Availability: available
 
@@ -118,8 +118,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [015-1-1-anchor-to-anchor-vs-code-major-003-final-windows-acceptance-cand.trace.md](015-1-1-anchor-to-anchor-vs-code-major-003-final-windows-acceptance-cand.trace.md)
-  - Value: bg_NYqBS2Bu3Eg8dCIl9M0fKFhEBbtgnRAxzzqDe32E
+  - Value: 3dn3iCnUymOQvpAlPfR-3mSLZEosGVZQQwYICfJX51o
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: pBiieKI1QiZGqPMKu9UzjrH4hGlhDOAvAtuWqipSxkg
+  - Value: _ycAi0Dh9KicRvGqBuNmLt0fJ9sOczjVnxsoZlh0ZRo

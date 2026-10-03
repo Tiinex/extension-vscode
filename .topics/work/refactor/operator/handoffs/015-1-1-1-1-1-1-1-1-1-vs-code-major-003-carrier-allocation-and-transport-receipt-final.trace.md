@@ -39,43 +39,43 @@
 
 - qualified-root-major-allocation
   - Material: blank Outgoing scans only the configured Outgoing folder for same-prefix candidate packages, re-orients them through Tiinex, recovers the stable prefix from each qualified filename plus exact carrier dimension, and advances the single safe highest-Major chain as an explicit package parent. Parallel highest-Major branches are ambiguous and block automatic selection.
-  - Material Reference: [operatorTrees.ts](../../../../src/operatorTrees.ts)
+  - Material Reference: [operatorTrees.ts](../../../../../src/operatorTrees.ts)
   - Purpose: prevent a second `prefix-001` display/package attempt when that carrier Major is already occupied without faking lineage from filenames alone.
   - Availability: available
 
 - pure-major-frontier-selection
   - Material: prefix recovery and same-prefix next-Major frontier choice are deterministic pure helpers. They select the deepest qualified point on one chain and reject parallel highest-Major branches rather than silently choosing one.
-  - Material Reference: [outgoingUx.ts](../../../../src/core/outgoingUx.ts)
+  - Material Reference: [outgoingUx.ts](../../../../../src/core/outgoingUx.ts)
   - Purpose: keep operator prefix presentation separate from exact Core dimension while making collision behavior testable.
   - Availability: available
 
 - exact-manufacture-transport-receipt
   - Material: Handoff manufacture already returns Core-generated route-specific transport texts. The VS Code host now records those texts with the finished package SHA and recipient labels derived from the exact selected route choices; Transport reuses them only while the file SHA still matches.
-  - Material Reference: [packageBuilder.ts](../../../../src/packageBuilder.ts)
+  - Material Reference: [packageBuilder.ts](../../../../../src/packageBuilder.ts)
   - Purpose: preserve the exact Core-qualified route text across Pack -> Transport without manually reconstructing Start/Continue-from text.
   - Availability: available
 
 - transport-receipt-cache-boundary
   - Material: cached Transport receipts contain only package path, immutable package SHA, presentation label, exact route ids/workspace paths, recipient labels, and Core-generated transport text. A changed file SHA invalidates the cache and falls back to ordinary Core package projection.
-  - Material Reference: [transportQueue.ts](../../../../src/core/transportQueue.ts)
+  - Material Reference: [transportQueue.ts](../../../../../src/core/transportQueue.ts)
   - Purpose: make the cache presentation evidence, not semantic package authority.
   - Availability: available
 
 - pack-success-transport-separation
   - Material: once manufacture and publication have succeeded, a later Transport queue failure no longer reports `Tiinex Outgoing package blocked`. Pack closes and announces success; any Transport issue is a separate warning. Route-projection failures now include Core finding codes when fallback projection is required.
-  - Material Reference: [operatorTrees.ts](../../../../src/operatorTrees.ts)
+  - Material Reference: [operatorTrees.ts](../../../../../src/operatorTrees.ts)
   - Purpose: match the observed fact that Sigma's carrier file was successfully created even while automatic Transport qualification failed afterwards.
   - Availability: available
 
 - child-sibling-authority-retained
   - Material: the host does not increment child sibling ordinals merely because a filename exists. Non-Major child dimensions remain derived by Core from the exact qualified parent Handoff Pointer topology. Automatic collision advancement is limited to an explicit next Major with a qualified existing carrier parent.
-  - Material Reference: [operatorTrees.ts](../../../../src/operatorTrees.ts)
+  - Material Reference: [operatorTrees.ts](../../../../../src/operatorTrees.ts)
   - Purpose: avoid turning filesystem collisions into false route lineage.
   - Availability: available
 
 - regression-coverage
   - Material: deterministic source regression reaches 51 named passes before this host's known missing installed `@tiinex/core` gate; new pure prefix/frontier tests pass, and all modified TypeScript files transpile without syntax diagnostics. Full linked TypeScript/VSIX build remains Sigma's Windows acceptance gate.
-  - Material Reference: [run.mjs](../../../../test/run.mjs)
+  - Material Reference: [run.mjs](../../../../../test/run.mjs)
   - Purpose: retain bounded proof without claiming the unavailable local dependency-qualified build.
   - Availability: available
 
@@ -136,8 +136,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [015-1-1-1-1-1-1-1-1-vs-code-major-003-final-operator-ux-and-stable-carrier-presentat.trace.md](015-1-1-1-1-1-1-1-1-vs-code-major-003-final-operator-ux-and-stable-carrier-presentat.trace.md)
-  - Value: yfhDhHnm3RxKJQbGDvuDDh_vrWk_Q9xCta7MyNFQQdk
+  - Value: juYyE8GyVQpxMeeB5r_xifkwNUeLRkBj4Y2QHLvuzpA
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: gQO7u9l7mya-dcIj9ETgZgcgaw0pt4bUnQynRJHUe2Y
+  - Value: lrPZ4j5HmYW9izwvTnpsoWvzcdzhB5LXzr-a8napTaU

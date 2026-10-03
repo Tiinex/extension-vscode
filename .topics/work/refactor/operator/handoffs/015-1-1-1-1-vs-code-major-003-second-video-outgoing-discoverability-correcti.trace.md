@@ -39,25 +39,25 @@
 
 - workspace-descriptor-actions
   - Material: Outgoing Files projection menus and command registration move New Handoff off `.workspace.zip` and place New Handoff plus Attach Handoff to Outgoing on the `.workspace.md` descriptor row.
-  - Material Reference: [package.json](../../../../package.json)
+  - Material Reference: [package.json](../../../../../package.json)
   - Purpose: match the carrier projection semantics Sigma demonstrated in the live tree.
   - Availability: available
 
 - workspace-handoff-browser
   - Material: Workspace-row Attach Handoff browser offers Leaves or Full lineage and then lists only `tiinex.handoff.v1` artifacts, newest modified first, before shared qualification and attach.
-  - Material Reference: [operatorTrees.ts](../../../../src/operatorTrees.ts)
+  - Material Reference: [operatorTrees.ts](../../../../../src/operatorTrees.ts)
   - Purpose: make existing Handoff attachment discoverable from the Workspace descriptor without exposing unrelated artifact kinds.
   - Availability: available
 
 - participant-role-parity
   - Material: Handoff authoring with the `Attach to Outgoing` host action now invokes the same optional additional carrier Role selection used by direct Handoff attachment.
-  - Material Reference: [operatorTrees.ts](../../../../src/operatorTrees.ts)
+  - Material Reference: [operatorTrees.ts](../../../../../src/operatorTrees.ts)
   - Purpose: keep direct attach and create+attach semantically equivalent for participant Role pointers.
   - Availability: available
 
 - regression-coverage
   - Material: static operator tests assert descriptor-row placement, absence from Workspace ZIP, filtered Handoff browsing, and participant-role prompt parity.
-  - Material Reference: [test/run.mjs](../../../../test/run.mjs)
+  - Material Reference: [test/run.mjs](../../../../../test/run.mjs)
   - Purpose: prevent rollback of Sigma's observed UX corrections.
   - Availability: available
 
@@ -118,8 +118,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [015-1-1-1-anchor-to-anchor-vs-code-major-003-post-video-build-correction.trace.md](015-1-1-1-anchor-to-anchor-vs-code-major-003-post-video-build-correction.trace.md)
-  - Value: pBiieKI1QiZGqPMKu9UzjrH4hGlhDOAvAtuWqipSxkg
+  - Value: _ycAi0Dh9KicRvGqBuNmLt0fJ9sOczjVnxsoZlh0ZRo
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: jHirehrt5Mrp0TAxkoFnwODi-FqxeUysn92PQsz-EDM
+  - Value: yMXOj7F5hb4K_ba-tmZwrXvxQFFJ3F1f4V9nCFACKzU

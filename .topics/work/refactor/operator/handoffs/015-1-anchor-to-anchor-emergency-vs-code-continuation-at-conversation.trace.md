@@ -41,13 +41,13 @@
 
 - full-lineage-files-projection
   - Material: extension-vscode now projects the expected pending carrier pointer chain in Outgoing Files + Full Lineage before Pack, including cache intent when external role material is required, participant Role pointers, From/To endpoint Role pointers, and the Handoff pointer.
-  - Material Reference: [operatorTrees.ts](../../../../src/operatorTrees.ts)
+  - Material Reference: [operatorTrees.ts](../../../../../src/operatorTrees.ts)
   - Purpose: make carrier lineage visible in the Files view without pretending pending UI nodes are manufactured carrier bytes.
   - Availability: available
 
 - transport-route-projection
   - Material: Send to Transport qualification no longer requires a package-wide unselected Handoff projection for multi-route carriers; exact oriented routes are projected individually before transport send.
-  - Material Reference: [operatorTrees.ts](../../../../src/operatorTrees.ts)
+  - Material Reference: [operatorTrees.ts](../../../../../src/operatorTrees.ts)
   - Purpose: remove the route-selection blocker that caused Send to Transport to fail despite exact qualified routes.
   - Availability: available
 
@@ -124,4 +124,4 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: Cl0w7VQgHuuuIaGHX_uM-SRldsaqwfiB8-1laRBI1Lc
+  - Value: CluOwFtMvY14d4V0TO_2dNSyD5oT8gXUpmi2m5gZfP4

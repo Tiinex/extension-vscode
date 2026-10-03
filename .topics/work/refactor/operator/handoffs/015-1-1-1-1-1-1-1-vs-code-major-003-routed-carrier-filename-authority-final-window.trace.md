@@ -39,25 +39,25 @@
 
 - routed-filename-authority
   - Material: routed Handoff packaging obtains the exact basename from the first qualified Core preview through `humanOutput.primary.filename`; the host no longer enforces `expectedCarrierFilename` on routed Handoff preview or manufacture.
-  - Material Reference: [packageBuilder.ts](../../../../src/packageBuilder.ts)
+  - Material Reference: [packageBuilder.ts](../../../../../src/packageBuilder.ts)
   - Purpose: keep routed filename projection owned by shared Core rather than a host-local guess.
   - Availability: available
 
 - collision-allocation
   - Material: routed Handoff collision allocation now runs against the exact Core preview basename via `nextCarrierCollisionInstance`; when an ordinal suffix is needed, VS Code re-previews with `--collision-instance` and requires the manufactured Core filename to equal that final preview filename.
-  - Material Reference: [packageBuilder.ts](../../../../src/packageBuilder.ts)
+  - Material Reference: [packageBuilder.ts](../../../../../src/packageBuilder.ts)
   - Purpose: prevent a host-local speculative filename from selecting the wrong collision instance.
   - Availability: available
 
 - pointerless-boundary
   - Material: pointerless Workspace Pack still passes the visible host-projected filename into shared Tooling and verifies exact preview/manufacture filename equality; only the routed Handoff branch changes authority handling.
-  - Material Reference: [packageBuilder.ts](../../../../src/packageBuilder.ts)
+  - Material Reference: [packageBuilder.ts](../../../../../src/packageBuilder.ts)
   - Purpose: preserve the already-qualified pointerless filename contract.
   - Availability: available
 
 - regression-coverage
   - Material: static regression reaches 51 named passes before this host's known missing installed `@tiinex/core` gate; a focused routed-filename authority assertion passes, and TypeScript syntax transpilation of the two changed source files reports no diagnostics.
-  - Material Reference: [test/run.mjs](../../../../test/run.mjs)
+  - Material Reference: [test/run.mjs](../../../../../test/run.mjs)
   - Purpose: preserve the exact ownership/collision correction without broadening Pack semantics.
   - Availability: available
 
@@ -123,8 +123,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [015-1-1-1-1-1-1-vs-code-major-003-root-carrier-profile-binding-final-windows-gat.trace.md](015-1-1-1-1-1-1-vs-code-major-003-root-carrier-profile-binding-final-windows-gat.trace.md)
-  - Value: evbjqGFUPPWaN2L9AchzJlbprwNp00PM6rUtnYTW4oQ
+  - Value: IMYpfrXuHXXJf5VPWlNglV-1GikHhvxVxAFsF3Xd-bs
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: VZRf1JdKDTj3NrCIAkVEcPZnkblO44Bi3JSiNnU7sQk
+  - Value: g_j4Lq6sLb9FV2DltN_Z2SsdI9A6XqqRQtOcjj5tTno

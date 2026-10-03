@@ -39,37 +39,37 @@
 
 - canonical-date-display
   - Material: Attach Handoff and artifact-feed timestamp presentation now uses the existing deterministic `timestamp` formatter instead of host-locale `toLocaleString`, producing YYYY-MM-DD HH:mm:ss.
-  - Material Reference: [operatorTrees.ts](../../../../src/operatorTrees.ts)
+  - Material Reference: [operatorTrees.ts](../../../../../src/operatorTrees.ts)
   - Purpose: remove locale-dependent month/day ordering from operator decisions.
   - Availability: available
 
 - pointer-removal-semantics
   - Material: participant Role pointer previews/projections expose Remove Participant Pointer. Projected Handoff pointers expose Remove Handoff Pointer; removing the Handoff pointer excludes that route and clears all participant pointers for the route. Endpoint Role pointers remain route-owned and are not independently deletable.
-  - Material Reference: [operatorTrees.ts](../../../../src/operatorTrees.ts)
+  - Material Reference: [operatorTrees.ts](../../../../../src/operatorTrees.ts)
   - Purpose: let operators undo projected optional participant selections without manufacturing contradictory endpoint topology.
   - Availability: available
 
 - stable-root-prefix-single-major
   - Material: blank Outgoing no longer scans the output directory to advance a local numeric series before Core adds carrier lineage. The operator supplies one stable prefix and the fresh root is presented with exactly carrier Major 001; primary-route selection only contributes the qualified route suffix and does not replace the prefix or append another Major token.
-  - Material Reference: [outgoingUx.ts](../../../../src/core/outgoingUx.ts)
+  - Material Reference: [outgoingUx.ts](../../../../../src/core/outgoingUx.ts)
   - Purpose: prevent observed names such as `test-test-002-001-...` and preserve the operator's selected prefix across route selection.
   - Availability: available
 
 - routed-outer-basename-boundary
   - Material: routed manufacture still previews and manufactures with Core's exact qualified output basename inside the scratch stage, verifies the Core preview/build filename is stable, and then publishes those unchanged bytes under the host-selected stable Outgoing basename. Core's carrier projection declares filename authority false; carrier bytes and lineage are not rewritten.
-  - Material Reference: [packageBuilder.ts](../../../../src/packageBuilder.ts)
+  - Material Reference: [packageBuilder.ts](../../../../../src/packageBuilder.ts)
   - Purpose: preserve one stable operator prefix without treating the outer transport filename as semantic Handoff authority.
   - Availability: available
 
 - native-reveal-package
   - Material: Transport's former Copy Package action is presented as Reveal Package. Outputs inside any open VS Code Workspace execute native `revealInExplorer`; outputs outside all open Workspaces execute native `revealFileInOS`, which delegates selection to the operating-system file explorer.
-  - Material Reference: [operatorTrees.ts](../../../../src/operatorTrees.ts)
+  - Material Reference: [operatorTrees.ts](../../../../../src/operatorTrees.ts)
   - Purpose: take the operator to the manufactured file instead of placing a file object on the clipboard.
   - Availability: available
 
 - regression-coverage
   - Material: package contribution/static regression reaches 51 named passes with the new command/menu/date/naming/reveal assertions before this host's known missing exact installed `@tiinex/core` package gate. All TypeScript sources transpile without syntax diagnostics in a disposable verification copy; a full linked TypeScript/VSIX build remains a Windows acceptance responsibility.
-  - Material Reference: [run.mjs](../../../../test/run.mjs)
+  - Material Reference: [run.mjs](../../../../../test/run.mjs)
   - Purpose: retain bounded proof while not claiming a dependency-qualified build unavailable on this host.
   - Availability: available
 
@@ -130,8 +130,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [015-1-1-1-1-1-1-1-vs-code-major-003-routed-carrier-filename-authority-final-window.trace.md](015-1-1-1-1-1-1-1-vs-code-major-003-routed-carrier-filename-authority-final-window.trace.md)
-  - Value: VZRf1JdKDTj3NrCIAkVEcPZnkblO44Bi3JSiNnU7sQk
+  - Value: g_j4Lq6sLb9FV2DltN_Z2SsdI9A6XqqRQtOcjj5tTno
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: yfhDhHnm3RxKJQbGDvuDDh_vrWk_Q9xCta7MyNFQQdk
+  - Value: juYyE8GyVQpxMeeB5r_xifkwNUeLRkBj4Y2QHLvuzpA
