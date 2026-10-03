@@ -20,6 +20,7 @@ import { mergeTransportRouteSelection, selectedTransportRouteIds, transportPrepa
 import { gitAutomationBlockerText, gitOperatorResultMarkdown, isTiinexArtifactPath, normalizePostStagePolicy, projectGitOperatorCandidates } from '../dist/core/gitOperator.js';
 import { classifyIncomingMergeConflict, planIncomingFileUnion, renderIncomingTextConflict } from '../dist/core/incomingMerge.js';
 import { pruneEmptyReplaceDirectories, restorePrunedReplaceDirectories } from '../dist/core/replaceCleanup.js';
+import { applyEmptyDirectoryCleanup, nestedWorkspaceRootExclusions, planEmptyDirectoryCleanup } from '../dist/core/emptyDirectoryCleanup.js';
 import { planWorkspaceSession, validateWorkspaceTargetMapping } from '../dist/core/workspaceSession.js';
 import { representativeWorkspaceChoicesForRoot } from '../dist/core/workspaceChoice.js';
 import { participantProjectionFromManufactureReceipt } from '../dist/core/participantProjection.js';
@@ -1880,6 +1881,79 @@ await test('Replace cleanup prunes only truly empty legacy directories deepest-f
     await fs.access(path.join(root, 'nonempty/keep.txt'));
     await restorePrunedReplaceDirectories(root, removed);
     await fs.access(path.join(root, 'legacy/a/b'));
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
+
+await test('Workspace empty-directory cleanup converges nested empty parents without recursive deletion', async () => {
+  const fs = await import('node:fs/promises');
+  const os = await import('node:os');
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tiinex-empty-cleanup-'));
+  try {
+    await fs.mkdir(path.join(root, 'ghost/a/b/c'), { recursive: true });
+    await fs.mkdir(path.join(root, 'mixed/empty-child'), { recursive: true });
+    await fs.writeFile(path.join(root, 'mixed/keep.txt'), 'keep');
+    await fs.mkdir(path.join(root, '.topics/.workspaces'), { recursive: true });
+    await fs.mkdir(path.join(root, '.topics/legacy/a'), { recursive: true });
+    await fs.mkdir(path.join(root, '.git/empty'), { recursive: true });
+    const nestedRoot = path.join(root, 'nested-workspace');
+    await fs.mkdir(path.join(nestedRoot, 'empty-child'), { recursive: true });
+
+    const exclusions = nestedWorkspaceRootExclusions(root, [root, nestedRoot]);
+    assert.deepEqual(exclusions, ['nested-workspace']);
+    const plan = await planEmptyDirectoryCleanup(root, { excludedSubtrees: exclusions });
+    assert.deepEqual(new Set(plan.directories), new Set([
+      '.topics/legacy/a',
+      'ghost/a/b/c',
+      '.topics/legacy',
+      'ghost/a/b',
+      'mixed/empty-child',
+      'ghost/a',
+      'ghost'
+    ]));
+    assert.ok(plan.directories.indexOf('ghost/a/b/c') < plan.directories.indexOf('ghost/a/b'));
+    assert.ok(plan.directories.indexOf('ghost/a/b') < plan.directories.indexOf('ghost/a'));
+    assert.ok(plan.directories.indexOf('ghost/a') < plan.directories.indexOf('ghost'));
+    const removed = await applyEmptyDirectoryCleanup(plan);
+    assert.deepEqual(removed, plan.directories);
+    await assert.rejects(fs.access(path.join(root, 'ghost')));
+    await assert.rejects(fs.access(path.join(root, '.topics/legacy')));
+    await fs.access(path.join(root, '.topics'));
+    await fs.access(path.join(root, '.topics/.workspaces'));
+    await fs.access(path.join(root, '.git/empty'));
+    await fs.access(path.join(nestedRoot, 'empty-child'));
+    await fs.access(path.join(root, 'mixed/keep.txt'));
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
+await test('Workspace empty-directory cleanup treats symlinks as material and race-safe non-empty directories as skips', async () => {
+  const fs = await import('node:fs/promises');
+  const os = await import('node:os');
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tiinex-empty-cleanup-race-'));
+  try {
+    await fs.mkdir(path.join(root, 'race/child'), { recursive: true });
+    await fs.mkdir(path.join(root, 'target'), { recursive: true });
+    let symlinkCreated = false;
+    try {
+      await fs.symlink(path.join(root, 'target'), path.join(root, 'linked'), process.platform === 'win32' ? 'junction' : 'dir');
+      symlinkCreated = true;
+    } catch (error) {
+      if (!['EPERM', 'EACCES', 'UNKNOWN'].includes(error?.code)) throw error;
+    }
+    const plan = await planEmptyDirectoryCleanup(root);
+    assert.ok(plan.directories.includes('race/child'));
+    assert.ok(plan.directories.includes('race'));
+    if (symlinkCreated) assert.ok(!plan.directories.includes('linked'));
+    await fs.writeFile(path.join(root, 'race/keep.txt'), 'arrived-after-preview');
+    const removed = await applyEmptyDirectoryCleanup(plan);
+    assert.ok(removed.includes('race/child'));
+    assert.ok(!removed.includes('race'));
+    await fs.access(path.join(root, 'race/keep.txt'));
+    if (symlinkCreated) await fs.lstat(path.join(root, 'linked'));
   } finally {
     await fs.rm(root, { recursive: true, force: true });
   }

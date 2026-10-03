@@ -3,6 +3,7 @@ import { generateCommitMessageCommand, stageCommitPushCommand, stageCommitPushMa
 import { registerTiinexDiagnostics } from './diagnostics';
 import { TiinexOperatorTrees } from './operatorTrees';
 import { manualRepositoryCommitCommand, registerGitAutomation } from './gitAutomation';
+import { applyEmptyDirectoryCleanup, nestedWorkspaceRootExclusions, planEmptyDirectoryCleanup } from './core/emptyDirectoryCleanup';
 
 function message(error: unknown): string { return error instanceof Error ? error.message : String(error); }
 
@@ -22,6 +23,47 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     } catch (error) { await vscode.window.showErrorMessage(`Tiinex validation failed: ${message(error)}`); }
   }));
   context.subscriptions.push(vscode.commands.registerCommand('tiinex.showProblems', async () => vscode.commands.executeCommand('workbench.actions.view.problems')));
+  context.subscriptions.push(vscode.commands.registerCommand('tiinex.workspace.pruneEmptyDirectories', async () => {
+    try {
+      const folders = [...(vscode.workspace.workspaceFolders || [])];
+      if (!folders.length) {
+        await vscode.window.showInformationMessage('Tiinex found no open Workspace Folders to clean.');
+        return;
+      }
+      const roots = folders.map((folder) => folder.uri.fsPath);
+      const plans = [];
+      for (const folder of folders) {
+        const excludedSubtrees = nestedWorkspaceRootExclusions(folder.uri.fsPath, roots);
+        const plan = await planEmptyDirectoryCleanup(folder.uri.fsPath, { excludedSubtrees });
+        plans.push({ folder, plan });
+      }
+      const total = plans.reduce((sum, item) => sum + item.plan.directories.length, 0);
+      if (!total) {
+        await vscode.window.showInformationMessage(`Tiinex found no removable empty directories across ${folders.length} Workspace Folder${folders.length === 1 ? '' : 's'}.`);
+        return;
+      }
+      const detail = plans
+        .filter((item) => item.plan.directories.length)
+        .map((item) => `${item.folder.name}: ${item.plan.directories.length}`)
+        .join(' · ');
+      const confirm = await vscode.window.showWarningMessage(
+        `Tiinex found ${total} empty director${total === 1 ? 'y' : 'ies'} across ${folders.length} Workspace Folder${folders.length === 1 ? '' : 's'}.`,
+        { modal: true, detail: `${detail}\n\nOnly already-empty directories are removed. Workspace roots, nested Workspace roots, version-control metadata, .topics, and .topics/.workspaces are preserved.` },
+        'Prune Empty Directories'
+      );
+      if (confirm !== 'Prune Empty Directories') return;
+      let removedTotal = 0;
+      const summary: string[] = [];
+      for (const item of plans) {
+        const removed = await applyEmptyDirectoryCleanup(item.plan);
+        removedTotal += removed.length;
+        summary.push(`${item.folder.name}: ${removed.length}`);
+      }
+      await vscode.window.showInformationMessage(`Tiinex pruned ${removedTotal} empty director${removedTotal === 1 ? 'y' : 'ies'} · ${summary.join(' · ')}`);
+    } catch (error) {
+      await vscode.window.showErrorMessage(`Tiinex empty-directory cleanup failed: ${message(error)}`);
+    }
+  }));
   context.subscriptions.push(vscode.commands.registerCommand('tiinex.artifact.repair', async (resource?: vscode.Uri) => {
     try {
       if (!diagnostics) diagnostics = await registerTiinexDiagnostics(context, extensionPath);
