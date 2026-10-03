@@ -29,6 +29,7 @@ import {
 } from './host/git';
 import { runChecked, runProcess } from './host/process';
 import { classifyIncomingMergeConflict, planIncomingFileUnion, renderIncomingTextConflict } from './core/incomingMerge';
+import { pruneEmptyReplaceDirectories } from './core/replaceCleanup';
 import { landingStagePolicy, LandingStagePolicy } from './vscode/landingStagePolicy';
 
 export type IncomingApplyStrategy = 'merge' | 'replace';
@@ -542,6 +543,8 @@ async function applyReplace(plan: WorkspaceApplyPlan, scratch: string): Promise<
       await copyFile(safeTarget(plan.snapshot.root, relative), target);
       mutated = true;
     }
+    const prunedDirectories = await pruneEmptyReplaceDirectories(plan.local.root, local.directories, protectedPaths);
+    if (prunedDirectories.length) mutated = true;
     return mutated;
   } catch (error) {
     for (const relative of incomingFiles) await rm(safeTarget(plan.local.root, relative), { recursive: true, force: true });

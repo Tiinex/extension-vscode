@@ -19,6 +19,7 @@ import { artifactCreationReady, requireArtifactCreationReady } from '../dist/cor
 import { mergeTransportRouteSelection, selectedTransportRouteIds, transportPrepared, transportPreparedKey } from '../dist/core/transportQueue.js';
 import { gitAutomationBlockerText, gitOperatorResultMarkdown, isTiinexArtifactPath, normalizePostStagePolicy, projectGitOperatorCandidates } from '../dist/core/gitOperator.js';
 import { classifyIncomingMergeConflict, planIncomingFileUnion, renderIncomingTextConflict } from '../dist/core/incomingMerge.js';
+import { pruneEmptyReplaceDirectories, restorePrunedReplaceDirectories } from '../dist/core/replaceCleanup.js';
 import { planWorkspaceSession, validateWorkspaceTargetMapping } from '../dist/core/workspaceSession.js';
 import { representativeWorkspaceChoicesForRoot } from '../dist/core/workspaceChoice.js';
 import { participantProjectionFromManufactureReceipt } from '../dist/core/participantProjection.js';
@@ -1860,6 +1861,28 @@ await test('Transport file clipboard publishes persistent Windows file-copy form
   const copied = await copyFileToClipboard(canonicalPath, 'win32', fx.runner);
   assert.equal(copied.state, 'copied');
   assert.equal(fx.calls.length, 1);
+});
+
+
+await test('Replace cleanup prunes only truly empty legacy directories deepest-first and can restore them', async () => {
+  const fs = await import('node:fs/promises');
+  const os = await import('node:os');
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tiinex-replace-cleanup-'));
+  try {
+    await fs.mkdir(path.join(root, 'legacy/a/b'), { recursive: true });
+    await fs.mkdir(path.join(root, 'protected-empty'), { recursive: true });
+    await fs.mkdir(path.join(root, 'nonempty'), { recursive: true });
+    await fs.writeFile(path.join(root, 'nonempty/keep.txt'), 'keep');
+    const removed = await pruneEmptyReplaceDirectories(root, ['legacy', 'legacy/a', 'legacy/a/b', 'protected-empty', 'nonempty'], ['protected-empty']);
+    assert.deepEqual(removed, ['legacy/a/b', 'legacy/a', 'legacy']);
+    await assert.rejects(fs.access(path.join(root, 'legacy')));
+    await fs.access(path.join(root, 'protected-empty'));
+    await fs.access(path.join(root, 'nonempty/keep.txt'));
+    await restorePrunedReplaceDirectories(root, removed);
+    await fs.access(path.join(root, 'legacy/a/b'));
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
 });
 
 await test('Incoming exact shared comparison remains a no-op before Merge planning', async () => {
