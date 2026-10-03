@@ -66,8 +66,8 @@ Return one repo-local checkpoint to Anchor only after the source baseline is dem
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-3-6-4-1-3-1-1-1-2-1-2-2-1-2-1-2-1-2-1-2-1-2-kodax-to-anchor-vs-code-major-003-activation-and-refresh-lifecyc.trace.md](001-3-6-4-1-3-1-1-1-2-1-2-2-1-2-1-2-1-2-1-2-1-2-kodax-to-anchor-vs-code-major-003-activation-and-refresh-lifecyc.trace.md)
-  - Value: xJu5ZfyC6Fmo3zxDJN3ehVcsH7mcly8djVbCpsjDZNk
+  - Value: RfcAOwIi6iVRM-ibn6Jwvg0MnU0U6ClGOyAoEsLYmls
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: 7cBm5dTkQ_jG9CNj-Wv708uFid9wOEPc43i8syOlGYo
+  - Value: -IYWvYf38Swvh5QB9Jy_MhqAX56OWCv9rnKnKLfeMCA

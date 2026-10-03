@@ -41,9 +41,9 @@ Keep semantics in Core. VS Code owns presentation, host-local active-speaker sta
 
 - Business controlling Major: `business::.topics/processes/gpt/grounding/001-1-4-1-anchor-major-001-session-participant-and-operator-continuity-har.trace.md`.
 - Anchor semantic reconciliation: `business::.topics/processes/gpt/grounding/001-1-4-1-2-anchor-reconciliation-human-session-participant-and-meeting-sema.trace.md`.
-- Core Task: `core::.topics/grounding/029-1-qualified-human-session-and-participant-projection.trace.md`.
-- Core qualification Evidence: `core::.topics/grounding/evidence/045-qualified-human-session-and-participant-projection-qualification.trace.md`.
-- Loom → Anchor return: `core::.topics/grounding/handoffs/077-loom-to-anchor-qualified-human-session-and-participant-projectio.trace.md`.
+- Core Task: `core::.topics/work/grounding/029-1-qualified-human-session-and-participant-projection.trace.md`.
+- Core qualification Evidence: `core::.topics/work/grounding/evidence/045-qualified-human-session-and-participant-projection-qualification.trace.md`.
+- Loom → Anchor return: `core::.topics/work/grounding/handoffs/077-loom-to-anchor-qualified-human-session-and-participant-projectio.trace.md`.
 - Sigma live observation: VS Code currently can offer `Additional carrier Roles` before the selected route has semantic participant authority, and long operations contain visually quiet waits that can look stalled.
 
 ## Dependencies
@@ -75,8 +75,8 @@ Kodax owns bounded implementation and technical qualification. Anchor reconciles
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-vs-code-repository-local-orchestration-frontier.trace.md](001-vs-code-repository-local-orchestration-frontier.trace.md)
-  - Value: IK318Q6V1V3YKWjWVhnm9M52xidg8QI1By5r_giIVJg
+  - Value: WdX_741_ztQZGcRNzURRDYHpbGVf9tzAa6agiaT0s3Q
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: 93jlbfIzvFjF1-HFyrShDt-uRfyt_wNrZ7Vq1yHXZkE
+  - Value: 2u1tiH87MJNskosUrIHA2we_3yRqbTA_GDhJPjJ5o64

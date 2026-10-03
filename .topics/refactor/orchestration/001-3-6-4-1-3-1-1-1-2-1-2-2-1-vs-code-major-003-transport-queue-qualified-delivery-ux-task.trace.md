@@ -74,8 +74,8 @@ Transport/delivery queue UX and the minimum host-local bookkeeping/capability me
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-3-6-4-1-3-1-1-1-2-1-2-2-kodax-to-anchor-vs-code-major-003-git-automation-and-scm-ergonom.trace.md](001-3-6-4-1-3-1-1-1-2-1-2-2-kodax-to-anchor-vs-code-major-003-git-automation-and-scm-ergonom.trace.md)
-  - Value: B83tsdZNsyoeRI4KyzcuEkU2xT28b1wpjmIYBJ8Vlcs
+  - Value: -Hndebah37gOpdShRyUA6pnMv0WguMlG6ekyso55T-Y
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: sufHOx2saiDuYiZ_GBJrHKiUMux0SUBnPVOZaDZkpMc
+  - Value: klOhSd17GryFUj5gKTS8qCiz_GEfS65hUfKzRshri2M

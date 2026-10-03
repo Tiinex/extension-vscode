@@ -45,8 +45,8 @@ Repository-boundary placement for future VS Code continuation only. Do not inter
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-turn-2-vs-code-integration-and-operator-frontier.trace.md](../001-turn-2-vs-code-integration-and-operator-frontier.trace.md)
-  - Value: wz5I2dE4nCCjlh-4ldRwx28Nb-8xYCeVXnSprBYpH-U
+  - Value: jpHbxvgkwbCsTXp8L034ADcsnrxbgeG2hsXju5wjZpg
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: IK318Q6V1V3YKWjWVhnm9M52xidg8QI1By5r_giIVJg
+  - Value: WdX_741_ztQZGcRNzURRDYHpbGVf9tzAa6agiaT0s3Q

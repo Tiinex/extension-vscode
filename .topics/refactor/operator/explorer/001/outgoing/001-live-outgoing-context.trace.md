@@ -50,8 +50,8 @@ No per-file source scoping, source-ZIP exclusion, bootstrap exclusion or encrypt
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-native-carrier-tree-operator.trace.md](../../001-native-carrier-tree-operator.trace.md)
-  - Value: S0cOLmqgAnRbfOPzsX0MBgnI5i1-keNsrHsa2TgrjBI
+  - Value: XcJGoMtTd7lHjOeuDGGh8JhtOSJX6-XMnT0z1S4wWrU
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: eYrk3i4MIAvJqwP2pQdyY_SupL_TElaBGoKc_ejGgd0
+  - Value: 5Ojhg5evZn7weFyr96SgUm46gBxR4KUYqxYQNTQ_0XQ

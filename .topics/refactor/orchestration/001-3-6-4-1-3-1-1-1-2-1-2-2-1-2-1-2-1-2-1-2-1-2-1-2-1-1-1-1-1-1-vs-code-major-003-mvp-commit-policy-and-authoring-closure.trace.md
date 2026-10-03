@@ -121,8 +121,8 @@ Return one qualified Kodax-to-Anchor carrier containing the actual candidate wor
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-3-6-4-1-3-1-1-1-2-1-2-2-1-2-1-2-1-2-1-2-1-2-1-2-1-1-1-1-1-anchor-to-sigma-vs-code-major-003-incoming-auto-stage-windows-ga.trace.md](001-3-6-4-1-3-1-1-1-2-1-2-2-1-2-1-2-1-2-1-2-1-2-1-2-1-1-1-1-1-anchor-to-sigma-vs-code-major-003-incoming-auto-stage-windows-ga.trace.md)
-  - Value: Mn122Uwn5jfZeF1X0xwFA8-Kx-4ptDGLP1imyGAQSQc
+  - Value: L6zmhow8TvMW5zvZYGUCWXXyXOdsm-Zt9iOsq4yd0GU
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: nznqTBhxtXAFmZ72A_Irm2MBWJFGRsYLxWwxdDjxLyE
+  - Value: dNYnr3pEl2AbV2JcPbRMLxvTgeA8WliZurImpQB7-eU

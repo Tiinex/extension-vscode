@@ -50,8 +50,8 @@ Role matching is presentation/defaulting only and does not grant Role authority.
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-discovery-tree-and-folder-gate.trace.md](../001-discovery-tree-and-folder-gate.trace.md)
-  - Value: NeDQCTF9qBrH4ttsRw2J27wDb_NoUBuemNCAYTDkDjY
+  - Value: ycJW_WZGFm686arrS2PgWx4U6GYoErm24ElWJmtRnBg
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: AHrbdghWvwYcI61IO6hhFhPiebiM5SC6yFPrqmSrfp4
+  - Value: w1VO2bDT8UOvHktrxGNsIzvxOlMux7L7WDFx0hHq6xk

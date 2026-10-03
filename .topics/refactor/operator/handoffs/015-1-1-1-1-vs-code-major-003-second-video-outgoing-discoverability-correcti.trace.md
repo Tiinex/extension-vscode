@@ -118,8 +118,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [015-1-1-1-anchor-to-anchor-vs-code-major-003-post-video-build-correction.trace.md](015-1-1-1-anchor-to-anchor-vs-code-major-003-post-video-build-correction.trace.md)
-  - Value: n2HBt-vMh06eKgjyerTyOgC7KMm8Kpqhrgkn7DzDlQw
+  - Value: pBiieKI1QiZGqPMKu9UzjrH4hGlhDOAvAtuWqipSxkg
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: MnDpkzyh0R-KWInmSND6OFmZCW5vOFs4m2MzgYWHU1w
+  - Value: jHirehrt5Mrp0TAxkoFnwODi-FqxeUysn92PQsz-EDM

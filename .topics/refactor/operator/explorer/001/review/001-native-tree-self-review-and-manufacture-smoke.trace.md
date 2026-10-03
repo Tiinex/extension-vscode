@@ -53,8 +53,8 @@ Changing Core/Docs/Business, broad-release untrusted ingress hardening, encrypti
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-native-carrier-tree-operator.trace.md](../../001-native-carrier-tree-operator.trace.md)
-  - Value: S0cOLmqgAnRbfOPzsX0MBgnI5i1-keNsrHsa2TgrjBI
+  - Value: XcJGoMtTd7lHjOeuDGGh8JhtOSJX6-XMnT0z1S4wWrU
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: o80bsKAtmU6S4rVXnYxjlwS9M48LQapEPzg_tZV9btY
+  - Value: cvAT5MsOCI2rQ7LLGmjCIT7-Nrk_UGK8zm6poX44N_c

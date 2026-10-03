@@ -148,8 +148,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-4-2-sigma-live-gate-correction-qualified-participants-multi-handoff.trace.md](../001-4-2-sigma-live-gate-correction-qualified-participants-multi-handoff.trace.md)
-  - Value: 2S-G4OAhW3BkSfNG4UAiiXwKSf32fipGhQhI5XPvi5o
+  - Value: DbMqabQHJUJH-fK8ZM0yH5YfQebDY31zPnWRUl0a65g
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: 39asRcDsQqUPUAWjqVlpJNKL8YUxKyYmqBF0uqhgbC4
+  - Value: SU9MGb5aZ0NorXgF3FWPFf5HU3OOBQiB8rwG7Yc9osI

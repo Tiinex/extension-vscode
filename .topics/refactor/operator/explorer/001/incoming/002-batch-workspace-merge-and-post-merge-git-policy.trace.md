@@ -52,8 +52,8 @@ No mutation is triggered by Discovery or merely setting Incoming. Real repositor
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-active-carrier-and-explicit-workspace-merge.trace.md](001-active-carrier-and-explicit-workspace-merge.trace.md)
-  - Value: -TLenuIcc79Rp9uoCvAUsh6it926ukWIS2hgsUhDqJ0
+  - Value: AZfxPq-mXFBMX90SXKDzTwX61cIPEY7NQxh8VWG0E9s
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: J4YRXgAfUDrTeqNIOXmrJznKOo3ZwptNwNG-9Y-o2tg
+  - Value: gH3qgqa4VI8ZB8W-bG1aE5jMyXv_DVd13gwqOsKPdI4

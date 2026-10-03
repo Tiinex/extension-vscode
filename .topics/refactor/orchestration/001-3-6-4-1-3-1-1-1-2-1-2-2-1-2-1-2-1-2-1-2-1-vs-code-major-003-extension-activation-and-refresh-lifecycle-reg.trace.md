@@ -68,8 +68,8 @@ Return one repo-local checkpoint to Anchor with the root-cause explanation, exac
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-3-6-4-1-3-1-1-1-2-1-2-2-1-2-1-2-1-2-1-2-kodax-to-anchor-vs-code-major-003-transport-filename-fidelity-an.trace.md](001-3-6-4-1-3-1-1-1-2-1-2-2-1-2-1-2-1-2-1-2-kodax-to-anchor-vs-code-major-003-transport-filename-fidelity-an.trace.md)
-  - Value: 3LvbWhct-pT-OQHUlh4gaQmbPf-dv8jyNTj6fHGXqrI
+  - Value: eb-_Je82kub2kzanJr4LHQrnCwRKocyiTFTigJJ0r-Q
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: C4BXrvAxzXg_T5XtuqoPoTAiNOQirJzdJD_3QL2zhFM
+  - Value: HVAWZaMTHp-vF1piULQa3ijQcXQPzlfo_HsjR5MbUP8

@@ -65,8 +65,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [002-1-outgoing-major-preview-and-local-core-runtime-qualification.trace.md](002-1-outgoing-major-preview-and-local-core-runtime-qualification.trace.md)
-  - Value: 7wbaylVOhwbEY0x2HO0z8-Ic05zkYOKsHDLBJEzMT4g
+  - Value: DzSAGcUgB2syChmapUn7QSq3sJvakRGUoZjb2k77nR4
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: Fbv3-VtcURVolWmBIjj0A4l6bLJksL0LNo9XRlLL794
+  - Value: 0a8ISOBtrXWxf5LyOrJFyrOWm_aWWJJxkWpElsB7jIs

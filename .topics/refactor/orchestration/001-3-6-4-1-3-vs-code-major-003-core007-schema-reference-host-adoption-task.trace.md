@@ -63,8 +63,8 @@ Technical host conformance is not Sigma UX acceptance or release readiness. Majo
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-3-6-4-1-2-kodax-to-anchor-vs-code-major-003-artifact-continuity-navigation.trace.md](001-3-6-4-1-2-kodax-to-anchor-vs-code-major-003-artifact-continuity-navigation.trace.md)
-  - Value: Xh-wiywyz5LSikv6o6wRIxDdqfMsO5vB88x_2pRUQLg
+  - Value: tag3DvIchjhcPABU_PpL-g1hbgC74ddgsE_reNG6g7Q
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: nj_wxo3DT64KfqfkP5m7DI1r2XE5GBBB3JzSSP4qwSw
+  - Value: 2JUUjaDf_JtwU-4FAQM5zo_-gSj4mLMVnVAOQiyaIVw

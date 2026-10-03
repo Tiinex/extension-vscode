@@ -136,8 +136,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [015-1-1-1-1-1-1-1-1-vs-code-major-003-final-operator-ux-and-stable-carrier-presentat.trace.md](015-1-1-1-1-1-1-1-1-vs-code-major-003-final-operator-ux-and-stable-carrier-presentat.trace.md)
-  - Value: 4I3Q8-9DKhW-qt2v7Y1UwtEnLnHdpS8rPQYnu76UNJ4
+  - Value: yfhDhHnm3RxKJQbGDvuDDh_vrWk_Q9xCta7MyNFQQdk
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: KA6ok_UPuas2SqkCRb5dyuv-Bz9MW09c3-HNU0zv85U
+  - Value: gQO7u9l7mya-dcIj9ETgZgcgaw0pt4bUnQynRJHUe2Y

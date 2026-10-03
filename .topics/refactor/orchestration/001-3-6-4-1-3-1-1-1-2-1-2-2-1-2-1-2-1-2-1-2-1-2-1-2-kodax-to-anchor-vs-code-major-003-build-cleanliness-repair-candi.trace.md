@@ -130,8 +130,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-3-6-4-1-3-1-1-1-2-1-2-2-1-2-1-2-1-2-1-2-1-2-1-vs-code-major-003-build-cleanliness-and-validation-gate-repair.trace.md](001-3-6-4-1-3-1-1-1-2-1-2-2-1-2-1-2-1-2-1-2-1-2-1-vs-code-major-003-build-cleanliness-and-validation-gate-repair.trace.md)
-  - Value: 7cBm5dTkQ_jG9CNj-Wv708uFid9wOEPc43i8syOlGYo
+  - Value: -IYWvYf38Swvh5QB9Jy_MhqAX56OWCv9rnKnKLfeMCA
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: bQ3UT1bV9HoQ7i8MSSNTbxYj0lIUKDzU21yhsMZMMl4
+  - Value: Qm6K2sSpe6XOlfviGc7xdvoqTwqhcNxgwLZxBNh-9xI

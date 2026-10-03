@@ -51,8 +51,8 @@ Extension VS Code Major 003 authoring discoverability and operator UX only. Prod
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-3-6-4-1-3-1-1-1-2-1-2-2-1-2-1-2-kodax-to-anchor-vs-code-major-003-incoming-merge-conflict-materi.trace.md](001-3-6-4-1-3-1-1-1-2-1-2-2-1-2-1-2-kodax-to-anchor-vs-code-major-003-incoming-merge-conflict-materi.trace.md)
-  - Value: KVRtmIfe2xF21EGcxPTrlp5YHFOH4oNn33KHAJKQVWI
+  - Value: yIAZAdQmsaKNdhCmJS12WneFN3eZ6OzZXlkK9bptWb8
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: J8dajAdDqzD6cEcbCpdGDx4i8V2OXvq9l17_lYTl1Lk
+  - Value: DPzgN0Xb8A5ZQ0s_h5xZ0cMHxCtMu9QegRnXoGQGEjw

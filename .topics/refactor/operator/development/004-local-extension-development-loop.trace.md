@@ -49,8 +49,8 @@ Developer convenience only. No shared Tooling semantics, release authority, or s
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-vs-code-handoff-discovery-and-manufacture-minimum.trace.md](../001-vs-code-handoff-discovery-and-manufacture-minimum.trace.md)
-  - Value: WrR1L02KLX6Hmie0wz1JokOvZvXxPJ0Rz6kvs-1Wmtc
+  - Value: WBm9pGI3c1h0gZ0vIEvllEIhK6b7V_rfgJOyR0XuZNA
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: U1ixpgDLyFwh_FCoIjLCIwlM6hi2seBH2aTi44agv2Y
+  - Value: K9fJo1td8aF_34qIJlNI1ZKaIU3njSU05bCZlFtWwPQ

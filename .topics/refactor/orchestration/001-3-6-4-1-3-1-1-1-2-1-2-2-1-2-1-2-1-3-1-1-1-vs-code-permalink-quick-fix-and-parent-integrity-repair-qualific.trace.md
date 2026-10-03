@@ -65,8 +65,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-3-6-4-1-3-1-1-1-2-1-2-2-1-2-1-2-1-3-1-1-vs-code-live-diagnostics-runtime-and-permalink-resolution-qualif.trace.md](001-3-6-4-1-3-1-1-1-2-1-2-2-1-2-1-2-1-3-1-1-vs-code-live-diagnostics-runtime-and-permalink-resolution-qualif.trace.md)
-  - Value: f_e___VhSCryJRsTrO2Ux_4v9ya9E8paTtbew1Qs390
+  - Value: 2t4R3XHy4fhFmjOBbufnUK6ZZ6n7LpXbE8PAuZwy-f8
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: u8XL9rQKjbqezlpOQ7UJ77Pe1ykHKyyhLBoH6c6P9sY
+  - Value: tCU4FMTEt9Hj4uPIEiRpjOLmBhOJAP6p86mBIdG3osk

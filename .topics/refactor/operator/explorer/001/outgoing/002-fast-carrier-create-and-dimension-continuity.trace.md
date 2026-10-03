@@ -52,8 +52,8 @@ Do not freeze future per-file source scoping, Workspace ZIP exclusion, bootstrap
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-live-outgoing-context.trace.md](001-live-outgoing-context.trace.md)
-  - Value: eYrk3i4MIAvJqwP2pQdyY_SupL_TElaBGoKc_ejGgd0
+  - Value: 5Ojhg5evZn7weFyr96SgUm46gBxR4KUYqxYQNTQ_0XQ
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: TkoHjB_5f6-Z_Ct1Rsral8a04kHzocm4skgKZBuZzGw
+  - Value: j_9Df1kDDtiIFi9-4O78LEvkQHJNZlpYXIGKcJ25sHw

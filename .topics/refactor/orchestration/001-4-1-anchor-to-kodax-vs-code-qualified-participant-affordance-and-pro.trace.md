@@ -71,7 +71,7 @@
 
 - core-qualification-evidence
   - Material: Loom qualification Evidence for Core Task `029-1`.
-  - Material Reference: [Qualified Human Session And Participant Projection — Qualification](core::.topics/grounding/evidence/045-qualified-human-session-and-participant-projection-qualification.trace.md)
+  - Material Reference: [Qualified Human Session And Participant Projection — Qualification](core::.topics/work/grounding/evidence/045-qualified-human-session-and-participant-projection-qualification.trace.md)
   - Purpose: exact shared projection behavior and regression boundary.
   - Availability: available
 
@@ -135,8 +135,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-4-vs-code-qualified-participant-affordance-and-progress-feedback.trace.md](001-4-vs-code-qualified-participant-affordance-and-progress-feedback.trace.md)
-  - Value: 93jlbfIzvFjF1-HFyrShDt-uRfyt_wNrZ7Vq1yHXZkE
+  - Value: 2u1tiH87MJNskosUrIHA2we_3yRqbTA_GDhJPjJ5o64
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: jhAK6JsvAuhbxeI3n-p6dtdkAGZNL861CIzEXQZP0o0
+  - Value: iqScIQmfQHps7xZs2Js_hsfiqnhzIujx4US2nQ_PlfU

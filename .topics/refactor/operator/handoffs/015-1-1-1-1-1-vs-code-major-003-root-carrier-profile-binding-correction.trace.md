@@ -117,8 +117,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [015-1-1-1-1-vs-code-major-003-second-video-outgoing-discoverability-correcti.trace.md](015-1-1-1-1-vs-code-major-003-second-video-outgoing-discoverability-correcti.trace.md)
-  - Value: MnDpkzyh0R-KWInmSND6OFmZCW5vOFs4m2MzgYWHU1w
+  - Value: jHirehrt5Mrp0TAxkoFnwODi-FqxeUysn92PQsz-EDM
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: njaen767NNUMyGppC1q_q0K6KCzRBE9-ecNU4La__9Y
+  - Value: 9ZV9C5CLpJOgiTWJPZjZjTwcZwak9Ff5tgZhqaowrlk

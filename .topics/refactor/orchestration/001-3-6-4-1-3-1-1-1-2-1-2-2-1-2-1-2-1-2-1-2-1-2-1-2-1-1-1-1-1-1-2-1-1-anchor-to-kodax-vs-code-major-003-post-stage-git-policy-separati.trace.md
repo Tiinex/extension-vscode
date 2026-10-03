@@ -110,8 +110,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-3-6-4-1-3-1-1-1-2-1-2-2-1-2-1-2-1-2-1-2-1-2-1-2-1-1-1-1-1-1-2-1-vs-code-major-003-post-stage-git-policy-separation-and-mvp-closu.trace.md](001-3-6-4-1-3-1-1-1-2-1-2-2-1-2-1-2-1-2-1-2-1-2-1-2-1-1-1-1-1-1-2-1-vs-code-major-003-post-stage-git-policy-separation-and-mvp-closu.trace.md)
-  - Value: 1FKrZtxtrfWZiqZRh9zuM4beuz5DV5Ed5ZJrxBNwwtY
+  - Value: XtZqsqd6c5Typ5bLEEpZoKJDLrjrF61DJ44D8d1rNws
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: LZ6rXv1eBZhaygLKMY-CJYD6xwmy__YlG5UpPNVDLIY
+  - Value: EY5jyeThIRgwSLe8-VLjGKhmgTpKyg8Xy7z-H5YVuzU

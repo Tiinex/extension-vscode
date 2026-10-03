@@ -147,8 +147,8 @@ This gate remains deferred until exact locked build/broad validation is green; S
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-3-6-4-1-3-1-1-1-2-1-2-2-1-2-1-2-1-2-1-2-1-2-1-2-1-1-1-1-1-1-2-1-2-1-vs-code-major-003-ask-commit-push-closure.trace.md](001-3-6-4-1-3-1-1-1-2-1-2-2-1-2-1-2-1-2-1-2-1-2-1-2-1-1-1-1-1-1-2-1-2-1-vs-code-major-003-ask-commit-push-closure.trace.md)
-  - Value: GjRffcO4qsv10W9U4zJzY3oHqXzVCxIDBalgukjugSs
+  - Value: v3rNJCXtfhFHvYNIrl7-YrhIblyczS4Do6ZlSgXDEIM
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: ovfTVg9ey2UiwJGeU-YTWnUAoQe2oygXW-fN4TpwFJ4
+  - Value: p0sqOaqMR-GOpCqsrC68cnw6mprkZrmjlzA0PXPWew0

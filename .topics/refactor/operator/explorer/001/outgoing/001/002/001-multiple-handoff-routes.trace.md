@@ -49,8 +49,8 @@ Do not create free-form pointer authoring or infer route authority from tree pos
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [002-carrier-parent-and-package-routing.trace.md](../002-carrier-parent-and-package-routing.trace.md)
-  - Value: WIgnSCew-93wHnvHlpdq7eW75D4XImDJkb15-vHJT8I
+  - Value: 0dRNmM0-pI5XUgSILKrOdBBSaaxxbB1JM07FpnxItfA
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: -J5hHtACmbgY_WbwXV7aLiyhFJ2MXpgns0jheJa81F4
+  - Value: aauUBdZtYEQfInEKocMMHxZ8dAqceU_1KwcD6vKn3n4

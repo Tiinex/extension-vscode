@@ -113,8 +113,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [002-1-1-outgoing-selected-core-runtime-and-collision-safe-filename-quali.trace.md](../002-1-1-outgoing-selected-core-runtime-and-collision-safe-filename-quali.trace.md)
-  - Value: Fbv3-VtcURVolWmBIjj0A4l6bLJksL0LNo9XRlLL794
+  - Value: 0a8ISOBtrXWxf5LyOrJFyrOWm_aWWJJxkWpElsB7jIs
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: f8dYlbYUhoSvyTIFmsfGS9og0rY0Z1zM72SkZ1jD0vQ
+  - Value: pym2XuVWNK87AIjp2RecuJlRhin3S_pgkyf6vs4Grec

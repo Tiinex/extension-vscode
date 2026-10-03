@@ -48,8 +48,8 @@ Do not suppress bootstrap files by post-processing ZIP bytes in VS Code.
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [002-carrier-parent-and-package-routing.trace.md](../002-carrier-parent-and-package-routing.trace.md)
-  - Value: WIgnSCew-93wHnvHlpdq7eW75D4XImDJkb15-vHJT8I
+  - Value: 0dRNmM0-pI5XUgSILKrOdBBSaaxxbB1JM07FpnxItfA
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: nSH-GkE5uTT0JY8GPheRtxK9b4ekHi5V2ReVx9G3wnE
+  - Value: rvFX6ggCImt7N4CJBmYeLzoMjHOkxHcP66ud0SJwKno

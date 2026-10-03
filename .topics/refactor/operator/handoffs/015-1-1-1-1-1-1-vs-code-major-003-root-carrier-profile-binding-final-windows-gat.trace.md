@@ -117,8 +117,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [015-1-1-1-1-1-vs-code-major-003-root-carrier-profile-binding-correction.trace.md](015-1-1-1-1-1-vs-code-major-003-root-carrier-profile-binding-correction.trace.md)
-  - Value: njaen767NNUMyGppC1q_q0K6KCzRBE9-ecNU4La__9Y
+  - Value: 9ZV9C5CLpJOgiTWJPZjZjTwcZwak9Ff5tgZhqaowrlk
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: pU9RwugbmzTlII3SydMKJqkX6qoF8CfpgL1j0E7O2eI
+  - Value: evbjqGFUPPWaN2L9AchzJlbprwNp00PM6rUtnYTW4oQ

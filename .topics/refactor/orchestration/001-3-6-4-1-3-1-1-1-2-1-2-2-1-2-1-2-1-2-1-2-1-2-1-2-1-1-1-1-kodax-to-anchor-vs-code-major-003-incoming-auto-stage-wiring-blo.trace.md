@@ -112,8 +112,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-3-6-4-1-3-1-1-1-2-1-2-2-1-2-1-2-1-2-1-2-1-2-1-2-1-1-1-anchor-to-kodax-vs-code-major-003-incoming-auto-stage-flow-wirin.trace.md](001-3-6-4-1-3-1-1-1-2-1-2-2-1-2-1-2-1-2-1-2-1-2-1-2-1-1-1-anchor-to-kodax-vs-code-major-003-incoming-auto-stage-flow-wirin.trace.md)
-  - Value: SbPddZBsgrcUS7iaRacf9ZdR40b2Lmuy7KesnZEV89Y
+  - Value: DqGuXJux89s00pmuA0mkjXAcZYruvsyC8As12J2iEqo
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: qWkBtt2g60BIaaOE1f-EvQIihi2v0hfb-uyuUmxQQms
+  - Value: 0ZTIHlFavjfDtEjFYZDCCgcTOr8DVZRC7wITBmq1VjI

@@ -64,8 +64,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-vscode-historical-terminal-reduction.trace.md](001-vscode-historical-terminal-reduction.trace.md)
-  - Value: 0EdTcACa8P3tf1-w1zccqCCPcTgd-8J2sNLcRZoYG8Q
+  - Value: rd1qeCJtoEqTaXp2XCWpyjt4qXBFXlSxCRDAJ6H5jZE
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: VRpAw1MBHq2bicW0G0_WXo5lGNbOr4tS5exfriLkVBg
+  - Value: BYdWoUycapCp149fAf4H6Aej2vi7fcHiTIo2blcqHIU

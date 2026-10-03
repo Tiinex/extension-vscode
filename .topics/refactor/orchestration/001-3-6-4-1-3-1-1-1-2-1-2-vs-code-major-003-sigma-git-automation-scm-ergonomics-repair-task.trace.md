@@ -66,8 +66,8 @@ Major 003 remains open until Sigma later verifies the actual Windows/main-host U
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-3-6-4-1-3-1-1-1-2-1-1-anchor-to-sigma-vs-code-major-003-full-source-live-host-acceptance-handoff.trace.md](001-3-6-4-1-3-1-1-1-2-1-1-anchor-to-sigma-vs-code-major-003-full-source-live-host-acceptance-handoff.trace.md)
-  - Value: ktc6_1MBLf360MtSO2bJqJoMCACF77fIpWuqe_rcD3E
+  - Value: 5VAFgaLIeqTU0IQb2nJJPlFfx6veQcOfTvvbySz493k
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: by8CGNC3wDBtCW_eWSalYe6WtM5fIVjEpn4p7buNFKY
+  - Value: j9-skT76cSVIggVWvySKDa_g627qJAlyWoFwMbxuO5g

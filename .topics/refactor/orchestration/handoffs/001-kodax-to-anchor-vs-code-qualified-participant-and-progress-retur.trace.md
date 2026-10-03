@@ -69,13 +69,13 @@
 
 - core-participant-projection
   - Material: qualified shared-Core human-session and participant projection implementation
-  - Material Reference: [Core Task 029-1](core::.topics/grounding/029-1-qualified-human-session-and-participant-projection.trace.md)
+  - Material Reference: [Core Task 029-1](core::.topics/work/grounding/029-1-qualified-human-session-and-participant-projection.trace.md)
   - Purpose: Semantic authority consumed by the VS Code host without reimplementation.
   - Availability: available
 
 - core-qualification-evidence
   - Material: Loom qualification Evidence for Core Task 029-1
-  - Material Reference: [Core Participant Projection Qualification](core::.topics/grounding/evidence/045-qualified-human-session-and-participant-projection-qualification.trace.md)
+  - Material Reference: [Core Participant Projection Qualification](core::.topics/work/grounding/evidence/045-qualified-human-session-and-participant-projection-qualification.trace.md)
   - Purpose: Preserve the independently qualified Role, assignment authorization, holder binding, participant and speaker-boundary semantics consumed here.
   - Availability: available
 
@@ -161,8 +161,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-4-vs-code-qualified-participant-affordance-and-progress-feedback.trace.md](../001-4-vs-code-qualified-participant-affordance-and-progress-feedback.trace.md)
-  - Value: 93jlbfIzvFjF1-HFyrShDt-uRfyt_wNrZ7Vq1yHXZkE
+  - Value: 2u1tiH87MJNskosUrIHA2we_3yRqbTA_GDhJPjJ5o64
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: Kfa9sfovw1YgIX8EXRntWCIqoFLnLKLJyjs50OGxiHc
+  - Value: 5GE_e9kkeCl0RtYhhiRQ7TmxJCmbmEwIG5ax2SDh34Y

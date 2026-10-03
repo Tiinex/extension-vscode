@@ -102,8 +102,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [015-1-1-1-1-1-1-1-1-1-vs-code-major-003-carrier-allocation-and-transport-receipt-final.trace.md](015-1-1-1-1-1-1-1-1-1-vs-code-major-003-carrier-allocation-and-transport-receipt-final.trace.md)
-  - Value: KA6ok_UPuas2SqkCRb5dyuv-Bz9MW09c3-HNU0zv85U
+  - Value: gQO7u9l7mya-dcIj9ETgZgcgaw0pt4bUnQynRJHUe2Y
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: -4Xjbu01pOW5Bt_8WblIRQSIjkHpxQX42xXVLiVfPww
+  - Value: 9vKlShj0F7JVDLYypssGHzpgHp-I58rV56bouwBxV90

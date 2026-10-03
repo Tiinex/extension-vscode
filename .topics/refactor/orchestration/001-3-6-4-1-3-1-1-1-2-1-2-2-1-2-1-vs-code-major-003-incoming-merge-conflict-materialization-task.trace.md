@@ -65,8 +65,8 @@ Machine tests prove host mechanics only. Sigma retains live Windows acceptance o
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-3-6-4-1-3-1-1-1-2-1-2-2-1-2-kodax-to-anchor-vs-code-major-003-transport-queue-and-qualified.trace.md](001-3-6-4-1-3-1-1-1-2-1-2-2-1-2-kodax-to-anchor-vs-code-major-003-transport-queue-and-qualified.trace.md)
-  - Value: 2GE1cCx-haAO5gXkAMdTriYbuGq9rX_W99u7iUpbkVA
+  - Value: nZoNdvf9X-k302KIPp3tvpJXe2A0YzjT8TZWfRIgCjc
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: SKl7LaVGve4az4QkWIpyrya6sUQ34y2xdabfxyR1aZQ
+  - Value: cbxzxkuCv4WTh_1mYZy5nFG9Yyjp-sO6-8H4VLUQ2SU

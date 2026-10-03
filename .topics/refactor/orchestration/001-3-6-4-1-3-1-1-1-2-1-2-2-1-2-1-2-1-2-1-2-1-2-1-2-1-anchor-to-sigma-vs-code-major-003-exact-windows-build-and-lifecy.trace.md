@@ -120,8 +120,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-3-6-4-1-3-1-1-1-2-1-2-2-1-2-1-2-1-2-1-2-1-2-1-2-kodax-to-anchor-vs-code-major-003-build-cleanliness-repair-candi.trace.md](001-3-6-4-1-3-1-1-1-2-1-2-2-1-2-1-2-1-2-1-2-1-2-1-2-kodax-to-anchor-vs-code-major-003-build-cleanliness-repair-candi.trace.md)
-  - Value: bQ3UT1bV9HoQ7i8MSSNTbxYj0lIUKDzU21yhsMZMMl4
+  - Value: Qm6K2sSpe6XOlfviGc7xdvoqTwqhcNxgwLZxBNh-9xI
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: WgkJSd4vHpnMil0ih3nHxT1cp59gkRGIdtoQV7KgUoI
+  - Value: 4Pob82r6J9nHhULzA-Kf4c_VasG-8HbsEeVcdoevJlM

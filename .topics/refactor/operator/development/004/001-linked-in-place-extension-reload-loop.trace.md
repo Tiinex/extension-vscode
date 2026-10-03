@@ -58,8 +58,8 @@ Developer convenience only. No Core/Docs/Business mutation, shared Tooling seman
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [004-local-extension-development-loop.trace.md](../004-local-extension-development-loop.trace.md)
-  - Value: U1ixpgDLyFwh_FCoIjLCIwlM6hi2seBH2aTi44agv2Y
+  - Value: K9fJo1td8aF_34qIJlNI1ZKaIU3njSU05bCZlFtWwPQ
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: 8ZZMJE-o0RqDbzhMPnmsvip1JWK6YAIGiSDKujx0ISw
+  - Value: eda_7fKrTTB2Ur7ugVD9j6PsAIaZ4mmjCNm5zsteSgI

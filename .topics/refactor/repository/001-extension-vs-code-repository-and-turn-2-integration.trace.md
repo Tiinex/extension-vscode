@@ -4,9 +4,9 @@
 - Parent
   - Parent Schema: [tiinex.topic.v1](https://github.com/Tiinex/docs/blob/053d46ce082d4ec261b82abc44ecca403d61e240/.topics/.schemas/core/topic/tiinex.topic.v1.schema.md)
   - Created At: 2026-09-09 16:47:23
-  - Trace: [001-extension-repository-frontier.trace.md](../../../business::.topics/initiatives/refactor/extensions/001-extension-repository-frontier.trace.md)
+  - Trace: [001-extension-repository-frontier.trace.md](https://github.com/Tiinex/business/blob/15a9d4e8cf1c1653fc4dc1c2cf66b5b9304a4ba0/.topics/initiatives/refactor/extensions/001-extension-repository-frontier.trace.md)
   - Origin:
-    - [relative](../../../business::.topics/initiatives/refactor/extensions/001-extension-repository-frontier.trace.md)
+    - [browse + git](https://github.com/Tiinex/business/blob/15a9d4e8cf1c1653fc4dc1c2cf66b5b9304a4ba0/.topics/initiatives/refactor/extensions/001-extension-repository-frontier.trace.md)
 - Current
   - Current Schema: [tiinex.task.v1](https://github.com/Tiinex/docs/blob/053d46ce082d4ec261b82abc44ecca403d61e240/.topics/.schemas/core/task/tiinex.task.v1.schema.md)
   - Created At: 2026-09-09 16:50:30
@@ -49,9 +49,9 @@ Reconcile the renamed `Tiinex/extension-vscode` repository against the current R
 # Continuity Integrity
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
-  - Towards: [001-extension-repository-frontier.trace.md](../../../business::.topics/initiatives/refactor/extensions/001-extension-repository-frontier.trace.md)
+  - Towards: [001-extension-repository-frontier.trace.md](https://github.com/Tiinex/business/blob/15a9d4e8cf1c1653fc4dc1c2cf66b5b9304a4ba0/.topics/initiatives/refactor/extensions/001-extension-repository-frontier.trace.md)
   - Value: aLvz6PeBPza3P9sjr3c4OmNe878LlAAFAQTjmm402uQ
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: PT_8EO10NGb4_LT7ebhyum_AxUFoxsClY4WqvPSiCHY
+  - Value: Y9f3AYliJiHsY13TmJ9JZSQSh4PEZwBmW4vKDipkkXQ

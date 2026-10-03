@@ -114,8 +114,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-3-6-4-1-3-1-1-1-vs-code-major-003-final-generic-authoring-local-core-acceptance-task.trace.md](001-3-6-4-1-3-1-1-1-vs-code-major-003-final-generic-authoring-local-core-acceptance-task.trace.md)
-  - Value: V0eC5oLHkPeflfTugXVDiUKsP8zAo81c1GZqRKA82uk
+  - Value: 9cgE-5uuyVa-HcYa_Ggn0OsMm7DnBuiyxzADI8_f1_0
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: I8FUBwLtsmPkY-k6QxUMN84kDUMVzkJAD5a72m1UhKU
+  - Value: pr3_WjQrP4_0Jll8U6hWLSf_tDB5hatEuyZ_3gC8JyU

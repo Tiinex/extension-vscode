@@ -114,8 +114,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [015-1-anchor-to-anchor-emergency-vs-code-continuation-at-conversation.trace.md](015-1-anchor-to-anchor-emergency-vs-code-continuation-at-conversation.trace.md)
-  - Value: qM4QgJchY5fl1pjNyZ1sXwCvS60ECpsQ5FmUrbRbYiw
+  - Value: Cl0w7VQgHuuuIaGHX_uM-SRldsaqwfiB8-1laRBI1Lc
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: Oas85Z6a3qs42ya1Vk0KtG4HHE3gSsZRZgaBqW2hCpY
+  - Value: bg_NYqBS2Bu3Eg8dCIl9M0fKFhEBbtgnRAxzzqDe32E

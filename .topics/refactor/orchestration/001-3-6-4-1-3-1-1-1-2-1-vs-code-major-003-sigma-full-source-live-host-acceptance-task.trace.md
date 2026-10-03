@@ -63,8 +63,8 @@ Major 003 closes only when technical full-toolchain qualification and Sigma's bo
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-3-6-4-1-3-1-1-1-2-kodax-to-anchor-vs-code-major-003-final-generic-authoring-and-lo.trace.md](001-3-6-4-1-3-1-1-1-2-kodax-to-anchor-vs-code-major-003-final-generic-authoring-and-lo.trace.md)
-  - Value: I8FUBwLtsmPkY-k6QxUMN84kDUMVzkJAD5a72m1UhKU
+  - Value: pr3_WjQrP4_0Jll8U6hWLSf_tDB5hatEuyZ_3gC8JyU
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: 6V4xVc-DfuC2Xq68eZQSOFXqCNPDd3JJNEKcmeJigb8
+  - Value: H3iw5Qx7kOzAgTnR75lm6JadT8VqtuP3bKeO1lbLOXg

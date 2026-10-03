@@ -92,8 +92,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-4-2-1-major-002-host-flow-acceptance.trace.md](../001-4-2-1-major-002-host-flow-acceptance.trace.md)
-  - Value: YqSxXayZj-mD4OI4RVtMEA9sNEal9PwsZXUfkas9lZ8
+  - Value: 7lPNiehvNeP69CGm7BvrGLwopoqj2VAKzVZ5_ZSIhZc
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: 0NOaeweRpkGahCW81j1NusfeRebSqFLyG6qcUmQp37o
+  - Value: rz6m9bm5Iqh6UlTWtUVMVRJspzfMVUtf8_fdC2fRVM8

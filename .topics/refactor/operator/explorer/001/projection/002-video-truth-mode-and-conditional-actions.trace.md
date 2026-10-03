@@ -55,8 +55,8 @@ Presentation does not change carrier semantics, landing authority, Handoff schem
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-canonical-carrier-tree-projections.trace.md](001-canonical-carrier-tree-projections.trace.md)
-  - Value: tka8k-FPAEcQoENWPtsjXZ7lvQnXo5XzRXR-YTux9JI
+  - Value: zpyy8Bzlowp41smY78oK7Tcz_1cji3MckjMZIuMEeGM
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: aUnfT61_-1SNQYAnIfgrXBRWqJasyI8n4Vgj-6p2QIw
+  - Value: tnP97VCUL1uSUAR0qHSr8rK7AqMNIwiX1zMTBmXcVIs

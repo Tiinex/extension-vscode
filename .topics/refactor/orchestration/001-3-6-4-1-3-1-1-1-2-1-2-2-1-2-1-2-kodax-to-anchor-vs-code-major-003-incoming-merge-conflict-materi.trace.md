@@ -123,8 +123,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-3-6-4-1-3-1-1-1-2-1-2-2-1-2-1-vs-code-major-003-incoming-merge-conflict-materialization-task.trace.md](001-3-6-4-1-3-1-1-1-2-1-2-2-1-2-1-vs-code-major-003-incoming-merge-conflict-materialization-task.trace.md)
-  - Value: SKl7LaVGve4az4QkWIpyrya6sUQ34y2xdabfxyR1aZQ
+  - Value: cbxzxkuCv4WTh_1mYZy5nFG9Yyjp-sO6-8H4VLUQ2SU
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: KVRtmIfe2xF21EGcxPTrlp5YHFOH4oNn33KHAJKQVWI
+  - Value: yIAZAdQmsaKNdhCmJS12WneFN3eZ6OzZXlkK9bptWb8

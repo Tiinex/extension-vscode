@@ -125,8 +125,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-3-6-4-1-3-1-1-1-2-1-2-vs-code-major-003-sigma-git-automation-scm-ergonomics-repair-task.trace.md](001-3-6-4-1-3-1-1-1-2-1-2-vs-code-major-003-sigma-git-automation-scm-ergonomics-repair-task.trace.md)
-  - Value: by8CGNC3wDBtCW_eWSalYe6WtM5fIVjEpn4p7buNFKY
+  - Value: j9-skT76cSVIggVWvySKDa_g627qJAlyWoFwMbxuO5g
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: B83tsdZNsyoeRI4KyzcuEkU2xT28b1wpjmIYBJ8Vlcs
+  - Value: -Hndebah37gOpdShRyUA6pnMv0WguMlG6ekyso55T-Y

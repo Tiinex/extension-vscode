@@ -47,8 +47,8 @@ Apply Major 015 project-wide reduction to exact historical VS Code branches alre
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-vs-code-repository-local-orchestration-frontier.trace.md](../../refactor/orchestration/001-vs-code-repository-local-orchestration-frontier.trace.md)
-  - Value: IK318Q6V1V3YKWjWVhnm9M52xidg8QI1By5r_giIVJg
+  - Value: WdX_741_ztQZGcRNzURRDYHpbGVf9tzAa6agiaT0s3Q
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: Q6hXHi7keSiRJMShQJ2ti1P79uEPKCVxpdViEf6Ga6U
+  - Value: Rv4cUOZgFBko3KPx8sN1EuQaQYYeG-cJvzrTaAWG8l4

@@ -67,8 +67,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-3-6-4-1-3-1-1-1-2-1-2-2-1-2-1-2-1-vs-code-major-003-first-class-artifact-authoring-discoverability.trace.md](001-3-6-4-1-3-1-1-1-2-1-2-2-1-2-1-2-1-vs-code-major-003-first-class-artifact-authoring-discoverability.trace.md)
-  - Value: J8dajAdDqzD6cEcbCpdGDx4i8V2OXvq9l17_lYTl1Lk
+  - Value: DPzgN0Xb8A5ZQ0s_h5xZ0cMHxCtMu9QegRnXoGQGEjw
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: fdIqsMgE7uWKZz0TmDwARbO9F_X3cIHiKGXsYhvIElQ
+  - Value: LEV51XRsc6naf0Osox5s87vRd5oqXkQnPLVwL1t6V7E

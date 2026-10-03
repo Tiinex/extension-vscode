@@ -103,8 +103,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-3-6-4-1-3-1-1-1-2-1-2-2-1-2-1-2-1-3-1-1-1-1-vs-code-feed-handoff-close-on-create-and-participant-pointer-qua.trace.md](../../orchestration/001-3-6-4-1-3-1-1-1-2-1-2-2-1-2-1-2-1-3-1-1-1-1-vs-code-feed-handoff-close-on-create-and-participant-pointer-qua.trace.md)
-  - Value: bktKv-NtnD9Icx7RrHSwk0EpRMVoLt5nESZCyrKgFO4
+  - Value: ZX1Kgf896HHRBc_4UnTXf4Bwe7LFOBa0rnV-1KtOCqI
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: Ctf22BPIFxvh7WL-Op7m9oH-5xcFYG2ZXW_UKYQ21Q4
+  - Value: x2Eja20BfZduH3Hk7GVbFIMqeoVcvBbL_Rvt8kVhne8

@@ -103,8 +103,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-3-6-4-1-3-1-1-1-2-1-2-2-1-2-1-2-1-3-vs-code-artifact-authoring-parent-repair-preset-and-feedback-qua.trace.md](../../orchestration/001-3-6-4-1-3-1-1-1-2-1-2-2-1-2-1-2-1-3-vs-code-artifact-authoring-parent-repair-preset-and-feedback-qua.trace.md)
-  - Value: fdIqsMgE7uWKZz0TmDwARbO9F_X3cIHiKGXsYhvIElQ
+  - Value: LEV51XRsc6naf0Osox5s87vRd5oqXkQnPLVwL1t6V7E
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: WMb8o4LlCBw4Kf8jVL6bz-0oF0vvcHmkwtLEG18q5gU
+  - Value: WQS7qFf_Pyf75FexiygSHSS0jHRBa8HZIlFfPkaSSyQ

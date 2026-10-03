@@ -48,8 +48,8 @@ No encryption implementation or key persistence is introduced in the current tre
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [002-carrier-parent-and-package-routing.trace.md](../002-carrier-parent-and-package-routing.trace.md)
-  - Value: WIgnSCew-93wHnvHlpdq7eW75D4XImDJkb15-vHJT8I
+  - Value: 0dRNmM0-pI5XUgSILKrOdBBSaaxxbB1JM07FpnxItfA
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: UAghV3RaeTvaYRkvZcjXpU4nXcIpJvVd3yZ6Jw5EnvU
+  - Value: lHe2cRgVz0fACi2yxIPRXBN5t3WDUJZkNbh0uIirqPs

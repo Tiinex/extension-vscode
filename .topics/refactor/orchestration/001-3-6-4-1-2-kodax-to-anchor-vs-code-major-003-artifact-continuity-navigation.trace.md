@@ -121,8 +121,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-3-6-4-1-vs-code-major-003-artifact-continuity-preview-navigation-revision-task.trace.md](001-3-6-4-1-vs-code-major-003-artifact-continuity-preview-navigation-revision-task.trace.md)
-  - Value: GgvJVz_FiVNd8EAYlXH2oaSnnpIrF0WvlPb3OB21GE8
+  - Value: 8WvqD8syF3Rq8czVtDw1KPv2BvOJfErfDZ89L_fXuSc
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: Xh-wiywyz5LSikv6o6wRIxDdqfMsO5vB88x_2pRUQLg
+  - Value: tag3DvIchjhcPABU_PpL-g1hbgC74ddgsE_reNG6g7Q

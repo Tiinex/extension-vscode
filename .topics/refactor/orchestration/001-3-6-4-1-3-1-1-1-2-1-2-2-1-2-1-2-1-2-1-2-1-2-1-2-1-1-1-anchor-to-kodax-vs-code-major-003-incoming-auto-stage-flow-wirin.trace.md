@@ -108,8 +108,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-3-6-4-1-3-1-1-1-2-1-2-2-1-2-1-2-1-2-1-2-1-2-1-2-1-1-vs-code-major-003-incoming-auto-stage-flow-wiring.trace.md](001-3-6-4-1-3-1-1-1-2-1-2-2-1-2-1-2-1-2-1-2-1-2-1-2-1-1-vs-code-major-003-incoming-auto-stage-flow-wiring.trace.md)
-  - Value: swbttpZ87SVQgQass47prpGiWdpP3Dj8ZxHPKxKvL68
+  - Value: D6-1g9wJRok_TtjXWNrp0by3cFPmLhdTs2s2l2cnLaY
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: SbPddZBsgrcUS7iaRacf9ZdR40b2Lmuy7KesnZEV89Y
+  - Value: DqGuXJux89s00pmuA0mkjXAcZYruvsyC8As12J2iEqo

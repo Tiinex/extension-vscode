@@ -120,8 +120,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [015-anchor-to-anchor-vs-code-feed-handoff-and-outgoing-ux-follow-up.trace.md](015-anchor-to-anchor-vs-code-feed-handoff-and-outgoing-ux-follow-up.trace.md)
-  - Value: Ctf22BPIFxvh7WL-Op7m9oH-5xcFYG2ZXW_UKYQ21Q4
+  - Value: x2Eja20BfZduH3Hk7GVbFIMqeoVcvBbL_Rvt8kVhne8
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: qM4QgJchY5fl1pjNyZ1sXwCvS60ECpsQ5FmUrbRbYiw
+  - Value: Cl0w7VQgHuuuIaGHX_uM-SRldsaqwfiB8-1laRBI1Lc

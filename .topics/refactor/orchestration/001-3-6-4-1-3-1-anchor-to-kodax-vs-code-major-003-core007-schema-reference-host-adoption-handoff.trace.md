@@ -71,7 +71,7 @@
 
 - core-major-007-return
   - Material: qualified Loom return and Evidence.
-  - Material Reference: [Core Major 007 Return](core::.topics/refactor/orchestration/handoffs/002-1-1-1-1-loom-to-anchor-core-major-007-per-field-schema-reference-authori.trace.md)
+  - Material Reference: [Core Major 007 Return](core::.topics/work/refactor/orchestration/handoffs/002-1-1-1-1-loom-to-anchor-core-major-007-per-field-schema-reference-authori.trace.md)
   - Purpose: exact accepted behavior and host-adoption boundary.
   - Availability: available
 
@@ -129,8 +129,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-3-6-4-1-3-vs-code-major-003-core007-schema-reference-host-adoption-task.trace.md](001-3-6-4-1-3-vs-code-major-003-core007-schema-reference-host-adoption-task.trace.md)
-  - Value: nj_wxo3DT64KfqfkP5m7DI1r2XE5GBBB3JzSSP4qwSw
+  - Value: 2JUUjaDf_JtwU-4FAQM5zo_-gSj4mLMVnVAOQiyaIVw
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: kR0B4ftmq8an9KQLVQvg5PkgVlco6UgLeuSQ2ohIT-8
+  - Value: 9jBgkkmck8x2Ch1AAFy_HBIsXGpdB3067xz7wkLaT7w

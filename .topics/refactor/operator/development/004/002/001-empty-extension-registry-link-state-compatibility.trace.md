@@ -55,8 +55,8 @@ Developer-loop reliability only. This does not alter Tiinex carrier authority, C
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [002-ai-provenance-main-host-link-parity.trace.md](../002-ai-provenance-main-host-link-parity.trace.md)
-  - Value: Cmj5acH-8CofSRPjRFeNf5IZtlUWj9CMNlDfLO2BNGo
+  - Value: fEa1qkBUjTTE6fe7K-J3-bSTMbT04qQ8BxlXCmVbbOs
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: Nveuu3S5qKwReFH5zQ6pih-4YpY8XJwaCsBOoFgdxmg
+  - Value: VTGBwc3HKqDpQX-DFWjD8Lh0tXS3AOLj-_SA3iZfiVw

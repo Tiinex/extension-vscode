@@ -126,8 +126,8 @@ Return one qualified Kodax-to-Anchor carrier containing actual candidate workspa
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-3-6-4-1-3-1-1-1-2-1-2-2-1-2-1-2-1-2-1-2-1-2-1-2-1-1-1-1-1-1-2-kodax-to-anchor-vs-code-major-003-mvp-commit-policy-and-authorin.trace.md](001-3-6-4-1-3-1-1-1-2-1-2-2-1-2-1-2-1-2-1-2-1-2-1-2-1-1-1-1-1-1-2-kodax-to-anchor-vs-code-major-003-mvp-commit-policy-and-authorin.trace.md)
-  - Value: oNTvlm79JV-E9mPr8vOsoRxpsnlcuwp7c9qQfYUn6Z0
+  - Value: VFidmGMLxDV16Cnsw98fbb1VGJAFs_2WeGjwBN14Gac
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: 1FKrZtxtrfWZiqZRh9zuM4beuz5DV5Ed5ZJrxBNwwtY
+  - Value: XtZqsqd6c5Typ5bLEEpZoKJDLrjrF61DJ44D8d1rNws

@@ -55,8 +55,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-4-vs-code-qualified-participant-affordance-and-progress-feedback.trace.md](../001-4-vs-code-qualified-participant-affordance-and-progress-feedback.trace.md)
-  - Value: 93jlbfIzvFjF1-HFyrShDt-uRfyt_wNrZ7Vq1yHXZkE
+  - Value: 2u1tiH87MJNskosUrIHA2we_3yRqbTA_GDhJPjJ5o64
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: ATg0uQNgzAOkb4YEoX7ixof-Zq0Rd-6oLli8Qm9XA_4
+  - Value: eUtjYrA6RlqHxZzHnbSQaqSXYfQXnQ7uBWY7I3jNHVA

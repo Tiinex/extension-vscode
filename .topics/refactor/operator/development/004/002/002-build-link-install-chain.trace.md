@@ -49,8 +49,8 @@ Developer-loop convenience only; no production extension semantics or release ve
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [002-ai-provenance-main-host-link-parity.trace.md](../002-ai-provenance-main-host-link-parity.trace.md)
-  - Value: Cmj5acH-8CofSRPjRFeNf5IZtlUWj9CMNlDfLO2BNGo
+  - Value: fEa1qkBUjTTE6fe7K-J3-bSTMbT04qQ8BxlXCmVbbOs
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: yWnxDKpMgvL-K1VdXOtJd2ndBptv4HN-PA49X9MGoFQ
+  - Value: HKJUZlqKPKV-OCHXeYrt00W0IN5YIh-w9cQiDXBuffA

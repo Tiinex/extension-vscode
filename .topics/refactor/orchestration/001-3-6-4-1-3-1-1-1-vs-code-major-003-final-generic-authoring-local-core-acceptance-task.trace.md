@@ -62,8 +62,8 @@ Major 003 is technically closable only when the generic authoring architecture i
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-3-6-4-1-3-1-1-kodax-to-anchor-vs-code-major-003-core007-host-adoption-return.trace.md](001-3-6-4-1-3-1-1-kodax-to-anchor-vs-code-major-003-core007-host-adoption-return.trace.md)
-  - Value: 2ssoa_N3K_Vrs8mbLvZLnWC4cT_Sj4gO3egt2oz9Qlo
+  - Value: KEaguDhBOEHhltHL-Jovew4Cg6QiZIEIMaImxUTa9Qg
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: V0eC5oLHkPeflfTugXVDiUKsP8zAo81c1GZqRKA82uk
+  - Value: 9cgE-5uuyVa-HcYa_Ggn0OsMm7DnBuiyxzADI8_f1_0

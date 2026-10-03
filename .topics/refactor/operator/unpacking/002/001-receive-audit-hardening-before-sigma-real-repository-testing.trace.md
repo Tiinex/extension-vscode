@@ -52,8 +52,8 @@ No Core/Docs/Business mutation, no Handoff/package authoring redesign, no 0.1.8 
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [002-safe-repository-replacement-and-git-landing.trace.md](../002-safe-repository-replacement-and-git-landing.trace.md)
-  - Value: oLmTcJR_eRb_RNNkMYQZ7OTIsjhX61yE3QXQ3YAv7Gk
+  - Value: s84B6MT_o4Q46KX690qX0WkTVPGnHMNV4zPo5JnCuME
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: w0uIa4SlgWzdvRl6MxlV9uUII19TfxukdRnVkJaCM9k
+  - Value: V4rkHH5xoOdoC3L3YD2kbLFSOUFwL8EMeqyTiwXo68A

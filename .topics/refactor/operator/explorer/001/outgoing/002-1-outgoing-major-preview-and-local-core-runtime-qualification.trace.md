@@ -63,8 +63,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [002-fast-carrier-create-and-dimension-continuity.trace.md](002-fast-carrier-create-and-dimension-continuity.trace.md)
-  - Value: TkoHjB_5f6-Z_Ct1Rsral8a04kHzocm4skgKZBuZzGw
+  - Value: j_9Df1kDDtiIFi9-4O78LEvkQHJNZlpYXIGKcJ25sHw
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: 7wbaylVOhwbEY0x2HO0z8-Ic05zkYOKsHDLBJEzMT4g
+  - Value: DzSAGcUgB2syChmapUn7QSq3sJvakRGUoZjb2k77nR4

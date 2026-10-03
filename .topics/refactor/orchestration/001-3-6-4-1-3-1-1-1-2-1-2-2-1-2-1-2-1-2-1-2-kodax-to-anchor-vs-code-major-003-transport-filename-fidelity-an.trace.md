@@ -130,8 +130,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-3-6-4-1-3-1-1-1-2-1-2-2-1-2-1-2-1-2-1-vs-code-major-003-transport-filename-fidelity-and-scanability-re.trace.md](001-3-6-4-1-3-1-1-1-2-1-2-2-1-2-1-2-1-2-1-vs-code-major-003-transport-filename-fidelity-and-scanability-re.trace.md)
-  - Value: xp_bXNOci1TdgjmdCxaC6kQVGl-p6kcQke7n6NKCxOk
+  - Value: EZdmUmWuBtlme3jPc3JN0ajPxObYSEzx_7E5xTVEr5Y
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: 3LvbWhct-pT-OQHUlh4gaQmbPf-dv8jyNTj6fHGXqrI
+  - Value: eb-_Je82kub2kzanJr4LHQrnCwRKocyiTFTigJJ0r-Q

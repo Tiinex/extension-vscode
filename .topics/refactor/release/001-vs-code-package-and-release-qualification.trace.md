@@ -44,8 +44,8 @@ Technical release qualification only; no publication action in this subtask.
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-turn-2-vs-code-integration-and-operator-frontier.trace.md](../001-turn-2-vs-code-integration-and-operator-frontier.trace.md)
-  - Value: wz5I2dE4nCCjlh-4ldRwx28Nb-8xYCeVXnSprBYpH-U
+  - Value: jpHbxvgkwbCsTXp8L034ADcsnrxbgeG2hsXju5wjZpg
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: 8Y4Q_vFZP87fO0j9CrLzF96emr5ILgBZzd-Sr548Z4g
+  - Value: -neuW-0brI1wJY36D_8BGvyZprw4oIHsMCbXqiL0C8U

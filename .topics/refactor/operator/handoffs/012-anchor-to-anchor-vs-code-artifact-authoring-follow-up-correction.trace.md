@@ -108,8 +108,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-3-6-4-1-3-1-1-1-2-1-2-2-1-2-1-2-1-3-1-vs-code-artifact-authoring-self-integrity-continuity-feedback-an.trace.md](../../orchestration/001-3-6-4-1-3-1-1-1-2-1-2-2-1-2-1-2-1-3-1-vs-code-artifact-authoring-self-integrity-continuity-feedback-an.trace.md)
-  - Value: wjVdjeXAZMaz3j8x1lV6FXIHg1ZNU088s-gh6f84B_8
+  - Value: cnId6WSbAae0okhE0NN6nnRyXmeJIMqRHx-9IVuG9o4
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: bPtY-NtzsD15ZhjNw5ocqdn7bYv2I53lrZijqoAtX74
+  - Value: ciK7lxNAWs3PNDTL0_BbtPsKnY10GPe8RjU0-9sVV7c

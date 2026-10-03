@@ -56,8 +56,8 @@ Make the existing Receive → Review → Return operator path usable for ordinar
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-turn-2-vs-code-integration-and-operator-frontier.trace.md](../001-turn-2-vs-code-integration-and-operator-frontier.trace.md)
-  - Value: wz5I2dE4nCCjlh-4ldRwx28Nb-8xYCeVXnSprBYpH-U
+  - Value: jpHbxvgkwbCsTXp8L034ADcsnrxbgeG2hsXju5wjZpg
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: WrR1L02KLX6Hmie0wz1JokOvZvXxPJ0Rz6kvs-1Wmtc
+  - Value: WBm9pGI3c1h0gZ0vIEvllEIhK6b7V_rfgJOyR0XuZNA

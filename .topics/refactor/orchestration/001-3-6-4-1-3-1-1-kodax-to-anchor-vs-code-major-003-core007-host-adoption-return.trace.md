@@ -61,7 +61,7 @@
 
 - core-major-007-return
   - Material: accepted Core Major 007 return and its per-field schema-reference semantics/findings.
-  - Material Reference: [Core Major 007 Return](core::.topics/refactor/orchestration/handoffs/002-1-1-1-1-loom-to-anchor-core-major-007-per-field-schema-reference-authori.trace.md)
+  - Material Reference: [Core Major 007 Return](core::.topics/work/refactor/orchestration/handoffs/002-1-1-1-1-loom-to-anchor-core-major-007-per-field-schema-reference-authori.trace.md)
   - Purpose: shared semantic/mechanical authority consumed by the host; no Core mutation is part of this return.
   - Availability: available
 
@@ -120,8 +120,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-3-6-4-1-3-1-anchor-to-kodax-vs-code-major-003-core007-schema-reference-host-adoption-handoff.trace.md](001-3-6-4-1-3-1-anchor-to-kodax-vs-code-major-003-core007-schema-reference-host-adoption-handoff.trace.md)
-  - Value: kR0B4ftmq8an9KQLVQvg5PkgVlco6UgLeuSQ2ohIT-8
+  - Value: 9jBgkkmck8x2Ch1AAFy_HBIsXGpdB3067xz7wkLaT7w
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: 2ssoa_N3K_Vrs8mbLvZLnWC4cT_Sj4gO3egt2oz9Qlo
+  - Value: KEaguDhBOEHhltHL-Jovew4Cg6QiZIEIMaImxUTa9Qg

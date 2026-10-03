@@ -108,8 +108,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [001-3-6-4-1-3-1-1-1-2-1-2-2-1-2-1-2-1-2-1-2-1-2-1-2-1-1-1-1-1-1-vs-code-major-003-mvp-commit-policy-and-authoring-closure.trace.md](001-3-6-4-1-3-1-1-1-2-1-2-2-1-2-1-2-1-2-1-2-1-2-1-2-1-1-1-1-1-1-vs-code-major-003-mvp-commit-policy-and-authoring-closure.trace.md)
-  - Value: nznqTBhxtXAFmZ72A_Irm2MBWJFGRsYLxWwxdDjxLyE
+  - Value: dNYnr3pEl2AbV2JcPbRMLxvTgeA8WliZurImpQB7-eU
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: pkvV4Wrr6nSBHxlt85a48PM0gMeGEHRoSjnvfL8hn_o
+  - Value: F-NaknZNGkrIpZvYhwAD2hz1oxEDvKM7I7XNmNQpQ10

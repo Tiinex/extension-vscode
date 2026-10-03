@@ -130,8 +130,8 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: [015-1-1-1-1-1-1-1-vs-code-major-003-routed-carrier-filename-authority-final-window.trace.md](015-1-1-1-1-1-1-1-vs-code-major-003-routed-carrier-filename-authority-final-window.trace.md)
-  - Value: P8cPCdaAFqnHsZOoQ7jpudSoYAVrd35hdK1VbbPzb-g
+  - Value: VZRf1JdKDTj3NrCIAkVEcPZnkblO44Bi3JSiNnU7sQk
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: 4I3Q8-9DKhW-qt2v7Y1UwtEnLnHdpS8rPQYnu76UNJ4
+  - Value: yfhDhHnm3RxKJQbGDvuDDh_vrWk_Q9xCta7MyNFQQdk
