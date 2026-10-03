@@ -498,14 +498,13 @@ await test('extension contributes stable Discovery, Incoming, Outgoing and Trans
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.discovery.setIncoming' && /discoveryPackage/.test(item.when || '')));
   const incomingMergeMenu = itemMenus.find((item) => item.command === 'tiinex.incoming.merge');
   const incomingReplaceMenu = itemMenus.find((item) => item.command === 'tiinex.incoming.replace');
+  assert.equal(incomingMergeMenu?.when, 'false');
   for (const contextValue of ['tiinex.incomingPackage', 'tiinex.incomingWorkspace', 'tiinex.incomingWorkspaceArchive']) {
-    assert.match(incomingMergeMenu?.when || '', new RegExp(contextValue));
     assert.match(incomingReplaceMenu?.when || '', new RegExp(contextValue));
   }
   assert.equal(incomingMergeMenu?.group, 'inline@1');
   assert.equal(incomingReplaceMenu?.group, 'inline@2');
   for (const exactContext of ['tiinex.incomingWorkspaceExact', 'tiinex.incomingWorkspaceArchiveExact']) {
-    assert.doesNotMatch(incomingMergeMenu?.when || '', new RegExp(exactContext));
     assert.doesNotMatch(incomingReplaceMenu?.when || '', new RegExp(exactContext));
   }
   const incomingCloseMenu = itemMenus.find((item) => item.command === 'tiinex.incoming.close');

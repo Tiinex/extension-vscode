@@ -1,3 +1,0 @@
-TypeScript transpileModule syntax qualification
-sources=50
-syntaxErrors=0
