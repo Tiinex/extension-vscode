@@ -3607,4 +3607,80 @@ await test('Workspace initialization delegates source identity and ignore semant
   assert.match(initializeMethod, /initializeWorkspaceDirectory\(this\.extensionPath, root, candidateRoots\)/);
   assert.doesNotMatch(packageBuilder, /ignoredPathsWithoutRepository|check-ignore|workspace-exclusions|repositoryRoots\(\)|repositoryFact\(/);
 });
+
+await test('Dependency-mode tasks switch the complete Tiinex dev composition without changing Build linked extension semantics', async () => {
+  const fs = await import('node:fs/promises');
+  const os = await import('node:os');
+  const { spawnSync } = await import('node:child_process');
+  const root = path.resolve(HERE, '..');
+  const tasks = JSON.parse(await fs.readFile(path.join(root, '.vscode', 'tasks.json'), 'utf8')).tasks || [];
+  const byLabel = new Map(tasks.map((item) => [item.label, item]));
+  assert.deepEqual(byLabel.get('Tiinex: Build linked extension'), {
+    label: 'Tiinex: Build linked extension',
+    type: 'npm',
+    script: 'dev:build',
+    dependsOrder: 'sequence',
+    dependsOn: ['Tiinex: npm install'],
+    group: { kind: 'build', isDefault: true },
+    problemMatcher: '$tsc',
+    presentation: { reveal: 'always', panel: 'shared', clear: true, showReuseMessage: false }
+  });
+  assert.deepEqual(byLabel.get('Tiinex: Switch all to Local')?.args, ['scripts/core-mode.mjs', 'all-local']);
+  assert.deepEqual(byLabel.get('Tiinex: Switch all to Latest')?.args, ['scripts/core-mode.mjs', 'all-latest']);
+
+  const scratch = await fs.mkdtemp(path.join(os.tmpdir(), 'tiinex-dependency-mode-'));
+  try {
+    const extension = path.join(scratch, 'extension-vscode');
+    const packageDir = async (name, manifest) => {
+      const target = path.join(scratch, name);
+      await fs.mkdir(target, { recursive: true });
+      await fs.writeFile(path.join(target, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+      return target;
+    };
+    await packageDir('core', { name: '@tiinex/core', version: '1.0.0' });
+    await packageDir('native', { name: '@tiinex/native', version: '1.0.0', tiinex: { contentSource: { registeredSurfaces: 'recursive', executableSchemaCompanions: true } } });
+    await packageDir('interop-openai', { name: '@tiinex/interop-openai', version: '1.0.0', tiinex: { contentSource: { registeredSurfaces: 'recursive' } } });
+    await fs.mkdir(path.join(extension, 'scripts'), { recursive: true });
+    await fs.mkdir(path.join(extension, '.vscode'), { recursive: true });
+    await fs.copyFile(path.join(root, 'scripts', 'core-mode.mjs'), path.join(extension, 'scripts', 'core-mode.mjs'));
+    await fs.writeFile(path.join(extension, 'package.json'), `${JSON.stringify({ name: 'tiinex-vscode', version: '1.0.0', dependencies: { '@tiinex/core': '1.0.0' } }, null, 2)}\n`);
+    const runMode = (mode) => spawnSync(process.execPath, ['scripts/core-mode.mjs', mode], {
+      cwd: extension,
+      encoding: 'utf8',
+      env: { ...process.env, TIINEX_DEPENDENCY_MODE_DRY_RUN: '1' }
+    });
+    let run = runMode('all-local');
+    assert.equal(run.status, 0, run.stderr || run.stdout);
+    let state = JSON.parse(await fs.readFile(path.join(extension, '.vscode', 'link', 'dependency-mode.json'), 'utf8'));
+    assert.equal(state.mode, 'all-local');
+    assert.deepEqual(state.packages.map((item) => item.name), ['@tiinex/core']);
+    assert.deepEqual(state.contentPackages.map((item) => item.name), ['@tiinex/interop-openai', '@tiinex/native']);
+    assert.match(run.stdout, /file:\.\.\/core/);
+    assert.match(run.stdout, /file:\.\.\/native/);
+    assert.match(run.stdout, /file:\.\.\/interop-openai/);
+
+    run = runMode('install');
+    assert.equal(run.status, 0, run.stderr || run.stdout);
+    assert.match(run.stdout, /dependency mode preserved: all-local/);
+
+    run = runMode('all-latest');
+    assert.equal(run.status, 0, run.stderr || run.stdout);
+    state = JSON.parse(await fs.readFile(path.join(extension, '.vscode', 'link', 'dependency-mode.json'), 'utf8'));
+    assert.equal(state.mode, 'all-latest');
+    assert.deepEqual(state.contentPackages.map((item) => item.name), ['@tiinex/interop-openai', '@tiinex/native']);
+    assert.match(run.stdout, /@tiinex\/core@latest/);
+    assert.match(run.stdout, /@tiinex\/native@latest/);
+    assert.match(run.stdout, /@tiinex\/interop-openai@latest/);
+  } finally { await fs.rm(scratch, { recursive: true, force: true }); }
+});
+
+await test('Diagnostics shares the same host runtime composition path as Replace, Initialize, Incoming and Pack', async () => {
+  const fs = await import('node:fs/promises');
+  const root = path.resolve(HERE, '..');
+  const diagnostics = await fs.readFile(path.join(root, 'src', 'diagnostics.ts'), 'utf8');
+  assert.match(diagnostics, /prepareHostCoreRuntime/);
+  assert.doesNotMatch(diagnostics, /prepareWorkspaceCoreRuntime/);
+  assert.match(diagnostics, /containingWorkspaceRoot/);
+});
+
 console.log(`\n${count}/${count} Tiinex VS Code bridge core cases passed.`);

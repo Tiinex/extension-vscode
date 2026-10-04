@@ -1,9 +1,8 @@
 import { createHash } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { preferredNodeExecutable } from './host/nodeExecutable';
-import { prepareBundledRuntime, prepareWorkspaceCoreRuntime, projectEditorAssistance, projectEditorAssistanceText } from './tiinex/bootstrap';
+import { prepareHostCoreRuntime, projectEditorAssistance, projectEditorAssistanceText } from './tiinex/bootstrap';
 import { relativeRepositoryPath } from './core/repositoryPath';
 import { repositoryRootForResource } from './vscode/gitApi';
 import { LatestWinsKeyedQueue } from './core/latestWinsQueue';
@@ -37,6 +36,20 @@ function eligible(document: vscode.TextDocument): boolean {
 function digest(text: string): string { return createHash('sha256').update(Buffer.from(text, 'utf8')).digest('hex'); }
 function message(error: unknown): string { return error instanceof Error ? error.message : String(error); }
 
+async function materialRootForResource(resourcePath: string): Promise<string> {
+  try { return await repositoryRootForResource(resourcePath); }
+  catch (error) {
+    if (message(error) !== 'tiinex.vscode.resource-repository-unresolved') throw error;
+    const resolved = path.resolve(resourcePath);
+    const matches = (vscode.workspace.workspaceFolders || [])
+      .map((folder: vscode.WorkspaceFolder) => path.resolve(folder.uri.fsPath))
+      .filter((root: string) => { const relative = path.relative(root, resolved); return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative)); })
+      .sort((a: string, b: string) => b.length - a.length);
+    if (!matches.length) throw error;
+    return matches[0];
+  }
+}
+
 function diagnosticCode(value: unknown): string {
   if (value && typeof value === 'object' && 'value' in value) return String((value as { value?: unknown }).value || '');
   return String(value || '');
@@ -62,17 +75,11 @@ function projectedDiagnosticRange(document: vscode.TextDocument, item: { line?: 
 
 async function prepareDiagnosticsRuntime(extensionPath: string) {
   const nodeExecutable = preferredNodeExecutable(vscode.workspace.getConfiguration('tiinex').get('nodePath', '').toString().trim());
-  for (const folder of vscode.workspace.workspaceFolders || []) {
-    let manifest: { name?: string } | null = null;
-    try { manifest = JSON.parse(await readFile(vscode.Uri.joinPath(folder.uri, 'package.json').fsPath, 'utf8')) as { name?: string }; }
-    catch { continue; }
-    if (String(manifest?.name || '') !== '@tiinex/core') continue;
-    // If a Local Core Workspace is explicitly open, diagnostics must execute
-    // that exact source runtime. Falling back to a stale bundled Core would
-    // make source locations and Quick Fixes disagree with the visible source.
-    return prepareWorkspaceCoreRuntime(folder.uri.fsPath, nodeExecutable);
-  }
-  return prepareBundledRuntime(extensionPath, nodeExecutable);
+  const roots = (vscode.workspace.workspaceFolders || []).map((folder: vscode.WorkspaceFolder) => folder.uri.fsPath);
+  // Diagnostics must use the same host runtime boundary as Replace, Initialize,
+  // Incoming and Outgoing so persisted Local/Latest dependency composition and
+  // open Workspace roots cannot disagree about schema/content availability.
+  return prepareHostCoreRuntime(extensionPath, roots, nodeExecutable);
 }
 
 export class TiinexDiagnosticsController implements vscode.Disposable {
@@ -82,7 +89,7 @@ export class TiinexDiagnosticsController implements vscode.Disposable {
   private readonly changed = new vscode.EventEmitter<DiagnosticsSnapshot | null>();
   readonly onDidChange = this.changed.event;
   private readonly status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 80);
-  private runtimePromise: ReturnType<typeof prepareBundledRuntime> | null = null;
+  private runtimePromise: ReturnType<typeof prepareHostCoreRuntime> | null = null;
   private readonly disposables: vscode.Disposable[] = [];
   private readonly debounceTimers = new Map<string, NodeJS.Timeout>();
   private readonly generations = new Map<string, number>();
@@ -203,7 +210,7 @@ export class TiinexDiagnosticsController implements vscode.Disposable {
     try {
       const runtime = await this.runtime();
       if (!this.liveDocument(request)) return this.snapshots.get(key) || null;
-      const materialRoot = await repositoryRootForResource(sourcePath);
+      const materialRoot = await materialRootForResource(sourcePath);
       const focusPath = relativeRepositoryPath(materialRoot, sourcePath);
       const live = this.liveDocument(request);
       const markdownForResolution = content === null ? String(live?.getText() || '') : content;
@@ -279,7 +286,7 @@ export class TiinexDiagnosticsController implements vscode.Disposable {
   }
 
   private async workspaceEditForAction(document: vscode.TextDocument, item: any): Promise<{ state: 'ready' | 'stale' | 'failed'; edit?: vscode.WorkspaceEdit }> {
-    const materialRoot = await repositoryRootForResource(document.fileName);
+    const materialRoot = await materialRootForResource(document.fileName);
     const focusPath = relativeRepositoryPath(materialRoot, document.fileName);
     const replacements = item.kind === 'replace-record-set' && Array.isArray(item.replacements) && item.replacements.length
       ? item.replacements

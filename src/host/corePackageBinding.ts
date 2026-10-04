@@ -8,8 +8,13 @@ async function dependencyMode(extensionPath: string): Promise<{ checkoutRoot: st
   try { checkoutRoot = await realpath(extensionPath); } catch { checkoutRoot = path.resolve(extensionPath); }
   try {
     const raw = JSON.parse(await readFile(path.join(checkoutRoot, '.vscode', 'link', 'dependency-mode.json'), 'utf8'));
-    const mode = String(raw?.mode || '').trim().toLowerCase();
-    if (mode === 'local' || mode === 'published') return { checkoutRoot, state: { mode, coreRoot: String(raw?.coreRoot || '../core') } as CoreDependencyModeState };
+    const rawMode = String(raw?.mode || '').trim().toLowerCase();
+    const mode: CoreDependencyModeState['mode'] | '' = rawMode === 'local' || rawMode === 'all-local'
+      ? 'local'
+      : rawMode === 'published' || rawMode === 'all-latest'
+        ? 'published'
+        : '';
+    if (mode) return { checkoutRoot, state: { mode, coreRoot: String(raw?.coreRoot || '../core') } as CoreDependencyModeState };
   } catch { /* legacy checkout without explicit mode */ }
   return { checkoutRoot, state: null };
 }

@@ -13,6 +13,8 @@ const run = promisify(execFile);
 const scratch = await mkdtemp(path.join(os.tmpdir(), 'tiinex-vscode-local-directory-'));
 const fixture = path.join(scratch, 'ordinary-folder');
 const gitFixture = path.join(scratch, 'git-without-origin');
+const gitOriginFixture = path.join(scratch, 'git-with-origin');
+const nestedOnlyFixture = path.join(scratch, 'nested-only');
 const output = path.join(scratch, 'out');
 const directOutput = path.join(scratch, 'direct-out');
 const gitOutput = path.join(scratch, 'git-out');
@@ -39,7 +41,7 @@ try {
     return request === 'vscode' ? vscode : originalLoad.call(this, request, parent, isMain);
   };
   const { initializeWorkspaceDirectory } = require('../dist/workspaceInitialization.js');
-  const { loadLocalWorkspaceChoices, buildHandoffPackageFromForm } = require('../dist/packageBuilder.js');
+  const { loadLocalWorkspaceChoices, qualifyLocalWorkspaceChoice, buildHandoffPackageFromForm } = require('../dist/packageBuilder.js');
   const { prepareBundledRuntime, runTiinexJson } = require('../dist/tiinex/bootstrap.js');
   const { inspectZipBuffer, readExactZipEntryFromBuffer } = require('../dist/host/zip.js');
 
@@ -75,7 +77,8 @@ try {
   assert.equal(choices[0].root, fixture);
   assert.equal(choices[0].sourceKind, 'local-directory');
   assert.equal(choices[0].repository, '');
-  pass('VS Code Discovery consumes the qualified non-Git Workspace candidate without Git/origin host authority');
+  assert.ok(await qualifyLocalWorkspaceChoice(root, fixture, choices[0].workspaceId));
+  pass('VS Code Discovery and Replace qualification consume the qualified non-Git Workspace candidate without Git/origin host authority or a folder prompt');
 
   const runtime = await prepareBundledRuntime(root, process.execPath);
   let direct;
@@ -156,6 +159,44 @@ try {
   assert.equal(gitNestedPaths.includes('tracked.zip'), true);
   assert.equal(gitNestedPaths.includes('generated.zip'), false);
   pass('Git checkout without origin initializes locally and shared Core preserves tracked ignored files while omitting ignored untracked files');
+
+
+  await mkdir(gitOriginFixture, { recursive: true });
+  await git(gitOriginFixture, 'init', '-q');
+  await git(gitOriginFixture, 'config', 'user.name', 'Tiinex Test');
+  await git(gitOriginFixture, 'config', 'user.email', 'tiinex@example.invalid');
+  await git(gitOriginFixture, 'remote', 'add', 'origin', 'https://github.com/Tiinex/workspace-origin-fixture.git');
+  await writeFile(path.join(gitOriginFixture, 'README.md'), '# git with origin\n', 'utf8');
+  await git(gitOriginFixture, 'add', 'README.md');
+  await git(gitOriginFixture, 'commit', '-qm', 'fixture');
+  const originCreated = await initializeWorkspaceDirectory(root, gitOriginFixture);
+  assert.equal(originCreated.status, 'ready', JSON.stringify(originCreated.findings || [], null, 2));
+  assert.equal(originCreated.sourceDetection?.sourceKind, 'github-tree');
+  assert.equal(originCreated.sourceDetection?.repository, 'tiinex/workspace-origin-fixture');
+  const originDescriptor = await readFile(originCreated.writeReceipt.path, 'utf8');
+  assert.match(originDescriptor, /Repository: Tiinex\/workspace-origin-fixture/);
+  vscode.workspace.workspaceFolders = [{ uri: { fsPath: gitOriginFixture } }];
+  const originChoices = await loadLocalWorkspaceChoices(root);
+  assert.equal(originChoices.length, 1);
+  assert.ok(await qualifyLocalWorkspaceChoice(root, gitOriginFixture, originChoices[0].workspaceId));
+  pass('Git checkout with origin initializes as repository-backed Workspace and Replace qualification rediscovers it without prompting');
+
+  await mkdir(nestedOnlyFixture, { recursive: true });
+  const firstPrimary = await initializeWorkspaceDirectory(root, nestedOnlyFixture);
+  assert.equal(firstPrimary.status, 'ready', JSON.stringify(firstPrimary.findings || [], null, 2));
+  const nestedTarget = path.join(nestedOnlyFixture, '.topics', 'module', '.workspaces', path.basename(firstPrimary.writeReceipt.path));
+  await mkdir(path.dirname(nestedTarget), { recursive: true });
+  await writeFile(nestedTarget, await readFile(firstPrimary.writeReceipt.path));
+  await rm(path.dirname(firstPrimary.writeReceipt.path), { recursive: true, force: true });
+  const recreated = await initializeWorkspaceDirectory(root, nestedOnlyFixture);
+  assert.equal(recreated.status, 'ready', JSON.stringify(recreated.findings || [], null, 2));
+  assert.match(recreated.writeReceipt.workspaceRelativePath, /^\.topics\/\.workspaces\//);
+  vscode.workspace.workspaceFolders = [{ uri: { fsPath: nestedOnlyFixture } }];
+  const nestedChoices = await loadLocalWorkspaceChoices(root);
+  assert.equal(nestedChoices.length, 1, JSON.stringify(nestedChoices, null, 2));
+  assert.match(nestedChoices[0].workspaceTargetPath, /^\.topics\/\.workspaces\//);
+  assert.ok(await qualifyLocalWorkspaceChoice(root, nestedOnlyFixture, nestedChoices[0].workspaceId));
+  pass('Initialize recreates a direct primary Workspace when only a nested .workspaces surface remains, while Replace selects the primary representative');
 } finally {
   Module._load = originalLoad;
   await rm(scratch, { recursive: true, force: true });

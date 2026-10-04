@@ -1,7 +1,7 @@
 import { qualifyInstalledCore } from '../host/corePackageBinding';
 import os from 'node:os';
 import path from 'node:path';
-import { mkdir, mkdtemp, rm, writeFile, access, readFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile, access, readFile, realpath } from 'node:fs/promises';
 import { extractZipBuffer, readExactZipEntryFromFile, sha256Hex } from '../host/zip';
 import { nodeProcessEnvironment, ProcessRunner, runChecked, runProcess } from '../host/process';
 import { preferredNodeExecutable } from '../host/nodeExecutable';
@@ -15,10 +15,51 @@ export interface PackageRuntime {
   root: string;
   entrypoint: string;
   nodeExecutable: string;
+  contentRoots?: readonly string[];
+  compositionRoot?: string;
   dispose(): Promise<void>;
 }
 
 interface BootstrapDescriptor { packagePath: string; bytes: number; sha256: string; entrypoint: string }
+
+interface DependencyModePackage { name?: string; root?: string }
+interface DependencyModeState {
+  mode?: string;
+  coreRoot?: string;
+  packages?: DependencyModePackage[];
+  contentPackages?: DependencyModePackage[];
+}
+
+async function dependencyModeState(extensionPath: string): Promise<{ checkoutRoot: string; state: DependencyModeState | null }> {
+  let checkoutRoot: string;
+  try { checkoutRoot = await realpath(extensionPath); }
+  catch { checkoutRoot = path.resolve(extensionPath); }
+  try {
+    return { checkoutRoot, state: JSON.parse(await readFile(path.join(checkoutRoot, '.vscode', 'link', 'dependency-mode.json'), 'utf8')) as DependencyModeState };
+  } catch { return { checkoutRoot, state: null }; }
+}
+
+async function dependencyModeRuntime(extensionPath: string): Promise<{ coreRoot: string; contentRoots: string[] }> {
+  const { checkoutRoot, state } = await dependencyModeState(extensionPath);
+  const mode = String(state?.mode || '').trim();
+  const local = mode === 'local' || mode === 'all-local';
+  const all = mode === 'all-local' || mode === 'all-latest';
+  const coreRoot = local && state?.coreRoot ? path.resolve(checkoutRoot, String(state.coreRoot)) : '';
+  const contentRoots: string[] = [];
+  if (all) {
+    for (const item of state?.contentPackages || []) {
+      const name = String(item?.name || '').trim();
+      const configuredRoot = String(item?.root || '').trim();
+      if (!name) continue;
+      const target = mode === 'all-local' && configuredRoot
+        ? path.resolve(checkoutRoot, configuredRoot)
+        : path.resolve(checkoutRoot, 'node_modules', ...name.split('/'));
+      try { await access(path.join(target, 'package.json')); contentRoots.push(target); }
+      catch { /* Dependency-mode state is advisory until npm install materializes the selected package. */ }
+    }
+  }
+  return { coreRoot, contentRoots: normalizeContentRoots(contentRoots) };
+}
 
 function markdownLinkTarget(markdown: string, label: RegExp): string {
   const lines = markdown.split(/\r?\n/);
@@ -107,7 +148,7 @@ export async function preparePackageRuntime(
 }
 
 
-export async function prepareWorkspaceCoreRuntime(rootValue: string, nodeExecutable = preferredNodeExecutable()): Promise<PackageRuntime> {
+export async function prepareWorkspaceCoreRuntime(rootValue: string, nodeExecutable = preferredNodeExecutable(), contentRoots: string[] = []): Promise<PackageRuntime> {
   const root = path.resolve(String(rootValue || '').trim());
   if (!root) throw new Error('tiinex.core-source-runtime.root-required');
   let manifest: any;
@@ -118,32 +159,45 @@ export async function prepareWorkspaceCoreRuntime(rootValue: string, nodeExecuta
   const relative = path.relative(root, entrypoint);
   if (!relative || relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) throw new Error('tiinex.core-source-runtime.entrypoint-outside-root');
   await access(entrypoint);
-  return { root, entrypoint, nodeExecutable, dispose: async () => undefined };
+  return { root, entrypoint, nodeExecutable, contentRoots: normalizeContentRoots(contentRoots), compositionRoot: root, dispose: async () => undefined };
 }
 
 
 export async function prepareHostCoreRuntime(extensionPath: string, candidateRoots: string[] = [], nodeExecutable = preferredNodeExecutable()): Promise<PackageRuntime> {
-  const roots=[...new Set(candidateRoots.map((item)=>path.resolve(String(item||'').trim())).filter(Boolean))];
-  const coreRoots=[];
+  const mode = await dependencyModeRuntime(extensionPath);
+  const roots = normalizeContentRoots([...candidateRoots, ...mode.contentRoots]);
+  const coreRoots: string[] = [];
+  if (mode.coreRoot) coreRoots.push(mode.coreRoot);
   for (const root of roots) {
-    try { const manifest=JSON.parse(await readFile(path.join(root,'package.json'),'utf8')); if(String(manifest?.name||'').trim()==='@tiinex/core') coreRoots.push(root); }
-    catch { /* non-Core host root */ }
+    try {
+      const manifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
+      if (String(manifest?.name || '').trim() === '@tiinex/core') coreRoots.push(root);
+    } catch { /* non-Core host root */ }
   }
-  if (coreRoots.length>1) throw new Error(`tiinex.core-source-runtime.ambiguous:${coreRoots.join(',')}`);
-  if (coreRoots.length===1) return prepareWorkspaceCoreRuntime(coreRoots[0],nodeExecutable);
-  return prepareBundledRuntime(extensionPath,nodeExecutable);
+  const uniqueCoreRoots = normalizeContentRoots(coreRoots);
+  if (uniqueCoreRoots.length > 1) throw new Error(`tiinex.core-source-runtime.ambiguous:${uniqueCoreRoots.join(',')}`);
+  if (uniqueCoreRoots.length === 1) return prepareWorkspaceCoreRuntime(uniqueCoreRoots[0], nodeExecutable, roots);
+  return prepareBundledRuntime(extensionPath, nodeExecutable, roots);
 }
 
-export async function prepareBundledRuntime(extensionPath: string, nodeExecutable = preferredNodeExecutable()): Promise<PackageRuntime> {
+export async function prepareBundledRuntime(extensionPath: string, nodeExecutable = preferredNodeExecutable(), contentRoots: string[] = []): Promise<PackageRuntime> {
+  const mode = await dependencyModeRuntime(extensionPath);
   const binding = await qualifyInstalledCore(extensionPath);
-  return { root: binding.root, entrypoint: binding.entrypoint, nodeExecutable, dispose: async () => undefined };
+  return { root: binding.root, entrypoint: binding.entrypoint, nodeExecutable, contentRoots: normalizeContentRoots([...contentRoots, ...mode.contentRoots]), compositionRoot: extensionPath, dispose: async () => undefined };
+}
+
+function normalizeContentRoots(values: readonly string[] = []): string[] {
+  return [...new Set(values.map((item) => String(item || '').trim()).filter(Boolean).map((item) => path.resolve(item)))];
 }
 
 function messageOf(error: unknown): string { return error instanceof Error ? error.message : String(error); }
 
 export async function runTiinexJson<T>(runtime: PackageRuntime, args: string[], runner: ProcessRunner = runProcess): Promise<T> {
   const commandArgs = [runtime.entrypoint, ...args];
-  const result = await runner(runtime.nodeExecutable, commandArgs, { env: nodeProcessEnvironment() });
+  const env = nodeProcessEnvironment();
+  const contentRoots = normalizeContentRoots(runtime.contentRoots || []);
+  if (contentRoots.length) env.TIINEX_CONTENT_ROOTS = contentRoots.join(path.delimiter);
+  const result = await runner(runtime.nodeExecutable, commandArgs, { cwd: runtime.compositionRoot || runtime.root, env });
   const text = result.stdout.trim();
 
   // Portable Tooling deliberately uses non-zero exit codes when a valid machine
@@ -785,7 +839,10 @@ export async function createArtifactDraft(
 
 async function runManufactureHandoffPackage(runtime: PackageRuntime, args: string[], compact: boolean, runner: ProcessRunner = runProcess): Promise<any> {
   const commandArgs = [runtime.entrypoint, 'manufacture-handoff-package', ...args, ...(compact ? ['--compact'] : [])];
-  const result = await runner(runtime.nodeExecutable, commandArgs, { env: nodeProcessEnvironment() });
+  const env = nodeProcessEnvironment();
+  const contentRoots = normalizeContentRoots(runtime.contentRoots || []);
+  if (contentRoots.length) env.TIINEX_CONTENT_ROOTS = contentRoots.join(path.delimiter);
+  const result = await runner(runtime.nodeExecutable, commandArgs, { cwd: runtime.compositionRoot || runtime.root, env });
   if (![0, 2].includes(result.code)) {
     const raw = result.stderr.trim() || result.stdout.trim() || String(result.code);
     let reason = raw;

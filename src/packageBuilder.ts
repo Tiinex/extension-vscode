@@ -6,7 +6,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import * as vscode from 'vscode';
 import { extensionHostAcceptanceEnabled, recordExtensionHostAcceptanceEvent } from './vscode/extensionHostAcceptance';
 import { preferredNodeExecutable } from './host/nodeExecutable';
-import { manufactureHandoffPackage, manufactureHandoffPackageDetailed, projectHandoffCarrierOutputCollision, projectHandoffParticipants, OperatorContextResult, prepareBundledRuntime, prepareHostCoreRuntime, prepareWorkspaceCoreRuntime, projectHandoffLeaves, projectHandoffEndpoints, projectOperatorContext, projectWorkspacePackageSources, WorkspacePackageSourcesResult } from './tiinex/bootstrap';
+import { manufactureHandoffPackage, manufactureHandoffPackageDetailed, projectHandoffCarrierOutputCollision, projectHandoffParticipants, OperatorContextResult, prepareBundledRuntime, prepareHostCoreRuntime, projectHandoffLeaves, projectHandoffEndpoints, projectOperatorContext, projectWorkspacePackageSources, WorkspacePackageSourcesResult } from './tiinex/bootstrap';
 import { workspaceCarrierArgs } from './core/packageArgs';
 import { exactRouteByKey, routeChoiceKey } from './core/operatorModel';
 import { repositoryContainsPath, sameRepositoryRoot } from './core/repositoryPath';
@@ -46,6 +46,11 @@ function nodeExecutable(): string { return preferredNodeExecutable(vscode.worksp
 function receiptBlocker(receipt: any): string { return presentActionableFindings(receipt?.findings || [], receipt?.status || 'unknown'); }
 function workspaceSourceLabel(item: WorkspaceSource): string { return item.repository ? `${item.repository}@${item.ref || '(no ref)'}` : (item.sourceKind || 'local snapshot'); }
 function reportProgress(input: PackageBuildInput, message: string): void { input.reportProgress?.(message); }
+
+async function cleanupScratch(root: string): Promise<void> {
+  try { await rm(root, { recursive: true, force: true, maxRetries: 8, retryDelay: 75 }); }
+  catch { /* Disposable temp cleanup must never mask a qualified/published carrier or the original operation error. */ }
+}
 
 function receiptWorkspaceIds(receipt: any): string[] {
   const candidates = receipt?.planSummary?.workspaces || receipt?.manufacturingEvidence?.workspaceEnumerations || receipt?.carrierProjection?.workspaces || [];
@@ -561,15 +566,15 @@ async function prepareSelectedCoreManufactureRuntime(extensionPath: string, inpu
   const override = (input.workspaceSourceOverrides || []).find((item) => String(item.workspaceId || '').trim() === 'core');
   const incoming = (input.incomingWorkspaceSources || []).find((item) => String(item.workspaceId || '').trim() === 'core');
   if (override?.root && incoming?.packagePath) throw new Error('tiinex.package-builder.core-source-ambiguous');
-  if (override?.root) return prepareWorkspaceCoreRuntime(String(override.root), nodeExecutable());
+  if (override?.root) return prepareHostCoreRuntime(extensionPath, [String(override.root), ...openWorkspaceRoots()], nodeExecutable());
   if (incoming?.packagePath && incoming?.archivePath) {
     const archive = await readExactZipEntryFromFile(path.resolve(incoming.packagePath), String(incoming.archivePath));
     const root = path.join(scratch, 'selected-core-runtime');
     await mkdir(root, { recursive: true });
     await extractZipBuffer(archive, root);
-    return prepareWorkspaceCoreRuntime(root, nodeExecutable());
+    return prepareHostCoreRuntime(extensionPath, [root, ...openWorkspaceRoots()], nodeExecutable());
   }
-  return prepareBundledRuntime(extensionPath, nodeExecutable());
+  return prepareBundledRuntime(extensionPath, nodeExecutable(), openWorkspaceRoots());
 }
 
 function participantProjectionFromCoreResult(projection: any): PackageParticipantProjection {
@@ -647,7 +652,7 @@ export async function projectHandoffPackageParticipants(extensionPath: string, i
   } catch (error) {
     return { state: 'blocked', roles: [], findings: [], detail: String(error instanceof Error ? error.message : error) };
   } finally {
-    await rm(scratch, { recursive: true, force: true });
+    await cleanupScratch(scratch);
     if (runtime) await runtime.dispose();
   }
 }
@@ -796,5 +801,5 @@ ${receiptBlocker(built)}`);
     const autoCopied = routeTexts.length === 1;
     if (autoCopied) await vscode.env.clipboard.writeText(routeTexts[0].text);
     return { outputPath, routingText: autoCopied ? routeTexts[0].text : '', routeRoutingTexts: routeTexts, autoCopiedTransportText: autoCopied, routeId: route.id, routeIds: routeInputs.map((item) => item.route.id), workspaceIds: selectedSources.map((item) => item.workspaceId) };
-  } finally { await rm(scratch, { recursive: true, force: true }); if (runtime) await runtime.dispose(); }
+  } finally { await cleanupScratch(scratch); if (runtime) await runtime.dispose(); }
 }

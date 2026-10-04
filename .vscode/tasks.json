@@ -81,33 +81,39 @@
     {
       "label": "Tiinex: Switch all to Local",
       "type": "shell",
-      "command": "echo Tiinex local dependencies active.",
-      "dependsOrder": "sequence",
-      "dependsOn": [
-        "Tiinex: Use local Core"
-      ],
+      "command": "node",
       "problemMatcher": [],
       "presentation": {
         "reveal": "always",
         "panel": "shared",
         "clear": true,
         "showReuseMessage": false
+      },
+      "args": [
+        "scripts/core-mode.mjs",
+        "all-local"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
       }
     },
     {
       "label": "Tiinex: Switch all to Latest",
       "type": "shell",
-      "command": "echo Tiinex npm dependencies active.",
-      "dependsOrder": "sequence",
-      "dependsOn": [
-        "Tiinex: Switch Core to Latest"
-      ],
+      "command": "node",
       "problemMatcher": [],
       "presentation": {
         "reveal": "always",
         "panel": "shared",
         "clear": true,
         "showReuseMessage": false
+      },
+      "args": [
+        "scripts/core-mode.mjs",
+        "all-latest"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
       }
     },
     {
