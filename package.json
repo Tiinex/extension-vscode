@@ -236,6 +236,11 @@
         "icon": "$(check)"
       },
       {
+        "command": "tiinex.stageAllWorkspaces",
+        "title": "Tiinex: Stage All Workspaces",
+        "icon": "$(add)"
+      },
+      {
         "command": "tiinex.stageCommitPush",
         "title": "Tiinex: Stage, Commit & Push with Tiinex (Compatibility)"
       },

@@ -213,6 +213,11 @@ export async function stageLandingChanges(root: string, protectedPaths: string[]
   return true;
 }
 
+/** Stage the complete working tree for one Git repository without Tiinex qualification, review, commit, or push. */
+export async function stageAllChanges(root: string, runner: ProcessRunner = runProcess): Promise<void> {
+  await runChecked('git', ['add', '-A'], { cwd: root }, runner);
+}
+
 /**
  * Return the exact staged path closure without rename collapsing. This is used
  * when Incoming must distinguish Git-native merge staging from pre-existing

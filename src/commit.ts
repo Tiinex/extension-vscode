@@ -9,6 +9,7 @@ import {
   PreparedGitOperatorCommit,
   pushExactGitOperatorCommit,
   repositoryFact,
+  stageAllChanges,
   stageCommitPush
 } from './host/git';
 import { prepareBundledRuntime, projectOperatorContext, projectStagedValidation } from './tiinex/bootstrap';
@@ -46,6 +47,22 @@ export async function generateCommitMessageCommand(extensionPath: string): Promi
   const commitMessage = await generateTiinexCommitMessage(root, nodeExecutable());
   await setRepositoryInput(root, commitMessage);
   await vscode.window.showInformationMessage(`Tiinex commit message generated for ${root}. Review it in Source Control before committing.`);
+}
+
+
+export async function stageAllWorkspacesCommand(): Promise<void> {
+  const roots = await repositoryRoots();
+  if (!roots.length) throw new Error('tiinex.vscode.no-git-repositories');
+  const failures: Array<{ root: string; error: string }> = [];
+  for (const root of roots) {
+    try { await stageAllChanges(root); }
+    catch (error) { failures.push({ root, error: errorText(error) }); }
+  }
+  if (failures.length) {
+    const details = failures.map((item) => `${item.root}: ${item.error}`).join('\n');
+    throw new Error(`tiinex.git.stage-all-workspaces.partial-failure:${failures.length}/${roots.length}\n${details}`);
+  }
+  await vscode.window.showInformationMessage(`Tiinex staged all changes in ${roots.length} Git workspace${roots.length === 1 ? '' : 's'}.`);
 }
 
 export async function stageCommitPushCommand(extensionPath: string): Promise<void> {

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { generateCommitMessageCommand, stageCommitPushCommand, stageCommitPushManyCommand } from './commit';
+import { generateCommitMessageCommand, stageAllWorkspacesCommand, stageCommitPushCommand, stageCommitPushManyCommand } from './commit';
 import { registerTiinexDiagnostics } from './diagnostics';
 import { TiinexOperatorTrees } from './operatorTrees';
 import { manualRepositoryCommitCommand, registerGitAutomation } from './gitAutomation';
@@ -130,6 +130,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   context.subscriptions.push(vscode.commands.registerCommand('tiinex.generateCommitMessage', async () => {
     try { await generateCommitMessageCommand(extensionPath); } catch (error) { await vscode.window.showErrorMessage(`Tiinex commit-message generation failed: ${message(error)}`); }
+  }));
+  context.subscriptions.push(vscode.commands.registerCommand('tiinex.stageAllWorkspaces', async () => {
+    try { await stageAllWorkspacesCommand(); } catch (error) { await vscode.window.showErrorMessage(`Tiinex Stage All Workspaces failed: ${message(error)}`, { modal: true }); }
   }));
   context.subscriptions.push(vscode.commands.registerCommand('tiinex.stageCommitPush', async () => {
     try { await stageCommitPushCommand(extensionPath); } catch (error) { await vscode.window.showErrorMessage(`Tiinex Stage, Commit & Push failed: ${message(error)}`, { modal: true }); }
