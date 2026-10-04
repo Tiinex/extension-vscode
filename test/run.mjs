@@ -31,7 +31,7 @@ import { checkIgnoredPaths, commitPreparedGitOperator, commitPreparedReviewedSta
 import { preferredNodeExecutable } from '../dist/host/nodeExecutable.js';
 import { copyFileToClipboard } from '../dist/host/fileClipboard.js';
 import { existingCarrierFilenames, inspectCarrierDestination } from '../dist/host/carrierPublish.js';
-import { compareIncomingWorkspaceToLocal, createArtifactDraft, inspectArtifactCreationContract, manufactureHandoffPackage, manufactureHandoffPackageDetailed, parseBootstrapDescriptor, prepareBundledRuntime, projectArtifactMaterialization, projectArtifactSchemaGuide, runTiinexJson, projectEditorAssistanceText, projectHandoffCarrierMajorFrontier, projectHandoffCarrierOutputCollision, projectHandoffCarrierTransportName, projectHandoffEndpoints, projectOperatorContext, projectPackageTransport, projectStagedValidation, projectTransitionCatalog, projectTransitionNeighborhood, projectWorkspaceLanding, projectWorkspacePackageSources, projectWorkspaceSessionRoles } from '../dist/tiinex/bootstrap.js';
+import { compareIncomingWorkspaceToLocal, createArtifactDraft, inspectArtifactCreationContract, manufactureHandoffPackage, manufactureHandoffPackageDetailed, parseBootstrapDescriptor, prepareBundledRuntime, prepareHostCoreRuntime, projectArtifactMaterialization, projectArtifactSchemaGuide, runTiinexJson, projectEditorAssistanceText, projectHandoffCarrierMajorFrontier, projectHandoffCarrierOutputCollision, projectHandoffCarrierTransportName, projectHandoffEndpoints, projectOperatorContext, projectPackageTransport, projectStagedValidation, projectTransitionCatalog, projectTransitionNeighborhood, projectWorkspaceLanding, projectWorkspacePackageSources, projectWorkspaceSessionRoles } from '../dist/tiinex/bootstrap.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 let count = 0;
@@ -3681,6 +3681,50 @@ await test('Diagnostics shares the same host runtime composition path as Replace
   assert.match(diagnostics, /prepareHostCoreRuntime/);
   assert.doesNotMatch(diagnostics, /prepareWorkspaceCoreRuntime/);
   assert.match(diagnostics, /containingWorkspaceRoot/);
+});
+
+
+await test('Host Core runtime collapses physical path aliases before declaring source ambiguity', async () => {
+  const fs = await import('node:fs/promises');
+  const os = await import('node:os');
+  const scratch = await fs.mkdtemp(path.join(os.tmpdir(), 'tiinex-core-alias-'));
+  try {
+    const extension = path.join(scratch, 'extension-vscode');
+    const core = path.join(scratch, 'core');
+    const alias = path.join(scratch, 'core-alias');
+    await fs.mkdir(path.join(extension, '.vscode', 'link'), { recursive: true });
+    await fs.mkdir(path.join(core, 'tools'), { recursive: true });
+    await fs.writeFile(path.join(core, 'package.json'), JSON.stringify({ name: '@tiinex/core', version: '1.0.0' }));
+    await fs.writeFile(path.join(core, 'tools', 'tiinex-portable.mjs'), 'export {};\n');
+    await fs.symlink(core, alias, 'dir');
+    await fs.writeFile(path.join(extension, '.vscode', 'link', 'dependency-mode.json'), JSON.stringify({ mode: 'all-local', coreRoot: '../core' }));
+    const runtime = await prepareHostCoreRuntime(extension, [alias, core], process.execPath);
+    try { assert.equal(await fs.realpath(runtime.root), await fs.realpath(core)); }
+    finally { await runtime.dispose(); }
+
+    const other = path.join(scratch, 'other-core');
+    await fs.mkdir(path.join(other, 'tools'), { recursive: true });
+    await fs.writeFile(path.join(other, 'package.json'), JSON.stringify({ name: '@tiinex/core', version: '1.0.0' }));
+    await fs.writeFile(path.join(other, 'tools', 'tiinex-portable.mjs'), 'export {};\n');
+    await assert.rejects(() => prepareHostCoreRuntime(extension, [core, other], process.execPath), /tiinex\.core-source-runtime\.ambiguous/);
+  } finally { await fs.rm(scratch, { recursive: true, force: true }); }
+});
+
+await test('Incoming qualified-match projection and Outgoing fallback share the Host Core runtime boundary', async () => {
+  const fs = await import('node:fs/promises');
+  const root = path.resolve(HERE, '..');
+  const tree = await fs.readFile(path.join(root, 'src', 'operatorTrees.ts'), 'utf8');
+  const builder = await fs.readFile(path.join(root, 'src', 'packageBuilder.ts'), 'utf8');
+  const deltaStart = tree.indexOf('private async packageDeltaView');
+  const deltaEnd = tree.indexOf('private deltaDescription', deltaStart);
+  const delta = tree.slice(deltaStart, deltaEnd);
+  assert.match(delta, /prepareHostCoreRuntime\(this\.extensionPath, localRoots/);
+  assert.doesNotMatch(delta, /prepareBundledRuntime/);
+  assert.doesNotMatch(delta, /catch\s*\{\s*return \{ workspaces: new Map\(index\.workspaces/);
+  const selectedStart = builder.indexOf('async function prepareSelectedCoreManufactureRuntime');
+  const selectedEnd = builder.indexOf('function participantProjectionFromCoreResult', selectedStart);
+  const selected = builder.slice(selectedStart, selectedEnd);
+  assert.match(selected, /return prepareHostCoreRuntime\(extensionPath, openWorkspaceRoots\(\), nodeExecutable\(\)\)/);
 });
 
 console.log(`\n${count}/${count} Tiinex VS Code bridge core cases passed.`);

@@ -163,9 +163,38 @@ export async function prepareWorkspaceCoreRuntime(rootValue: string, nodeExecuta
 }
 
 
+async function canonicalHostRoot(value: string): Promise<string> {
+  const resolved = path.resolve(String(value || '').trim());
+  if (!resolved) return '';
+  let physical = resolved;
+  try { physical = await realpath(resolved); }
+  catch { /* A candidate may disappear between host discovery and runtime selection. */ }
+  return process.platform === 'win32' ? physical.toLowerCase() : physical;
+}
+
+async function uniquePhysicalRoots(values: readonly string[] = []): Promise<string[]> {
+  const roots = new Map<string, string>();
+  for (const value of values) {
+    const raw = String(value || '').trim();
+    if (!raw) continue;
+    const resolved = path.resolve(raw);
+    const key = await canonicalHostRoot(resolved);
+    if (!key || roots.has(key)) continue;
+    let physical = resolved;
+    try { physical = await realpath(resolved); }
+    catch { /* Preserve the resolved host coordinate if realpath is temporarily unavailable. */ }
+    roots.set(key, physical);
+  }
+  return [...roots.values()];
+}
+
 export async function prepareHostCoreRuntime(extensionPath: string, candidateRoots: string[] = [], nodeExecutable = preferredNodeExecutable()): Promise<PackageRuntime> {
   const mode = await dependencyModeRuntime(extensionPath);
-  const roots = normalizeContentRoots([...candidateRoots, ...mode.contentRoots]);
+  // A linked VS Code checkout can expose the same physical repository through
+  // the dependency-mode coordinate, an open Workspace coordinate and a
+  // junction/symlink coordinate. Collapse those host aliases before deciding
+  // whether more than one Core implementation is present.
+  const roots = await uniquePhysicalRoots([...candidateRoots, ...mode.contentRoots]);
   const coreRoots: string[] = [];
   if (mode.coreRoot) coreRoots.push(mode.coreRoot);
   for (const root of roots) {
@@ -174,7 +203,7 @@ export async function prepareHostCoreRuntime(extensionPath: string, candidateRoo
       if (String(manifest?.name || '').trim() === '@tiinex/core') coreRoots.push(root);
     } catch { /* non-Core host root */ }
   }
-  const uniqueCoreRoots = normalizeContentRoots(coreRoots);
+  const uniqueCoreRoots = await uniquePhysicalRoots(coreRoots);
   if (uniqueCoreRoots.length > 1) throw new Error(`tiinex.core-source-runtime.ambiguous:${uniqueCoreRoots.join(',')}`);
   if (uniqueCoreRoots.length === 1) return prepareWorkspaceCoreRuntime(uniqueCoreRoots[0], nodeExecutable, roots);
   return prepareBundledRuntime(extensionPath, nodeExecutable, roots);

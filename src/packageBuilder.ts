@@ -574,7 +574,7 @@ async function prepareSelectedCoreManufactureRuntime(extensionPath: string, inpu
     await extractZipBuffer(archive, root);
     return prepareHostCoreRuntime(extensionPath, [root, ...openWorkspaceRoots()], nodeExecutable());
   }
-  return prepareBundledRuntime(extensionPath, nodeExecutable(), openWorkspaceRoots());
+  return prepareHostCoreRuntime(extensionPath, openWorkspaceRoots(), nodeExecutable());
 }
 
 function participantProjectionFromCoreResult(projection: any): PackageParticipantProjection {

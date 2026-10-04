@@ -4188,13 +4188,13 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     const cached = this.deltaCache.get(key);
     if (cached) return cached;
     const projected = (async (): Promise<PackageDeltaView> => {
-      let local: PackageWorkspaceChoice[] = [];
-      try { local = await loadLocalWorkspaceChoices(this.extensionPath); }
-      catch {
-        return { workspaces: new Map(index.workspaces.map((workspace) => [workspace.workspaceId, { state: 'unavailable' as const, added: 0, modified: 0, removed: 0, incomingPaths: new Set<string>() }])) };
-      }
+      // Do not turn a host-runtime qualification failure into seventeen
+      // innocent-looking "unavailable" Workspace deltas. The tree must use
+      // the same composed runtime as Replace/Initialize and surface a real
+      // runtime blocker if that shared boundary cannot qualify.
+      const local = await loadLocalWorkspaceChoices(this.extensionPath);
       const localById = new Map(local.map((item) => [item.workspaceId, item]));
-      const runtime = await prepareBundledRuntime(this.extensionPath, nodeExecutable());
+      const runtime = await prepareHostCoreRuntime(this.extensionPath, localRoots, nodeExecutable());
       try {
         const entries = await Promise.all(index.workspaces.map(async (workspace): Promise<[string, WorkspaceDeltaView]> => {
           const match = localById.get(workspace.workspaceId);
