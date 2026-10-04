@@ -12,7 +12,7 @@ import { preferredRepositoryParent, routesPreferredForRole } from '../dist/core/
 import { alphabeticalWorkspaceIds, artifactsForLineageMode, currentRoleArtifacts, currentRoleChoices, makeIndexedArtifact } from '../dist/core/artifactTree.js';
 import { artifactReferenceAvailable, markdownLinkTargets, materialTargetKey, resolveArtifactReference } from '../dist/core/artifactNavigation.js';
 import { receivedHandoffContext, receivedGroundingProjection, withWorkspaceRoots } from '../dist/core/receivedHandoff.js';
-import { operatorMatchedWorkspaceIds, resolvePrioritizedWorkspaceDuplicates } from '../dist/core/sourceSelection.js';
+import { operatorMatchedWorkspaceIds, preferByteIdenticalEmbeddedSelections, resolveExclusiveWorkspaceSourceSelection, resolvePrioritizedWorkspaceDuplicates } from '../dist/core/sourceSelection.js';
 import { comparePackageRecency, rootOutgoingLabel, rootOutgoingPrefix } from '../dist/core/outgoingUx.js';
 import { projectArtifactAuthoringModel } from '../dist/core/artifactAuthoringModel.js';
 import { artifactCreationReady, requireArtifactCreationReady } from '../dist/core/artifactAuthoringQualification.js';
@@ -243,7 +243,9 @@ await test('artifact navigation integration is source-backed instead of ephemera
   const openArtifact = tree.slice(tree.indexOf('private async openArtifactNode'), tree.indexOf('private async openWorkspaceMarkdownNode'));
   assert.match(openArtifact, /openLocalMarkdown/);
   assert.match(openArtifact, /openCarrierMarkdown/);
+  assert.match(openArtifact, /artifact\.kind[\s\S]*handoff/);
   assert.doesNotMatch(openArtifact, /openVirtualMarkdown/);
+  assert.match(tree, /markdown\.showPreview/);
   const materialProvider = tree.slice(tree.indexOf('class MaterialProvider'), tree.indexOf('export class TiinexOperatorTrees'));
   assert.doesNotMatch(materialProvider, /Preview content is no longer available/);
 });
@@ -338,6 +340,30 @@ await test('Incoming operator defaults allow multiple matching Workspaces and Ou
   assert.deepEqual(resolution.selectedKeys.sort(), ['incoming-new:core', 'local:docs']);
   assert.deepEqual(resolution.deselectedKeys.sort(), ['incoming-new:docs', 'incoming-old:docs']);
   assert.deepEqual(resolution.duplicateWorkspaceIds, ['docs']);
+  assert.deepEqual(preferByteIdenticalEmbeddedSelections(
+    ['local:core', 'local:docs'],
+    [
+      { key: 'local:core', workspaceId: 'core', priority: 0, source: 'local' },
+      { key: 'local:docs', workspaceId: 'docs', priority: 1, source: 'local' },
+      { key: 'incoming:core', workspaceId: 'core', priority: 2, source: 'incoming', byteIdentical: true },
+      { key: 'incoming:docs', workspaceId: 'docs', priority: 3, source: 'incoming', byteIdentical: false }
+    ]
+  ).sort(), ['incoming:core', 'local:docs']);
+  const exclusiveSources = [
+    { key: 'local:core', workspaceId: 'core', priority: 0, source: 'local' },
+    { key: 'local:docs', workspaceId: 'docs', priority: 1, source: 'local' },
+    { key: 'incoming:core', workspaceId: 'core', priority: 2, source: 'incoming', byteIdentical: true },
+    { key: 'incoming:docs', workspaceId: 'docs', priority: 3, source: 'incoming', byteIdentical: false }
+  ];
+  assert.deepEqual(resolveExclusiveWorkspaceSourceSelection(
+    ['incoming:docs'], ['incoming:docs', 'local:docs'], exclusiveSources
+  ).sort(), ['local:docs']);
+  assert.deepEqual(resolveExclusiveWorkspaceSourceSelection(
+    ['local:docs'], ['local:docs', 'incoming:docs'], exclusiveSources
+  ).sort(), ['incoming:docs']);
+  assert.deepEqual(resolveExclusiveWorkspaceSourceSelection(
+    ['incoming:core'], ['incoming:core', 'local:core'], exclusiveSources
+  ).sort(), ['incoming:core']);
 });
 
 await test('Outgoing transport identity stays separate from internal carrier lineage', async () => {
@@ -2163,6 +2189,7 @@ await test('multi-Incoming and Merge/Replace remain selection-first, dry until f
   assert.match(tree, /this\.incoming = \[state, \.\.\.this\.incoming\.filter/);
   assert.match(tree, /operatorMatchedWorkspaceIds/);
   assert.match(tree, /resolvePrioritizedWorkspaceDuplicates/);
+  assert.match(tree, /preferByteIdenticalEmbeddedSelections/);
   assert.match(tree, /placeHolder: this\.outgoingProjectedFilename\(\)/);
   assert.match(tree, /\$\(repo\) LOCAL · VS CODE/);
   assert.match(tree, /pickerItems\.push\(\{ label: sourceName, kind: vscode\.QuickPickItemKind\.Separator \}\)/);
@@ -3725,6 +3752,23 @@ await test('Incoming qualified-match projection and Outgoing fallback share the 
   const selectedEnd = builder.indexOf('function participantProjectionFromCoreResult', selectedStart);
   const selected = builder.slice(selectedStart, selectedEnd);
   assert.match(selected, /return prepareHostCoreRuntime\(extensionPath, openWorkspaceRoots\(\), nodeExecutable\(\)\)/);
+});
+
+
+await test('Selected Core manufacture is authoritative, routed Major receives observed filenames, and Handoff navigation prefers Markdown Preview', async () => {
+  const fs = await import('node:fs/promises');
+  const root = path.resolve(HERE, '..');
+  const builder = await fs.readFile(path.join(root, 'src', 'packageBuilder.ts'), 'utf8');
+  const bootstrap = await fs.readFile(path.join(root, 'src', 'tiinex', 'bootstrap.ts'), 'utf8');
+  const tree = await fs.readFile(path.join(root, 'src', 'operatorTrees.ts'), 'utf8');
+  assert.match(builder, /prepareSelectedHostCoreRuntime/);
+  assert.match(builder, /--carrier-existing-filenames/);
+  assert.doesNotMatch(builder, /if \(!packageParentPath\) \{\s*const existingNames = existingFilenames/);
+  assert.match(bootstrap, /Other open Core roots[\s\S]*not competing runtime candidates/);
+  assert.match(tree, /openCarrierMarkdown\(state\.index, route\.workspaceId, artifact\.path, true\)/);
+  assert.match(tree, /createQuickPick<SourceItem>/);
+  assert.match(tree, /resolveExclusiveWorkspaceSourceSelection/);
+  assert.match(tree, /Parent-carried Workspaces are the baseline/);
 });
 
 console.log(`\n${count}/${count} Tiinex VS Code bridge core cases passed.`);

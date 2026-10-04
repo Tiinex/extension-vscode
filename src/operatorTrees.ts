@@ -17,7 +17,7 @@ import { initializeWorkspaceDirectory } from './workspaceInitialization';
 
 import { compareIncomingWorkspaceToLocal, groundPackageForReview, GroundingResult, orientPackage, prepareBundledRuntime, prepareHostCoreRuntime, preparePackageRuntimeWithRecovery, projectHandoffCarrierMajorFrontier, projectHandoffCarrierMajorAllocation, projectHandoffCarrierTransportName, projectPackageTransport, projectWorkspaceCarrierEntry, projectWorkspaceSessionRoles, projectTransitionNeighborhood } from './tiinex/bootstrap';
 import { applyIncomingWorkspaces, IncomingApplyStrategy } from './incomingApply';
-import { operatorMatchedWorkspaceIds, resolvePrioritizedWorkspaceDuplicates } from './core/sourceSelection';
+import { operatorMatchedWorkspaceIds, preferByteIdenticalEmbeddedSelections, resolveExclusiveWorkspaceSourceSelection, resolvePrioritizedWorkspaceDuplicates } from './core/sourceSelection';
 import { comparePackageRecency, rootOutgoingLabel, rootOutgoingPrefix } from './core/outgoingUx';
 import { payloadCheckoutEligibility, qualifiedGitHubBlobReference } from './host/git';
 import { revealFileInNativeFolder } from './host/reveal';
@@ -37,6 +37,12 @@ import { configureExtensionHostAcceptance, extensionHostAcceptanceEnabled, exten
 export type OperatorSection = 'discovery' | 'incoming' | 'outgoing';
 
 const STABLE_MAJOR_REASON = 'Checkpoint promoted to Major after acceptance assessment; material is considered stable.';
+
+function prefersMarkdownPreview(filePath = '', kind = ''): boolean {
+  const artifactKind = String(kind || '').trim().toLocaleLowerCase();
+  const normalized = normalizePath(String(filePath || ''));
+  return artifactKind.includes('handoff') || /(^|[-_.])handoff([-.]|$)/i.test(path.basename(normalized));
+}
 
 
 function progressHeartbeat(progress: vscode.Progress<{ message?: string; increment?: number }>): { report(message: string): void; dispose(): void } {
@@ -2120,7 +2126,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     const workspace = state.index.workspaces.find((item) => item.workspaceId === route.workspaceId);
     const artifact = workspace?.artifacts.find((item) => normalizePath(item.path) === normalizePath(route.workspaceRelativeHandoffPath));
     if (!artifact) return false;
-    await this.openCarrierMarkdown(state.index, route.workspaceId, artifact.path);
+    await this.openCarrierMarkdown(state.index, route.workspaceId, artifact.path, true);
     return true;
   }
 
@@ -2702,9 +2708,32 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       return false;
     }
 
+    const byteIdenticalEmbeddedKeys = new Set<string>();
+    for (const incoming of this.incoming) {
+      const delta = await this.packageDeltaView(incoming.index);
+      for (const workspace of incoming.index.workspaces) {
+        if (delta.workspaces.get(workspace.workspaceId)?.state !== 'exact') continue;
+        byteIdenticalEmbeddedKeys.add(`incoming:${path.resolve(incoming.index.packagePath)}:${workspace.workspaceId}`);
+      }
+    }
+    const sourceResolutionInputs = sources.map((source, index) => ({
+      key: source.sourceKey,
+      workspaceId: source.workspaceId,
+      priority: index,
+      source: source.source,
+      byteIdentical: byteIdenticalEmbeddedKeys.has(source.sourceKey)
+    }));
+
     const currentKeys = new Set(this.outgoing.workspaces.map((item) => item.sourceKey));
     let pickedKeys = currentKeys;
-    if (!pickedKeys.size && seed?.kind === 'local') {
+    if (!pickedKeys.size && this.outgoing.packageParentPath) {
+      // Parent-carried Workspaces are the baseline. Local sources are explicit
+      // replacements, never implicit co-selections merely because they are open.
+      const parent = path.resolve(this.outgoing.packageParentPath);
+      pickedKeys = new Set(sources
+        .filter((item) => item.source === 'incoming' && item.packagePath && path.resolve(item.packagePath) === parent)
+        .map((item) => item.sourceKey));
+    } else if (!pickedKeys.size && seed?.kind === 'local') {
       pickedKeys = new Set(sources.filter((item) => item.source === 'local').map((item) => item.sourceKey));
     } else if (!pickedKeys.size && seed?.kind === 'incoming') {
       const parent = path.resolve(seed.packagePath);
@@ -2712,29 +2741,55 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
         .filter((item) => item.source === 'incoming' && item.packagePath && path.resolve(item.packagePath) === parent)
         .map((item) => item.sourceKey));
     }
-    let duplicateCorrection = false;
-    for (;;) {
-      const items = pickerItems.map((item) => item.kind === vscode.QuickPickItemKind.Separator ? item : ({ ...item, picked: Boolean(item.key && pickedKeys.has(item.key)) }));
-      const acceptanceKeys = extensionHostAcceptanceOutgoingSourceKeys(sources.map((item) => ({ sourceKey: item.sourceKey, workspaceId: item.workspaceId, source: item.source })));
-      const selected = acceptanceKeys === undefined
-        ? await vscode.window.showQuickPick(items, {
-            title: 'Select Outgoing Workspaces',
-            placeHolder: this.outgoingProjectedFilename(),
-            canPickMany: true,
-            ignoreFocusOut: true
-          })
-        : items.filter((item) => Boolean(item.key && acceptanceKeys.includes(item.key)));
-      if (selected === undefined) return false;
-      const selectedKeys = selected.map((item: SourceItem) => item.key || '').filter(Boolean);
-      const resolution = resolvePrioritizedWorkspaceDuplicates(selectedKeys, sources.map((source, index) => ({ key: source.sourceKey, workspaceId: source.workspaceId, priority: index })));
-      if (resolution.duplicateWorkspaceIds.length) {
-        pickedKeys = new Set(resolution.selectedKeys);
-        duplicateCorrection = true;
-        continue;
-      }
-      pickedKeys = new Set(resolution.selectedKeys);
-      break;
+    pickedKeys = new Set(preferByteIdenticalEmbeddedSelections([...pickedKeys], sourceResolutionInputs));
+    const items = pickerItems.map((item) => item.kind === vscode.QuickPickItemKind.Separator ? item : ({ ...item, picked: Boolean(item.key && pickedKeys.has(item.key)) }));
+    const acceptanceKeys = extensionHostAcceptanceOutgoingSourceKeys(sources.map((item) => ({ sourceKey: item.sourceKey, workspaceId: item.workspaceId, source: item.source })));
+    let selected: readonly SourceItem[] | undefined;
+    if (acceptanceKeys !== undefined) {
+      const normalized = resolveExclusiveWorkspaceSourceSelection([...pickedKeys], acceptanceKeys, sourceResolutionInputs);
+      selected = items.filter((item) => Boolean(item.key && normalized.includes(item.key)));
+    } else {
+      selected = await new Promise<readonly SourceItem[] | undefined>((resolve) => {
+        const picker = vscode.window.createQuickPick<SourceItem>();
+        picker.title = 'Select Outgoing Workspaces';
+        picker.placeholder = this.outgoingProjectedFilename();
+        picker.canSelectMany = true;
+        picker.ignoreFocusOut = true;
+        picker.items = items;
+        picker.selectedItems = items.filter((item) => Boolean(item.key && pickedKeys.has(item.key)));
+        let prior = picker.selectedItems.map((item) => item.key || '').filter(Boolean);
+        let syncing = false;
+        const selectionDisposable = picker.onDidChangeSelection((next) => {
+          if (syncing) return;
+          const nextKeys = next.map((item) => item.key || '').filter(Boolean);
+          const resolved = resolveExclusiveWorkspaceSourceSelection(prior, nextKeys, sourceResolutionInputs);
+          const nextSet = new Set(nextKeys);
+          const resolvedSet = new Set(resolved);
+          prior = resolved;
+          if (nextSet.size === resolvedSet.size && [...nextSet].every((key) => resolvedSet.has(key))) return;
+          syncing = true;
+          picker.selectedItems = items.filter((item) => Boolean(item.key && resolvedSet.has(item.key)));
+          syncing = false;
+        });
+        let completed = false;
+        picker.onDidAccept(() => {
+          if (completed) return;
+          completed = true;
+          const finalKeys = resolveExclusiveWorkspaceSourceSelection(prior, picker.selectedItems.map((item) => item.key || '').filter(Boolean), sourceResolutionInputs);
+          resolve(items.filter((item) => Boolean(item.key && finalKeys.includes(item.key))));
+          picker.hide();
+        });
+        picker.onDidHide(() => {
+          selectionDisposable.dispose();
+          picker.dispose();
+          if (!completed) { completed = true; resolve(undefined); }
+        });
+        picker.show();
+      });
     }
+    if (selected === undefined) return false;
+    const selectedKeys = selected.map((item: SourceItem) => item.key || '').filter(Boolean);
+    pickedKeys = new Set(resolveExclusiveWorkspaceSourceSelection([...pickedKeys], selectedKeys, sourceResolutionInputs));
 
     const selectedSources = sources.filter((source) => pickedKeys.has(source.sourceKey));
 
@@ -4724,23 +4779,23 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
           ? this.incomingState(node.data.packagePath || '')?.index || null
           : node.data.packagePath ? await this.carrier(node.data.packagePath) : null;
         if (!index) throw new Error('tiinex.material.package-unavailable');
-        await this.openCarrierMarkdown(index, artifact.workspaceId, artifact.path);
+        await this.openCarrierMarkdown(index, artifact.workspaceId, artifact.path, prefersMarkdownPreview(artifact.path, artifact.kind));
         return;
       }
       if (node.data.section === 'outgoing') {
         const workspace = this.outgoing?.workspaces.find((item) => item.workspaceId === artifact.workspaceId);
         if (!workspace) throw new Error(`tiinex.material.workspace-unavailable:${artifact.workspaceId}`);
         if (workspace.stagedRoot) {
-          await this.openLocalMarkdown(workspace.stagedRoot, artifact.path);
+          await this.openLocalMarkdown(workspace.stagedRoot, artifact.path, prefersMarkdownPreview(artifact.path, artifact.kind));
           return;
         }
         if (workspace.source === 'incoming' && workspace.packagePath) {
           const index = this.incomingState(workspace.packagePath)?.index || await this.carrier(workspace.packagePath);
-          await this.openCarrierMarkdown(index, artifact.workspaceId, artifact.path);
+          await this.openCarrierMarkdown(index, artifact.workspaceId, artifact.path, prefersMarkdownPreview(artifact.path, artifact.kind));
           return;
         }
         if (workspace.root) {
-          await this.openLocalMarkdown(workspace.root, artifact.path);
+          await this.openLocalMarkdown(workspace.root, artifact.path, prefersMarkdownPreview(artifact.path, artifact.kind));
           return;
         }
       }
@@ -4760,22 +4815,22 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
           ? this.incomingState(node.data.packagePath || '')?.index || null
           : node.data.packagePath ? await this.carrier(node.data.packagePath) : null;
         if (!index) throw new Error('tiinex.material.package-unavailable');
-        await this.openCarrierMarkdown(index, workspaceId, filePath);
+        await this.openCarrierMarkdown(index, workspaceId, filePath, prefersMarkdownPreview(filePath));
         return;
       }
       const workspace = this.outgoing?.workspaces.find((item) => item.workspaceId === workspaceId);
       if (!workspace) throw new Error(`tiinex.material.workspace-unavailable:${workspaceId}`);
       if (workspace.stagedRoot) {
-        await this.openLocalMarkdown(workspace.stagedRoot, filePath);
+        await this.openLocalMarkdown(workspace.stagedRoot, filePath, prefersMarkdownPreview(filePath));
         return;
       }
       if (workspace.source === 'incoming' && workspace.packagePath) {
         const index = this.incomingState(workspace.packagePath)?.index || await this.carrier(workspace.packagePath);
-        await this.openCarrierMarkdown(index, workspaceId, filePath);
+        await this.openCarrierMarkdown(index, workspaceId, filePath, prefersMarkdownPreview(filePath));
         return;
       }
       if (workspace.root) {
-        await this.openLocalMarkdown(workspace.root, filePath);
+        await this.openLocalMarkdown(workspace.root, filePath, prefersMarkdownPreview(filePath));
         return;
       }
       throw new Error('tiinex.material.source-unavailable');
@@ -4784,17 +4839,31 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     }
   }
 
-  private async openLocalMarkdown(root: string, filePath: string): Promise<void> {
+  private async openLocalMarkdown(root: string, filePath: string, preferPreview = false): Promise<void> {
     const absolute = safeTarget(path.resolve(root), normalizePath(filePath));
     const info = await stat(absolute);
     if (!info.isFile()) throw new Error(`tiinex.material.local-file-unavailable:${filePath}`);
     const uri = vscode.Uri.file(absolute);
+    if (preferPreview) {
+      try {
+        await vscode.commands.executeCommand('markdown.showPreview', uri);
+        await vscode.commands.executeCommand('workbench.action.keepEditor');
+        return;
+      } catch { /* Fall back to the exact Markdown source below. */ }
+    }
     const document = await vscode.workspace.openTextDocument(uri);
     await vscode.window.showTextDocument(document, { preview: false, preserveFocus: false });
   }
 
-  private async openCarrierMarkdown(index: IndexedCarrierPackage, workspaceId: string, filePath: string): Promise<void> {
+  private async openCarrierMarkdown(index: IndexedCarrierPackage, workspaceId: string, filePath: string, preferPreview = false): Promise<void> {
     const uri = await this.materialProvider.uriFor(index, workspaceId, filePath);
+    if (preferPreview) {
+      try {
+        await vscode.commands.executeCommand('markdown.showPreview', uri);
+        await vscode.commands.executeCommand('workbench.action.keepEditor');
+        return;
+      } catch { /* Fall back to the exact Markdown source below. */ }
+    }
     const document = await vscode.workspace.openTextDocument(uri);
     await vscode.window.showTextDocument(document, { preview: false, preserveFocus: false });
   }

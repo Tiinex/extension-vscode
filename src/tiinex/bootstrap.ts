@@ -188,6 +188,40 @@ async function uniquePhysicalRoots(values: readonly string[] = []): Promise<stri
   return [...roots.values()];
 }
 
+async function hostContentRoots(extensionPath: string, candidateRoots: readonly string[] = []): Promise<string[]> {
+  const mode = await dependencyModeRuntime(extensionPath);
+  const roots = await uniquePhysicalRoots([...candidateRoots, ...mode.contentRoots]);
+  const content: string[] = [];
+  for (const root of roots) {
+    try {
+      const manifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
+      if (String(manifest?.name || '').trim() === '@tiinex/core') continue;
+    } catch { /* Non-package Workspace roots can still be Tiinex content roots. */ }
+    content.push(root);
+  }
+  return content;
+}
+
+export async function prepareSelectedHostCoreRuntime(
+  extensionPath: string,
+  selectedCoreRoot: string,
+  candidateRoots: string[] = [],
+  nodeExecutable = preferredNodeExecutable()
+): Promise<PackageRuntime> {
+  const selectedRoots = await uniquePhysicalRoots([selectedCoreRoot]);
+  const selected = selectedRoots[0] || '';
+  if (!selected) throw new Error('tiinex.core-source-runtime.selected-root-required');
+  let manifest: any;
+  try { manifest = JSON.parse(await readFile(path.join(selected, 'package.json'), 'utf8')); }
+  catch (error) { throw new Error(`tiinex.core-source-runtime.package-invalid:${error instanceof Error ? error.message : String(error)}`); }
+  if (String(manifest?.name || '').trim() !== '@tiinex/core') throw new Error('tiinex.core-source-runtime.package-name-mismatch');
+  // Source selection is already explicit at this boundary. Other open Core roots
+  // are host/environment facts, not competing runtime candidates for this
+  // manufacture. Keep only non-Core roots as content composition inputs.
+  const contentRoots = await hostContentRoots(extensionPath, candidateRoots);
+  return prepareWorkspaceCoreRuntime(selected, nodeExecutable, contentRoots);
+}
+
 export async function prepareHostCoreRuntime(extensionPath: string, candidateRoots: string[] = [], nodeExecutable = preferredNodeExecutable()): Promise<PackageRuntime> {
   const mode = await dependencyModeRuntime(extensionPath);
   // A linked VS Code checkout can expose the same physical repository through
@@ -205,8 +239,9 @@ export async function prepareHostCoreRuntime(extensionPath: string, candidateRoo
   }
   const uniqueCoreRoots = await uniquePhysicalRoots(coreRoots);
   if (uniqueCoreRoots.length > 1) throw new Error(`tiinex.core-source-runtime.ambiguous:${uniqueCoreRoots.join(',')}`);
-  if (uniqueCoreRoots.length === 1) return prepareWorkspaceCoreRuntime(uniqueCoreRoots[0], nodeExecutable, roots);
-  return prepareBundledRuntime(extensionPath, nodeExecutable, roots);
+  const contentRoots = await hostContentRoots(extensionPath, roots);
+  if (uniqueCoreRoots.length === 1) return prepareWorkspaceCoreRuntime(uniqueCoreRoots[0], nodeExecutable, contentRoots);
+  return prepareBundledRuntime(extensionPath, nodeExecutable, contentRoots);
 }
 
 export async function prepareBundledRuntime(extensionPath: string, nodeExecutable = preferredNodeExecutable(), contentRoots: string[] = []): Promise<PackageRuntime> {

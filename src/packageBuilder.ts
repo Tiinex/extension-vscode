@@ -6,7 +6,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import * as vscode from 'vscode';
 import { extensionHostAcceptanceEnabled, recordExtensionHostAcceptanceEvent } from './vscode/extensionHostAcceptance';
 import { preferredNodeExecutable } from './host/nodeExecutable';
-import { manufactureHandoffPackage, manufactureHandoffPackageDetailed, projectHandoffCarrierOutputCollision, projectHandoffParticipants, OperatorContextResult, prepareBundledRuntime, prepareHostCoreRuntime, projectHandoffLeaves, projectHandoffEndpoints, projectOperatorContext, projectWorkspacePackageSources, WorkspacePackageSourcesResult } from './tiinex/bootstrap';
+import { manufactureHandoffPackage, manufactureHandoffPackageDetailed, projectHandoffCarrierOutputCollision, projectHandoffParticipants, OperatorContextResult, prepareBundledRuntime, prepareHostCoreRuntime, prepareSelectedHostCoreRuntime, projectHandoffLeaves, projectHandoffEndpoints, projectOperatorContext, projectWorkspacePackageSources, WorkspacePackageSourcesResult } from './tiinex/bootstrap';
 import { workspaceCarrierArgs } from './core/packageArgs';
 import { exactRouteByKey, routeChoiceKey } from './core/operatorModel';
 import { repositoryContainsPath, sameRepositoryRoot } from './core/repositoryPath';
@@ -535,12 +535,12 @@ async function handoffArgs(selected: WorkspaceSource[], primaryRoute: RouteChoic
   if (packageMajorReason) {
     if (!String(carrierPrefix || '').trim()) throw new Error('tiinex.package-builder.package-major-prefix-required');
     args.push('--package-major', '--major-reason', packageMajorReason);
-    if (!packageParentPath) {
-      const existingNames = existingFilenames;
-      const namesPath = path.join(scratch, 'carrier-existing-filenames.json');
-      await writeFile(namesPath, JSON.stringify({ existingFilenames: existingNames }), 'utf8');
-      args.push('--carrier-existing-filenames', namesPath);
-    }
+    // The host owns filesystem observation only. Core owns the Major decision.
+    // Routed and pointerless manufacture therefore receive the same observed
+    // same-prefix filename facts, regardless of whether a Package Parent exists.
+    const namesPath = path.join(scratch, 'carrier-existing-filenames.json');
+    await writeFile(namesPath, JSON.stringify({ existingFilenames }), 'utf8');
+    args.push('--carrier-existing-filenames', namesPath);
   }
   if (String(carrierPrefix || '').trim()) args.push('--carrier-prefix', String(carrierPrefix || '').trim());
   if (String(projectedFilename || '').trim()) args.push('--projected-filename', checkedCarrierFilename(String(projectedFilename || '').trim()));
@@ -566,13 +566,13 @@ async function prepareSelectedCoreManufactureRuntime(extensionPath: string, inpu
   const override = (input.workspaceSourceOverrides || []).find((item) => String(item.workspaceId || '').trim() === 'core');
   const incoming = (input.incomingWorkspaceSources || []).find((item) => String(item.workspaceId || '').trim() === 'core');
   if (override?.root && incoming?.packagePath) throw new Error('tiinex.package-builder.core-source-ambiguous');
-  if (override?.root) return prepareHostCoreRuntime(extensionPath, [String(override.root), ...openWorkspaceRoots()], nodeExecutable());
+  if (override?.root) return prepareSelectedHostCoreRuntime(extensionPath, String(override.root), openWorkspaceRoots(), nodeExecutable());
   if (incoming?.packagePath && incoming?.archivePath) {
     const archive = await readExactZipEntryFromFile(path.resolve(incoming.packagePath), String(incoming.archivePath));
     const root = path.join(scratch, 'selected-core-runtime');
     await mkdir(root, { recursive: true });
     await extractZipBuffer(archive, root);
-    return prepareHostCoreRuntime(extensionPath, [root, ...openWorkspaceRoots()], nodeExecutable());
+    return prepareSelectedHostCoreRuntime(extensionPath, root, openWorkspaceRoots(), nodeExecutable());
   }
   return prepareHostCoreRuntime(extensionPath, openWorkspaceRoots(), nodeExecutable());
 }
