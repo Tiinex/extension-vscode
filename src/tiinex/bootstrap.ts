@@ -991,12 +991,14 @@ export async function projectWorkspaceCarrierEntry(
   customInstruction = '',
   primaryRole: unknown = null,
   participants: unknown[] = [],
+  route = '',
   runner: ProcessRunner = runProcess
 ): Promise<WorkspaceCarrierEntryProjectionResult> {
   const scratch = await mkdtemp(path.join(os.tmpdir(), 'tiinex-vscode-workspace-entry-'));
   try {
     const args = ['project-workspace-carrier-entry', packagePath];
     if (mode) args.push('--mode', mode);
+    if (route) args.push('--route', route);
     if (customInstruction) args.push('--custom-instruction', customInstruction);
     if (primaryRole) {
       const rolePath = path.join(scratch, 'primary-role.json');

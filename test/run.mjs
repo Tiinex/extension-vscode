@@ -12,7 +12,7 @@ import { preferredRepositoryParent, routesPreferredForRole } from '../dist/core/
 import { alphabeticalWorkspaceIds, artifactsForLineageMode, currentRoleArtifacts, currentRoleChoices, makeIndexedArtifact } from '../dist/core/artifactTree.js';
 import { artifactReferenceAvailable, markdownLinkTargets, materialTargetKey, resolveArtifactReference } from '../dist/core/artifactNavigation.js';
 import { receivedHandoffContext, receivedGroundingProjection, withWorkspaceRoots } from '../dist/core/receivedHandoff.js';
-import { operatorMatchedWorkspaceIds, preferByteIdenticalEmbeddedSelections, resolveExclusiveWorkspaceSourceSelection, resolvePrioritizedWorkspaceDuplicates } from '../dist/core/sourceSelection.js';
+import { detectOutgoingSourcePreset, operatorMatchedWorkspaceIds, OUTGOING_SOURCE_PRESET_MODES, outgoingSourcePresetLabel, preferByteIdenticalEmbeddedSelections, projectOutgoingSourcePreset, resolveExclusiveWorkspaceSourceSelection, resolvePrioritizedWorkspaceDuplicates } from '../dist/core/sourceSelection.js';
 import { comparePackageRecency, rootOutgoingLabel, rootOutgoingPrefix } from '../dist/core/outgoingUx.js';
 import { projectArtifactAuthoringModel } from '../dist/core/artifactAuthoringModel.js';
 import { artifactCreationReady, requireArtifactCreationReady } from '../dist/core/artifactAuthoringQualification.js';
@@ -318,6 +318,32 @@ await test('Receive UX chooses the most common repository parent and treats role
   assert.deepEqual(routesPreferredForRole(routes, '').map((item) => item.id), ['a', 'b']);
 });
 
+await test('Outgoing Parent source presets project the five deterministic operator modes', async () => {
+  const sources = [
+    { key: 'local:core', workspaceId: 'core', priority: 0, source: 'local' },
+    { key: 'local:docs', workspaceId: 'docs', priority: 1, source: 'local' },
+    { key: 'local:local-only', workspaceId: 'local-only', priority: 2, source: 'local' },
+    { key: 'incoming:core', workspaceId: 'core', priority: 3, source: 'incoming' },
+    { key: 'incoming:docs', workspaceId: 'docs', priority: 4, source: 'incoming' },
+    { key: 'incoming:remote', workspaceId: 'remote', priority: 5, source: 'incoming' }
+  ];
+  const parent = ['incoming:core', 'incoming:docs', 'incoming:remote'];
+  const expected = new Map([
+    ['incoming-only', ['incoming:core', 'incoming:docs', 'incoming:remote']],
+    ['none', []],
+    ['prefer-local', ['local:core', 'local:docs', 'local:local-only', 'incoming:remote']],
+    ['prefer-incoming', ['incoming:core', 'incoming:docs', 'incoming:remote', 'local:local-only']],
+    ['local-only', ['local:core', 'local:docs', 'local:local-only']]
+  ]);
+  assert.deepEqual(OUTGOING_SOURCE_PRESET_MODES, ['incoming-only', 'none', 'prefer-local', 'prefer-incoming', 'local-only']);
+  for (const mode of OUTGOING_SOURCE_PRESET_MODES) {
+    const projected = projectOutgoingSourcePreset(mode, sources, parent).sort();
+    assert.deepEqual(projected, [...expected.get(mode)].sort(), mode);
+    assert.equal(detectOutgoingSourcePreset(projected, sources, parent), mode);
+    assert.equal(typeof outgoingSourcePresetLabel(mode), 'string');
+  }
+});
+
 await test('Incoming operator defaults allow multiple matching Workspaces and Outgoing duplicate selection uses top-source priority', async () => {
   const matches = operatorMatchedWorkspaceIds([
     { workspaceId: 'business', from: 'Anchor', to: 'Sigma' },
@@ -363,7 +389,10 @@ await test('Incoming operator defaults allow multiple matching Workspaces and Ou
   ).sort(), ['incoming:docs']);
   assert.deepEqual(resolveExclusiveWorkspaceSourceSelection(
     ['incoming:core'], ['incoming:core', 'local:core'], exclusiveSources
-  ).sort(), ['incoming:core']);
+  ).sort(), ['local:core']);
+  assert.deepEqual(resolveExclusiveWorkspaceSourceSelection(
+    ['incoming:core', 'incoming:docs'], ['incoming:core', 'incoming:docs', 'local:core', 'local:docs'], exclusiveSources
+  ).sort(), ['local:core', 'local:docs']);
 });
 
 await test('Outgoing transport identity stays separate from internal carrier lineage', async () => {
@@ -564,7 +593,8 @@ await test('extension contributes stable Discovery, Incoming, Outgoing and Trans
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.send' && /incomingResolvedHandoff/.test(item.when || '')));
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.copyPackage' && /transportPackage/.test(item.when || '') && item.group === 'inline@1'));
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.guidedEntry' && /transportPackagePointerless/.test(item.when || '') && item.group === 'inline@2'));
-  assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.copyText' && /transportPackage/.test(item.when || '') && !/transportPackagePointerless/.test(item.when || '') && item.group === 'inline@2'));
+  assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.guidedEntry' && /viewItem == tiinex\.transportPackage/.test(item.when || '') && !/Pointerless/.test(item.when || '') && item.group === 'inline@2'));
+  assert.equal(itemMenus.some((item) => item.command === 'tiinex.transport.copyText' && /viewItem == tiinex\.transportPackage/.test(item.when || '') && !/Route/.test(item.when || '')), false);
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.close' && /transportPackage/.test(item.when || '') && item.group === 'inline@9'));
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.copyPackage' && /transportRoute/.test(item.when || '')));
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.copyText' && /transportRoute/.test(item.when || '')));
@@ -1129,7 +1159,7 @@ await test('Git Operator result report preserves exact per-repository partial ou
   assert.match(report, /## core[\s\S]*Result: BLOCKED[\s\S]*missing-upstream/);
 });
 
-await test('post-stage Git policy is singular, SCM-first, debounced and keeps legacy commands fallback-only', async () => {
+await test('post-stage Git policy is singular, SCM-first and debounced while redundant stage/commit/push command is absent', async () => {
   const fs = await import('node:fs/promises');
   const root = path.resolve(HERE, '..');
   const manifest = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8'));
@@ -1144,7 +1174,7 @@ await test('post-stage Git policy is singular, SCM-first, debounced and keeps le
   const scm = manifest.contributes?.menus?.['scm/sourceControl'] || [];
   assert.ok(scm.some((item) => item.command === 'tiinex.git.commitRepository' && item.when === 'scmProvider == git'));
   const palette = manifest.contributes?.menus?.commandPalette || [];
-  assert.ok(palette.some((item) => item.command === 'tiinex.stageCommitPush' && item.when === 'false'));
+  assert.equal(palette.some((item) => item.command === 'tiinex.stageCommitPush'), false);
   assert.ok(palette.some((item) => item.command === 'tiinex.generateCommitMessage' && item.when === 'false'));
   assert.match(extension, /registerCommand\('tiinex\.git\.commitRepository'/);
   assert.match(extension, /registerGitAutomation\(context, extensionPath\)/);
@@ -1360,20 +1390,49 @@ await test('reviewed Commit + Push publishes only the exact same-operation commi
   } finally { await fs.rm(tmp, { recursive: true, force: true }); }
 });
 
-await test('multi-repository Git command stays explicit, preserves the single-repo command, and requires one final exact-push confirmation', async () => {
+await test('Stage All and Reset Dirty are the only visible multi-workspace Git convenience commands and the retired review/commit/push form is removed', async () => {
   const fs = await import('node:fs/promises');
-  const manifest = JSON.parse(await fs.readFile(path.resolve(HERE, '..', 'package.json'), 'utf8'));
-  const extension = await fs.readFile(path.resolve(HERE, '..', 'src', 'extension.ts'), 'utf8');
-  const command = await fs.readFile(path.resolve(HERE, '..', 'src', 'commit.ts'), 'utf8');
+  const root = path.resolve(HERE, '..');
+  const manifest = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8'));
+  const extension = await fs.readFile(path.join(root, 'src', 'extension.ts'), 'utf8');
+  const command = await fs.readFile(path.join(root, 'src', 'commit.ts'), 'utf8');
   const ids = new Set((manifest.contributes?.commands || []).map((item) => item.command));
-  assert.equal(ids.has('tiinex.stageCommitPush'), true);
-  assert.equal(ids.has('tiinex.stageCommitPushMany'), true);
-  assert.equal(manifest.activationEvents.includes('onCommand:tiinex.stageCommitPushMany'), false);
-  assert.match(extension, /registerCommand\('tiinex\.stageCommitPushMany'/);
-  assert.match(command, /canPickMany:\s*true/);
-  assert.match(command, /Push only the exact commits created by this Tiinex flow\?/);
-  assert.match(command, /'Push Exact Commits'/);
-  assert.match(command, /pushExactGitOperatorCommit/);
+  assert.equal(ids.has('tiinex.stageAllWorkspaces'), true);
+  assert.equal(ids.has('tiinex.resetAllDirtyWorkspaces'), true);
+  assert.equal(ids.has('tiinex.stageCommitPushMany'), false);
+  assert.equal(ids.has('tiinex.stageCommitPush'), false);
+  assert.match(extension, /resetAllDirtyWorkspacesCommand/);
+  assert.match(command, /picker\.items = \[no, yes\]/);
+  assert.match(command, /picker\.activeItems = \[no\]/);
+  assert.match(command, /discardWorkingTree\(root\)/);
+  assert.doesNotMatch(extension, /stageCommitPushManyCommand|stageCommitPushCommand|tiinex\.stageCommitPushMany|tiinex\.stageCommitPush/);
+  assert.doesNotMatch(command, /reviewGitOperatorRepositories|Git Operator · Select repositories|Push Exact Commits/);
+  await assert.rejects(() => fs.access(path.join(root, 'src', 'gitOperatorPanel.ts')));
+});
+
+await test('linked-extension Local and Latest shortcuts are distinct portable npm build scripts while the original build task stays unchanged', async () => {
+  const fs = await import('node:fs/promises');
+  const root = path.resolve(HERE, '..');
+  const taskFile = JSON.parse(await fs.readFile(path.join(root, '.vscode', 'tasks.json'), 'utf8'));
+  const manifest = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8'));
+  const byLabel = new Map((taskFile.tasks || []).map((item) => [item.label, item]));
+  const original = byLabel.get('Tiinex: Build linked extension');
+  const local = byLabel.get('Tiinex: Build linked extension (Local)');
+  const latest = byLabel.get('Tiinex: Build linked extension (Latest)');
+  assert.equal(original?.script, 'dev:build');
+  assert.deepEqual(original?.dependsOn, ['Tiinex: npm install']);
+  assert.equal(original?.group?.isDefault, false);
+  assert.equal(manifest.scripts?.['dev:build:local'], 'node scripts/core-mode.mjs all-local && npm run dev:build');
+  assert.equal(manifest.scripts?.['dev:build:latest'], 'node scripts/core-mode.mjs all-latest && npm run dev:build');
+  assert.equal(local?.type, 'npm');
+  assert.equal(local?.script, 'dev:build:local');
+  assert.equal(local?.dependsOn, undefined);
+  assert.deepEqual(local?.group, { kind: 'build', isDefault: false });
+  assert.equal(latest?.type, 'npm');
+  assert.equal(latest?.script, 'dev:build:latest');
+  assert.equal(latest?.dependsOn, undefined);
+  assert.deepEqual(latest?.group, { kind: 'build', isDefault: false });
+  assert.notEqual(local?.script, latest?.script);
 });
 
 await test('Git Operator preparation rejects unrelated ahead state before staging', async () => {
@@ -2064,18 +2123,23 @@ await test('file-safe Incoming conflicts retain exact Git sides, preserve binary
 });
 
 
-await test('pointerless Transport uses Guided Entry while routed Handoffs retain Copy Transport Text', async () => {
+await test('package-level Transport uses Guided Entry while Handoff Pointer rows retain exact Copy Transport Text', async () => {
   const fs = await import('node:fs/promises');
   const root = path.resolve(HERE, '..');
   const tree = await fs.readFile(path.join(root, 'src', 'operatorTrees.ts'), 'utf8');
+  const bootstrap = await fs.readFile(path.join(root, 'src', 'tiinex', 'bootstrap.ts'), 'utf8');
   const manifest = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8'));
   assert.match(tree, /contextValue: routeLess \? 'tiinex\.transportPackagePointerless' : 'tiinex\.transportPackage'/);
   assert.match(tree, /register\('tiinex\.transport\.guidedEntry'/);
   assert.match(tree, /private async guidedEntryTransport\(/);
+  assert.match(tree, /Guided Entry · Choose Handoff route/);
+  assert.match(bootstrap, /if \(route\) args\.push\('--route', route\)/);
   assert.ok(manifest.contributes.commands.some((item) => item.command === 'tiinex.transport.guidedEntry' && item.title === 'Guided Entry'));
   const itemMenus = manifest.contributes?.menus?.['view/item/context'] || [];
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.guidedEntry' && /transportPackagePointerless/.test(item.when || '')));
-  assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.copyText' && /transportPackage/.test(item.when || '') && !/transportPackagePointerless/.test(item.when || '')));
+  assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.guidedEntry' && /viewItem == tiinex\.transportPackage/.test(item.when || '') && !/Pointerless/.test(item.when || '')));
+  assert.equal(itemMenus.some((item) => item.command === 'tiinex.transport.copyText' && /viewItem == tiinex\.transportPackage/.test(item.when || '') && !/Route/.test(item.when || '')), false);
+  assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.copyText' && /transportRoute/.test(item.when || '')));
 });
 
 await test('Artifact Authoring host UX keeps repair and direct-create behavior bounded by Core', async () => {
@@ -2266,8 +2330,10 @@ await test('multi-Incoming and Merge/Replace remain selection-first, dry until f
   assert.match(apply, /shared-compare-unavailable/);
   assert.match(apply, /shared-compare-blocked/);
   assert.match(apply, /Stash local changes/);
+  assert.match(apply, /Commit local changes/);
+  assert.match(apply, /Discard local changes/);
   assert.match(apply, /stashWorkingTree/);
-  assert.doesNotMatch(apply, /discardWorkingTree|git clean|reset --hard/);
+  assert.match(apply, /discardWorkingTree/);
   assert.match(apply, /only these Workspace roots can change/);
   assert.match(apply, /ignored paths and symlinks are protected/);
   assert.match(apply, /local-state-changed-after-review/);
@@ -3768,6 +3834,9 @@ await test('Selected Core manufacture is authoritative, routed Major receives ob
   assert.match(tree, /openCarrierMarkdown\(state\.index, route\.workspaceId, artifact\.path, true\)/);
   assert.match(tree, /createQuickPick<SourceItem>/);
   assert.match(tree, /resolveExclusiveWorkspaceSourceSelection/);
+  assert.match(tree, /projectOutgoingSourcePreset/);
+  assert.match(tree, /onDidTriggerButton/);
+  assert.match(tree, /Source preset:/);
   assert.match(tree, /Parent-carried Workspaces are the baseline/);
 });
 

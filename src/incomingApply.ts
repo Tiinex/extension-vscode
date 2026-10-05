@@ -13,6 +13,7 @@ import {
   checkIgnoredPaths,
   commitWorkingTreeWithMessage,
   dirtyWorkingTreePaths,
+  discardWorkingTree,
   generateTiinexCommitMessage,
   localBranchExists,
   listIgnoredFiles,
@@ -33,7 +34,7 @@ import { pruneEmptyReplaceDirectories } from './core/replaceCleanup';
 import { landingStagePolicy, LandingStagePolicy } from './vscode/landingStagePolicy';
 
 export type IncomingApplyStrategy = 'merge' | 'replace';
-type DirtyResolution = 'none' | 'preserve' | 'stash' | 'commit';
+type DirtyResolution = 'none' | 'preserve' | 'stash' | 'commit' | 'discard';
 type MergeMode = 'git-native' | 'file-safe';
 type WorkspaceCandidate = WorkspacePackageSourcesResult['candidates'][number];
 
@@ -330,7 +331,8 @@ async function chooseDirtyResolution(plan: WorkspaceApplyPlan): Promise<{ resolu
   });
   options.push(
     { label: '$(archive) Stash local changes', description: 'Preserve tracked + untracked work in Git stash before execution.', resolution: 'stash' },
-    { label: '$(git-commit) Commit local changes', description: 'Commit first; execution waits for the final confirmation.', resolution: 'commit' }
+    { label: '$(git-commit) Commit local changes', description: 'Commit first; execution waits for the final confirmation.', resolution: 'commit' },
+    { label: '$(discard) Discard local changes', description: 'Reset tracked files to HEAD and remove untracked non-ignored files before execution.', resolution: 'discard' }
   );
   const selected = await vscode.window.showQuickPick(options, { title: `${plan.label} · local changes`, placeHolder: 'Choose a safe precondition, or Esc to cancel everything', ignoreFocusOut: true });
   return selected ? { resolution: selected.resolution, switchToMerge: Boolean(selected.switchToMerge) } : null;
@@ -565,7 +567,7 @@ async function executePlan(plan: WorkspaceApplyPlan, scratch: string): Promise<F
     else if (plan.dirtyResolution === 'commit') {
       plan.commitMessage = await generateTiinexCommitMessage(plan.local.root, nodeExecutable());
       await commitWorkingTreeWithMessage(plan.local.root, plan.commitMessage);
-    }
+    } else if (plan.dirtyResolution === 'discard') await discardWorkingTree(plan.local.root);
     if (plan.switchBranch) await switchToExistingLocalBranch(plan.local.root, plan.incomingRef);
   }
   if (plan.strategy === 'merge' && plan.mergeMode === 'git-native' && plan.incomingCommit) {

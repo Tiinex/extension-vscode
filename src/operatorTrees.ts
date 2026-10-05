@@ -17,7 +17,7 @@ import { initializeWorkspaceDirectory } from './workspaceInitialization';
 
 import { compareIncomingWorkspaceToLocal, groundPackageForReview, GroundingResult, orientPackage, prepareBundledRuntime, prepareHostCoreRuntime, preparePackageRuntimeWithRecovery, projectHandoffCarrierMajorFrontier, projectHandoffCarrierMajorAllocation, projectHandoffCarrierTransportName, projectPackageTransport, projectWorkspaceCarrierEntry, projectWorkspaceSessionRoles, projectTransitionNeighborhood } from './tiinex/bootstrap';
 import { applyIncomingWorkspaces, IncomingApplyStrategy } from './incomingApply';
-import { operatorMatchedWorkspaceIds, preferByteIdenticalEmbeddedSelections, resolveExclusiveWorkspaceSourceSelection, resolvePrioritizedWorkspaceDuplicates } from './core/sourceSelection';
+import { detectOutgoingSourcePreset, operatorMatchedWorkspaceIds, OUTGOING_SOURCE_PRESET_MODES, outgoingSourcePresetLabel, OutgoingSourcePresetMode, projectOutgoingSourcePreset, resolveExclusiveWorkspaceSourceSelection, resolvePrioritizedWorkspaceDuplicates } from './core/sourceSelection';
 import { comparePackageRecency, rootOutgoingLabel, rootOutgoingPrefix } from './core/outgoingUx';
 import { payloadCheckoutEligibility, qualifiedGitHubBlobReference } from './host/git';
 import { revealFileInNativeFolder } from './host/reveal';
@@ -1234,11 +1234,27 @@ export class TiinexOperatorTrees implements vscode.Disposable {
 
   private async guidedEntryTransport(node?: TransportNode): Promise<void> {
     const item = this.transportItemForNode(node);
-    if (!item || item.routes.length) return;
-    const text = await this.guidedEntryTransportText(item);
+    if (!item) return;
+    let routeId = '';
+    if (item.routes.length) {
+      const visible = this.visibleTransportRoutes(item);
+      let route = visible.length === 1 ? visible[0] : undefined;
+      if (!route && visible.length > 1) {
+        const selected = await vscode.window.showQuickPick(visible.map((entry) => ({
+          label: entry.recipientLabel ? `To ${entry.recipientLabel}` : 'Qualified route',
+          description: entry.workspaceId,
+          detail: entry.handoffPath,
+          route: entry
+        })), { title: 'Guided Entry · Choose Handoff route', canPickMany: false, ignoreFocusOut: true });
+        route = selected?.route;
+      }
+      if (!route) return;
+      routeId = route.routeId;
+    }
+    const text = await this.guidedEntryTransportText(item, routeId);
     if (!text) return;
     await vscode.env.clipboard.writeText(text);
-    await this.markTransportPrepared(item, '', 'textPrepared');
+    await this.markTransportPrepared(item, routeId, 'textPrepared');
     await vscode.window.showInformationMessage('Copied exact Tiinex Guided Entry transport text.');
   }
 
@@ -1276,11 +1292,11 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     await vscode.window.showInformationMessage('Copied exact Tiinex transport text.');
   }
 
-  private async guidedEntryTransportText(item: TransportPackageState): Promise<string> {
+  private async guidedEntryTransportText(item: TransportPackageState, routeId = ''): Promise<string> {
     const roots = (vscode.workspace.workspaceFolders || []).map((folder: vscode.WorkspaceFolder) => folder.uri.fsPath);
     const runtime = await prepareHostCoreRuntime(this.extensionPath, roots, nodeExecutable());
     try {
-      const catalog = await projectWorkspaceCarrierEntry(runtime, item.packagePath);
+      const catalog = await projectWorkspaceCarrierEntry(runtime, item.packagePath, '', '', null, [], routeId);
       if (catalog.status !== 'ready' || !catalog.modes?.length) throw new Error(`tiinex.transport.guided-entry-catalog-${catalog.reasonCode || catalog.status || 'blocked'}`);
       const showBuiltInEntries = vscode.workspace.getConfiguration('tiinex').get<boolean>('guidedEntry.showBuiltInEntries', true);
       const visibleEntries = catalog.modes.filter((mode) => showBuiltInEntries || String(mode.sourceKind || '') !== 'native');
@@ -1393,7 +1409,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
 
       const primaryInput = primary ? { label: primary.label, reference: primary.reference, workspaceId: primary.workspaceId, path: primary.path } : null;
       const participantInputs = selectedParticipants.map((participant) => ({ label: participant.label, reference: participant.reference, workspaceId: participant.workspaceId, path: participant.path }));
-      let rendered = await projectWorkspaceCarrierEntry(runtime, item.packagePath, modeSelection.mode, customInstruction, primaryInput, participantInputs);
+      let rendered = await projectWorkspaceCarrierEntry(runtime, item.packagePath, modeSelection.mode, customInstruction, primaryInput, participantInputs, routeId);
       if (rendered.status !== 'ready' && ['session-role-material-unresolved', 'participant-role-material-unresolved'].includes(String(rendered.reasonCode || ''))) {
         const selected = [
           ...(primary ? [primary] : []),
@@ -1410,7 +1426,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
         }
         const pinnedPrimary = primary ? { ...primaryInput!, reference: pinnedByIdentity.get(roleCandidateKey(primary)) || primary.reference } : null;
         const pinnedParticipants = selectedParticipants.map((participant) => ({ ...participant, reference: pinnedByIdentity.get(roleCandidateKey(participant)) || participant.reference }));
-        rendered = await projectWorkspaceCarrierEntry(runtime, item.packagePath, modeSelection.mode, customInstruction, pinnedPrimary, pinnedParticipants);
+        rendered = await projectWorkspaceCarrierEntry(runtime, item.packagePath, modeSelection.mode, customInstruction, pinnedPrimary, pinnedParticipants, routeId);
       }
       if (rendered.status !== 'ready' || !rendered.transportText) throw new Error(`tiinex.transport.guided-entry-render-${rendered.reasonCode || rendered.status || 'blocked'}`);
       return String(rendered.transportText);
@@ -2741,7 +2757,11 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
         .filter((item) => item.source === 'incoming' && item.packagePath && path.resolve(item.packagePath) === parent)
         .map((item) => item.sourceKey));
     }
-    pickedKeys = new Set(preferByteIdenticalEmbeddedSelections([...pickedKeys], sourceResolutionInputs));
+    const parentIncomingKeys = this.outgoing.packageParentPath
+      ? sources
+          .filter((item) => item.source === 'incoming' && item.packagePath && path.resolve(item.packagePath) === path.resolve(this.outgoing!.packageParentPath!))
+          .map((item) => item.sourceKey)
+      : [];
     const items = pickerItems.map((item) => item.kind === vscode.QuickPickItemKind.Separator ? item : ({ ...item, picked: Boolean(item.key && pickedKeys.has(item.key)) }));
     const acceptanceKeys = extensionHostAcceptanceOutgoingSourceKeys(sources.map((item) => ({ sourceKey: item.sourceKey, workspaceId: item.workspaceId, source: item.source })));
     let selected: readonly SourceItem[] | undefined;
@@ -2759,6 +2779,31 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
         picker.selectedItems = items.filter((item) => Boolean(item.key && pickedKeys.has(item.key)));
         let prior = picker.selectedItems.map((item) => item.key || '').filter(Boolean);
         let syncing = false;
+        const hasParentPreset = Boolean(this.outgoing?.packageParentPath && parentIncomingKeys.length);
+        const presetButton: vscode.QuickInputButton = { iconPath: new vscode.ThemeIcon('list-selection'), tooltip: '' };
+        const nextPresetMode = (mode: OutgoingSourcePresetMode | null): OutgoingSourcePresetMode => {
+          if (!mode) return 'incoming-only';
+          const index = OUTGOING_SOURCE_PRESET_MODES.indexOf(mode);
+          return OUTGOING_SOURCE_PRESET_MODES[(index + 1) % OUTGOING_SOURCE_PRESET_MODES.length];
+        };
+        const refreshPresetButton = () => {
+          if (!hasParentPreset) return;
+          picker.buttons = [presetButton];
+        };
+        if (hasParentPreset) refreshPresetButton();
+        const buttonDisposable = picker.onDidTriggerButton((button) => {
+          if (!hasParentPreset || button !== presetButton) return;
+          const selectedKeys = picker.selectedItems.map((item) => item.key || '').filter(Boolean);
+          const current = detectOutgoingSourcePreset(selectedKeys, sourceResolutionInputs, parentIncomingKeys);
+          const next = nextPresetMode(current);
+          const projected = projectOutgoingSourcePreset(next, sourceResolutionInputs, parentIncomingKeys);
+          const projectedSet = new Set(projected);
+          prior = projected;
+          syncing = true;
+          picker.selectedItems = items.filter((item) => Boolean(item.key && projectedSet.has(item.key)));
+          syncing = false;
+          refreshPresetButton();
+        });
         const selectionDisposable = picker.onDidChangeSelection((next) => {
           if (syncing) return;
           const nextKeys = next.map((item) => item.key || '').filter(Boolean);
@@ -2766,10 +2811,14 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
           const nextSet = new Set(nextKeys);
           const resolvedSet = new Set(resolved);
           prior = resolved;
-          if (nextSet.size === resolvedSet.size && [...nextSet].every((key) => resolvedSet.has(key))) return;
+          if (nextSet.size === resolvedSet.size && [...nextSet].every((key) => resolvedSet.has(key))) {
+            refreshPresetButton();
+            return;
+          }
           syncing = true;
           picker.selectedItems = items.filter((item) => Boolean(item.key && resolvedSet.has(item.key)));
           syncing = false;
+          refreshPresetButton();
         });
         let completed = false;
         picker.onDidAccept(() => {
@@ -2781,6 +2830,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
         });
         picker.onDidHide(() => {
           selectionDisposable.dispose();
+          buttonDisposable.dispose();
           picker.dispose();
           if (!completed) { completed = true; resolve(undefined); }
         });

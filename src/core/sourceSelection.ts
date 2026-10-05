@@ -18,6 +18,67 @@ export interface DuplicateResolution {
   duplicateWorkspaceIds: string[];
 }
 
+export type OutgoingSourcePresetMode = 'incoming-only' | 'none' | 'prefer-local' | 'prefer-incoming' | 'local-only';
+
+export const OUTGOING_SOURCE_PRESET_MODES: OutgoingSourcePresetMode[] = [
+  'incoming-only',
+  'none',
+  'prefer-local',
+  'prefer-incoming',
+  'local-only'
+];
+
+export function outgoingSourcePresetLabel(mode: OutgoingSourcePresetMode): string {
+  if (mode === 'incoming-only') return 'Incoming only';
+  if (mode === 'none') return 'None';
+  if (mode === 'prefer-local') return 'Prefer Local';
+  if (mode === 'prefer-incoming') return 'Prefer Incoming';
+  return 'Local only';
+}
+
+export function projectOutgoingSourcePreset(
+  mode: OutgoingSourcePresetMode,
+  orderedSources: PrioritizedWorkspaceSource[],
+  parentIncomingKeys: string[]
+): string[] {
+  if (mode === 'none') return [];
+  const parentKeys = new Set(parentIncomingKeys.map((item) => String(item || '').trim()).filter(Boolean));
+  const localByWorkspace = new Map<string, PrioritizedWorkspaceSource>();
+  const incomingByWorkspace = new Map<string, PrioritizedWorkspaceSource>();
+  const preferEarlier = (current: PrioritizedWorkspaceSource | undefined, candidate: PrioritizedWorkspaceSource): PrioritizedWorkspaceSource =>
+    !current || candidate.priority < current.priority || (candidate.priority === current.priority && candidate.key.localeCompare(current.key) < 0) ? candidate : current;
+  for (const source of orderedSources) {
+    if (!source.workspaceId) continue;
+    if (source.source === 'local') localByWorkspace.set(source.workspaceId, preferEarlier(localByWorkspace.get(source.workspaceId), source));
+    if (source.source === 'incoming' && parentKeys.has(source.key)) incomingByWorkspace.set(source.workspaceId, preferEarlier(incomingByWorkspace.get(source.workspaceId), source));
+  }
+  const workspaceIds = [...new Set([...localByWorkspace.keys(), ...incomingByWorkspace.keys()])].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  const selected: string[] = [];
+  for (const workspaceId of workspaceIds) {
+    const local = localByWorkspace.get(workspaceId);
+    const incoming = incomingByWorkspace.get(workspaceId);
+    const winner = mode === 'incoming-only' ? incoming
+      : mode === 'local-only' ? local
+        : mode === 'prefer-local' ? (local || incoming)
+          : (incoming || local);
+    if (winner) selected.push(winner.key);
+  }
+  return selected;
+}
+
+export function detectOutgoingSourcePreset(
+  selectedKeys: string[],
+  orderedSources: PrioritizedWorkspaceSource[],
+  parentIncomingKeys: string[]
+): OutgoingSourcePresetMode | null {
+  const normalized = [...new Set(selectedKeys.map((item) => String(item || '').trim()).filter(Boolean))].sort();
+  for (const mode of OUTGOING_SOURCE_PRESET_MODES) {
+    const projected = projectOutgoingSourcePreset(mode, orderedSources, parentIncomingKeys).sort();
+    if (normalized.length === projected.length && normalized.every((key, index) => key === projected[index])) return mode;
+  }
+  return null;
+}
+
 export function operatorMatchedWorkspaceIds(routes: QualifiedRouteLike[], roleLabel: string): string[] {
   const role = String(roleLabel || '').trim().toLocaleLowerCase();
   if (!role) return [];
@@ -101,7 +162,12 @@ export function resolveExclusiveWorkspaceSourceSelection(
     const explicitlyAdded = sources
       .filter((item) => newlySelected.has(item.key))
       .sort((a, b) => a.priority - b.priority || a.key.localeCompare(b.key))[0];
-    const winner = byteIdenticalEmbedded || explicitlyAdded || [...sources].sort((a, b) => a.priority - b.priority || a.key.localeCompare(b.key))[0];
+    // Outgoing selection expresses an explicit operator choice. If the current
+    // selection adds a competing source for this Workspace, that newly selected
+    // source wins. Byte-identical Incoming preference is only a fallback when
+    // there is no new selection intent (for example when normalizing an existing
+    // baseline). Guided Entry dedupe has its own embedded-wins projection in Core.
+    const winner = explicitlyAdded || byteIdenticalEmbedded || [...sources].sort((a, b) => a.priority - b.priority || a.key.localeCompare(b.key))[0];
     for (const source of sources) if (source.key !== winner.key) selected.delete(source.key);
     selected.add(winner.key);
   }

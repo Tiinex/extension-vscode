@@ -149,7 +149,7 @@
       ],
       "group": {
         "kind": "build",
-        "isDefault": true
+        "isDefault": false
       },
       "problemMatcher": "$tsc",
       "presentation": {
@@ -157,6 +157,38 @@
         "panel": "shared",
         "clear": true,
         "showReuseMessage": false
+      }
+    },
+    {
+      "label": "Tiinex: Build linked extension (Local)",
+      "type": "npm",
+      "script": "dev:build:local",
+      "problemMatcher": "$tsc",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true,
+        "showReuseMessage": false
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "Tiinex: Build linked extension (Latest)",
+      "type": "npm",
+      "script": "dev:build:latest",
+      "problemMatcher": "$tsc",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true,
+        "showReuseMessage": false
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": false
       }
     },
     {

@@ -42,6 +42,41 @@ function npm(args) {
   });
 }
 
+function npmCapture(args) {
+  if (dryRun) {
+    console.log(`[dry-run] npm ${args.join(' ')}`);
+    return Promise.resolve({ code: 0, stdout: 'dry-run', stderr: '' });
+  }
+  return new Promise((resolve, reject) => {
+    const child = spawn('npm', args, { cwd: root, stdio: ['ignore', 'pipe', 'pipe'], shell: process.platform === 'win32' });
+    let stdout = '';
+    let stderr = '';
+    child.stdout?.on('data', (chunk) => { stdout += String(chunk); });
+    child.stderr?.on('data', (chunk) => { stderr += String(chunk); });
+    child.on('exit', (code) => resolve({ code: Number(code ?? 1), stdout, stderr }));
+    child.on('error', reject);
+  });
+}
+
+function npmNotFound(result = {}) {
+  const text = `${String(result.stdout || '')}
+${String(result.stderr || '')}`;
+  return result.code !== 0 && (/\bE404\b/i.test(text) || /404\s+Not\s+Found/i.test(text) || /is not in this registry/i.test(text));
+}
+
+async function latestContentAvailability(records = []) {
+  const published = [];
+  const unavailable = [];
+  for (const record of records) {
+    const result = await npmCapture(['view', `${record.name}@latest`, 'version', '--json']);
+    if (result.code === 0) { published.push(record); continue; }
+    if (npmNotFound(result)) { unavailable.push(record); continue; }
+    const detail = String(result.stderr || result.stdout || '').trim() || `npm exited ${result.code}`;
+    throw new Error(`Tiinex latest content-source lookup failed for ${record.name}: ${detail}`);
+  }
+  return { published, unavailable };
+}
+
 async function siblingPackages() {
   const parent = path.dirname(root);
   const entries = await readdir(parent, { withFileTypes: true });
@@ -104,6 +139,22 @@ async function installSpecs(specs) {
   if (!unique.length) return;
   await npm(['install', '--no-save', '--package-lock=false', '--install-links', ...unique]);
 }
+
+async function uninstallPackages(names) {
+  const unique = [...new Set(names.map((item) => String(item || '').trim()).filter(Boolean))];
+  if (!unique.length) return;
+  await npm(['uninstall', '--no-save', '--package-lock=false', ...unique]);
+}
+
+async function installLatestComposition(current, availability = null) {
+  const content = availability || await latestContentAvailability(current.contentPackages || []);
+  await installSpecs((current.packages || []).map(latestSpec));
+  await uninstallPackages(content.unavailable.map((item) => item.name));
+  await installSpecs(content.published.map(latestSpec));
+  console.log(`Latest content sources installed: ${content.published.map((item) => item.name).join(', ') || '(none)'}`);
+  if (content.unavailable.length) console.log(`Unpublished latest content sources omitted: ${content.unavailable.map((item) => item.name).join(', ')}`);
+  return content;
+}
 async function installForMode(current) {
   await npm(['install']);
   if (current.mode === 'local') {
@@ -116,7 +167,7 @@ async function installForMode(current) {
     return;
   }
   if (current.mode === 'all-latest') {
-    await installSpecs([...current.packages, ...current.contentPackages].map(latestSpec));
+    await installLatestComposition(current);
   }
 }
 
@@ -142,13 +193,14 @@ async function switchAll(mode) {
     const missing = plan.packages.filter((item) => !item.root).map((item) => item.name);
     if (missing.length) throw new Error(`Tiinex local dependencies missing sibling checkout: ${missing.join(', ')}`);
   }
+  const availability = mode === 'all-latest' ? await latestContentAvailability(plan.contentPackages) : null;
   const next = await save({ mode, coreRoot: plan.packages.find((item) => item.name === '@tiinex/core')?.root || '../core', ...plan });
   await npm(['install']);
-  const records = [...next.packages, ...next.contentPackages];
-  await installSpecs(records.map(mode === 'all-local' ? localSpec : latestSpec));
+  if (mode === 'all-local') await installSpecs([...next.packages, ...next.contentPackages].map(localSpec));
+  else await installLatestComposition(next, availability);
   console.log(`Tiinex dependency mode: ${mode}`);
   console.log(`Packages: ${next.packages.map((item) => item.name).join(', ') || '(none)'}`);
-  console.log(`Content sources: ${next.contentPackages.map((item) => item.name).join(', ') || '(none)'}`);
+  console.log(`${mode === 'all-latest' ? 'Registered content sources' : 'Content sources'}: ${next.contentPackages.map((item) => item.name).join(', ') || '(none)'}`);
 }
 
 if (requested === 'local') await switchCoreLocal();
