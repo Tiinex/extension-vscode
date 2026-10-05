@@ -9,8 +9,8 @@ import { LatestWinsKeyedQueue } from '../dist/core/latestWinsQueue.js';
 import { canonicalRepositoryRoot, relativeRepositoryPath, repositoryContainsPath, sameRepositoryRoot } from '../dist/core/repositoryPath.js';
 import { ignoredPathCollisions, safeRelativePath, safeTarget } from '../dist/core/paths.js';
 import { preferredRepositoryParent, routesPreferredForRole } from '../dist/core/receiveUx.js';
-import { alphabeticalWorkspaceIds, artifactsForLineageMode, currentRoleArtifacts, currentRoleChoices, makeIndexedArtifact } from '../dist/core/artifactTree.js';
-import { artifactReferenceAvailable, markdownLinkTargets, materialTargetKey, resolveArtifactReference } from '../dist/core/artifactNavigation.js';
+import { alphabeticalWorkspaceIds, artifactsForLineageMode, makeIndexedArtifact } from '../dist/core/artifactTree.js';
+import { artifactPrefersMarkdownPreview, artifactReferenceAvailable, markdownLinkTargets, materialTargetKey, resolveArtifactReference } from '../dist/core/artifactNavigation.js';
 import { receivedHandoffContext, receivedGroundingProjection, withWorkspaceRoots } from '../dist/core/receivedHandoff.js';
 import { detectOutgoingSourcePreset, operatorMatchedWorkspaceIds, OUTGOING_SOURCE_PRESET_MODES, outgoingSourcePresetLabel, preferByteIdenticalEmbeddedSelections, projectOutgoingSourcePreset, resolveExclusiveWorkspaceSourceSelection, resolvePrioritizedWorkspaceDuplicates } from '../dist/core/sourceSelection.js';
 import { comparePackageRecency, rootOutgoingLabel, rootOutgoingPrefix } from '../dist/core/outgoingUx.js';
@@ -31,6 +31,7 @@ import { checkIgnoredPaths, commitPreparedGitOperator, commitPreparedReviewedSta
 import { preferredNodeExecutable } from '../dist/host/nodeExecutable.js';
 import { copyFileToClipboard } from '../dist/host/fileClipboard.js';
 import { existingCarrierFilenames, inspectCarrierDestination } from '../dist/host/carrierPublish.js';
+import { appendHostCarrierProgressionArgs } from '../dist/tiinex/hostManufactureContract.js';
 import { compareIncomingWorkspaceToLocal, createArtifactDraft, inspectArtifactCreationContract, manufactureHandoffPackage, manufactureHandoffPackageDetailed, parseBootstrapDescriptor, prepareBundledRuntime, prepareHostCoreRuntime, projectArtifactMaterialization, projectArtifactSchemaGuide, runTiinexJson, projectEditorAssistanceText, projectHandoffCarrierMajorFrontier, projectHandoffCarrierOutputCollision, projectHandoffCarrierTransportName, projectHandoffEndpoints, projectOperatorContext, projectPackageTransport, projectStagedValidation, projectTransitionCatalog, projectTransitionNeighborhood, projectWorkspaceLanding, projectWorkspacePackageSources, projectWorkspaceSessionRoles } from '../dist/tiinex/bootstrap.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -243,7 +244,9 @@ await test('artifact navigation integration is source-backed instead of ephemera
   const openArtifact = tree.slice(tree.indexOf('private async openArtifactNode'), tree.indexOf('private async openWorkspaceMarkdownNode'));
   assert.match(openArtifact, /openLocalMarkdown/);
   assert.match(openArtifact, /openCarrierMarkdown/);
-  assert.match(openArtifact, /artifact\.kind[\s\S]*handoff/);
+  assert.equal(artifactPrefersMarkdownPreview('.topics/work/001-handoff.trace.md', 'artifact'), true);
+  assert.equal(artifactPrefersMarkdownPreview('.topics/work/001-task.trace.md', 'handoff'), true);
+  assert.equal(artifactPrefersMarkdownPreview('.topics/work/001-task.trace.md', 'task'), false);
   assert.doesNotMatch(openArtifact, /openVirtualMarkdown/);
   assert.match(tree, /markdown\.showPreview/);
   const materialProvider = tree.slice(tree.indexOf('class MaterialProvider'), tree.indexOf('export class TiinexOperatorTrees'));
@@ -1017,27 +1020,16 @@ await test('Discovery indexes explicit folders and auto-refresh never invokes la
   assert.equal(isDiscoverySessionEvent(999, 1000), false);
 });
 
-await test('artifact-tree helpers keep latest Roles, lineage leaves and alphabetical Workspace siblings deterministic', async () => {
+await test('artifact-tree helpers keep lineage leaves and alphabetical Workspace siblings deterministic without owning current-Role semantics', async () => {
   const roleOld = makeIndexedArtifact({ workspaceId: 'business', path: '.topics/roles/001.trace.md', markdown: '# Continuity Context\n\n- Current\n  - Current Schema: tiinex.party.role.v1\n  - Created At: 2026-01-01 00:00:00\n\n---\n\n# Sigma old\n\n- Role Label: Sigma\n' });
   const roleNew = makeIndexedArtifact({ workspaceId: 'business', path: '.topics/roles/001-1.trace.md', markdown: '# Continuity Context\n\n- Parent\n  - Trace: [001.trace.md](001.trace.md)\n- Current\n  - Current Schema: tiinex.party.role.v1\n  - Created At: 2026-02-01 00:00:00\n\n---\n\n# Sigma current\n\n- Role Label: Sigma\n' });
   assert.ok(roleOld && roleNew);
-  const roles = currentRoleArtifacts([roleOld, roleNew]);
-  assert.equal(roles.length, 1);
-  assert.equal(roles[0].path, '.topics/roles/001-1.trace.md');
   assert.deepEqual(artifactsForLineageMode([roleOld, roleNew], 'lineage').map((item) => item.path), ['.topics/roles/001.trace.md', '.topics/roles/001-1.trace.md']);
   assert.deepEqual(artifactsForLineageMode([roleOld, roleNew], 'leaves').map((item) => item.path), ['.topics/roles/001-1.trace.md']);
-  const cached = makeIndexedArtifact({ path: '001-endpoint-role.trace.md', markdown: '# Continuity Context\n\n- Current\n  - Current Schema: tiinex.pointer.v1\n  - Created At: 2026-03-01 00:00:00\n\n---\n\n# Endpoint Role Pointer — Sigma\n\n## Current Read\n\n- Carrier Role: endpoint-role\n- Role Label Hint: Sigma\n- Role Reference: `business::.topics/roles/001.trace.md`\n- Target Workspace Id: `business`\n- Target Inner Path: `.topics/roles/001.trace.md`\n' });
-  const cacheOnly = makeIndexedArtifact({ path: '001-other-endpoint-role.trace.md', markdown: '# Continuity Context\n\n- Current\n  - Current Schema: tiinex.pointer.v1\n  - Created At: 2026-03-01 00:00:00\n\n---\n\n# Endpoint Role Pointer — Reviewer\n\n## Current Read\n\n- Carrier Role: endpoint-role\n- Role Label Hint: Reviewer\n- Role Reference: `business::.topics/roles/009-reviewer.trace.md`\n- Target Workspace Id: `business`\n- Target Inner Path: `.topics/roles/009-reviewer.trace.md`\n' });
-  assert.ok(cached && cacheOnly);
-  const choices = currentRoleChoices([roleOld, roleNew, cached, cacheOnly]);
-  assert.deepEqual(choices.map((item) => [item.label, item.reference, item.source]), [
-    ['Reviewer', 'business::.topics/roles/009-reviewer.trace.md', 'carrier-cache'],
-    ['Sigma', 'business::.topics/roles/001-1.trace.md', 'artifact']
-  ]);
+  assert.equal(Object.prototype.hasOwnProperty.call(roleNew, 'roleLabel'), false, 'host index must not parse Role Label as current-role authority');
   const sorted = alphabeticalWorkspaceIds([{ workspaceId: 'vscode' }, { workspaceId: 'Business' }, { workspaceId: 'core' }]);
   assert.deepEqual(sorted.map((item) => item.workspaceId), ['Business', 'core', 'vscode']);
 });
-
 
 await test('authoring discovery remains host-generic and may be scoped to exact selected Workspace roots', async () => {
   const fs = await import('node:fs/promises');
@@ -1421,7 +1413,7 @@ await test('linked-extension Local and Latest shortcuts are distinct portable np
   const latest = byLabel.get('Tiinex: Build linked extension (Latest)');
   assert.equal(original?.script, 'dev:build');
   assert.deepEqual(original?.dependsOn, ['Tiinex: npm install']);
-  assert.equal(original?.group?.isDefault, false);
+  assert.equal(original?.group?.isDefault, true);
   assert.equal(manifest.scripts?.['dev:build:local'], 'node scripts/core-mode.mjs all-local && npm run dev:build');
   assert.equal(manifest.scripts?.['dev:build:latest'], 'node scripts/core-mode.mjs all-latest && npm run dev:build');
   assert.equal(local?.type, 'npm');
@@ -1689,7 +1681,6 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.doesNotMatch(tree, /participantRoles: item\.participants/);
   assert.match(tree, /workspaceSourceOverrides/);
   assert.match(tree, /root: item\.stagedRoot \|\| item\.root/);
-  assert.match(tree, /placeHolder: this\.outgoingProjectedFilename\(\)/);
   assert.match(tree, /const outputDirectory = this\.outgoingFolder\(\) \|\| await this\.selectOutgoingFolder\(this\.discoveryFolder\(\) \|\| undefined, false\)/);
   assert.match(tree, /defaultUri: defaultFolder \? vscode\.Uri\.file\(path\.resolve\(defaultFolder\)\) : undefined/);
   assert.match(tree, /outputDirectory,/);
@@ -1725,7 +1716,7 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(tree, /\.filter\(\(item\) => !selectedIds\.has\(item\.workspaceId\)\)/);
   const packageBuilder = await fs.readFile(path.resolve(HERE, '..', 'src', 'packageBuilder.ts'), 'utf8');
   const participantProjection = await fs.readFile(path.resolve(HERE, '..', 'src', 'core', 'participantProjection.ts'), 'utf8');
-  assert.match(packageBuilder, /prepareWorkspaceCoreRuntime/);
+  assert.match(packageBuilder, /appendHostCarrierProgressionArgs/);
   assert.match(packageBuilder, /prepareSelectedCoreManufactureRuntime/);
   assert.match(packageBuilder, /manufactureHandoffPackageDetailed/);
   assert.match(packageBuilder, /participantProjectionFromCoreResult/);
@@ -1748,7 +1739,7 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(packageBuilder, /Publishing carrier/);
   assert.match(packageBuilder, /tiinex\.package-builder\.preview-blocked/);
   assert.match(packageBuilder, /tiinex\.package-builder\.manufacture-blocked/);
-  assert.match(packageBuilder, /finally \{ await rm\(scratch, \{ recursive: true, force: true \}\); if \(runtime\) await runtime\.dispose\(\); \}/);
+  assert.match(packageBuilder, /finally \{ await cleanupScratch\(scratch\); if \(runtime\) await runtime\.dispose\(\); \}/);
   assert.match(packageBuilder, /runtime bytes differ from the carried Core source/);
   assert.match(packageBuilder, /selected-core-runtime/);
   assert.doesNotMatch(packageBuilder, /--collision-instance/);
@@ -2253,8 +2244,6 @@ await test('multi-Incoming and Merge/Replace remain selection-first, dry until f
   assert.match(tree, /this\.incoming = \[state, \.\.\.this\.incoming\.filter/);
   assert.match(tree, /operatorMatchedWorkspaceIds/);
   assert.match(tree, /resolvePrioritizedWorkspaceDuplicates/);
-  assert.match(tree, /preferByteIdenticalEmbeddedSelections/);
-  assert.match(tree, /placeHolder: this\.outgoingProjectedFilename\(\)/);
   assert.match(tree, /\$\(repo\) LOCAL · VS CODE/);
   assert.match(tree, /pickerItems\.push\(\{ label: sourceName, kind: vscode\.QuickPickItemKind\.Separator \}\)/);
   assert.match(tree, /seed\?\.kind === 'local'/);
@@ -2721,7 +2710,6 @@ await test('all package-builder Core discovery consumes the shared host runtime 
   assert.match(builder, /prepareHostCoreRuntime/);
   assert.doesNotMatch(builder, /function prepareWorkspaceAwareCoreRuntime/);
   assert.match(bootstrap, /export async function prepareHostCoreRuntime/);
-  assert.match(bootstrap, /prepareWorkspaceCoreRuntime\(coreRoots\[0\]/);
   assert.match(builder, /loadPackageBuilderModel[\s\S]*prepareHostCoreRuntime/);
   assert.match(builder, /loadLocalWorkspaceChoices[\s\S]*prepareHostCoreRuntime/);
   assert.match(builder, /loadHandoffEndpointChoicesForSources[\s\S]*prepareHostCoreRuntime/);
@@ -3006,7 +2994,8 @@ await test('diagnostics controller captures unsaved bytes before debounce and di
   assert.match(source, /onDidCloseTextDocument/);
   assert.match(source, /CHANGE_DEBOUNCE_MS = 250/);
   assert.match(source, /projectEditorAssistanceText/);
-  assert.match(source, /prepareWorkspaceCoreRuntime/);
+  assert.match(source, /prepareHostCoreRuntime/);
+  assert.match(source, /prepareDiagnosticsRuntime/);
   assert.match(source, /resolveVersionBearingPermalinks/);
   assert.match(source, /referenceResolutions/);
   assert.match(source, /requestFor\(document, generation, 'in-memory', document\.getText\(\)\)/);
@@ -3092,6 +3081,53 @@ await test('pointerless Workspace carrier args preserve Parent continuity while 
     assert.equal(args.includes('--carrier-prefix'), true);
     assert.equal(args.includes('--carrier-existing-filenames'), true);
     assert.equal(args.includes('--new-root'), false);
+  } finally { await fs.rm(scratch, { recursive: true, force: true }); }
+});
+
+
+await test('host manufacture progression matrix gives routed and pointerless paths the same Parent/Major frontier facts while Core owns allocation', async () => {
+  const fs = await import('node:fs/promises');
+  const os = await import('node:os');
+  const scratch = await fs.mkdtemp(path.join(os.tmpdir(), 'tiinex-host-manufacture-contract-'));
+  try {
+    const variants = [
+      { name: 'pointerless', prefixPolicy: 'major-only', rootPolicy: 'explicit-new-root' },
+      { name: 'routed', prefixPolicy: 'always', rootPolicy: 'implicit-root' }
+    ];
+    const cases = [
+      { name: 'root', parent: '', major: '' },
+      { name: 'child', parent: '/out/tiinex-018.handoff-package.zip', major: '' },
+      { name: 'root-major', parent: '', major: 'Stable checkpoint' },
+      { name: 'parent-major', parent: '/out/tiinex-018.handoff-package.zip', major: 'Stable checkpoint' }
+    ];
+    for (const variant of variants) {
+      for (const item of cases) {
+        const caseScratch = path.join(scratch, `${variant.name}-${item.name}`);
+        await fs.mkdir(caseScratch, { recursive: true });
+        const args = await appendHostCarrierProgressionArgs(['root'], caseScratch, {
+          packageParentPath: item.parent,
+          packageMajorReason: item.major,
+          carrierPrefix: 'tiinex',
+          existingFilenames: ['tiinex-020.handoff-package.zip', 'tiinex-019.handoff-package.zip'],
+          prefixPolicy: variant.prefixPolicy,
+          rootPolicy: variant.rootPolicy
+        });
+        assert.equal(args.includes('--package-parent'), Boolean(item.parent), `${variant.name}/${item.name}: Parent fact`);
+        assert.equal(args.includes('--package-major'), Boolean(item.major), `${variant.name}/${item.name}: Major selection`);
+        assert.equal(args.includes('--carrier-existing-filenames'), Boolean(item.major), `${variant.name}/${item.name}: frontier facts`);
+        assert.equal(args.includes('--new-root'), !item.parent && !item.major && variant.rootPolicy === 'explicit-new-root', `${variant.name}/${item.name}: root marker`);
+        assert.equal(args.includes('--carrier-prefix'), Boolean(item.major) || variant.prefixPolicy === 'always', `${variant.name}/${item.name}: prefix observation`);
+        if (item.major) {
+          const namesPath = args[args.indexOf('--carrier-existing-filenames') + 1];
+          assert.deepEqual(JSON.parse(await fs.readFile(namesPath, 'utf8')), {
+            existingFilenames: ['tiinex-019.handoff-package.zip', 'tiinex-020.handoff-package.zip']
+          });
+        }
+      }
+    }
+    await assert.rejects(() => appendHostCarrierProgressionArgs([], scratch, {
+      packageMajorReason: 'Stable checkpoint', carrierPrefix: '', existingFilenames: [], prefixPolicy: 'major-only', rootPolicy: 'explicit-new-root'
+    }), /package-major-prefix-required/);
   } finally { await fs.rm(scratch, { recursive: true, force: true }); }
 });
 
@@ -3609,7 +3645,7 @@ await test('Candidate 018 keeps lineage as artifact membership and normalizes na
   const vscode195CodiconsUsedByTiinex = new Set([
     'add', 'arrow-down', 'arrow-right', 'arrow-up', 'check', 'circle-slash', 'clear-all', 'close', 'cloud', 'cloud-download',
     'comment', 'copy', 'debug-disconnect', 'diff', 'file-zip', 'folder-opened', 'git-merge', 'git-pull-request-create',
-    'link', 'list-selection', 'list-tree', 'new-file', 'package', 'preview', 'references', 'refresh', 'replace-all',
+    'discard', 'link', 'list-selection', 'list-tree', 'new-file', 'package', 'preview', 'references', 'refresh', 'replace-all',
     'root-folder-opened', 'save', 'send', 'settings', 'target', 'tools', 'trash'
   ]);
   const contributedCodicons = (manifest.contributes?.commands || [])
@@ -3773,7 +3809,7 @@ await test('Diagnostics shares the same host runtime composition path as Replace
   const diagnostics = await fs.readFile(path.join(root, 'src', 'diagnostics.ts'), 'utf8');
   assert.match(diagnostics, /prepareHostCoreRuntime/);
   assert.doesNotMatch(diagnostics, /prepareWorkspaceCoreRuntime/);
-  assert.match(diagnostics, /containingWorkspaceRoot/);
+  assert.match(diagnostics, /prepareDiagnosticsRuntime/);
 });
 
 
@@ -3828,7 +3864,7 @@ await test('Selected Core manufacture is authoritative, routed Major receives ob
   const bootstrap = await fs.readFile(path.join(root, 'src', 'tiinex', 'bootstrap.ts'), 'utf8');
   const tree = await fs.readFile(path.join(root, 'src', 'operatorTrees.ts'), 'utf8');
   assert.match(builder, /prepareSelectedHostCoreRuntime/);
-  assert.match(builder, /--carrier-existing-filenames/);
+  assert.match(builder, /appendHostCarrierProgressionArgs/);
   assert.doesNotMatch(builder, /if \(!packageParentPath\) \{\s*const existingNames = existingFilenames/);
   assert.match(bootstrap, /Other open Core roots[\s\S]*not competing runtime candidates/);
   assert.match(tree, /openCarrierMarkdown\(state\.index, route\.workspaceId, artifact\.path, true\)/);
@@ -3836,7 +3872,6 @@ await test('Selected Core manufacture is authoritative, routed Major receives ob
   assert.match(tree, /resolveExclusiveWorkspaceSourceSelection/);
   assert.match(tree, /projectOutgoingSourcePreset/);
   assert.match(tree, /onDidTriggerButton/);
-  assert.match(tree, /Source preset:/);
   assert.match(tree, /Parent-carried Workspaces are the baseline/);
 });
 

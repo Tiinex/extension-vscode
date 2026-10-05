@@ -962,7 +962,7 @@
     "clean": "node scripts/clean.mjs",
     "build": "npm run clean && tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "npm run build && node test/run.mjs",
+    "test": "npm run build && node scripts/test-installed-core-fixture.mjs",
     "vsix": "npm run build && node scripts/package-vsix.mjs",
     "validate": "npm run typecheck && npm test && npm run test:package && npm run vsix",
     "dev:build": "tsc -p tsconfig.json",

@@ -97,6 +97,15 @@ export function artifactReferenceAvailable(resolution: ArtifactReferenceResoluti
   return Boolean(key && availableTargets.has(key));
 }
 
+
+/** Host presentation policy only: Handoff Markdown is read-first in Preview. */
+export function artifactPrefersMarkdownPreview(filePath = '', kind = ''): boolean {
+  const artifactKind = String(kind || '').trim().toLocaleLowerCase();
+  const normalized = normalizeArtifactPath(String(filePath || ''));
+  const base = normalized.split('/').pop() || '';
+  return artifactKind.includes('handoff') || /(^|[-_.])handoff([-.]|$)/i.test(base);
+}
+
 export function normalizeArtifactPath(value: string): string {
   return normalizedSegments(String(value || '').replace(/\\/g, '/').split('/'), false) || '';
 }

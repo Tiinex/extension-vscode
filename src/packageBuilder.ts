@@ -8,6 +8,7 @@ import { extensionHostAcceptanceEnabled, recordExtensionHostAcceptanceEvent } fr
 import { preferredNodeExecutable } from './host/nodeExecutable';
 import { manufactureHandoffPackage, manufactureHandoffPackageDetailed, projectHandoffCarrierOutputCollision, projectHandoffParticipants, OperatorContextResult, prepareBundledRuntime, prepareHostCoreRuntime, prepareSelectedHostCoreRuntime, projectHandoffLeaves, projectHandoffEndpoints, projectOperatorContext, projectWorkspacePackageSources, WorkspacePackageSourcesResult } from './tiinex/bootstrap';
 import { workspaceCarrierArgs } from './core/packageArgs';
+import { appendHostCarrierProgressionArgs } from './tiinex/hostManufactureContract';
 import { exactRouteByKey, routeChoiceKey } from './core/operatorModel';
 import { repositoryContainsPath, sameRepositoryRoot } from './core/repositoryPath';
 import { presentActionableFindings } from './core/findingPresentation';
@@ -523,8 +524,16 @@ async function handoffArgs(selected: WorkspaceSource[], primaryRoute: RouteChoic
     }), 'utf8');
     args.push('--carrier-profile', profilePath);
   }
-  if (packageParentPath) args.push('--package-parent', path.resolve(packageParentPath));
   if (packageMajorReason && packageConsolidation) throw new Error('tiinex.package-builder.package-major-consolidation-conflict');
+  const progressed = await appendHostCarrierProgressionArgs(args, scratch, {
+    packageParentPath,
+    packageMajorReason,
+    carrierPrefix,
+    existingFilenames,
+    prefixPolicy: 'always',
+    rootPolicy: 'implicit-root'
+  });
+  args.splice(0, args.length, ...progressed);
   if (packageConsolidation) {
     if (!packageParentPath) throw new Error('tiinex.package-builder.package-consolidation-parent-required');
     args.push('--package-consolidation');
@@ -532,17 +541,6 @@ async function handoffArgs(selected: WorkspaceSource[], primaryRoute: RouteChoic
     if (packageParentRoutePointer) args.push('--package-parent-route-pointer', packageParentRoutePointer);
     if (packageParentRouteId) args.push('--package-parent-route-id', packageParentRouteId);
   }
-  if (packageMajorReason) {
-    if (!String(carrierPrefix || '').trim()) throw new Error('tiinex.package-builder.package-major-prefix-required');
-    args.push('--package-major', '--major-reason', packageMajorReason);
-    // The host owns filesystem observation only. Core owns the Major decision.
-    // Routed and pointerless manufacture therefore receive the same observed
-    // same-prefix filename facts, regardless of whether a Package Parent exists.
-    const namesPath = path.join(scratch, 'carrier-existing-filenames.json');
-    await writeFile(namesPath, JSON.stringify({ existingFilenames }), 'utf8');
-    args.push('--carrier-existing-filenames', namesPath);
-  }
-  if (String(carrierPrefix || '').trim()) args.push('--carrier-prefix', String(carrierPrefix || '').trim());
   if (String(projectedFilename || '').trim()) args.push('--projected-filename', checkedCarrierFilename(String(projectedFilename || '').trim()));
   if (Object.keys(materialBindings).length) {
     const bindingsPath = path.join(scratch, 'material-bindings.json');

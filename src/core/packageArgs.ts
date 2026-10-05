@@ -1,6 +1,7 @@
 import { checkedCarrierFilename } from './carrierFilename';
 import path from 'node:path';
 import { writeFile } from 'node:fs/promises';
+import { appendHostCarrierProgressionArgs } from '../tiinex/hostManufactureContract';
 
 export type WorkspaceCarrierSource = {
   workspaceId: string;
@@ -19,17 +20,12 @@ export async function workspaceCarrierArgs(selected: WorkspaceCarrierSource[], s
   const args = [primary.root, '--carrier-mode', 'workspace', '--workspace-id', primary.workspaceId, '--workspace-target', primary.workspaceTargetPath, '--workspace-roots', descriptorsPath, '--workspace-targets', targetsPath, '--tooling-bootstrap', 'embedded'];
   const filename = String(projectedFilename || '').trim();
   if (filename) args.push('--projected-filename', checkedCarrierFilename(filename));
-  const parent = String(packageParentPath || '').trim();
-  const majorReason = String(packageMajorReason || '').trim();
-  if (parent) args.push('--package-parent', path.resolve(parent));
-  if (majorReason) {
-    const prefix = String(carrierPrefix || '').trim();
-    if (!prefix) throw new Error('tiinex.package-builder.package-major-prefix-required');
-    args.push('--package-major', '--major-reason', majorReason, '--carrier-prefix', prefix);
-    const namesPath = path.join(scratch, 'carrier-existing-filenames.json');
-    await writeFile(namesPath, JSON.stringify({ existingFilenames }), 'utf8');
-    args.push('--carrier-existing-filenames', namesPath);
-  }
-  if (!parent && !majorReason) args.push('--new-root');
-  return args;
+  return appendHostCarrierProgressionArgs(args, scratch, {
+    packageParentPath,
+    packageMajorReason,
+    carrierPrefix,
+    existingFilenames,
+    prefixPolicy: 'major-only',
+    rootPolicy: 'explicit-new-root'
+  });
 }

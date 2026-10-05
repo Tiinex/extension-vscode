@@ -26,7 +26,7 @@ import { extractZipBuffer, readExactZipEntryFromBuffer, readExactZipEntryFromFil
 import { ArtifactAuthoringSubmission, openArtifactAuthoringPanel } from './artifactAuthoringPanel';
 import { sameRepositoryRoot } from './core/repositoryPath';
 import { safeRelativePath, safeTarget } from './core/paths';
-import { artifactReferenceAvailable, markdownLinkTargets, materialTargetKey, resolveArtifactReference } from './core/artifactNavigation';
+import { artifactPrefersMarkdownPreview, artifactReferenceAvailable, markdownLinkTargets, materialTargetKey, resolveArtifactReference } from './core/artifactNavigation';
 import { planWorkspaceSession, validateWorkspaceTargetMapping } from './core/workspaceSession';
 import { routeChoiceKey } from './core/operatorModel';
 import { consumeIncomingMultiRootResume, prepareIncomingMultiRootSession } from './vscode/incomingWorkspaceSession';
@@ -38,11 +38,6 @@ export type OperatorSection = 'discovery' | 'incoming' | 'outgoing';
 
 const STABLE_MAJOR_REASON = 'Checkpoint promoted to Major after acceptance assessment; material is considered stable.';
 
-function prefersMarkdownPreview(filePath = '', kind = ''): boolean {
-  const artifactKind = String(kind || '').trim().toLocaleLowerCase();
-  const normalized = normalizePath(String(filePath || ''));
-  return artifactKind.includes('handoff') || /(^|[-_.])handoff([-.]|$)/i.test(path.basename(normalized));
-}
 
 
 function progressHeartbeat(progress: vscode.Progress<{ message?: string; increment?: number }>): { report(message: string): void; dispose(): void } {
@@ -4829,23 +4824,23 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
           ? this.incomingState(node.data.packagePath || '')?.index || null
           : node.data.packagePath ? await this.carrier(node.data.packagePath) : null;
         if (!index) throw new Error('tiinex.material.package-unavailable');
-        await this.openCarrierMarkdown(index, artifact.workspaceId, artifact.path, prefersMarkdownPreview(artifact.path, artifact.kind));
+        await this.openCarrierMarkdown(index, artifact.workspaceId, artifact.path, artifactPrefersMarkdownPreview(artifact.path, artifact.kind));
         return;
       }
       if (node.data.section === 'outgoing') {
         const workspace = this.outgoing?.workspaces.find((item) => item.workspaceId === artifact.workspaceId);
         if (!workspace) throw new Error(`tiinex.material.workspace-unavailable:${artifact.workspaceId}`);
         if (workspace.stagedRoot) {
-          await this.openLocalMarkdown(workspace.stagedRoot, artifact.path, prefersMarkdownPreview(artifact.path, artifact.kind));
+          await this.openLocalMarkdown(workspace.stagedRoot, artifact.path, artifactPrefersMarkdownPreview(artifact.path, artifact.kind));
           return;
         }
         if (workspace.source === 'incoming' && workspace.packagePath) {
           const index = this.incomingState(workspace.packagePath)?.index || await this.carrier(workspace.packagePath);
-          await this.openCarrierMarkdown(index, artifact.workspaceId, artifact.path, prefersMarkdownPreview(artifact.path, artifact.kind));
+          await this.openCarrierMarkdown(index, artifact.workspaceId, artifact.path, artifactPrefersMarkdownPreview(artifact.path, artifact.kind));
           return;
         }
         if (workspace.root) {
-          await this.openLocalMarkdown(workspace.root, artifact.path, prefersMarkdownPreview(artifact.path, artifact.kind));
+          await this.openLocalMarkdown(workspace.root, artifact.path, artifactPrefersMarkdownPreview(artifact.path, artifact.kind));
           return;
         }
       }
@@ -4865,22 +4860,22 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
           ? this.incomingState(node.data.packagePath || '')?.index || null
           : node.data.packagePath ? await this.carrier(node.data.packagePath) : null;
         if (!index) throw new Error('tiinex.material.package-unavailable');
-        await this.openCarrierMarkdown(index, workspaceId, filePath, prefersMarkdownPreview(filePath));
+        await this.openCarrierMarkdown(index, workspaceId, filePath, artifactPrefersMarkdownPreview(filePath));
         return;
       }
       const workspace = this.outgoing?.workspaces.find((item) => item.workspaceId === workspaceId);
       if (!workspace) throw new Error(`tiinex.material.workspace-unavailable:${workspaceId}`);
       if (workspace.stagedRoot) {
-        await this.openLocalMarkdown(workspace.stagedRoot, filePath, prefersMarkdownPreview(filePath));
+        await this.openLocalMarkdown(workspace.stagedRoot, filePath, artifactPrefersMarkdownPreview(filePath));
         return;
       }
       if (workspace.source === 'incoming' && workspace.packagePath) {
         const index = this.incomingState(workspace.packagePath)?.index || await this.carrier(workspace.packagePath);
-        await this.openCarrierMarkdown(index, workspaceId, filePath, prefersMarkdownPreview(filePath));
+        await this.openCarrierMarkdown(index, workspaceId, filePath, artifactPrefersMarkdownPreview(filePath));
         return;
       }
       if (workspace.root) {
-        await this.openLocalMarkdown(workspace.root, filePath, prefersMarkdownPreview(filePath));
+        await this.openLocalMarkdown(workspace.root, filePath, artifactPrefersMarkdownPreview(filePath));
         return;
       }
       throw new Error('tiinex.material.source-unavailable');
