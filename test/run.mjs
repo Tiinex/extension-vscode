@@ -32,7 +32,7 @@ import { preferredNodeExecutable } from '../dist/host/nodeExecutable.js';
 import { copyFileToClipboard } from '../dist/host/fileClipboard.js';
 import { existingCarrierFilenames, inspectCarrierDestination } from '../dist/host/carrierPublish.js';
 import { appendHostCarrierProgressionArgs } from '../dist/tiinex/hostManufactureContract.js';
-import { compareIncomingWorkspaceToLocal, createArtifactDraft, inspectArtifactCreationContract, manufactureHandoffPackage, manufactureHandoffPackageDetailed, parseBootstrapDescriptor, prepareBundledRuntime, prepareHostCoreRuntime, projectArtifactMaterialization, projectArtifactSchemaGuide, runTiinexJson, projectEditorAssistanceText, projectHandoffCarrierMajorFrontier, projectHandoffCarrierOutputCollision, projectHandoffCarrierTransportName, projectHandoffEndpoints, projectOperatorContext, projectPackageTransport, projectStagedValidation, projectTransitionCatalog, projectTransitionNeighborhood, projectWorkspaceLanding, projectWorkspacePackageSources, projectWorkspaceSessionRoles } from '../dist/tiinex/bootstrap.js';
+import { compareIncomingWorkspaceToLocal, createArtifactDraft, inspectArtifactCreationContract, manufactureHandoffPackage, manufactureHandoffPackageDetailed, parseBootstrapDescriptor, prepareBundledRuntime, prepareHostCoreRuntime, projectArtifactMaterialization, projectArtifactSchemaGuide, runTiinexJson, projectEditorAssistanceText, projectHandoffCarrierMajorFrontier, projectHandoffCarrierOutputCollision, projectHandoffCarrierTransportName, projectHandoffEndpoints, projectOperatorContext, projectPackageTransport, projectStagedValidation, projectTransitionCatalog, projectTransitionNeighborhood, projectWorkspaceCarrierEntry, projectWorkspaceLanding, projectWorkspacePackageSources, projectWorkspaceSessionRoles } from '../dist/tiinex/bootstrap.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 let count = 0;
@@ -3129,6 +3129,49 @@ await test('host manufacture progression matrix gives routed and pointerless pat
       packageMajorReason: 'Stable checkpoint', carrierPrefix: '', existingFilenames: [], prefixPolicy: 'major-only', rootPolicy: 'explicit-new-root'
     }), /package-major-prefix-required/);
   } finally { await fs.rm(scratch, { recursive: true, force: true }); }
+});
+
+await test('Guided Entry projects WHERE selection through the shared Core target argument', async () => {
+  const runtime = { root: '/runtime', entrypoint: '/runtime/tiinex-portable.mjs', nodeExecutable: 'node', dispose: async () => undefined };
+  const fx = fakeRunner(() => ({ code: 0, stdout: JSON.stringify({ status: 'ready', targetEntryId: 'target-chatgpt-web', transportText: 'ok' }), stderr: '' }));
+  const result = await projectWorkspaceCarrierEntry(runtime, '/carrier.zip', 'EXPLORE', '', null, [], '001-route.trace.md', 'target-chatgpt-web', fx.runner);
+  assert.equal(result.targetEntryId, 'target-chatgpt-web');
+  assert.deepEqual(fx.calls[0].args.slice(1), [
+    'project-workspace-carrier-entry', '/carrier.zip',
+    '--mode', 'EXPLORE',
+    '--route', '001-route.trace.md',
+    '--target-entry-id', 'target-chatgpt-web',
+    '--compact'
+  ]);
+});
+
+await test('Guided Entry projection wrapper preserves the pre-WHERE positional runner contract', async () => {
+  const runtime = { root: '/runtime', entrypoint: '/runtime/tiinex-portable.mjs', nodeExecutable: 'node', dispose: async () => undefined };
+  const fx = fakeRunner(() => ({ code: 0, stdout: JSON.stringify({ status: 'ready', transportText: 'ok' }), stderr: '' }));
+  const result = await projectWorkspaceCarrierEntry(runtime, '/carrier.zip', 'EXPLORE', '', null, [], '001-route.trace.md', fx.runner);
+  assert.equal(result.status, 'ready');
+  assert.deepEqual(fx.calls[0].args.slice(1), [
+    'project-workspace-carrier-entry', '/carrier.zip',
+    '--mode', 'EXPLORE',
+    '--route', '001-route.trace.md',
+    '--compact'
+  ]);
+});
+
+await test('Guided Entry UI presents Core WHAT before Core WHERE without OpenAI hardcoding', async () => {
+  const fs = await import('node:fs/promises');
+  const root = path.resolve(HERE, '..');
+  const tree = await fs.readFile(path.join(root, 'src', 'operatorTrees.ts'), 'utf8');
+  const guided = tree.slice(tree.indexOf('private async guidedEntryTransportText'), tree.indexOf('private closeTransport', tree.indexOf('private async guidedEntryTransportText')));
+  const what = guided.indexOf("title: 'Guided Entry · What'");
+  const where = guided.indexOf("title: 'Guided Entry · Where (optional)'");
+  const role = guided.indexOf("title: 'Guided Entry · Primary Role (optional)'");
+  assert.ok(what >= 0 && where > what && role > where, 'WHAT → WHERE → Role order must remain explicit');
+  assert.match(guided, /const targetProjection = await projectWorkspaceCarrierEntry/);
+  assert.match(guided, /const targetOptions = targetProjection\.targetOptions \|\| \[\]/);
+  assert.match(guided, /targetEntryId\);/);
+  assert.match(guided, /No environment-specific Target Entry/);
+  assert.doesNotMatch(guided, /ChatGPT Web|OpenAI/);
 });
 
 await test('Guided Entry Role discovery uses Core session-role leaves without leaking schema definitions', async () => {

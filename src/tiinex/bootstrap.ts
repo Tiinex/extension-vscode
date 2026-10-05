@@ -959,12 +959,36 @@ export interface WorkspaceSessionRoleProjectionResult {
   findings?: Array<{ severity?: string; code?: string; message?: string }>;
 }
 
+export interface WorkspaceCarrierTargetOption {
+  id?: string;
+  label?: string;
+  targetKind?: string;
+  targetHandle?: string;
+  canonicalTargetIdentifier?: string;
+  provider?: string;
+  host?: string;
+  summary?: string;
+  sourceKind?: string;
+  workspaceId?: string;
+  artifactPath?: string;
+  canonicalIdentifier?: string;
+  schemaId?: string;
+  schemaLineage?: string[];
+  provides?: string[];
+  limitations?: string[];
+}
+
 export interface WorkspaceCarrierEntryProjectionResult {
   status: string;
   state?: string;
   reasonCode?: string;
   modes?: Array<{ id?: string; label?: string; requiresInstruction?: boolean; summary?: string; sourceKind?: string; workspaceId?: string; artifactPath?: string; canonicalIdentifier?: string; version?: string }>;
-  entries?: Array<{ id?: string; label?: string; summary?: string; sourceKind?: string; workspaceId?: string; artifactPath?: string; canonicalIdentifier?: string; version?: string }>;
+  targets?: WorkspaceCarrierTargetOption[];
+  targetOptions?: WorkspaceCarrierTargetOption[];
+  targetOptional?: boolean;
+  targetEntryId?: string;
+  targetOption?: WorkspaceCarrierTargetOption | null;
+  entries?: Array<{ id?: string; label?: string; summary?: string; sourceKind?: string; workspaceId?: string; artifactPath?: string; canonicalIdentifier?: string; version?: string; entryKind?: string }>;
   entryId?: string;
   mode?: string;
   startPath?: string;
@@ -992,13 +1016,17 @@ export async function projectWorkspaceCarrierEntry(
   primaryRole: unknown = null,
   participants: unknown[] = [],
   route = '',
+  targetEntryId: string | ProcessRunner = '',
   runner: ProcessRunner = runProcess
 ): Promise<WorkspaceCarrierEntryProjectionResult> {
+  const selectedTargetEntryId = typeof targetEntryId === 'function' ? '' : String(targetEntryId || '').trim();
+  const selectedRunner = typeof targetEntryId === 'function' ? targetEntryId : runner;
   const scratch = await mkdtemp(path.join(os.tmpdir(), 'tiinex-vscode-workspace-entry-'));
   try {
     const args = ['project-workspace-carrier-entry', packagePath];
     if (mode) args.push('--mode', mode);
     if (route) args.push('--route', route);
+    if (selectedTargetEntryId) args.push('--target-entry-id', selectedTargetEntryId);
     if (customInstruction) args.push('--custom-instruction', customInstruction);
     if (primaryRole) {
       const rolePath = path.join(scratch, 'primary-role.json');
@@ -1011,7 +1039,7 @@ export async function projectWorkspaceCarrierEntry(
       args.push('--participants', participantsPath);
     }
     args.push('--compact');
-    return await runTiinexJson<WorkspaceCarrierEntryProjectionResult>(runtime, args, runner);
+    return await runTiinexJson<WorkspaceCarrierEntryProjectionResult>(runtime, args, selectedRunner);
   } finally { await rm(scratch, { recursive: true, force: true }); }
 }
 

@@ -1307,7 +1307,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
         detail: String(mode.summary || ''),
         mode: String(mode.id || '')
       })), {
-        title: 'Guided Entry · Choose Entry',
+        title: 'Guided Entry · What',
         placeHolder: 'Choose how the cold-started Role should enter the carried context',
         canPickMany: false,
         ignoreFocusOut: true
@@ -1324,6 +1324,30 @@ export class TiinexOperatorTrees implements vscode.Disposable {
         });
         if (!entered?.trim()) return '';
         customInstruction = entered.trim();
+      }
+
+      const targetProjection = await projectWorkspaceCarrierEntry(runtime, item.packagePath, modeSelection.mode, customInstruction, null, [], routeId);
+      if (targetProjection.status !== 'ready') throw new Error(`tiinex.transport.guided-entry-target-catalog-${targetProjection.reasonCode || targetProjection.status || 'blocked'}`);
+      const targetOptions = targetProjection.targetOptions || [];
+      const discoveredTargets = targetOptions.filter((target) => String(target.targetKind || '').toLocaleLowerCase() !== 'none' && String(target.id || '').toLocaleUpperCase() !== 'NONE');
+      let targetEntryId = '';
+      if (discoveredTargets.length) {
+        const targetSelection = await vscode.window.showQuickPick(targetOptions.map((target) => ({
+          label: String(target.label || target.canonicalTargetIdentifier || target.id || ''),
+          description: String(target.targetKind || '').toLocaleLowerCase() === 'none'
+            ? 'No environment-specific Target Entry'
+            : [String(target.provider || '').trim(), String(target.host || '').trim()].filter(Boolean).join(' · ') || String(target.sourceKind || ''),
+          detail: String(target.summary || ''),
+          targetEntryId: String(target.id || ''),
+          targetKind: String(target.targetKind || '')
+        })), {
+          title: 'Guided Entry · Where (optional)',
+          placeHolder: `Choose the execution target for ${String(modeSelection.label || modeSelection.mode || 'this Entry')}`,
+          canPickMany: false,
+          ignoreFocusOut: true
+        });
+        if (!targetSelection) return '';
+        if (targetSelection.targetKind.toLocaleLowerCase() !== 'none' && targetSelection.targetEntryId.toLocaleUpperCase() !== 'NONE') targetEntryId = targetSelection.targetEntryId;
       }
 
       let candidates: Array<{ label: string; authoringLabel?: string; kind: 'role'; reference: string; workspaceId: string; path: string; root: string }> = [];
@@ -1404,7 +1428,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
 
       const primaryInput = primary ? { label: primary.label, reference: primary.reference, workspaceId: primary.workspaceId, path: primary.path } : null;
       const participantInputs = selectedParticipants.map((participant) => ({ label: participant.label, reference: participant.reference, workspaceId: participant.workspaceId, path: participant.path }));
-      let rendered = await projectWorkspaceCarrierEntry(runtime, item.packagePath, modeSelection.mode, customInstruction, primaryInput, participantInputs, routeId);
+      let rendered = await projectWorkspaceCarrierEntry(runtime, item.packagePath, modeSelection.mode, customInstruction, primaryInput, participantInputs, routeId, targetEntryId);
       if (rendered.status !== 'ready' && ['session-role-material-unresolved', 'participant-role-material-unresolved'].includes(String(rendered.reasonCode || ''))) {
         const selected = [
           ...(primary ? [primary] : []),
@@ -1421,7 +1445,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
         }
         const pinnedPrimary = primary ? { ...primaryInput!, reference: pinnedByIdentity.get(roleCandidateKey(primary)) || primary.reference } : null;
         const pinnedParticipants = selectedParticipants.map((participant) => ({ ...participant, reference: pinnedByIdentity.get(roleCandidateKey(participant)) || participant.reference }));
-        rendered = await projectWorkspaceCarrierEntry(runtime, item.packagePath, modeSelection.mode, customInstruction, pinnedPrimary, pinnedParticipants, routeId);
+        rendered = await projectWorkspaceCarrierEntry(runtime, item.packagePath, modeSelection.mode, customInstruction, pinnedPrimary, pinnedParticipants, routeId, targetEntryId);
       }
       if (rendered.status !== 'ready' || !rendered.transportText) throw new Error(`tiinex.transport.guided-entry-render-${rendered.reasonCode || rendered.status || 'blocked'}`);
       return String(rendered.transportText);
