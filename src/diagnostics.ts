@@ -7,6 +7,7 @@ import { relativeRepositoryPath } from './core/repositoryPath';
 import { repositoryRootForResource } from './vscode/gitApi';
 import { LatestWinsKeyedQueue } from './core/latestWinsQueue';
 import { resolveVersionBearingPermalinks } from './permalinkResolution';
+import { hasTiinexEnvelopeFirstLine } from './core/tiinexMarkdown';
 
 export interface DiagnosticsSnapshot {
   uri: string;
@@ -31,7 +32,8 @@ interface ValidationRequest {
 const CHANGE_DEBOUNCE_MS = 250;
 
 function eligible(document: vscode.TextDocument): boolean {
-  return !document.isClosed && document.uri.scheme === 'file' && /\.(?:md|markdown)$/i.test(document.fileName) && /(?:\.trace|\.task|\.workspace|\.schema)?\.md$/i.test(document.fileName);
+  if (document.isClosed || document.uri.scheme !== 'file' || !/\.(?:md|markdown)$/i.test(document.fileName) || document.lineCount < 1) return false;
+  return hasTiinexEnvelopeFirstLine(document.lineAt(0).text);
 }
 function digest(text: string): string { return createHash('sha256').update(Buffer.from(text, 'utf8')).digest('hex'); }
 function message(error: unknown): string { return error instanceof Error ? error.message : String(error); }
@@ -101,7 +103,10 @@ export class TiinexDiagnosticsController implements vscode.Disposable {
     this.disposables.push(this.collection, this.changed, this.status);
     this.disposables.push(vscode.workspace.onDidOpenTextDocument((document: vscode.TextDocument) => void this.refresh(document)));
     this.disposables.push(vscode.workspace.onDidSaveTextDocument((document: vscode.TextDocument) => void this.refresh(document)));
-    this.disposables.push(vscode.workspace.onDidChangeTextDocument((event: { document: vscode.TextDocument }) => { if (eligible(event.document)) this.scheduleInMemoryRefresh(event.document); }));
+    this.disposables.push(vscode.workspace.onDidChangeTextDocument((event: { document: vscode.TextDocument }) => {
+      if (eligible(event.document)) this.scheduleInMemoryRefresh(event.document);
+      else void this.refresh(event.document);
+    }));
     this.disposables.push(vscode.workspace.onDidCloseTextDocument((document: vscode.TextDocument) => this.forget(document)));
     this.disposables.push(vscode.window.onDidChangeActiveTextEditor(() => this.updateActiveStatus()));
     this.disposables.push(vscode.workspace.onDidChangeWorkspaceFolders(() => {

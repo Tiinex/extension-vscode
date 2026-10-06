@@ -29,6 +29,7 @@ import { applyExactHandoffEndpointSelection, endpointCandidatesForExplicitSource
 import { handoffRouteCandidatesForExplicitSource } from '../dist/core/handoffRouteSelection.js';
 import { checkIgnoredPaths, commitPreparedGitOperator, commitPreparedReviewedStaged, commitWorkingTree, deriveGitOperatorCommitMessage, dirtyWorkingTreePaths, discardWorkingTree, generateTiinexCommitMessage, listStagedConflictMarkerPaths, listStagedMutationPaths, listStagedPaths, materializeUnmergedFileConflicts, mergeCommitNoCommit, payloadCheckoutEligibility, preflightExistingLocalBranch, prepareGitOperatorCommit, prepareReviewedStagedCommit, pushExactGitOperatorCommit, pushExactLandingCommit, pushExactReviewedStagedCommit, stageCommitPush, stageLandingChanges, stageLandingCommit, stashWorkingTree, unstageLandingPaths } from '../dist/host/git.js';
 import { preferredNodeExecutable } from '../dist/host/nodeExecutable.js';
+import { hasTiinexEnvelopeFirstLine } from '../dist/core/tiinexMarkdown.js';
 import { copyFileToClipboard } from '../dist/host/fileClipboard.js';
 import { existingCarrierFilenames, inspectCarrierDestination } from '../dist/host/carrierPublish.js';
 import { appendHostCarrierProgressionArgs } from '../dist/tiinex/hostManufactureContract.js';
@@ -2983,6 +2984,25 @@ await test('editor assistance forwards explicit permalink resolution evidence th
   });
   await projectEditorAssistanceText(runtime, '/repo', '.topics/draft.trace.md', markdown, facts, fx.runner);
   await assert.rejects(fs.access(path.dirname(stagedResolutionPath)));
+});
+
+await test('Tiinex Markdown ingress requires the Continuity Context marker on the first line', async () => {
+  assert.equal(hasTiinexEnvelopeFirstLine('# Continuity Context\n\n- Current\n'), true);
+  assert.equal(hasTiinexEnvelopeFirstLine('\ufeff# Continuity Context\r\n\r\n- Current\r\n'), true);
+  assert.equal(hasTiinexEnvelopeFirstLine('  # Continuity Context  '), true);
+  assert.equal(hasTiinexEnvelopeFirstLine('# Notes\n\n# Continuity Context\n'), false);
+  assert.equal(hasTiinexEnvelopeFirstLine('Handoff package attached.\n\n# Continuity Context\n'), false);
+  assert.equal(hasTiinexEnvelopeFirstLine(''), false);
+});
+
+await test('diagnostics ignores non-Tiinex Markdown before shared runtime validation', async () => {
+  const fs = await import('node:fs/promises');
+  const source = await fs.readFile(path.resolve(HERE, '..', 'src', 'diagnostics.ts'), 'utf8');
+  const ingress = await fs.readFile(path.resolve(HERE, '..', 'src', 'core', 'tiinexMarkdown.ts'), 'utf8');
+  assert.match(ingress, /TIINEX_ENVELOPE_HEADING = '# Continuity Context'/);
+  assert.match(source, /hasTiinexEnvelopeFirstLine\(document\.lineAt\(0\)\.text\)/);
+  assert.match(source, /if \(eligible\(event\.document\)\) this\.scheduleInMemoryRefresh\(event\.document\)/);
+  assert.match(source, /else void this\.refresh\(event\.document\)/);
 });
 
 await test('diagnostics controller captures unsaved bytes before debounce and discards stale or closed-editor work', async () => {
