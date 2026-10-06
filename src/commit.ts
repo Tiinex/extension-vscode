@@ -1,13 +1,13 @@
+import path from 'node:path';
 import * as vscode from 'vscode';
 import { preferredNodeExecutable } from './host/nodeExecutable';
 import {
   discardWorkingTree,
-  generateTiinexCommitMessage,
   listStagedPaths,
   repositoryFact,
   stageAllChanges
 } from './host/git';
-import { prepareBundledRuntime, projectStagedValidation } from './tiinex/bootstrap';
+import { prepareBundledRuntime, projectGitCommitProvenance, projectStagedValidation } from './tiinex/bootstrap';
 import { repositoryRoots, selectRepositoryRoot, setRepositoryInput } from './vscode/gitApi';
 import { presentActionableFindings } from './core/findingPresentation';
 
@@ -38,8 +38,14 @@ async function validateStaged(extensionPath: string, root: string, stagedPaths: 
 export async function generateCommitMessageCommand(extensionPath: string): Promise<void> {
   const root = await selectRepositoryRoot('Select the Git repository whose staged Tiinex artifacts should drive the commit message');
   const stagedPaths = await listStagedPaths(root);
-  await validateStaged(extensionPath, root, stagedPaths);
-  const commitMessage = await generateTiinexCommitMessage(root, nodeExecutable());
+  const runtime = await prepareBundledRuntime(extensionPath, nodeExecutable());
+  let commitMessage = '';
+  try {
+    await validateStagedWithRuntime(runtime, root, stagedPaths);
+    commitMessage = (await projectGitCommitProvenance(runtime, root, path.basename(root))).message;
+  } finally {
+    await runtime.dispose();
+  }
   await setRepositoryInput(root, commitMessage);
   await vscode.window.showInformationMessage(`Tiinex commit message generated for ${root}. Review it in Source Control before committing.`);
 }

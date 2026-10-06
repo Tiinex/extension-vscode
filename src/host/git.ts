@@ -444,6 +444,8 @@ export interface PrepareReviewedStagedCommitOptions {
   requireQualifiedTiinex: boolean;
   requirePushSafety: boolean;
   requireNoConflictMarkers?: boolean;
+  /** Host-selected shared Core projection. Legacy repository helper is retained only as fallback. */
+  deriveMessage?: () => Promise<string>;
 }
 
 export interface PreparedReviewedStagedCommit {
@@ -565,7 +567,7 @@ export async function prepareReviewedStagedCommit(
   const validation = await validateStaged?.(stagedPaths);
   const stagedTiinexPaths = [...(validation?.stagedTiinexPaths || [])];
   if (options.requireQualifiedTiinex && !stagedTiinexPaths.length) throw new Error('tiinex.git.no-qualified-tiinex-artifact');
-  const message = await deriveGitOperatorCommitMessage(root, nodeExecutable, runner);
+  const message = options.deriveMessage ? await options.deriveMessage() : await deriveGitOperatorCommitMessage(root, nodeExecutable, runner);
 
   const currentBranchValue = await currentBranch(root, runner);
   if (currentBranchValue !== branch) throw new Error('tiinex.git.preparation-branch-changed');

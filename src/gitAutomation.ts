@@ -11,7 +11,7 @@ import {
 } from './host/git';
 import { preferredNodeExecutable } from './host/nodeExecutable';
 import { presentActionableFindings } from './core/findingPresentation';
-import { prepareBundledRuntime, projectStagedValidation } from './tiinex/bootstrap';
+import { prepareBundledRuntime, projectGitCommitProvenance, projectStagedValidation } from './tiinex/bootstrap';
 import { repositoryRootFromScmContext, setRepositoryInput, watchGitRepositoryStates } from './vscode/gitApi';
 
 const DEBOUNCE_MS = 750;
@@ -108,7 +108,8 @@ export async function manualRepositoryCommitCommand(extensionPath: string, scmCo
       stageAll: mode === 'all',
       requireNoUnstaged: false,
       requireQualifiedTiinex: false,
-      requirePushSafety: false
+      requirePushSafety: false,
+      deriveMessage: async () => (await projectGitCommitProvenance(runtime, root, path.basename(root))).message
     }, async (stagedPaths) => {
       const validation = await validateStagedWithRuntime(runtime, root, stagedPaths);
       return { state: validation.state, stagedTiinexPaths: validation.stagedTiinexPaths, ignoredStagedPaths: validation.ignoredStagedPaths };
@@ -201,15 +202,21 @@ export async function registerGitAutomation(context: vscode.ExtensionContext, ex
       lastPromptedAsk.delete(root);
       return null;
     }
-    const prepared = await prepareReviewedStagedCommit(root, nodeExecutable(), {
-      stageAll: false,
-      requireNoUnstaged: true,
-      requireQualifiedTiinex: false,
-      requirePushSafety: policy === 'commit-push',
-      requireNoConflictMarkers: true
-    });
-    const promptKey = `${prepared.headBefore}\0${prepared.statusSnapshot}\0${prepared.stagedDiffSnapshot}`;
-    return { root, prepared, promptKey };
+    const runtime = await prepareBundledRuntime(extensionPath, nodeExecutable());
+    try {
+      const prepared = await prepareReviewedStagedCommit(root, nodeExecutable(), {
+        stageAll: false,
+        requireNoUnstaged: true,
+        requireQualifiedTiinex: false,
+        requirePushSafety: policy === 'commit-push',
+        requireNoConflictMarkers: true,
+        deriveMessage: async () => (await projectGitCommitProvenance(runtime, root, path.basename(root))).message
+      });
+      const promptKey = `${prepared.headBefore}\0${prepared.statusSnapshot}\0${prepared.stagedDiffSnapshot}`;
+      return { root, prepared, promptKey };
+    } finally {
+      await runtime.dispose();
+    }
   };
 
   const commitPreparedSet = async (items: PreparedPostStage[], push: boolean): Promise<Array<{ item: PreparedPostStage; commit: Awaited<ReturnType<typeof commitPreparedReviewedStaged>> }>> => {

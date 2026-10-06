@@ -281,6 +281,24 @@ export async function runTiinexJson<T>(runtime: PackageRuntime, args: string[], 
 }
 
 
+export interface GitCommitProvenanceResult {
+  schema: string;
+  status: string;
+  repositoryLabel: string;
+  title: string;
+  message: string;
+  tree: string;
+  entries: Array<{ status: string; statusCode: string; statusLabel: string; path: string; previousPath: string; schemaId: string; schemaLabel: string }>;
+}
+
+/** Shared Core-owned staged Git provenance projection. The host supplies only the repository coordinate. */
+export async function projectGitCommitProvenance(runtime: PackageRuntime, root: string, repositoryLabel = '', runner: ProcessRunner = runProcess): Promise<GitCommitProvenanceResult> {
+  const args = ['project-git-commit-provenance', root, '--json', '--compact'];
+  if (repositoryLabel.trim()) args.push('--label', repositoryLabel.trim());
+  return runTiinexJson<GitCommitProvenanceResult>(runtime, args, runner);
+}
+
+
 export interface PreparedPackageRuntimeResult {
   runtime: PackageRuntime;
   orientation: OrientResult;
