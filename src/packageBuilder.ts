@@ -407,6 +407,47 @@ export async function loadPartyReferenceChoicesForSources(extensionPath: string,
 }
 
 
+export interface OperatorPartyScopeProjection {
+  target: string;
+  displayName: string;
+  kind: 'role' | 'party';
+  schemaId: string;
+  workspaceId: string;
+  artifactPath: string;
+  qualification: string;
+  recipientLabels: string[];
+  recipientTargets: string[];
+  recipientLabelAmbiguities: string[];
+  basis: string[];
+  expansionState: string;
+  boundary?: string;
+}
+
+export interface OperatorPartySurface {
+  candidates: HandoffEndpointAuthoringCandidate[];
+  scopes: OperatorPartyScopeProjection[];
+}
+
+export async function loadOperatorPartySurfaceForSources(extensionPath: string, sources: PartyReferenceSource[]): Promise<OperatorPartySurface> {
+  const candidates = await loadPartyAuthoringReferenceChoicesForSources(extensionPath, sources);
+  if (!sources.length) return { candidates, scopes: [] };
+  const roots = [...new Set(sources.map((source) => path.resolve(String(source.root || '').trim())).filter(Boolean))];
+  const context = await cachedOperatorContext(extensionPath, roots);
+  const allowedTargets = new Set(candidates.map((candidate) => String(candidate.target || '').trim()).filter(Boolean));
+  const scopes = ((context.operatorPartyScopes || []) as OperatorPartyScopeProjection[])
+    .filter((scope) => allowedTargets.has(String(scope.target || '').trim()))
+    .map((scope) => ({
+      ...scope,
+      target: String(scope.target || ''), displayName: String(scope.displayName || ''), kind: scope.kind, schemaId: String(scope.schemaId || ''), workspaceId: String(scope.workspaceId || ''), artifactPath: String(scope.artifactPath || ''), qualification: String(scope.qualification || ''),
+      recipientLabels: Array.isArray(scope.recipientLabels) ? scope.recipientLabels.map(String) : [],
+      recipientTargets: Array.isArray(scope.recipientTargets) ? scope.recipientTargets.map(String) : [],
+      recipientLabelAmbiguities: Array.isArray(scope.recipientLabelAmbiguities) ? scope.recipientLabelAmbiguities.map(String) : [],
+      basis: Array.isArray(scope.basis) ? scope.basis.map(String) : [],
+      expansionState: String(scope.expansionState || 'self-only')
+    }));
+  return { candidates, scopes };
+}
+
 export async function loadPartyAuthoringReferenceChoicesForSources(extensionPath: string, sources: PartyReferenceSource[], currentRoleLeavesOnly = false): Promise<HandoffEndpointAuthoringCandidate[]> {
   const explicit = sources.map((source) => ({ workspaceId: String(source.workspaceId || '').trim(), root: path.resolve(String(source.root || '').trim()) }));
   if (!explicit.length) return [];

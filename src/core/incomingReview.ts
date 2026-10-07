@@ -12,12 +12,14 @@ export interface IncomingReviewPresentation {
 }
 
 /**
- * An Incoming package becomes review-decision-ready only after this session has
- * completed one explicit Merge/Replace review operation and the complete carried Workspace set
- * now compares byte-exact against the open Local Workspaces. Pre-existing exact packages therefore do not manufacture an Accept/Reject decision state until the operator explicitly runs Merge/Replace review.
+ * Incoming review readiness is a host presentation of Core's complete carried
+ * Workspace comparison. If every carried Workspace already compares byte-exact,
+ * there is nothing for Replace/Merge to establish first: the operator may decide
+ * the local review immediately. `reviewPerformed` is retained as a compatibility
+ * parameter for older host state but no longer gates readiness.
  */
-export function incomingReviewReady(reviewPerformed: boolean, workspaces: IncomingWorkspaceReviewState[]): boolean {
-  if (!reviewPerformed || !workspaces.length) return false;
+export function incomingReviewReady(_reviewPerformed: boolean, workspaces: IncomingWorkspaceReviewState[]): boolean {
+  if (!workspaces.length) return false;
   return workspaces.every((item) => String(item?.state || '').trim() === 'exact');
 }
 

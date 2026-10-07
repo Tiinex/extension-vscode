@@ -625,6 +625,7 @@ export interface OperatorContextResult {
   endpoints: HandoffEndpointProjectionResult['candidates'];
   authoringEndpoints?: HandoffEndpointProjectionResult['authoringCandidates'];
   authoringReferenceCandidates?: HandoffEndpointProjectionResult['authoringReferenceCandidates'];
+  operatorPartyScopes?: Array<{ target?: string; displayName?: string; kind?: 'role' | 'party'; schemaId?: string; workspaceId?: string; artifactPath?: string; qualification?: string; recipientLabels?: string[]; recipientTargets?: string[]; recipientLabelAmbiguities?: string[]; basis?: string[]; expansionState?: string; boundary?: string }>;
   pointerless?: { selectionLabel?: string; consequence?: string };
   findings?: Array<{ severity: string; code: string; message: string }>;
 }
@@ -898,7 +899,8 @@ export async function createArtifactDraft(
   values: unknown,
   parentRecord: unknown = null,
   transition: 'create-artifact' | 'continue-from-record' = parentRecord ? 'continue-from-record' : 'create-artifact',
-  runner: ProcessRunner = runProcess
+  runner: ProcessRunner = runProcess,
+  authors = ''
 ): Promise<any> {
   if (!schemaId) throw new Error('tiinex.authoring.schema-required');
   const scratch = await mkdtemp(path.join(os.tmpdir(), 'tiinex-vscode-author-'));
@@ -912,6 +914,7 @@ export async function createArtifactDraft(
     // title/summary from their own creation bindings (for example Task Summary).
     const args = ['create-local-draft', isolatedMaterialRoot, '--schema', schemaId, '--transition', transition, '--path', childPath, '--values', valuesPath];
     if (schemaId === 'tiinex.handoff.v1' && String(title || '').trim()) args.push('--title', String(title).trim());
+    if (String(authors || '').trim()) args.push('--authors', String(authors).trim());
     if (transition === 'continue-from-record') {
       if (!parentRecord) throw new Error('tiinex.authoring.parent-required');
       const parentPath = path.join(scratch, 'parent.json');

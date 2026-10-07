@@ -28,6 +28,7 @@ export interface ArtifactDraftSpec {
   title: string;
   pathTitle?: string;
   values: Record<string, unknown>;
+  authors?: string;
   parentArtifact?: ArtifactDraftParent | null;
   targetDirectory?: string;
 }
@@ -41,6 +42,7 @@ export interface PreparedArtifactDraft {
   pathTitle: string;
   markdown: string;
   values: Record<string, unknown>;
+  authors: string;
   parentPath: string;
   targetDirectory: string;
   parentArtifact: ArtifactDraftParent | null;
@@ -109,7 +111,7 @@ export async function loadArtifactAuthoringCatalog(extensionPath: string, root: 
 }
 
 function authoringProposal(
-  spec: Pick<ArtifactDraftSpec, 'workspaceId' | 'schemaId' | 'title' | 'values' | 'targetDirectory'>,
+  spec: Pick<ArtifactDraftSpec, 'workspaceId' | 'schemaId' | 'title' | 'values' | 'authors' | 'targetDirectory'>,
   parentReference = '',
   parentRecord: Record<string, unknown> | null = null
 ): Record<string, unknown> {
@@ -118,6 +120,7 @@ function authoringProposal(
     schemaId: spec.schemaId,
     title: spec.title,
     values: spec.values,
+    ...(String(spec.authors || '').trim() ? { authors: String(spec.authors).trim() } : {}),
     ...(spec.targetDirectory ? { targetDirectory: spec.targetDirectory === '.' ? '.' : safeRelativePath(spec.targetDirectory) } : {}),
     ...(parentReference ? { parentRef: parentReference, parentRecord: parentRecord || undefined, mode: 'continue' } : { mode: 'root' }),
     rationale: 'Explicit VS Code artifact authoring request.',
@@ -183,11 +186,11 @@ export async function prepareArtifactDraft(extensionPath: string, spec: Artifact
         parentRecord = await projectAuthoringParent(runtime, parentSourcePath, parentReference);
       }
     }
-    const proposal = authoringProposal({ workspaceId: spec.workspaceId, schemaId, title: pathTitle, values: spec.values, targetDirectory: spec.targetDirectory || '' }, parentReference, parentRecord);
+    const proposal = authoringProposal({ workspaceId: spec.workspaceId, schemaId, title: pathTitle, values: spec.values, authors: spec.authors || '', targetDirectory: spec.targetDirectory || '' }, parentReference, parentRecord);
     const plan = await projectArtifactMaterialization(runtime, scratch, [proposal]);
     const planned = plannedArtifact(plan, String(proposal.id));
     const transition = planned.parent ? 'continue-from-record' : 'create-artifact';
-    const created = requireArtifactCreationReady(await createArtifactDraft(runtime, schemaId, scratch, planned.path, title, spec.values, planned.parent || parentRecord, transition));
+    const created = requireArtifactCreationReady(await createArtifactDraft(runtime, schemaId, scratch, planned.path, title, spec.values, planned.parent || parentRecord, transition, undefined, spec.authors || ''));
     return {
       root,
       workspaceId: spec.workspaceId,
@@ -197,6 +200,7 @@ export async function prepareArtifactDraft(extensionPath: string, spec: Artifact
       pathTitle,
       markdown: String(created.draft.markdown),
       values: spec.values,
+      authors: String(spec.authors || '').trim(),
       parentPath: parentReference,
       targetDirectory: spec.targetDirectory === '.' ? '.' : spec.targetDirectory ? safeRelativePath(spec.targetDirectory) : '',
       parentArtifact
@@ -220,7 +224,7 @@ export async function writePreparedArtifactDraft(extensionPath: string, draft: P
         parentRecord = await projectAuthoringParent(runtime, parentSourcePath, draft.parentPath);
       }
     }
-    const proposal = authoringProposal({ workspaceId: draft.workspaceId, schemaId: draft.schemaId, title: draft.pathTitle || draft.title, values: draft.values, targetDirectory: draft.targetDirectory }, draft.parentPath, parentRecord);
+    const proposal = authoringProposal({ workspaceId: draft.workspaceId, schemaId: draft.schemaId, title: draft.pathTitle || draft.title, values: draft.values, authors: draft.authors || '', targetDirectory: draft.targetDirectory }, draft.parentPath, parentRecord);
     const plan = await projectArtifactMaterialization(runtime, draft.root, [proposal]);
     const planned = plannedArtifact(plan, String(proposal.id));
     if (safeRelativePath(planned.path) !== draft.path) throw new Error('tiinex.authoring.preview-stale-recreate-required');

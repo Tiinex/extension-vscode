@@ -117,8 +117,8 @@ Git commands use your configured repositories and remotes. Tiinex does not requi
 | `tiinex.discovery.folder` | empty | Folder scanned by Discovery for `.handoff-package.zip` carriers. |
 | `tiinex.discovery.autoRefresh` | `false` | Refresh Discovery when packages change. |
 | `tiinex.discovery.latestToIncoming` | `false` | Qualify and open the newest discovered carrier as Incoming. |
-| `tiinex.incoming.autoShowRoleHandoff` | `ask` | Preview/reveal qualified Incoming Handoffs addressed to `tiinex.operator.role`. |
-| `tiinex.operator.role` | empty | Host-local operator label used only for UI defaults/matching; it grants no Role authority. |
+| `tiinex.incoming.autoShowPartyHandoff` | `ask` | Preview/reveal qualified Incoming Handoffs addressed to the Core-projected recipient scope of `tiinex.operator.party`. |
+| `tiinex.operator.party` | empty | Host-local Operator Party preference. Use **Pick Operator Party**; canonical values are Workspace-qualified artifact references, `unknown::<name>` is a named unknown Party, and empty means None. It grants no Party/Role authority. |
 | `tiinex.outgoing.folder` | empty | Destination folder for Pack. |
 | `tiinex.nodePath` | empty | Optional Node executable override for Tiinex Tooling. |
 | `tiinex.landing.stage` | `yes` | Stage safe landed changes after successful explicit Incoming merge. |

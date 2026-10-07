@@ -3,8 +3,9 @@ import path from 'node:path';
 import { copyFile, lstat, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import * as vscode from 'vscode';
 import { preferredNodeExecutable } from './host/nodeExecutable';
+import { resolveOperatorParty } from './operatorParty';
 import { ignoredPathCollisions, safeRelativePath, safeTarget } from './core/paths';
-import { preferredRepositoryParent, routesPreferredForRole } from './core/receiveUx';
+import { preferredRepositoryParent, routesPreferredForPartyScope } from './core/receiveUx';
 import { sameRepositoryRoot } from './core/repositoryPath';
 import { normalizePostStagePolicy } from './core/gitOperator';
 import {
@@ -31,7 +32,6 @@ type DirtyAction = 'stash' | 'commit' | 'discard' | 'skip';
 
 function nodeExecutable(): string { return preferredNodeExecutable(vscode.workspace.getConfiguration('tiinex').get('nodePath', '').toString().trim()); }
 function postStagePolicy(): string { return normalizePostStagePolicy(vscode.workspace.getConfiguration('tiinex.git').get('postStagePolicy', 'ask')); }
-function rolePreference(): string { return vscode.workspace.getConfiguration('tiinex').get('operator.role', '').toString().trim(); }
 function message(error: unknown): string { return error instanceof Error ? error.message : String(error); }
 function findingsText(plan: LandingPlan): string { return plan.findings.filter((item) => item.severity === 'error').map((item) => `${item.code}: ${item.message}`).join('\n') || `Landing plan status: ${plan.status}`; }
 
@@ -341,7 +341,8 @@ export async function landHandoffPackage(packagePath: string, extensionPath: str
   let sharedRuntime: Awaited<ReturnType<typeof prepareBundledRuntime>> | null = null;
   try {
     const orientation = ingress.orientation;
-    const preferredRoutes = routesPreferredForRole(qualifiedRoutes(orientation), rolePreference());
+    const operatorParty = await resolveOperatorParty(extensionPath);
+    const preferredRoutes = routesPreferredForPartyScope(qualifiedRoutes(orientation), operatorParty.recipientLabels);
     const groundingRoute = routeForGrounding(orientation, preferredRoutes);
     const receivedBeforeLanding = groundingRoute
       ? receivedHandoffContext(packagePath, orientation, await groundPackageForReview(ingressRuntime, packagePath, groundingRoute.pointerPath), groundingRoute.id)

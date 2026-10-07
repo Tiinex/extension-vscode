@@ -11,7 +11,7 @@ import { preferredRepositoryParent } from './core/receiveUx';
 import { qualifiedRoutes, QualifiedRouteReceipt, receivedHandoffContext, receivedGroundingProjection } from './core/receivedHandoff';
 import { mergeTransportRouteSelection, selectedTransportRouteIds, StoredTransportQueueItem, transportPrepared, transportPreparedKey, TransportPreparedRecord } from './core/transportQueue';
 import { loadPartyAuthoringReferenceChoicesForSources, loadHandoffRouteChoicesForSource, loadLocalWorkspaceChoices, clearPackageBuilderDiscoveryCache, buildHandoffPackageFromForm, announceBuiltCarrier, routeChoiceKeyForHandoff, IncomingPackageWorkspaceSource, PackageWorkspaceChoice, PackageWorkspaceSourceOverride, PackageRouteRouting, PackageParticipantProjection, PackageParticipantRole, projectHandoffPackageParticipants, qualifyLocalWorkspaceChoice } from './packageBuilder';
-import { applyExactHandoffEndpointSelection } from './core/handoffEndpointSelection';
+import { applyExactHandoffEndpointSelection, applyHandoffEndpointAuthoringSelection } from './core/handoffEndpointSelection';
 import { ArtifactAuthoringCatalog, ArtifactDraftParent, clearArtifactAuthoringCaches, loadArtifactAuthoringCatalog, loadArtifactAuthoringModel, prepareArtifactDraft, PreparedArtifactDraft, qualifyArtifactDraftParent, qualifyExistingHandoff, writePreparedArtifactDraft } from './authoring';
 import { initializeWorkspaceDirectory } from './workspaceInitialization';
 
@@ -39,6 +39,7 @@ import { presentOperatorError } from './core/operatorError';
 import { acceptCoreParticipantProjection, participantPresentation, selectAdditionalParticipantRoles } from './vscode/outgoingParticipantController';
 import { groupPartyReferenceCandidates, presentPartyReferenceCandidates } from './vscode/partyReferencePresentation';
 import { configureExtensionHostAcceptance, extensionHostAcceptanceEnabled, extensionHostAcceptanceEvents, extensionHostAcceptanceOutgoingFolder, extensionHostAcceptanceOutgoingParent, extensionHostAcceptanceOutgoingSourceKeys, recordExtensionHostAcceptanceEvent } from './vscode/extensionHostAcceptance';
+import { pickOperatorParty, resolveOperatorParty } from './operatorParty';
 
 export type OperatorSection = 'discovery' | 'incoming' | 'outgoing';
 
@@ -176,6 +177,11 @@ interface IncomingState {
   reviewDecision: IncomingReviewDecision;
   bootstrapRecovery?: { state: string; detail: string };
   groundingByRouteId: Map<string, GroundingResult>;
+}
+
+interface StoredIncomingQueueItem {
+  packagePath: string;
+  reviewDecision?: IncomingReviewDecision;
 }
 
 interface PackageHandoffLink {
@@ -569,6 +575,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
   async start(): Promise<void> {
     await this.ensureTreePreferenceDefaults();
     await this.restoreTransportQueue();
+    await this.restoreIncomingQueue();
     // Start reusable Core authoring projections as early background work so the
     // first explicit context-menu action does not pay avoidable cold-start cost.
     // Qualification remains Core-owned; this is presentation-path prefetch only.
@@ -699,7 +706,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
               schemaId: endpoint.schemaId,
               fills: Object.fromEntries(Object.entries(item.affordance.fills || {}).map(([target, source]) => [target, partyReferenceAuthoringFillValue(source, endpoint, modelFields.get(target))])),
               kind: endpoint.kind,
-              reference: endpoint.qualification === 'qualified-exact' ? endpoint.reference : '',
+              reference: endpoint.reference || '',
               workspaceId: endpoint.workspaceId,
               path: endpoint.path
             };
@@ -826,6 +833,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
 
   private registerCommands(): void {
     const register = (id: string, fn: (...args: any[]) => any) => this.context.subscriptions.push(vscode.commands.registerCommand(id, fn));
+    register('tiinex.operator.pickParty', () => this.pickOperatorParty());
     register('tiinex.discovery.selectFolder', () => this.selectDiscoveryFolder());
     register('tiinex.discovery.clear', () => this.clearDiscovery());
     register('tiinex.discovery.close', (node?: OperatorNode) => this.closeDiscovery(node?.data.packagePath || ''));
@@ -1119,6 +1127,50 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     this.transport = restored.sort((a, b) => b.addedAt - a.addedAt || a.filename.localeCompare(b.filename));
     await this.persistTransportQueue();
     this.transportProvider.refresh();
+  }
+
+  private async restoreIncomingQueue(): Promise<void> {
+    const stored = this.context.workspaceState.get<StoredIncomingQueueItem[]>('tiinex.incoming.queue.v1', []) || [];
+    const restored: IncomingState[] = [];
+    this.incomingPending.clear();
+    for (const record of stored) {
+      const packagePath = String(record?.packagePath || '').trim();
+      if (!packagePath) continue;
+      try {
+        const state = await this.qualifyIncoming(packagePath);
+        await this.refreshIncomingReviewReadiness(state);
+        const decision = String(record?.reviewDecision || '') as IncomingReviewDecision;
+        if (decision === 'accepted' || decision === 'rejected') state.reviewDecision = decision;
+        restored.push(state);
+      } catch (error) {
+        try {
+          const info = await stat(packagePath);
+          if (!info.isFile()) continue;
+          const presentation = presentOperatorError(error);
+          this.incomingPending.set(path.resolve(packagePath), {
+            packagePath: path.resolve(packagePath), filename: path.basename(packagePath), mtimeMs: info.mtimeMs, bytes: info.size,
+            phase: 'blocked', blockedSummary: presentation.summary, blockedDetail: incomingBlockedDetail(error, presentation.detail)
+          });
+        } catch { /* Missing carrier bytes are dropped from host presentation state. */ }
+      }
+    }
+    this.incoming = restored;
+    this.sortIncomingByDiscoveryOrder();
+    await this.persistIncomingQueue();
+    this.incomingProvider.refresh();
+  }
+
+  private async persistIncomingQueue(): Promise<void> {
+    const records = new Map<string, StoredIncomingQueueItem>();
+    for (const state of this.incoming) records.set(path.resolve(state.index.packagePath), {
+      packagePath: state.index.packagePath,
+      ...(state.reviewDecision ? { reviewDecision: state.reviewDecision } : {})
+    });
+    for (const pending of this.incomingPending.values()) {
+      const resolved = path.resolve(pending.packagePath);
+      if (!records.has(resolved)) records.set(resolved, { packagePath: pending.packagePath });
+    }
+    await this.context.workspaceState.update('tiinex.incoming.queue.v1', [...records.values()]);
   }
 
   private async refreshTransportQueue(interactive = false): Promise<void> {
@@ -1492,16 +1544,15 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       });
       if (!primarySelection) return '';
       const primary = primarySelection.candidate || null;
-      const operatorRole = this.operatorRole();
+      const operatorParty = await resolveOperatorParty(this.extensionPath);
       const selectedParticipants: Array<{ label: string; reference: string; workspaceId: string; path: string }> = [];
       const excluded = new Set([roleCandidateKey(primary)].filter(Boolean));
       for (;;) {
         const available = candidates.filter((candidate) => !excluded.has(roleCandidateKey(candidate)) && !selectedParticipants.some((item) => roleCandidateKey(item) === roleCandidateKey(candidate)));
         if (!available.length) break;
-        const operatorMatches = operatorRole
-          ? available.filter((candidate) => String(candidate.authoringLabel || candidate.label).trim().toLocaleLowerCase() === operatorRole.toLocaleLowerCase())
-          : [];
-        const operatorParticipant = operatorMatches.length === 1 ? operatorMatches[0] : undefined;
+        const operatorParticipant = operatorParty.state === 'resolved' && operatorParty.kind === 'role'
+          ? available.find((candidate) => candidate.workspaceId === operatorParty.workspaceId && normalizePath(candidate.path) === normalizePath(operatorParty.artifactPath))
+          : undefined;
         const participantItems: Array<vscode.QuickPickItem & { candidate: typeof candidates[number] | null }> = [
           { label: 'No more participants', description: 'Finish participant selection', candidate: null }
         ];
@@ -1510,7 +1561,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
           for (const item of group.items) participantItems.push({
             label: item.label,
             description: item.description,
-            detail: item.candidate === operatorParticipant ? 'Suggested by tiinex.operator.role' : undefined,
+            detail: item.candidate === operatorParticipant ? 'Suggested by tiinex.operator.party' : undefined,
             candidate: item.candidate
           });
         }
@@ -1895,6 +1946,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     // appears in Incoming as a lightweight loading root. No carrier bytes are
     // trusted or projected until qualification completes.
     this.incomingPending.set(resolved, metadata);
+    await this.persistIncomingQueue();
     this.incomingProvider.refresh();
     this.discoveryProvider.refresh();
     await this.updateUiContexts();
@@ -1904,6 +1956,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'Tiinex qualifying Incoming Handoff package', cancellable: false }, async () => {
         const existing = this.incomingState(packagePath);
         state = await this.qualifyIncoming(packagePath, existing?.appliedWorkspaceIds || new Set());
+        await this.refreshIncomingReviewReadiness(state);
       });
       // Close may have been invoked while qualification was running. In that case
       // the dry loading root has already been cancelled and must not reappear.
@@ -1911,10 +1964,11 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       this.incomingPending.delete(resolved);
       this.incoming = [state, ...this.incoming.filter((item) => path.resolve(item.index.packagePath) !== resolved)];
       this.sortIncomingByDiscoveryOrder();
+      await this.persistIncomingQueue();
       this.incomingProvider.refresh();
       this.discoveryProvider.refresh();
       await this.updateUiContexts();
-      await this.autoShowIncomingRoleHandoff(state);
+      await this.autoShowIncomingPartyHandoff(state);
     } catch (error) {
       const presentation = presentOperatorError(error);
       // Keep the rejected carrier visible in Incoming. Qualification failure is
@@ -1926,6 +1980,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
         blockedSummary: presentation.summary,
         blockedDetail: incomingBlockedDetail(error, presentation.detail)
       });
+      await this.persistIncomingQueue();
       this.incomingProvider.refresh();
       this.discoveryProvider.refresh();
       await this.updateUiContexts();
@@ -1979,22 +2034,24 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     }
   }
 
-  private clearIncoming(): void {
+  private async clearIncoming(): Promise<void> {
     this.incoming = [];
     this.incomingPending.clear();
+    await this.persistIncomingQueue();
     this.incomingProvider.refresh();
     this.discoveryProvider.refresh();
-    void this.updateUiContexts();
+    await this.updateUiContexts();
   }
 
-  private closeIncoming(packagePath: string): void {
+  private async closeIncoming(packagePath: string): Promise<void> {
     if (!packagePath) return;
     const resolved = path.resolve(packagePath);
     this.incoming = this.incoming.filter((item) => path.resolve(item.index.packagePath) !== resolved);
     this.incomingPending.delete(resolved);
+    await this.persistIncomingQueue();
     this.incomingProvider.refresh();
     this.discoveryProvider.refresh();
-    void this.updateUiContexts();
+    await this.updateUiContexts();
   }
 
   private async refreshIncoming(): Promise<void> {
@@ -2008,12 +2065,12 @@ export class TiinexOperatorTrees implements vscode.Disposable {
           const next = await this.qualifyIncoming(previous.index.packagePath, previous.appliedWorkspaceIds);
           next.reviewDecision = previous.reviewDecision;
           next.reviewPerformed = previous.reviewPerformed;
-          if (!next.reviewDecision && next.reviewPerformed) await this.refreshIncomingReviewReadiness(next);
-          else next.reviewReady = previous.reviewReady;
+          await this.refreshIncomingReviewReadiness(next);
           refreshed.push(next);
         }
         this.incoming = refreshed;
         this.sortIncomingByDiscoveryOrder();
+        await this.persistIncomingQueue();
       });
       this.incomingProvider.refresh();
       this.discoveryProvider.refresh();
@@ -2033,7 +2090,6 @@ export class TiinexOperatorTrees implements vscode.Disposable {
         state: delta.workspaces.get(workspace.workspaceId)?.state || 'unavailable'
       }))
     );
-    if (!state.reviewReady) state.reviewDecision = '';
   }
 
   private async decideIncoming(node: OperatorNode | undefined, decision: Exclude<IncomingReviewDecision, ''>): Promise<void> {
@@ -2061,7 +2117,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       }
       await this.refreshIncomingReviewReadiness(state);
       if (!state.reviewReady) {
-        await vscode.window.showInformationMessage('Tiinex Incoming review is not decision-ready. Replace/Merge must complete and every carried Workspace must compare exact first.');
+        await vscode.window.showInformationMessage('Tiinex Incoming review is not decision-ready. Every carried Workspace must compare exact before Accept or Reject.');
         return;
       }
       if (decision === 'accepted') {
@@ -2091,7 +2147,10 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       state.reviewDecision = decision;
       recordExtensionHostAcceptanceEvent(`incoming-review-${decision}`, { packagePath: packageKey });
       if (decision === 'rejected') await this.refreshIncoming();
-      else await this.updateUiContexts();
+      else {
+        await this.persistIncomingQueue();
+        await this.updateUiContexts();
+      }
       void vscode.window.showInformationMessage(`Tiinex Incoming local review ${decision}.`);
     } finally {
       this.incomingReviewActions.delete(packageKey);
@@ -2339,16 +2398,23 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     await this.runIncomingApply(state, workspaceIds, forcedStrategy);
   }
 
-  private async autoShowIncomingRoleHandoff(state: IncomingState): Promise<void> {
-    const policy = this.config().get<'no' | 'ask' | 'yes'>('incoming.autoShowRoleHandoff', 'ask');
+  private async autoShowIncomingPartyHandoff(state: IncomingState): Promise<void> {
+    const policy = this.config().get<'no' | 'ask' | 'yes'>('incoming.autoShowPartyHandoff', 'ask');
     if (policy === 'no') return;
-    const role = this.operatorRole().toLocaleLowerCase();
-    if (!role) return;
-    const matches = qualifiedRoutes(state.orientation).filter((route) => String(route.to || '').trim().toLocaleLowerCase() === role);
+    const operator = await resolveOperatorParty(this.extensionPath);
+    if (!['resolved', 'unknown'].includes(operator.state) || !operator.displayName) return;
+    const recipientLabels = new Set(operator.recipientLabels.map((value) => String(value || '').trim().toLocaleLowerCase()).filter(Boolean));
+    if (!recipientLabels.size) return;
+    const matches = qualifiedRoutes(state.orientation).filter((route) => recipientLabels.has(String(route.to || '').trim().toLocaleLowerCase()));
     if (!matches.length) return;
     if (policy === 'ask') {
       const noun = matches.length === 1 ? 'Handoff' : `${matches.length} Handoffs`;
-      const accepted = await vscode.window.showInformationMessage(`Open ${noun} matching ${this.operatorRole()}?`, 'Open Handoff');
+      const scope = operator.recipientLabels.length > 1 ? ` (${operator.recipientLabels.join(', ')})` : '';
+      const accepted = await vscode.window.showInformationMessage(
+        `Open ${noun} in Operator Party scope ${operator.displayName}${scope}?`,
+        { modal: true },
+        'Open Handoff'
+      );
       if (accepted !== 'Open Handoff') return;
     }
     await vscode.commands.executeCommand('tiinex.incoming.focus');
@@ -3464,10 +3530,10 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       for (const field of ['From', 'To', 'Return To'] as const) {
         const selected = submission.endpointSelections?.[field];
         if (!selected || String(selected.reference || '').trim()) applyExactHandoffEndpointSelection(values, field, selected);
-        // A Core-discovered authoring-assist selection still establishes the
-        // artifact kind/label shown by the schema projection, but not an exact
-        // Handoff Reference. Those package-local Role bindings are requalified
-        // separately by Core during manufacture from Workspace/path identity.
+        else applyHandoffEndpointAuthoringSelection(values, field, selected);
+        // A Core-discovered authoring-assist selection preserves the known Party/Role
+        // kind and label while leaving endpoint Reference provenance unresolved. Exact
+        // package-local Role material is requalified separately by Core during Pack.
       }
       const explicitSlug = String(submission.slug || '').trim();
       if (explicitSlug) pathTitle = explicitSlug;
@@ -3480,6 +3546,8 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
         pathTitle = `${from} to ${to}`;
       }
     }
+    const operatorParty = await resolveOperatorParty(this.extensionPath);
+    const authors = ['resolved', 'unknown'].includes(operatorParty.state) ? operatorParty.displayName : '';
     return prepareArtifactDraft(this.extensionPath, {
       root,
       workspaceId: workspace.workspaceId,
@@ -3487,6 +3555,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       title: submission.title,
       pathTitle,
       values,
+      authors,
       parentArtifact,
       targetDirectory
     });
@@ -3606,6 +3675,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       pathTitle: item.title,
       markdown: item.markdown,
       values: {},
+      authors: '',
       parentPath: item.parentPath,
       targetDirectory: item.targetDirectory,
       parentArtifact: item.parentArtifact
@@ -4560,7 +4630,13 @@ The Handoff can remain schema-valid, but Core can materialize semantic endpoint 
     await vscode.window.showWarningMessage('Tiinex could not resolve a unique local Workspace artifact for repair. Refresh the Outgoing Workspace selection and retry.');
   }
 
-  private operatorRole(): string { return String(this.config().get('operator.role', '') || '').trim(); }
+  private async pickOperatorParty(): Promise<void> {
+    const selected = await pickOperatorParty(this.extensionPath);
+    if (!selected) return;
+    const label = selected.state === 'none' ? 'None' : selected.state === 'unresolved' ? 'Unresolved' : `${selected.displayName} · ${selected.kind}`;
+    await vscode.window.showInformationMessage(`Tiinex Operator Party: ${label}`);
+    await this.updateUiContexts();
+  }
 
   private shouldAutoClearDiscovery(): boolean {
     return String(this.config().get('discovery.autoClearDiscovery', 'no') || '').trim().toLowerCase() === 'yes';

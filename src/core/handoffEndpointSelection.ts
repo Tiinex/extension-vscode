@@ -5,6 +5,7 @@ export interface ExactHandoffEndpointCandidate {
   kind: 'role' | 'party';
   label: string;
   authoringLabel?: string;
+  organizationLabel?: string;
   workspaceId: string;
   artifactPath: string;
   schemaId: string;
@@ -77,6 +78,23 @@ export function applyExactHandoffEndpointSelection(
   }
 }
 
+export function applyHandoffEndpointAuthoringSelection(
+  values: Record<string, unknown>,
+  field: 'From' | 'To' | 'Return To',
+  selected: ExactHandoffEndpointSelectionValue
+): void {
+  const label = String(selected.value || selected.label || '').trim();
+  if (!label) throw new Error(`tiinex.authoring.endpoint-selection-incomplete:${field}`);
+  const container = endpointFieldContainer(values, field);
+  container[field] = label;
+  deleteEndpointReference(values, `${field} Reference`);
+  if (field !== 'Return To') {
+    const kind = String(selected.kind || '').trim();
+    if (!kind) throw new Error(`tiinex.authoring.endpoint-selection-incomplete:${field}`);
+    container[`${field} Kind`] = kind;
+  }
+}
+
 export interface ExplicitHandoffEndpointSource {
   workspaceId: string;
   root: string;
@@ -133,14 +151,11 @@ export function endpointCandidatesForAuthoringSource(
     if (!artifactPath || !artifactPath.startsWith('.topics/')) continue;
     if (String(candidate.workspaceId || '').trim() !== workspaceId) continue;
     if (!['qualified-exact', 'authoring-assist'].includes(String(candidate.qualification || ''))) continue;
-    // Core's exact endpoint projection owns the qualified Workspace coordinate in
-    // `target`; some projections intentionally leave the convenience `reference`
-    // field empty. Preserve that exact target as the authoring Reference only for
-    // qualified-exact candidates. Authoring-assist candidates must stay reference-
-    // unresolved rather than being silently upgraded by the host.
-    const reference = candidate.qualification === 'qualified-exact'
-      ? String(candidate.reference || candidate.target || '').trim()
-      : String(candidate.reference || '').trim();
+    // Core owns both semantic candidate qualification and any authoring Reference.
+    // Exact candidates may carry a provider Reference; authoring-assist candidates
+    // may carry a separately qualified internal Workspace/path resolution Reference.
+    // The host preserves Core's supplied Reference but never invents one from target.
+    const reference = String(candidate.reference || '').trim();
     const key = `${workspaceId}\u0000${artifactPath}\u0000${candidate.kind}\u0000${reference}\u0000${candidate.label}`;
     if (!byIdentity.has(key)) byIdentity.set(key, { ...candidate, artifactPath, ...(reference ? { reference } : {}) });
   }

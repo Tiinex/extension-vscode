@@ -20,6 +20,11 @@
   "contributes": {
     "commands": [
       {
+        "command": "tiinex.operator.pickParty",
+        "title": "Tiinex: Pick Operator Party",
+        "icon": "$(account)"
+      },
+      {
         "command": "tiinex.workspace.initialize",
         "title": "Tiinex: Initialize Workspace",
         "icon": "$(root-folder-opened)"
@@ -402,21 +407,6 @@
           "default": false,
           "description": "When Discovery finds a new latest carrier, set that carrier as Incoming after qualification. This never performs Receive/landing."
         },
-        "tiinex.incoming.autoShowRoleHandoff": {
-          "type": "string",
-          "enum": [
-            "no",
-            "ask",
-            "yes"
-          ],
-          "default": "ask",
-          "description": "When Incoming has one or more qualified Handoff routes whose To matches tiinex.operator.role, optionally preview and reveal every matching actual Handoff. The Handoff is selected in the Incoming tree with its ancestors expanded; transport pointers remain separate provenance nodes."
-        },
-        "tiinex.operator.role": {
-          "type": "string",
-          "default": "",
-          "description": "Operator role label used only for UI defaults and exact role-matched Handoff preview (for example Sigma). It does not grant Role authority."
-        },
         "tiinex.guidedEntry.showBuiltInEntries": {
           "type": "boolean",
           "default": true,
@@ -457,6 +447,23 @@
           "type": "string",
           "default": "",
           "description": "Folder where Pack writes materialized Outgoing .handoff-package.zip carriers. Blank asks for a folder when Pack is used."
+        },
+        "tiinex.operator.party": {
+          "type": "string",
+          "default": "",
+          "description": "User-profile Operator Party preference used only for host-local author defaults, recipient-scope preview and UI suggestions. Use Pick Operator Party. Empty means None; canonical values use Workspace::artifact-path; unknown::<display name> stores a named unknown Party. This setting does not grant Party/Role authority.",
+          "pattern": "^(?:|unknown::[^\\r\\n]+|[^:\\r\\n]+::\\.topics/[^\\r\\n]+)$",
+          "patternErrorMessage": "Use Pick Operator Party. Valid values are empty (None), unknown::<display name>, or workspace::.topics/<artifact path>."
+        },
+        "tiinex.incoming.autoShowPartyHandoff": {
+          "type": "string",
+          "enum": [
+            "no",
+            "ask",
+            "yes"
+          ],
+          "default": "ask",
+          "description": "When Incoming has qualified Handoff routes whose To falls within the Core-projected scope of tiinex.operator.party, optionally preview and reveal every matching actual Handoff. Manual unknown Parties match only their exact display label. This never grants Party/Role authority."
         }
       }
     },
@@ -578,6 +585,11 @@
           "command": "tiinex.transport.refresh",
           "when": "view == tiinex.transport",
           "group": "navigation@9"
+        },
+        {
+          "command": "tiinex.operator.pickParty",
+          "when": "view == tiinex.discovery",
+          "group": "navigation@10"
         }
       ],
       "view/item/context": [

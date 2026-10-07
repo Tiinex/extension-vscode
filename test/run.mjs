@@ -8,7 +8,7 @@ import { presentOperatorError } from '../dist/core/operatorError.js';
 import { LatestWinsKeyedQueue } from '../dist/core/latestWinsQueue.js';
 import { canonicalRepositoryRoot, relativeRepositoryPath, repositoryContainsPath, sameRepositoryRoot } from '../dist/core/repositoryPath.js';
 import { ignoredPathCollisions, safeRelativePath, safeTarget } from '../dist/core/paths.js';
-import { preferredRepositoryParent, routesPreferredForRole } from '../dist/core/receiveUx.js';
+import { preferredRepositoryParent, routesPreferredForPartyScope } from '../dist/core/receiveUx.js';
 import { alphabeticalWorkspaceIds, artifactsForLineageMode, makeIndexedArtifact } from '../dist/core/artifactTree.js';
 import { artifactPrefersMarkdownPreview, artifactReferenceAvailable, markdownLinkTargets, materialTargetKey, resolveArtifactReference } from '../dist/core/artifactNavigation.js';
 import { receivedHandoffContext, receivedGroundingProjection, withWorkspaceRoots } from '../dist/core/receivedHandoff.js';
@@ -28,7 +28,7 @@ import { planWorkspaceSession, validateWorkspaceTargetMapping } from '../dist/co
 import { representativeWorkspaceChoicesForRoot } from '../dist/core/workspaceChoice.js';
 import { participantProjectionFromManufactureReceipt } from '../dist/core/participantProjection.js';
 import { assertStableQualifiedCarrierAllocation, qualifiedCarrierAllocationFromManufactureReceipt } from '../dist/core/carrierAllocation.js';
-import { applyExactHandoffEndpointSelection, endpointCandidatesForAuthoringSource, endpointCandidatesForExplicitSource, exactHandoffEndpointMarkdownLink, mergeExactHandoffEndpointChoices, mergeHandoffEndpointAuthoringChoices } from '../dist/core/handoffEndpointSelection.js';
+import { applyExactHandoffEndpointSelection, applyHandoffEndpointAuthoringSelection, endpointCandidatesForAuthoringSource, endpointCandidatesForExplicitSource, exactHandoffEndpointMarkdownLink, mergeExactHandoffEndpointChoices, mergeHandoffEndpointAuthoringChoices } from '../dist/core/handoffEndpointSelection.js';
 import { handoffRouteCandidatesForExplicitSource } from '../dist/core/handoffRouteSelection.js';
 import { checkIgnoredPaths, commitPreparedGitOperator, commitPreparedReviewedStaged, commitWorkingTree, deriveGitOperatorCommitMessage, dirtyWorkingTreePaths, discardWorkingTree, generateTiinexCommitMessage, listStagedConflictMarkerPaths, listStagedMutationPaths, listStagedPaths, materializeUnmergedFileConflicts, mergeCommitNoCommit, payloadCheckoutEligibility, preflightExistingLocalBranch, prepareGitOperatorCommit, prepareReviewedStagedCommit, pushExactGitOperatorCommit, pushExactLandingCommit, pushExactReviewedStagedCommit, stageCommitPush, stageLandingChanges, stageLandingCommit, stashWorkingTree, unstageLandingPaths } from '../dist/host/git.js';
 import { preferredNodeExecutable } from '../dist/host/nodeExecutable.js';
@@ -128,23 +128,23 @@ await test('artifact authoring candidate sources expose reusable Party-reference
 });
 
 
-await test('Party-reference authoring assist stays label-only and fail-closed while exact candidates preserve semantic kind/reference', async () => {
+await test('Party-reference authoring assist preserves Core-known kind and Core-qualified internal Workspace Reference without upgrading semantic authority', async () => {
   const fields = new Map([
     ['From Kind', { required: true, allowedValues: ['party', 'role', 'unknown'] }],
     ['From Reference', { required: false, allowedValues: [] }]
   ]);
   const fills = { 'From Kind': 'kind', 'From Reference': 'reference' };
   const exact = { label: 'Sigma Role — Current', authoringLabel: 'Sigma', kind: 'role', reference: 'business::.topics/roles/sigma.trace.md', qualification: 'qualified-exact' };
-  const assist = { label: 'Anchor Role — Historical', authoringLabel: 'Anchor', kind: 'role', reference: '', qualification: 'authoring-assist' };
+  const assist = { label: 'Anchor Role — Current', authoringLabel: 'Anchor', kind: 'role', reference: 'business::.topics/roles/anchor.trace.md', qualification: 'authoring-assist' };
   assert.equal(partyReferenceAuthoringFillValue('kind', exact, fields.get('From Kind')), 'role');
   assert.equal(partyReferenceAuthoringFillValue('reference', exact, fields.get('From Reference')), 'business::.topics/roles/sigma.trace.md');
-  assert.equal(partyReferenceAuthoringFillValue('kind', assist, fields.get('From Kind')), 'unknown');
-  assert.equal(partyReferenceAuthoringFillValue('reference', assist, fields.get('From Reference')), '');
+  assert.equal(partyReferenceAuthoringFillValue('kind', assist, fields.get('From Kind')), 'role');
+  assert.equal(partyReferenceAuthoringFillValue('reference', assist, fields.get('From Reference')), 'business::.topics/roles/anchor.trace.md');
   assert.equal(partyReferenceCandidateSatisfiesAffordance(fills, assist, fields), true);
   assert.equal(partyReferenceCandidateSatisfiesAffordance(fills, assist, new Map([
     ['From Kind', { required: true, allowedValues: ['party', 'role'] }],
     ['From Reference', { required: false, allowedValues: [] }]
-  ])), false);
+  ])), true);
 });
 
 await test('Transition authoring presets dedupe equivalent representations by canonical identity and stay explicit', async () => {
@@ -191,9 +191,9 @@ await test('Role and Identity picker presentation groups by the same qualified W
   ]);
 });
 
-await test('Incoming local review decision becomes available only after applied exact Workspace state and then hides decision controls by context', async () => {
+await test('Incoming local review decision becomes available immediately when every carried Workspace is exact and hides Replace through decision context', async () => {
   const exact = [{ workspaceId: 'business', state: 'exact' }, { workspaceId: 'vscode', state: 'exact' }];
-  assert.equal(incomingReviewReady(false, exact), false);
+  assert.equal(incomingReviewReady(false, exact), true);
   assert.equal(incomingReviewReady(true, exact), true);
   assert.equal(incomingReviewReady(true, [{ workspaceId: 'business', state: 'exact' }, { workspaceId: 'vscode', state: 'changed' }]), false);
   assert.equal(incomingReviewPresentation(true, '').contextValue, 'tiinex.incomingPackageDecision');
@@ -213,7 +213,9 @@ await test('generic authoring UX keeps Party, Transition and host-state hydratio
   assert.match(panel, /data-endpoint-assist/);
   assert.match(panel, /Manual…/);
   assert.match(panel, /Core-discovered Party \/ Role choices/);
-  assert.match(panel, /Current Role candidate: Kind role is preserved/);
+  assert.match(panel, /Core-qualified internal/);
+  assert.match(panel, /completion-signal Return To recipient/);
+  assert.match(panel, /Return To does not create From\/To endpoint-role material/);
   assert.match(panel, /if\(suggestion\)out\[field\]=suggestion/);
   assert.match(panel, /<optgroup label=/);
   assert.match(panel, /endpointSuggestionOptions/);
@@ -243,6 +245,10 @@ await test('generic authoring UX keeps Party, Transition and host-state hydratio
   assert.match(tree, /Reject and Reset/);
   const applyMethod = tree.slice(tree.indexOf('private async runIncomingApply'), tree.indexOf('private async resumeIncomingMultiRootSession'));
   assert.match(applyMethod, /await this\.refreshIncoming\(\)/, 'Replace\/Merge must run the same full Incoming requalification refresh automatically');
+  assert.match(tree, /restoreIncomingQueue/);
+  assert.match(tree, /tiinex\.incoming\.queue\.v1/);
+  assert.match(tree, /persistIncomingQueue/);
+  assert.match(tree, /await this\.refreshIncomingReviewReadiness\(state\)/);
   assert.match(tree, /groupPartyReferenceCandidates/);
   assert.doesNotMatch(tree.slice(tree.indexOf('private async guidedEntryTransportText'), tree.indexOf('private closeTransport')), /projectWorkspaceSessionRoles\(/, 'Guided Entry must reuse the shared current Role\/Identity discovery projection');
   assert.doesNotMatch(tree, /Promise\.all\(\[transitionDefinitionsPromise, authoringAssistPromise\]\)/);
@@ -354,6 +360,22 @@ await test('Handoff endpoint dropdown writes References into the exact Core-proj
   assert.equal(values['Completion Expectation']['Return To'], 'Anchor');
   assert.equal(values['Completion Expectation']['Return To Reference'], '[Anchor](business::.topics/roles/001-1-1-1-1-1-anchor-canonical-holder-cutover-role.trace.md)');
   assert.equal(Object.prototype.hasOwnProperty.call(values, 'Return To Reference'), false);
+});
+
+await test('Handoff authoring-assist endpoint preserves known Role kind without inventing an exact Reference', async () => {
+  const values = { 'Handoff Parties': { From: 'Sigma', 'From Kind': 'role', To: 'Manual', 'To Kind': 'unknown', 'To Reference': '[stale](bad)' } };
+  applyHandoffEndpointAuthoringSelection(values, 'To', { label: 'Anchor Role', value: 'Anchor', kind: 'role', reference: '' });
+  assert.equal(values['Handoff Parties'].To, 'Anchor');
+  assert.equal(values['Handoff Parties']['To Kind'], 'role');
+  assert.equal(Object.hasOwn(values['Handoff Parties'], 'To Reference'), false);
+});
+
+await test('Return To authoring-assist preserves completion recipient label without inventing endpoint kind or Reference', async () => {
+  const values = { 'Completion Expectation': { 'Signal Kind': 'return', 'Signal Meaning': 'Return result.', 'Return To': 'Manual', 'Return To Reference': '[stale](bad)' } };
+  applyHandoffEndpointAuthoringSelection(values, 'Return To', { label: 'Anchor Role', value: 'Anchor', kind: 'role', reference: '' });
+  assert.equal(values['Completion Expectation']['Return To'], 'Anchor');
+  assert.equal(Object.hasOwn(values['Completion Expectation'], 'Return To Reference'), false);
+  assert.equal(Object.hasOwn(values['Completion Expectation'], 'Return To Kind'), false);
 });
 
 await test('Handoff route host scoping consumes Core qualification and rejects nested fixture paths', async () => {
@@ -515,7 +537,7 @@ await test('VS Code main-host tooling avoids Code.exe for portable Node tooling 
   assert.equal(preferredNodeExecutable('', '/usr/bin/node', 'linux'), '/usr/bin/node');
 });
 
-await test('Receive UX chooses the most common repository parent and treats role text as presentation filtering only', async () => {
+await test('Receive UX chooses the most common repository parent and treats Operator Party recipient scope as presentation filtering only', async () => {
   const roots = [
     'C:\\Users\\Sigma\\Repos\\Tiinex\\business',
     'C:\\Users\\Sigma\\Repos\\Tiinex\\core',
@@ -527,9 +549,9 @@ await test('Receive UX chooses the most common repository parent and treats role
     { id: 'a', from: 'Anchor', to: 'Sigma' },
     { id: 'b', from: 'Anchor', to: 'Loom' }
   ];
-  assert.deepEqual(routesPreferredForRole(routes, 'sigma').map((item) => item.id), ['a']);
-  assert.deepEqual(routesPreferredForRole(routes, 'nobody').map((item) => item.id), ['a', 'b']);
-  assert.deepEqual(routesPreferredForRole(routes, '').map((item) => item.id), ['a', 'b']);
+  assert.deepEqual(routesPreferredForPartyScope(routes, ['sigma']).map((item) => item.id), ['a']);
+  assert.deepEqual(routesPreferredForPartyScope(routes, ['nobody']).map((item) => item.id), ['a', 'b']);
+  assert.deepEqual(routesPreferredForPartyScope(routes, []).map((item) => item.id), ['a', 'b']);
 });
 
 await test('Outgoing Parent source presets project the five deterministic operator modes', async () => {
@@ -874,18 +896,52 @@ await test('extension contributes stable Discovery, Incoming, Outgoing and Trans
   assert.equal(Boolean(manifest.contributes?.taskDefinitions), false);
 });
 
+await test('Operator Party uses one canonical picker setting with None/manual modes, visible view actions, Authors default, and Core scope matching', async () => {
+  const fs = await import('node:fs/promises');
+  const root = path.resolve(HERE, '..');
+  const manifest = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8'));
+  const source = await fs.readFile(path.join(root, 'src', 'operatorParty.ts'), 'utf8');
+  const tree = await fs.readFile(path.join(root, 'src', 'operatorTrees.ts'), 'utf8');
+  const authoring = await fs.readFile(path.join(root, 'src', 'authoring.ts'), 'utf8');
+  const handoffSchema = await fs.readFile(path.join(root, '..', 'native', '.topics', '.schemas', 'coordination', 'handoff', 'tiinex.handoff.v1.schema.js'), 'utf8').catch(() => '');
+  assert.match(source, /unknown::/);
+  assert.match(source, /label: 'None'/);
+  assert.match(source, /Manual \/ Unknown/);
+  assert.match(source, /candidate\.target/);
+  assert.match(source, /inspect<string>\('operator\.party'\)/);
+  assert.match(source, /ConfigurationTarget\.Workspace/);
+  assert.match(source, /ConfigurationTarget\.Global/);
+  assert.match(tree, /resolveOperatorParty\(this\.extensionPath\)/);
+  assert.match(tree, /authors,/);
+  assert.match(authoring, /--authors|authors/);
+  assert.match(tree, /incoming\.autoShowPartyHandoff/);
+  const autoShowStart = tree.indexOf('private async autoShowIncomingPartyHandoff');
+  const autoShowEnd = tree.indexOf('private async openRouteHandoff', autoShowStart);
+  const autoShow = tree.slice(autoShowStart, autoShowEnd);
+  assert.match(autoShow, /policy === 'ask'/);
+  assert.match(autoShow, /showInformationMessage\([\s\S]*\{ modal: true \}[\s\S]*'Open Handoff'/, 'Ask must be an explicit modal confirmation before any preview/reveal');
+  assert.match(autoShow, /if \(accepted !== 'Open Handoff'\) return;/);
+  const titleActions = manifest.contributes.menus['view/title'].filter((item) => item.command === 'tiinex.operator.pickParty');
+  assert.deepEqual(titleActions.map((item) => item.when), ['view == tiinex.discovery']);
+  if (handoffSchema) assert.match(handoffSchema, /input: 'Return To'.*control: 'reference-picker'/);
+});
+
 await test('Discovery settings are non-mutating and ordinary builds avoid relinking the active extension', async () => {
   const fs = await import('node:fs/promises');
   const root = path.resolve(HERE, '..');
   const manifest = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8'));
   const properties = manifest.contributes.configuration.properties;
-  assert.equal(properties['tiinex.operator.role'].type, 'string');
+  assert.equal(properties['tiinex.operator.party'].type, 'string');
+  assert.match(properties['tiinex.operator.party'].pattern, /unknown::/);
+  assert.match(properties['tiinex.operator.party'].patternErrorMessage, /Pick Operator Party/);
+  assert.equal(Object.hasOwn(properties, 'tiinex.operator.role'), false);
   assert.equal(properties['tiinex.discovery.folder'].default, '');
   assert.equal(properties['tiinex.discovery.autoRefresh'].default, false);
   assert.equal(properties['tiinex.discovery.latestToIncoming'].default, false);
-  assert.equal(properties['tiinex.incoming.autoShowRoleHandoff'].default, 'ask');
-  assert.deepEqual(properties['tiinex.incoming.autoShowRoleHandoff'].enum, ['no', 'ask', 'yes']);
-  assert.match(properties['tiinex.incoming.autoShowRoleHandoff'].description, /one or more qualified Handoff routes/);
+  assert.equal(properties['tiinex.incoming.autoShowPartyHandoff'].default, 'ask');
+  assert.deepEqual(properties['tiinex.incoming.autoShowPartyHandoff'].enum, ['no', 'ask', 'yes']);
+  assert.match(properties['tiinex.incoming.autoShowPartyHandoff'].description, /Core-projected scope/);
+  assert.equal(Object.hasOwn(properties, 'tiinex.incoming.autoShowRoleHandoff'), false);
   assert.equal(properties['tiinex.landing.stage'].default, 'yes');
   assert.deepEqual(properties['tiinex.landing.stage'].enum, ['no', 'yes']);
   assert.equal(Object.hasOwn(properties, 'tiinex.handoffInbox.path'), false);
@@ -1097,7 +1153,8 @@ await test('Receive orchestration keeps Workspace mutation explicit and makes un
   assert.doesNotMatch(source, /requiredWorkspaceIds\.every/);
   const landingCommitBlock = gitSource.slice(gitSource.indexOf('export async function stageLandingCommit'), gitSource.indexOf('export async function pushExactLandingCommit'));
   assert.doesNotMatch(landingCommitBlock, /generateTiinexCommitMessage|tiinex-commit-message|nodeExecutable/);
-  assert.match(source, /routesPreferredForRole/);
+  assert.match(source, /routesPreferredForPartyScope/);
+  assert.match(source, /resolveOperatorParty/);
   assert.doesNotMatch(source, /openReceivedHandoffs|landing\.openHandoff/);
   assert.doesNotMatch(source, /openTextDocument\([^\n]*pointerPath/);
   assert.match(gitApi, /workspace\.updateWorkspaceFolders/);
@@ -2080,9 +2137,10 @@ await test('Handoff draft wrapper passes operator Title to Core while path alloc
     assert.equal(call.args[call.args.indexOf('--schema') + 1], 'tiinex.handoff.v1');
     assert.equal(call.args[call.args.indexOf('--title') + 1], 'Discuss transport routing');
     assert.equal(call.args[call.args.indexOf('--path') + 1], '.topics/001-anchor-to-sigma.trace.md');
+    assert.equal(call.args[call.args.indexOf('--authors') + 1], 'Sigma');
     return { code: 0, stdout: JSON.stringify({ status: 'created-clean', draft: { path: '.topics/001-anchor-to-sigma.trace.md', markdown: '# Discuss transport routing\n' }, findingSummary: { counts: { error: 0 } } }), stderr: '' };
   });
-  const created = await createArtifactDraft(runtime, 'tiinex.handoff.v1', '/repo', '.topics/001-anchor-to-sigma.trace.md', 'Discuss transport routing', { From: 'Anchor', To: 'Sigma' }, null, 'create-artifact', fx.runner);
+  const created = await createArtifactDraft(runtime, 'tiinex.handoff.v1', '/repo', '.topics/001-anchor-to-sigma.trace.md', 'Discuss transport routing', { From: 'Anchor', To: 'Sigma' }, null, 'create-artifact', fx.runner, 'Sigma');
   assert.equal(created.draft.markdown, '# Discuss transport routing\n');
 });
 

@@ -26,12 +26,13 @@ export function preferredRepositoryParent(repositoryRoots: string[], platform: N
 }
 
 /**
- * Role text is a presentation filter only. If it matches no qualified route endpoint,
- * the caller should keep every route visible rather than interpreting the text as authority.
+ * Operator Party recipient scope is a presentation preference only. If it matches
+ * no qualified route recipient, keep every route visible rather than treating the
+ * host preference as semantic authority.
  */
-export function routesPreferredForRole<T extends RouteEndpointLabels>(routes: T[], roleText: string): T[] {
-  const role = String(roleText || '').trim().toLocaleLowerCase();
-  if (!role) return [...routes];
-  const matches = routes.filter((route) => [route.from, route.to].some((value) => String(value || '').trim().toLocaleLowerCase() === role));
+export function routesPreferredForPartyScope<T extends RouteEndpointLabels>(routes: T[], recipientLabels: string[]): T[] {
+  const scope = new Set((recipientLabels || []).map((value) => String(value || '').trim().toLocaleLowerCase()).filter(Boolean));
+  if (!scope.size) return [...routes];
+  const matches = routes.filter((route) => scope.has(String(route.to || '').trim().toLocaleLowerCase()));
   return matches.length ? matches : [...routes];
 }

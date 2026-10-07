@@ -37,11 +37,11 @@ export interface PartyReferenceTargetField {
 
 /**
  * Project one reusable Party-reference candidate into a schema-declared fill.
- * Readable authoring-assist material may help with a human label, but it must
- * never upgrade identity authority. When the target schema exposes an explicit
- * `unknown` value, use that as the fail-closed semantic kind until an exact
- * qualified candidate is selected. Future artifact types can reuse this without
- * Handoff-specific field names.
+ * Core may independently qualify a bounded Workspace/path as an internal authoring
+ * Reference even when the candidate remains semantic authoring-assist. The host
+ * preserves that Core-supplied resolution aid without upgrading identity authority.
+ * Party/Role kind is likewise Core-projected independently of semantic endpoint
+ * authority. Future artifact types can reuse this without Handoff-specific names.
  */
 export function partyReferenceAuthoringFillValue(
   source: unknown,
@@ -49,12 +49,13 @@ export function partyReferenceAuthoringFillValue(
   targetField?: PartyReferenceTargetField
 ): string {
   const sourceKey = String(source || '').trim();
-  const exact = String(candidate?.qualification || '').trim() === 'qualified-exact';
   if (sourceKey === 'label') return String(candidate?.authoringLabel || candidate?.label || '').trim();
-  if (sourceKey === 'reference') return exact ? String(candidate?.reference || '').trim() : '';
+  if (sourceKey === 'reference') return String(candidate?.reference || '').trim();
   if (sourceKey === 'kind') {
-    if (exact) return String(candidate?.kind || '').trim();
-    const unknown = (targetField?.allowedValues || []).find((item) => String(item || '').trim().toLowerCase() === 'unknown');
+    const kind = String(candidate?.kind || '').trim();
+    const allowed = (targetField?.allowedValues || []).map((item) => String(item || '').trim());
+    if (kind && (!allowed.length || allowed.some((item) => item.toLowerCase() === kind.toLowerCase()))) return kind;
+    const unknown = allowed.find((item) => item.toLowerCase() === 'unknown');
     return String(unknown || '').trim();
   }
   return '';
