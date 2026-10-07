@@ -46,17 +46,41 @@ export interface PreparedArtifactDraft {
   parentArtifact: ArtifactDraftParent | null;
 }
 
+const authoringModelCache = new Map<string, Promise<ArtifactAuthoringModel>>();
+const authoringCatalogCache = new Map<string, Promise<ArtifactAuthoringCatalog>>();
+
+export function clearArtifactAuthoringCaches(): void {
+  authoringModelCache.clear();
+  authoringCatalogCache.clear();
+}
+
+function authoringModelCacheKey(extensionPath: string, schemaId: string, transitionType: string): string {
+  return `${path.resolve(extensionPath)}\u0000${String(schemaId || '').trim()}\u0000${String(transitionType || '').trim()}`;
+}
+
+function authoringCatalogCacheKey(extensionPath: string, root: string): string {
+  return `${path.resolve(extensionPath)}\u0000${path.resolve(root)}`;
+}
+
 export async function loadArtifactAuthoringModel(extensionPath: string, schemaId: string, transitionType: 'create-artifact' | 'continue-from-record' = 'create-artifact'): Promise<ArtifactAuthoringModel> {
-  const runtime = await prepareBundledRuntime(extensionPath, nodeExecutable());
-  try {
-    const [contract, guide] = await Promise.all([
-      inspectArtifactCreationContract(runtime, schemaId, transitionType),
-      projectArtifactSchemaGuide(runtime, schemaId, transitionType === 'continue-from-record' ? 'continue' : 'create')
-    ]);
-    const model = projectArtifactAuthoringModel(contract, guide);
-    if (model.status !== 'ready') throw new Error(`tiinex.authoring.contract-blocked:${model.status}`);
-    return model;
-  } finally { await runtime.dispose(); }
+  const key = authoringModelCacheKey(extensionPath, schemaId, transitionType);
+  const existing = authoringModelCache.get(key);
+  if (existing) return existing;
+  const value = (async () => {
+    const runtime = await prepareBundledRuntime(extensionPath, nodeExecutable());
+    try {
+      const [contract, guide] = await Promise.all([
+        inspectArtifactCreationContract(runtime, schemaId, transitionType),
+        projectArtifactSchemaGuide(runtime, schemaId, transitionType === 'continue-from-record' ? 'continue' : 'create')
+      ]);
+      const model = projectArtifactAuthoringModel(contract, guide);
+      if (model.status !== 'ready') throw new Error(`tiinex.authoring.contract-blocked:${model.status}`);
+      return model;
+    } finally { await runtime.dispose(); }
+  })();
+  authoringModelCache.set(key, value);
+  try { return await value; }
+  catch (error) { if (authoringModelCache.get(key) === value) authoringModelCache.delete(key); throw error; }
 }
 
 export interface ArtifactAuthoringCatalog {
@@ -66,14 +90,22 @@ export interface ArtifactAuthoringCatalog {
 
 export async function loadArtifactAuthoringCatalog(extensionPath: string, root: string): Promise<ArtifactAuthoringCatalog> {
   const materialRoot = required(root, 'tiinex.authoring.repository-required');
-  const runtime = await prepareBundledRuntime(extensionPath, nodeExecutable());
-  try {
-    const projected = await projectArtifactMaterialization(runtime, materialRoot);
-    if (!['needs-proposal', 'ready'].includes(String(projected.status || ''))) throw new Error(`tiinex.authoring.catalog-blocked:${projected.status || 'unknown'}`);
-    const schemas = (projected.candidateSchemas || []).filter((item) => item.status === 'ready' && item.schemaId);
-    if (!schemas.length) throw new Error('tiinex.authoring.no-creatable-schemas');
-    return { schemas, parents: projected.parentCandidates || [] };
-  } finally { await runtime.dispose(); }
+  const key = authoringCatalogCacheKey(extensionPath, materialRoot);
+  const existing = authoringCatalogCache.get(key);
+  if (existing) return existing;
+  const value = (async () => {
+    const runtime = await prepareBundledRuntime(extensionPath, nodeExecutable());
+    try {
+      const projected = await projectArtifactMaterialization(runtime, materialRoot);
+      if (!['needs-proposal', 'ready'].includes(String(projected.status || ''))) throw new Error(`tiinex.authoring.catalog-blocked:${projected.status || 'unknown'}`);
+      const schemas = (projected.candidateSchemas || []).filter((item) => item.status === 'ready' && item.schemaId);
+      if (!schemas.length) throw new Error('tiinex.authoring.no-creatable-schemas');
+      return { schemas, parents: projected.parentCandidates || [] };
+    } finally { await runtime.dispose(); }
+  })();
+  authoringCatalogCache.set(key, value);
+  try { return await value; }
+  catch (error) { if (authoringCatalogCache.get(key) === value) authoringCatalogCache.delete(key); throw error; }
 }
 
 function authoringProposal(

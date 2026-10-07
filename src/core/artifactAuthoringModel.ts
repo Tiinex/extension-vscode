@@ -58,10 +58,16 @@ function strings(values: unknown): string[] {
 
 function constraintsBySection(guide: any): Map<string, Map<string, ConstraintLike>> {
   const out = new Map<string, Map<string, ConstraintLike>>();
-  for (const section of guide?.factoryDescriptor?.sections || []) {
+  const descriptor = guide?.factoryDescriptor || {};
+  // Ordinary groups live under `sections`, while repeatable declaration
+  // sections carry their field domains under `declarations`. Hosts must
+  // consume both from the same Core-owned Factory Descriptor; otherwise a
+  // closed declaration field (for example Handoff Transfer Kind) silently
+  // degrades into an unconstrained free-text control.
+  for (const section of [...(descriptor?.sections || []), ...(descriptor?.declarations || [])]) {
     const name = String(section?.group || section?.title || '').trim();
     if (!name) continue;
-    const fields = new Map<string, ConstraintLike>();
+    const fields = out.get(name) || new Map<string, ConstraintLike>();
     for (const constraint of section?.fieldConstraints || []) {
       const field = String(constraint?.field || '').trim();
       if (field && !fields.has(field)) fields.set(field, constraint);

@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
-import type { PackageParticipantProjection, PackageParticipantRole } from '../packageBuilder';
+import type { PackageParticipantProjection, PackageParticipantRole, PackageWorkspaceChoice } from '../packageBuilder';
 import { extensionHostAcceptanceAdditionalParticipantReferences, recordExtensionHostAcceptanceEvent } from './extensionHostAcceptance';
+import { groupPartyReferenceCandidates } from './partyReferencePresentation';
 
 export interface ParticipantPresentation {
   description: string;
@@ -16,32 +17,54 @@ export function participantPresentation(projection: PackageParticipantProjection
   return { description, tooltip: projection.detail };
 }
 
-export async function selectAdditionalParticipantRoles(candidates: PackageParticipantRole[]): Promise<PackageParticipantRole[] | null> {
-  if (!candidates.length) return [];
-  const items = candidates.map((role) => ({
-    label: `$(person-add) ${role.label}`,
-    description: role.workspaceId,
-    detail: role.reference,
-    role,
-    picked: false
+export async function selectAdditionalParticipantRoles(candidates: PackageParticipantRole[], workspaces: PackageWorkspaceChoice[] = []): Promise<PackageParticipantRole[] | null> {
+  if (!candidates.length) {
+    void vscode.window.showInformationMessage('No current Role leaf is available as an additional participant. Recipient Parties such as Organizations belong in the Handoff To field; VS Code does not infer organization membership or participant authority.');
+    return [];
+  }
+  const presentedCandidates = candidates.map((role) => ({
+    label: role.label,
+    authoringLabel: role.authoringLabel,
+    kind: 'role' as const,
+    workspaceId: role.workspaceId,
+    path: role.path,
+    role
   }));
-  const acceptanceReferences = extensionHostAcceptanceAdditionalParticipantReferences(items.map((item) => item.role.reference));
+  const candidateItems = groupPartyReferenceCandidates(presentedCandidates, workspaces)
+    .flatMap((group) => group.items.map((item) => ({
+      label: `$(person-add) ${item.label}`,
+      description: item.description,
+      detail: item.candidate.role.reference,
+      role: item.candidate.role,
+      groupLabel: group.label,
+      picked: false
+    })));
+  const acceptanceReferences = extensionHostAcceptanceAdditionalParticipantReferences(candidateItems.map((item) => item.role.reference));
   const selected = acceptanceReferences === undefined
-    ? await vscode.window.showQuickPick(items, {
-        title: 'Additional participant Roles · qualified open Workspaces',
-        placeHolder: 'Select zero, one, or multiple additional Roles. Core requalifies the exact set before Attach and Pack.',
+    ? await vscode.window.showQuickPick(groupPartyReferenceCandidates(presentedCandidates, workspaces).flatMap((group) => [
+        { label: group.label, kind: vscode.QuickPickItemKind.Separator } as vscode.QuickPickItem,
+        ...group.items.map((item) => ({
+          label: `$(person-add) ${item.label}`,
+          description: item.description,
+          detail: item.candidate.role.reference,
+          role: item.candidate.role,
+          picked: false
+        }))
+      ]) as Array<vscode.QuickPickItem & { role?: PackageParticipantRole; picked?: boolean }>, {
+        title: 'Additional participants · current Roles',
+        placeHolder: 'Select current Role leaves. Workspace-local Role identity is requalified by Core before Attach and Pack; recipient Parties / Organizations are selected in Handoff To.',
         canPickMany: true,
         ignoreFocusOut: true
       })
     : acceptanceReferences === null
       ? undefined
-      : items.filter((item) => acceptanceReferences.includes(item.role.reference));
+      : candidateItems.filter((item) => acceptanceReferences.includes(item.role.reference));
   if (!selected) {
-    recordExtensionHostAcceptanceEvent('participant-selection', { state: 'cancelled', candidateCount: items.length });
+    recordExtensionHostAcceptanceEvent('participant-selection', { state: 'cancelled', candidateCount: candidateItems.length });
     return null;
   }
-  const roles = selected.map((item) => item.role);
-  recordExtensionHostAcceptanceEvent('participant-selection', { state: 'selected', selected: roles.map((item) => item.reference), candidateCount: items.length });
+  const roles = selected.flatMap((item: any) => item.role ? [item.role as PackageParticipantRole] : []);
+  recordExtensionHostAcceptanceEvent('participant-selection', { state: 'selected', selected: roles.map((item) => item.reference), candidateCount: candidateItems.length });
   return roles;
 }
 

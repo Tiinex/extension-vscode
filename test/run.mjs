@@ -15,6 +15,9 @@ import { receivedHandoffContext, receivedGroundingProjection, withWorkspaceRoots
 import { detectOutgoingSourcePreset, operatorMatchedWorkspaceIds, OUTGOING_SOURCE_PRESET_MODES, outgoingSourcePresetLabel, preferByteIdenticalEmbeddedSelections, projectOutgoingSourcePreset, resolveExclusiveWorkspaceSourceSelection, resolvePrioritizedWorkspaceDuplicates } from '../dist/core/sourceSelection.js';
 import { comparePackageRecency, rootOutgoingLabel, rootOutgoingPrefix } from '../dist/core/outgoingUx.js';
 import { projectArtifactAuthoringModel } from '../dist/core/artifactAuthoringModel.js';
+import { artifactAuthoringCandidateCapability, PARTY_REFERENCE_CANDIDATE_SOURCE, partyReferenceAuthoringFillValue, partyReferenceCandidateSatisfiesAffordance } from '../dist/core/artifactAuthoringCandidateSource.js';
+import { dedupeTransitionPresetCandidates, qualifiedTransitionPresetCandidates } from '../dist/core/artifactAuthoringPresets.js';
+import { incomingReviewPresentation, incomingReviewReady } from '../dist/core/incomingReview.js';
 import { artifactCreationReady, requireArtifactCreationReady } from '../dist/core/artifactAuthoringQualification.js';
 import { mergeTransportRouteSelection, selectedTransportRouteIds, transportPrepared, transportPreparedKey } from '../dist/core/transportQueue.js';
 import { gitAutomationBlockerText, gitOperatorResultMarkdown, isTiinexArtifactPath, normalizePostStagePolicy, projectGitOperatorCandidates } from '../dist/core/gitOperator.js';
@@ -25,7 +28,7 @@ import { planWorkspaceSession, validateWorkspaceTargetMapping } from '../dist/co
 import { representativeWorkspaceChoicesForRoot } from '../dist/core/workspaceChoice.js';
 import { participantProjectionFromManufactureReceipt } from '../dist/core/participantProjection.js';
 import { assertStableQualifiedCarrierAllocation, qualifiedCarrierAllocationFromManufactureReceipt } from '../dist/core/carrierAllocation.js';
-import { applyExactHandoffEndpointSelection, endpointCandidatesForExplicitSource, exactHandoffEndpointMarkdownLink, mergeExactHandoffEndpointChoices } from '../dist/core/handoffEndpointSelection.js';
+import { applyExactHandoffEndpointSelection, endpointCandidatesForAuthoringSource, endpointCandidatesForExplicitSource, exactHandoffEndpointMarkdownLink, mergeExactHandoffEndpointChoices, mergeHandoffEndpointAuthoringChoices } from '../dist/core/handoffEndpointSelection.js';
 import { handoffRouteCandidatesForExplicitSource } from '../dist/core/handoffRouteSelection.js';
 import { checkIgnoredPaths, commitPreparedGitOperator, commitPreparedReviewedStaged, commitWorkingTree, deriveGitOperatorCommitMessage, dirtyWorkingTreePaths, discardWorkingTree, generateTiinexCommitMessage, listStagedConflictMarkerPaths, listStagedMutationPaths, listStagedPaths, materializeUnmergedFileConflicts, mergeCommitNoCommit, payloadCheckoutEligibility, preflightExistingLocalBranch, prepareGitOperatorCommit, prepareReviewedStagedCommit, pushExactGitOperatorCommit, pushExactLandingCommit, pushExactReviewedStagedCommit, stageCommitPush, stageLandingChanges, stageLandingCommit, stashWorkingTree, unstageLandingPaths } from '../dist/host/git.js';
 import { preferredNodeExecutable } from '../dist/host/nodeExecutable.js';
@@ -33,6 +36,8 @@ import { hasTiinexEnvelopeFirstLine } from '../dist/core/tiinexMarkdown.js';
 import { copyFileToClipboard } from '../dist/host/fileClipboard.js';
 import { existingCarrierFilenames, inspectCarrierDestination } from '../dist/host/carrierPublish.js';
 import { appendHostCarrierProgressionArgs } from '../dist/tiinex/hostManufactureContract.js';
+import { groupPartyReferenceCandidates, presentPartyReferenceCandidates } from '../dist/vscode/partyReferencePresentation.js';
+import { nextBootstrapReplacementFilename } from '../dist/core/bootstrapReplacement.js';
 import { compareIncomingWorkspaceToLocal, createArtifactDraft, inspectArtifactCreationContract, manufactureHandoffPackage, manufactureHandoffPackageDetailed, parseBootstrapDescriptor, prepareBundledRuntime, prepareHostCoreRuntime, projectArtifactMaterialization, projectArtifactSchemaGuide, runTiinexJson, projectEditorAssistanceText, projectHandoffCarrierMajorFrontier, projectHandoffCarrierOutputCollision, projectHandoffCarrierTransportName, projectHandoffEndpoints, projectOperatorContext, projectPackageTransport, projectStagedValidation, projectTransitionCatalog, projectTransitionNeighborhood, projectWorkspaceCarrierEntry, projectWorkspaceLanding, projectWorkspacePackageSources, projectWorkspaceSessionRoles } from '../dist/tiinex/bootstrap.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -62,6 +67,33 @@ await test('carrier filename collision, transport identity and Major frontier de
   assert.ok(calls.some((call) => call.args.includes('project-handoff-carrier-major-frontier')));
 });
 
+await test('bootstrap replacement filename allocation and Transport title wiring stay deterministic and host-bounded', async () => {
+  assert.equal(nextBootstrapReplacementFilename([]), 'tiinex-bootstrap-replacement-001.handoff-package.zip');
+  assert.equal(nextBootstrapReplacementFilename(['tiinex-bootstrap-replacement-001.handoff-package.zip', 'other.zip', 'tiinex-bootstrap-replacement-007.handoff-package.zip']), 'tiinex-bootstrap-replacement-008.handoff-package.zip');
+  const fs = await import('node:fs/promises');
+  const root = path.resolve(HERE, '..');
+  const tree = await fs.readFile(path.join(root, 'src', 'operatorTrees.ts'), 'utf8');
+  const manifest = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8'));
+  assert.match(tree, /manufactureHandoffPackage/);
+  assert.match(tree, /--carrier-mode', 'bootstrap'/);
+  assert.match(tree, /--bootstrap-replacement/);
+  assert.match(tree, /this\.outgoingFolder\(\) \|\| await this\.selectOutgoingFolder/);
+  assert.match(tree, /transportPackageBootstrapReplacement/);
+  assert.match(tree, /item\.genericTransportText/);
+  const commands = manifest.contributes?.commands || [];
+  const command = (id) => commands.find((item) => item.command === id);
+  assert.equal(command('tiinex.transport.buildBootstrapReplacement')?.icon, '$(file-zip)');
+  assert.equal(command('tiinex.transport.buildBootstrapReplacement')?.enablement, '!tiinex.transport.bootstrapReplacementBuilding');
+  assert.equal(command('tiinex.transport.copyText')?.icon, '$(copy)');
+  assert.equal(command('tiinex.transport.copyBootstrapReplacementText'), undefined);
+  const titles = manifest.contributes?.menus?.['view/title'] || [];
+  assert.ok(titles.some((item) => item.command === 'tiinex.transport.buildBootstrapReplacement' && item.when === 'view == tiinex.transport'));
+  assert.ok(!titles.some((item) => item.command === 'tiinex.transport.copyText'), 'Copy Transport Text belongs to the replacement package row, not the Transport title');
+  const rows = manifest.contributes?.menus?.['view/item/context'] || [];
+  assert.ok(rows.some((item) => item.command === 'tiinex.transport.copyText' && item.when === 'view == tiinex.transport && viewItem == tiinex.transportPackageBootstrapReplacement'));
+  assert.ok(!rows.some((item) => item.command === 'tiinex.transport.guidedEntry' && String(item.when || '').includes('tiinex.transportPackageBootstrapReplacement')), 'Bootstrap replacement rows must not expose Guided Entry');
+});
+
 await test('participant projection exposes only exact Core-qualified semantic Role material', async () => {
   const receipt = {
     status: 'ready', transportExecutable: true, activeSpeakerLabel: 'host-local-only', findings: [],
@@ -89,6 +121,164 @@ await test('participant projection exposes only exact Core-qualified semantic Ro
   assert.equal(participantProjectionFromManufactureReceipt({ status: 'ready', transportExecutable: true, plan: { requirements: { participantRoles: [{ requirementName: 'Reviewer' }] } } }).state, 'blocked');
 });
 
+await test('artifact authoring candidate sources expose reusable Party-reference capability without Handoff coupling', async () => {
+  assert.equal(artifactAuthoringCandidateCapability(PARTY_REFERENCE_CANDIDATE_SOURCE), 'party-reference');
+  assert.equal(artifactAuthoringCandidateCapability('qualified-handoff-endpoints'), 'party-reference');
+  assert.equal(artifactAuthoringCandidateCapability('future-unknown-source'), null);
+});
+
+
+await test('Party-reference authoring assist stays label-only and fail-closed while exact candidates preserve semantic kind/reference', async () => {
+  const fields = new Map([
+    ['From Kind', { required: true, allowedValues: ['party', 'role', 'unknown'] }],
+    ['From Reference', { required: false, allowedValues: [] }]
+  ]);
+  const fills = { 'From Kind': 'kind', 'From Reference': 'reference' };
+  const exact = { label: 'Sigma Role — Current', authoringLabel: 'Sigma', kind: 'role', reference: 'business::.topics/roles/sigma.trace.md', qualification: 'qualified-exact' };
+  const assist = { label: 'Anchor Role — Historical', authoringLabel: 'Anchor', kind: 'role', reference: '', qualification: 'authoring-assist' };
+  assert.equal(partyReferenceAuthoringFillValue('kind', exact, fields.get('From Kind')), 'role');
+  assert.equal(partyReferenceAuthoringFillValue('reference', exact, fields.get('From Reference')), 'business::.topics/roles/sigma.trace.md');
+  assert.equal(partyReferenceAuthoringFillValue('kind', assist, fields.get('From Kind')), 'unknown');
+  assert.equal(partyReferenceAuthoringFillValue('reference', assist, fields.get('From Reference')), '');
+  assert.equal(partyReferenceCandidateSatisfiesAffordance(fills, assist, fields), true);
+  assert.equal(partyReferenceCandidateSatisfiesAffordance(fills, assist, new Map([
+    ['From Kind', { required: true, allowedValues: ['party', 'role'] }],
+    ['From Reference', { required: false, allowedValues: [] }]
+  ])), false);
+});
+
+await test('Transition authoring presets dedupe equivalent representations by canonical identity and stay explicit', async () => {
+  const candidate = (representationKey, canonicalIdentifier, label, defaults = { Purpose: label }) => ({
+    representationKey, canonicalIdentifier, version: '1', label, purpose: `${label} purpose`,
+    authoringProfile: {
+      state: 'qualified', defaults,
+      boundary: { explicitSelectionRequired: true, recommendation: 'not-projected', executionAuthorized: false }
+    }
+  });
+  const input = [
+    candidate('composed-native:a', 'tiinex.handoff.perform-work.v1', 'Perform bounded work'),
+    candidate('explicit:a', 'tiinex.handoff.perform-work.v1', 'Perform bounded work'),
+    candidate('explicit:b', 'tiinex.handoff.discuss-review.v1', 'Discuss / review'),
+    candidate('composed-native:b', 'tiinex.handoff.discuss-review.v1', 'Discuss / review'),
+    { ...candidate('explicit:blocked', 'tiinex.handoff.blocked.v1', 'Blocked'), authoringProfile: { state: 'qualified', defaults: { Purpose: 'Blocked' }, boundary: { explicitSelectionRequired: true, recommendation: 'not-projected', executionAuthorized: true } } }
+  ];
+  const deduped = dedupeTransitionPresetCandidates(input);
+  assert.equal(deduped.length, 3);
+  assert.equal(deduped.find((item) => item.canonicalIdentifier === 'tiinex.handoff.perform-work.v1')?.representationKey, 'explicit:a');
+  assert.deepEqual(qualifiedTransitionPresetCandidates(input).map((item) => item.label), ['Discuss / review', 'Perform bounded work']);
+});
+
+await test('Role and Identity picker presentation groups by the same qualified Workspace title and keeps labels/path concise', async () => {
+  const workspaces = [
+    { workspaceId: 'business', title: 'Tiinex Business' },
+    { workspaceId: 'docs', title: 'Tiinex Docs' }
+  ];
+  const candidates = [
+    { label: 'Anchor Role — Canonical Holder Cutover Continuation', authoringLabel: 'Anchor', kind: 'role', workspaceId: 'business', path: '.topics/roles/anchor.trace.md' },
+    { label: 'Tiinex — Organization', authoringLabel: 'Tiinex', kind: 'party', schemaId: 'tiinex.party.organization.v1', workspaceId: 'business', path: '.topics/001-tiinex.trace.md' },
+    { label: 'Writer Role — Current', authoringLabel: 'Writer', kind: 'role', workspaceId: 'docs', path: '.topics/roles/writer.trace.md' }
+  ];
+  const presented = presentPartyReferenceCandidates(candidates, workspaces);
+  assert.deepEqual(presented.map((item) => [item.groupLabel, item.label, item.description]), [
+    ['Tiinex Business · Roles', 'Anchor', '.topics/roles/anchor.trace.md'],
+    ['Tiinex Business · Organizations', 'Tiinex', '.topics/001-tiinex.trace.md'],
+    ['Tiinex Docs · Roles', 'Writer', '.topics/roles/writer.trace.md']
+  ]);
+  assert.deepEqual(groupPartyReferenceCandidates(candidates, workspaces).map((group) => group.label), [
+    'Tiinex Business · Roles',
+    'Tiinex Business · Organizations',
+    'Tiinex Docs · Roles'
+  ]);
+});
+
+await test('Incoming local review decision becomes available only after applied exact Workspace state and then hides decision controls by context', async () => {
+  const exact = [{ workspaceId: 'business', state: 'exact' }, { workspaceId: 'vscode', state: 'exact' }];
+  assert.equal(incomingReviewReady(false, exact), false);
+  assert.equal(incomingReviewReady(true, exact), true);
+  assert.equal(incomingReviewReady(true, [{ workspaceId: 'business', state: 'exact' }, { workspaceId: 'vscode', state: 'changed' }]), false);
+  assert.equal(incomingReviewPresentation(true, '').contextValue, 'tiinex.incomingPackageDecision');
+  assert.equal(incomingReviewPresentation(true, '', true).contextValue, 'tiinex.incomingPackageReviewPending');
+  assert.equal(incomingReviewPresentation(true, 'accepted').contextValue, 'tiinex.incomingPackageAccepted');
+  assert.equal(incomingReviewPresentation(true, 'rejected').contextValue, 'tiinex.incomingPackageRejected');
+  assert.equal(incomingReviewPresentation(true, 'rejected').descriptionPrefix, 'REJECTED · local review');
+  assert.equal(incomingReviewPresentation(true, 'accepted').descriptionPrefix, 'ACCEPTED · local review');
+});
+
+
+await test('generic authoring UX keeps Party, Transition and host-state hydration independent and preserves post-Replace review decisions', async () => {
+  const fs = await import('node:fs/promises');
+  const root = path.resolve(HERE, '..');
+  const panel = await fs.readFile(path.join(root, 'src', 'artifactAuthoringPanel.ts'), 'utf8');
+  assert.match(panel, /field\.affordance\?\.control==='reference-picker'/);
+  assert.match(panel, /data-endpoint-assist/);
+  assert.match(panel, /Manual…/);
+  assert.match(panel, /Core-discovered Party \/ Role choices/);
+  assert.match(panel, /Current Role candidate: Kind role is preserved/);
+  assert.match(panel, /if\(suggestion\)out\[field\]=suggestion/);
+  assert.match(panel, /<optgroup label=/);
+  assert.match(panel, /endpointSuggestionOptions/);
+  assert.match(panel, /authoring-ready/);
+  assert.match(panel, /authoring-party-state/);
+  assert.match(panel, /authoring-transition-state/);
+  assert.match(panel, /authoring-host-state/);
+  const webviewScript = panel.slice(panel.indexOf('<script nonce='), panel.indexOf('</script>'));
+  assert.match(webviewScript, /function escapeHtml\(value\)/, 'webview runtime must define its own HTML escaping helper before lazy controls render');
+  assert.ok(webviewScript.indexOf('function escapeHtml(value)') < webviewScript.indexOf('renderEndpointControls();'), 'webview escaping helper must exist before initial smart-control rendering');
+  assert.doesNotMatch(panel, /function hydrateTransitions\(payload\)\{[^}]*applyTemplate\(\)/, 'async Transition hydration must not re-apply defaults over operator edits');
+  assert.ok(panel.indexOf('panel.webview.onDidReceiveMessage') < panel.indexOf('panel.webview.html = html'), 'webview message receiver must be registered before HTML can emit authoring-ready');
+  const tree = await fs.readFile(path.join(root, 'src', 'operatorTrees.ts'), 'utf8');
+  assert.match(tree, /schemaTransitionNeighborhood\(schemaId/);
+  assert.match(tree, /Preset \/ intent/);
+  assert.match(tree, /fastTransitionPromise/);
+  assert.match(tree, /authoringAssistPromise/);
+  assert.match(tree, /enrichedTransitionPromise/);
+  assert.match(tree, /latestSlices/);
+  assert.match(tree, /refreshOpenAuthoringHostStates/);
+  assert.match(tree, /semanticTopicsRoots/);
+  assert.match(tree, /hostCompositionRoots/);
+  assert.match(tree, /workspace\.workspaceFolders/);
+  assert.match(tree, /stageAllWorkspaces\(\)/);
+  assert.match(tree, /inspectDirtyWorkspaces\(\)/);
+  assert.match(tree, /resetDirtyWorkspaces\(inspected\.dirtyRoots, inspected\.roots\.length\)/);
+  assert.match(tree, /Reject and Reset/);
+  const applyMethod = tree.slice(tree.indexOf('private async runIncomingApply'), tree.indexOf('private async resumeIncomingMultiRootSession'));
+  assert.match(applyMethod, /await this\.refreshIncoming\(\)/, 'Replace\/Merge must run the same full Incoming requalification refresh automatically');
+  assert.match(tree, /groupPartyReferenceCandidates/);
+  assert.doesNotMatch(tree.slice(tree.indexOf('private async guidedEntryTransportText'), tree.indexOf('private closeTransport')), /projectWorkspaceSessionRoles\(/, 'Guided Entry must reuse the shared current Role\/Identity discovery projection');
+  assert.doesNotMatch(tree, /Promise\.all\(\[transitionDefinitionsPromise, authoringAssistPromise\]\)/);
+  assert.match(tree, /await this\.refreshOutgoing\(\);/);
+  assert.match(tree, /Reject local review of/);
+  assert.match(tree, /\{ modal: true \}/);
+  assert.match(tree, /incomingReviewActions\.has\(packageKey\)/);
+  assert.match(tree, /incomingReviewActions\.add\(packageKey\)/);
+  assert.match(tree, /'tiinex\.incoming\.reviewActionPending', this\.incomingReviewActions\.size > 0/);
+  assert.ok(tree.indexOf('showWarningMessage(\n          `Reject local review of') < tree.indexOf('await this.refreshIncomingReviewReadiness(state);'), 'Reject confirmation must precede expensive readiness refresh');
+  assert.ok(tree.includes('finally {\n      this.incomingReviewActions.delete(packageKey)'), 'Incoming review single-flight gate must always release in finally');
+  const manifest = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8'));
+  const menus = manifest.contributes?.menus?.['view/item/context'] || [];
+  const menu = (command) => menus.find((item) => item.command === command);
+  const commands = manifest.contributes?.commands || [];
+  const command = (id) => commands.find((item) => item.command === id);
+  assert.match(menu('tiinex.incoming.replace')?.when || '', /tiinex\.incomingPackage/);
+  assert.equal(menu('tiinex.incoming.accept')?.when, 'view == tiinex.incoming && viewItem == tiinex.incomingPackageDecision && !tiinex.incoming.reviewActionPending');
+  assert.equal(menu('tiinex.incoming.reject')?.when, 'view == tiinex.incoming && viewItem == tiinex.incomingPackageDecision && !tiinex.incoming.reviewActionPending');
+  assert.equal(command('tiinex.incoming.reject')?.icon, '$(trash)');
+  assert.equal(command('tiinex.incoming.close')?.icon, '$(close)');
+  assert.equal(menu('tiinex.incoming.close')?.when, 'view == tiinex.incoming && viewItem =~ /^tiinex\.incomingPackage/');
+  assert.ok(menus.some((item) => item.command === 'tiinex.discovery.close' && item.when === 'view == tiinex.discovery && viewItem == tiinex.discoveryPackage'));
+  assert.match(tree, /discoverySuppressedPaths\.add\(resolved\)/);
+  assert.match(tree, /ordinal: routes\.length \+ 1/);
+  assert.match(tree, /ordinal: index \+ 1/);
+  assert.match(tree, /packageParentOrdinal = topology\.ordinal/);
+  assert.match(tree, /selected\.reference \|\| `\$\{workspaceId\}::\$\{rolePath\}`/);
+  assert.match(tree, /parentDimension && this\.outgoing\.packageParentOrdinal > 0 \? `\$\{parentDimension\}-\$\{this\.outgoing\.packageParentOrdinal\}`/);
+  assert.match(tree, /confirmPartialEndpointPackaging/);
+  assert.match(tree, /Pack Partial/);
+  assert.match(tree, /packageLocalRoleClosure/);
+  const partialGate = tree.slice(tree.indexOf('private async confirmPartialEndpointPackaging'), tree.indexOf('private async packageOutgoing'));
+  assert.doesNotMatch(partialGate, /'Pack Partial',\s*'Cancel'/, 'VS Code modal already provides one Cancel action');
+});
+
 await test('Handoff endpoint host scoping preserves exact same-label choices and rejects nested fixture paths', async () => {
   const source = { workspaceId: 'business', root: '/repo/business' };
   const candidate = (artifactPath, reference, workspaceId = 'business') => ({
@@ -113,6 +303,26 @@ await test('Handoff endpoint host scoping preserves exact same-label choices and
   assert.equal(merged[1].authoringLabel, 'Sigma');
 });
 
+
+await test('Handoff authoring endpoint choices preserve exact Core target References without upgrading authoring-assist candidates', async () => {
+  const source = { workspaceId: 'business', root: '/repo/business' };
+  const exact = endpointCandidatesForAuthoringSource(source, [{
+    id: 'sigma-current', target: 'business::.topics/roles/sigma-current.trace.md', reference: '', kind: 'role',
+    label: 'Sigma Role — Current', authoringLabel: 'Sigma', workspaceId: 'business', artifactPath: '.topics/roles/sigma-current.trace.md',
+    schemaId: 'tiinex.party.role.v1', qualification: 'qualified-exact'
+  }]);
+  const assist = endpointCandidatesForAuthoringSource(source, [{
+    id: 'anchor-history', target: 'business::.topics/roles/anchor-history.trace.md', reference: '', kind: 'role',
+    label: 'Anchor Role — Historical', authoringLabel: 'Anchor', workspaceId: 'business', artifactPath: '.topics/roles/anchor-history.trace.md',
+    schemaId: 'tiinex.party.role.v1', qualification: 'authoring-assist'
+  }]);
+  assert.equal(exact[0]?.reference, 'business::.topics/roles/sigma-current.trace.md');
+  assert.equal(String(assist[0]?.reference || ''), '');
+  const merged = mergeHandoffEndpointAuthoringChoices([assist, exact, [{ ...assist[0], artifactPath: '.topics/roles/anchor-other.trace.md', label: 'Anchor Role — Other' }]]);
+  assert.equal(merged.length, 3);
+  assert.equal(merged[0]?.qualification, 'qualified-exact');
+  assert.equal(merged.filter((item) => item.artifactPath === '.topics/roles/sigma-current.trace.md').length, 1);
+});
 
 await test('Handoff endpoint authoring serializes qualified dropdown identity as exact schema-required Markdown Link', async () => {
   assert.equal(exactHandoffEndpointMarkdownLink({
@@ -1036,9 +1246,10 @@ await test('authoring discovery remains host-generic and may be scoped to exact 
   const fs = await import('node:fs/promises');
   const tree = await fs.readFile(path.resolve(HERE, '..', 'src', 'operatorTrees.ts'), 'utf8');
   assert.match(tree, /authoringDiscoverySources\(workspace\)/);
-  assert.match(tree, /loadHandoffAuthoringEndpointChoicesForSources\(this\.extensionPath, sources\)/);
-  assert.match(tree, /schemaTransitionNeighborhood\(schemaId, parentArtifact\?\.schemaId \|\| '', authoringRoots\)/);
+  assert.match(tree, /loadPartyAuthoringReferenceChoicesForSources\(this\.extensionPath, sources\)/);
+  assert.match(tree, /schemaTransitionNeighborhood\(schemaId, parentArtifact\?\.schemaId \|\| '', \[workspace\.root\]\)/);
   assert.doesNotMatch(tree, /this\.localWorkspaceChoices\(\)\.then\(\(choices\) => loadHandoffAuthoringEndpointChoicesForSources/);
+  assert.match(tree, /loadArtifactAuthoringModel\(this\.extensionPath, 'tiinex\.handoff\.v1', 'continue-from-record'\)/);
 });
 
 await test('generic authoring exposes only Core-executable ordinary fields and reports schema-only optional gaps', async () => {
@@ -1066,6 +1277,41 @@ await test('generic authoring exposes only Core-executable ordinary fields and r
   assert.deepEqual(model.capabilityGaps, [{ section: 'Parties', fields: ['Optional Schema Field'], reason: 'schema-optional-fields-not-bound-for-creation' }]);
 });
 
+
+await test('generic authoring projects Core declaration constraints into repeatable controls', async () => {
+  const contract = {
+    status: 'ready',
+    target: { schemaId: 'tiinex.handoff.v1', label: 'Handoff' },
+    transitionType: 'create-artifact',
+    creation: { inputBindings: [
+      { input: 'Transfers', kind: 'named-declaration-section', section: 'Transfers', requiredFields: ['Transfer Kind', 'Description'], optionalFields: ['Controlling Artifact'], allowLiteralNone: false },
+      { input: 'Required Context', kind: 'named-declaration-section', section: 'Required Context', requiredFields: ['Material', 'Purpose', 'Availability'], optionalFields: ['Material Reference'], allowLiteralNone: true }
+    ] }
+  };
+  const guide = {
+    schemaId: 'tiinex.handoff.v1',
+    factoryDescriptor: {
+      sections: [],
+      declarations: [
+        { group: 'Transfers', fieldConstraints: [
+          { field: 'Transfer Kind', allowedValues: ['work', 'responsibility', 'work-and-responsibility'] },
+          { field: 'Controlling Artifact', allowedShapes: ['Markdown Link'] }
+        ] },
+        { group: 'Required Context', fieldConstraints: [
+          { field: 'Availability', allowedValues: ['available', 'unavailable', 'unresolved', 'unknown'] },
+          { field: 'Material Reference', allowedShapes: ['Markdown Link'] }
+        ] }
+      ]
+    }
+  };
+  const model = projectArtifactAuthoringModel({ contract }, { guide });
+  const transfers = model.sections.find((section) => section.key === 'Transfers');
+  const required = model.sections.find((section) => section.key === 'Required Context');
+  assert.deepEqual(transfers?.fields.find((field) => field.key === 'Transfer Kind')?.allowedValues, ['work', 'responsibility', 'work-and-responsibility']);
+  assert.deepEqual(transfers?.fields.find((field) => field.key === 'Controlling Artifact')?.allowedShapes, ['Markdown Link']);
+  assert.deepEqual(required?.fields.find((field) => field.key === 'Availability')?.allowedValues, ['available', 'unavailable', 'unresolved', 'unknown']);
+  assert.deepEqual(required?.fields.find((field) => field.key === 'Material Reference')?.allowedShapes, ['Markdown Link']);
+});
 
 await test('generic authoring trusts shared Core draft status/severity and preserves exact finding details', async () => {
   const omission = {
@@ -3194,21 +3440,41 @@ await test('Guided Entry UI presents Core WHAT before Core WHERE without OpenAI 
   assert.doesNotMatch(guided, /ChatGPT Web|OpenAI/);
 });
 
-await test('Guided Entry Role discovery uses Core session-role leaves without leaking schema definitions', async () => {
+await test('Guided Entry Role discovery reuses Core current-role authoring references and shared Workspace grouping', async () => {
   const fs = await import('node:fs/promises');
   const root = path.resolve(HERE, '..');
   const tree = await fs.readFile(path.join(root, 'src', 'operatorTrees.ts'), 'utf8');
   const bootstrap = await fs.readFile(path.join(root, 'src', 'tiinex', 'bootstrap.ts'), 'utf8');
   const git = await fs.readFile(path.join(root, 'src', 'host', 'git.ts'), 'utf8');
-  assert.match(bootstrap, /projectWorkspaceSessionRoles/);
-  assert.match(tree, /projectWorkspaceSessionRoles\(runtime, choice\.root, choice\.workspaceId\)/);
+  assert.match(bootstrap, /projectWorkspaceSessionRoles/, 'legacy shared Core wrapper remains available for non-UI consumers');
   const guided = tree.slice(tree.indexOf('private async guidedEntryTransportText'), tree.indexOf('private closeTransport', tree.indexOf('private async guidedEntryTransportText')));
-  assert.doesNotMatch(guided, /loadHandoffAuthoringEndpointChoicesForSources/);
+  assert.doesNotMatch(guided, /projectWorkspaceSessionRoles\(/, 'Guided Entry must not own a separate session-role discovery loop');
+  assert.match(guided, /loadPartyAuthoringReferenceChoicesForSources/);
+  assert.match(guided, /groupPartyReferenceCandidates\(candidates, roleWorkspaces\)/);
+  assert.doesNotMatch(guided, /candidate\.qualification === 'qualified-exact'/, 'Guided Entry must expose every Core-current Role leaf and let its own shared projection requalify material.');
+  assert.match(guided, /candidate\.reference \|\| `\$\{candidate\.workspaceId\}::\$\{candidate\.artifactPath\}`/);
   assert.match(guided, /\{ label: 'None', description: 'No Session Role binding', candidate: null \}/);
   assert.match(git, /export async function qualifiedGitHubBlobReference/);
   assert.match(git, /'cat-file', '-e'/);
   assert.match(git, /'diff', '--quiet', '--', relative/);
   assert.match(git, /'diff', '--cached', '--quiet', '--', relative/);
+});
+
+await test('Attach Handoff participants reuse all Core-current Role leaves and package-local Workspace references before Core requalification', async () => {
+  const fs = await import('node:fs/promises');
+  const root = path.resolve(HERE, '..');
+  const tree = await fs.readFile(path.join(root, 'src', 'operatorTrees.ts'), 'utf8');
+  const builder = await fs.readFile(path.join(root, 'src', 'packageBuilder.ts'), 'utf8');
+  const controller = await fs.readFile(path.join(root, 'src', 'vscode', 'outgoingParticipantController.ts'), 'utf8');
+  const participant = tree.slice(tree.indexOf('private async coreQualifiedOutgoingParticipants'), tree.indexOf('private async projectOutgoingParticipants'));
+  assert.match(builder, /workspace\?\.currentRoleEndpoints/);
+  assert.match(builder, /workspace\?\.currentRoleAuthoringEndpoints/);
+  assert.match(participant, /loadPartyAuthoringReferenceChoicesForSources/);
+  assert.match(participant, /true/);
+  assert.doesNotMatch(participant, /qualification === 'qualified-exact'/);
+  assert.match(participant, /item\.reference \|\| `\$\{item\.workspaceId\}::\$\{item\.artifactPath\}`/);
+  assert.match(controller, /Additional participants · current Roles/);
+  assert.doesNotMatch(controller, /current exact Roles/);
 });
 
 await test('Transport keeps one native Open Folder reveal and uses green prepared indicators', async () => {

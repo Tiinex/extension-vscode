@@ -133,10 +133,34 @@ export function endpointCandidatesForAuthoringSource(
     if (!artifactPath || !artifactPath.startsWith('.topics/')) continue;
     if (String(candidate.workspaceId || '').trim() !== workspaceId) continue;
     if (!['qualified-exact', 'authoring-assist'].includes(String(candidate.qualification || ''))) continue;
-    const key = `${workspaceId}\u0000${artifactPath}\u0000${candidate.kind}\u0000${candidate.reference || ''}\u0000${candidate.label}`;
-    if (!byIdentity.has(key)) byIdentity.set(key, { ...candidate, artifactPath });
+    // Core's exact endpoint projection owns the qualified Workspace coordinate in
+    // `target`; some projections intentionally leave the convenience `reference`
+    // field empty. Preserve that exact target as the authoring Reference only for
+    // qualified-exact candidates. Authoring-assist candidates must stay reference-
+    // unresolved rather than being silently upgraded by the host.
+    const reference = candidate.qualification === 'qualified-exact'
+      ? String(candidate.reference || candidate.target || '').trim()
+      : String(candidate.reference || '').trim();
+    const key = `${workspaceId}\u0000${artifactPath}\u0000${candidate.kind}\u0000${reference}\u0000${candidate.label}`;
+    if (!byIdentity.has(key)) byIdentity.set(key, { ...candidate, artifactPath, ...(reference ? { reference } : {}) });
   }
   return [...byIdentity.values()].sort((a, b) => a.label.localeCompare(b.label) || a.kind.localeCompare(b.kind) || a.workspaceId.localeCompare(b.workspaceId) || a.artifactPath.localeCompare(b.artifactPath));
+}
+
+export function mergeHandoffEndpointAuthoringChoices(groups: HandoffEndpointAuthoringCandidate[][]): HandoffEndpointAuthoringCandidate[] {
+  const byIdentity = new Map<string, HandoffEndpointAuthoringCandidate>();
+  for (const candidate of groups.flat()) {
+    const key = `${candidate.workspaceId}\u0000${candidate.artifactPath}\u0000${candidate.kind}\u0000${candidate.label}`;
+    const existing = byIdentity.get(key);
+    if (!existing || (existing.qualification !== 'qualified-exact' && candidate.qualification === 'qualified-exact')) byIdentity.set(key, candidate);
+  }
+  return [...byIdentity.values()].sort((a, b) =>
+    (a.qualification === 'qualified-exact' ? 0 : 1) - (b.qualification === 'qualified-exact' ? 0 : 1)
+    || a.label.localeCompare(b.label)
+    || a.kind.localeCompare(b.kind)
+    || a.workspaceId.localeCompare(b.workspaceId)
+    || a.artifactPath.localeCompare(b.artifactPath)
+  );
 }
 
 export function mergeExactHandoffEndpointChoices(groups: ExactHandoffEndpointCandidate[][]): ExactHandoffEndpointCandidate[] {

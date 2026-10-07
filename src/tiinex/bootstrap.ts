@@ -620,9 +620,11 @@ export interface WorkspacePackageSourcesResult {
 export interface OperatorContextResult {
   status: string;
   roots: Array<{ id: string; root: string; repository?: unknown; workspaces?: unknown[] }>;
-  workspaces: Array<WorkspacePackageSourcesResult['candidates'][number] & { hostRootId?: string; hostRoot?: string; handoffLeaves?: unknown[]; endpoints?: unknown[] }>;
+  workspaces: Array<WorkspacePackageSourcesResult['candidates'][number] & { hostRootId?: string; hostRoot?: string; handoffLeaves?: unknown[]; endpoints?: unknown[]; authoringEndpoints?: unknown[]; currentRoleEndpoints?: unknown[]; currentRoleAuthoringEndpoints?: unknown[]; authoringReferenceCandidates?: unknown[] }>;
   handoffLeaves: Array<HandoffLeavesResult['leaves'][number] & { workspaceId: string; hostRootId?: string; hostRoot?: string }>;
   endpoints: HandoffEndpointProjectionResult['candidates'];
+  authoringEndpoints?: HandoffEndpointProjectionResult['authoringCandidates'];
+  authoringReferenceCandidates?: HandoffEndpointProjectionResult['authoringReferenceCandidates'];
   pointerless?: { selectionLabel?: string; consequence?: string };
   findings?: Array<{ severity: string; code: string; message: string }>;
 }
@@ -786,7 +788,9 @@ export interface HandoffEndpointProjectionResult {
   workspaceId: string;
   candidates: Array<{ id: string; target: string; reference: string; kind: 'role' | 'party'; label: string; authoringLabel?: string; workspaceId: string; artifactPath: string; schemaId: string; qualification: string }>;
   currentRoleCandidates?: Array<{ id: string; target: string; reference: string; kind: 'role'; label: string; authoringLabel?: string; workspaceId: string; artifactPath: string; schemaId: string; qualification: string; currentLeaf?: boolean }>;
-  authoringCandidates?: Array<{ id: string; target: string; reference?: string; kind: 'role' | 'party'; label: string; authoringLabel?: string; workspaceId: string; artifactPath: string; schemaId: string; qualification: 'qualified-exact' | 'authoring-assist'; qualificationBoundary?: string }>;
+  authoringCandidates?: Array<{ id: string; target: string; reference?: string; kind: 'role' | 'party'; label: string; authoringLabel?: string; workspaceId: string; artifactPath: string; schemaId: string; qualification: 'qualified-exact' | 'authoring-assist'; qualificationBoundary?: string; currentLeaf?: boolean }>;
+  currentRoleAuthoringCandidates?: Array<{ id: string; target: string; reference?: string; kind: 'role'; label: string; authoringLabel?: string; workspaceId: string; artifactPath: string; schemaId: string; qualification: 'authoring-assist'; qualificationBoundary?: string; currentLeaf?: boolean }>;
+  authoringReferenceCandidates?: Array<{ id: string; target: string; reference?: string; kind: 'role' | 'party'; label: string; authoringLabel?: string; workspaceId: string; artifactPath: string; schemaId: string; qualification: 'qualified-exact' | 'authoring-assist'; qualificationBoundary?: string; currentLeaf?: boolean }>;
   findings?: Array<{ severity: string; code: string; message: string }>;
 }
 

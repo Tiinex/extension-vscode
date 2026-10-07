@@ -16,7 +16,7 @@ import { extractZipBuffer, readExactZipEntryFromFile } from './host/zip';
 import { representativeWorkspaceChoicesForRoot } from './core/workspaceChoice';
 import { ParticipantProjection, QualifiedParticipantRole } from './core/participantProjection';
 import { assertStableQualifiedCarrierAllocation, qualifiedCarrierAllocationFromManufactureReceipt } from './core/carrierAllocation';
-import { endpointCandidatesForAuthoringSource, endpointCandidatesForExplicitSource, mergeExactHandoffEndpointChoices, HandoffEndpointAuthoringCandidate } from './core/handoffEndpointSelection';
+import { endpointCandidatesForAuthoringSource, endpointCandidatesForExplicitSource, mergeExactHandoffEndpointChoices, mergeHandoffEndpointAuthoringChoices, HandoffEndpointAuthoringCandidate } from './core/handoffEndpointSelection';
 import { handoffRouteCandidatesForExplicitSource } from './core/handoffRouteSelection';
 import { safeTarget } from './core/paths';
 import { revealFileInNativeFolder } from './host/reveal';
@@ -41,7 +41,8 @@ export interface PackageRouteRouting { routeId: string; workspaceId: string; han
 export type PackageParticipantProjection = ParticipantProjection;
 export interface PackageBuildResult { outputPath: string; routingText: string; routeRoutingTexts: PackageRouteRouting[]; autoCopiedTransportText: boolean; routeId: string; routeIds: string[]; workspaceIds: string[] }
 export interface HandoffEndpointChoice { id: string; target: string; reference: string; kind: 'role' | 'party'; label: string; authoringLabel?: string; workspaceId: string; artifactPath: string; schemaId: string; qualification: string }
-export interface HandoffEndpointSource { workspaceId: string; root: string }
+export interface PartyReferenceSource { workspaceId: string; root: string }
+export interface HandoffEndpointSource extends PartyReferenceSource {}
 
 function nodeExecutable(): string { return preferredNodeExecutable(vscode.workspace.getConfiguration('tiinex').get('nodePath', '').toString().trim()); }
 function receiptBlocker(receipt: any): string { return presentActionableFindings(receipt?.findings || [], receipt?.status || 'unknown'); }
@@ -194,6 +195,41 @@ function openWorkspaceRoots(): string[] {
   return (vscode.workspace.workspaceFolders || []).map((item: vscode.WorkspaceFolder) => item.uri.fsPath);
 }
 
+const DISCOVERY_CONTEXT_TTL_MS = 60_000;
+const discoveryContextCache = new Map<string, { at: number; value: Promise<OperatorContextResult> }>();
+
+function discoveryContextKey(roots: string[]): string {
+  return [...new Set((roots || []).map((root) => path.resolve(String(root || '').trim())).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+    .join('\u0000');
+}
+
+export function clearPackageBuilderDiscoveryCache(): void {
+  discoveryContextCache.clear();
+}
+
+async function cachedOperatorContext(extensionPath: string, roots: string[]): Promise<OperatorContextResult> {
+  const normalizedRoots = [...new Set((roots || []).map((root) => path.resolve(String(root || '').trim())).filter(Boolean))];
+  if (!normalizedRoots.length) throw new Error('tiinex.package-builder.operator-context.workspace-required');
+  const key = discoveryContextKey(normalizedRoots);
+  const now = Date.now();
+  const existing = discoveryContextCache.get(key);
+  if (existing && now - existing.at <= DISCOVERY_CONTEXT_TTL_MS) return existing.value;
+  const value = (async () => {
+    const runtime = await prepareHostCoreRuntime(extensionPath, normalizedRoots);
+    try {
+      const result = await projectOperatorContext(runtime, normalizedRoots);
+      if (result.status !== 'ready' || (result.findings || []).some((item) => item.severity === 'error')) {
+        throw new Error(`tiinex.package-builder.operator-context-blocked:\n${presentActionableFindings(result.findings || [], result.status)}`);
+      }
+      return result;
+    } finally { await runtime.dispose(); }
+  })();
+  discoveryContextCache.set(key, { at: now, value });
+  try { return await value; }
+  catch (error) { discoveryContextCache.delete(key); throw error; }
+}
+
 export async function loadPackageBuilderModel(extensionPath: string): Promise<PackageBuilderModel> {
   const runtime = await prepareHostCoreRuntime(extensionPath, openWorkspaceRoots());
   try { return (await loadModelWithRuntime(runtime)).model; }
@@ -219,38 +255,22 @@ export async function qualifyLocalWorkspaceChoice(extensionPath: string, rootVal
 export async function loadLocalWorkspaceChoices(extensionPath: string): Promise<PackageWorkspaceChoice[]> {
   const roots = openWorkspaceRoots();
   if (!roots.length) return [];
-  const runtime = await prepareHostCoreRuntime(extensionPath, roots);
-  try {
-    // Each root must be qualified independently so a non-Git folder keeps an
-    // unambiguous physical source root. Run a small bounded pool instead of
-    // serializing one portable-Tooling process per VS Code Workspace.
-    const projectedByRoot: Array<WorkspacePackageSourcesResult | undefined> = new Array(roots.length);
-    let next = 0;
-    const worker = async (): Promise<void> => {
-      for (;;) {
-        const index = next++;
-        if (index >= roots.length) return;
-        projectedByRoot[index] = await projectWorkspacePackageSources(runtime, [roots[index]]);
-      }
-    };
-    await Promise.all(Array.from({ length: Math.min(4, roots.length) }, () => worker()));
-
-    const choices: PackageWorkspaceChoice[] = [];
-    for (let index = 0; index < roots.length; index += 1) {
-      const projected = projectedByRoot[index];
-      if (projected?.status !== 'ready') continue;
-      for (const item of representativeWorkspaceChoicesForRoot(roots[index], projected.candidates || [])) {
-        if (!item.workspaceId || !item.workspaceTargetPath) continue;
-        choices.push({ workspaceId: item.workspaceId, title: item.title, repository: item.repository, ref: item.ref, root: roots[index], workspaceTargetPath: item.workspaceTargetPath, sourceKind: item.sourceKind });
-      }
+  const context = await cachedOperatorContext(extensionPath, roots);
+  const choices: PackageWorkspaceChoice[] = [];
+  for (const root of roots) {
+    const candidates = (context.workspaces || []).filter((item) => sameRepositoryRoot(String(item.hostRoot || ''), root));
+    for (const item of representativeWorkspaceChoicesForRoot(root, candidates as WorkspacePackageSourcesResult['candidates'])) {
+      if (!item.workspaceId || !item.workspaceTargetPath) continue;
+      choices.push({ workspaceId: item.workspaceId, title: item.title, repository: item.repository, ref: item.ref, root, workspaceTargetPath: item.workspaceTargetPath, sourceKind: item.sourceKind });
     }
-    const byId = new Map<string, PackageWorkspaceChoice[]>();
-    for (const item of choices) byId.set(item.workspaceId, [...(byId.get(item.workspaceId) || []), item]);
-    const ambiguous = [...byId.entries()].find(([, items]) => items.length > 1);
-    if (ambiguous) throw new Error(`tiinex.package-builder.workspace-id-ambiguous:${ambiguous[0]}`);
-    return choices;
-  } finally { await runtime.dispose(); }
+  }
+  const byId = new Map<string, PackageWorkspaceChoice[]>();
+  for (const item of choices) byId.set(item.workspaceId, [...(byId.get(item.workspaceId) || []), item]);
+  const ambiguous = [...byId.entries()].find(([, items]) => items.length > 1);
+  if (ambiguous) throw new Error(`tiinex.package-builder.workspace-id-ambiguous:${ambiguous[0]}`);
+  return choices;
 }
+
 
 async function mapBounded<T, R>(items: T[], limit: number, worker: (item: T, index: number) => Promise<R>): Promise<R[]> {
   if (!items.length) return [];
@@ -370,7 +390,7 @@ async function outputDirectory(input: PackageBuildInput, title: string): Promise
   return folder[0].fsPath;
 }
 
-export async function loadHandoffEndpointChoicesForSources(extensionPath: string, sources: HandoffEndpointSource[]): Promise<HandoffEndpointChoice[]> {
+export async function loadPartyReferenceChoicesForSources(extensionPath: string, sources: PartyReferenceSource[]): Promise<HandoffEndpointChoice[]> {
   const explicit = sources.map((source) => ({ workspaceId: String(source.workspaceId || '').trim(), root: path.resolve(String(source.root || '').trim()) }));
   if (!explicit.length) return [];
   if (explicit.some((source) => !source.workspaceId || !source.root)) throw new Error('tiinex.package-builder.endpoint-source-invalid');
@@ -378,51 +398,52 @@ export async function loadHandoffEndpointChoicesForSources(extensionPath: string
   for (const source of explicit) byWorkspaceId.set(source.workspaceId, [...(byWorkspaceId.get(source.workspaceId) || []), source.root]);
   const ambiguous = [...byWorkspaceId.entries()].find(([, roots]) => new Set(roots).size > 1);
   if (ambiguous) throw new Error(`tiinex.package-builder.endpoint-source-workspace-ambiguous:${ambiguous[0]}`);
+  const context = await cachedOperatorContext(extensionPath, explicit.map((source) => source.root));
+  const groups = explicit.map((source) => {
+    const candidates = (context.endpoints || []).filter((candidate: any) => candidate.workspaceId === source.workspaceId && sameRepositoryRoot(String(candidate.hostRoot || ''), source.root));
+    return endpointCandidatesForExplicitSource(source, candidates as HandoffEndpointChoice[]);
+  });
+  return mergeExactHandoffEndpointChoices(groups);
+}
 
-  const runtime = await prepareHostCoreRuntime(extensionPath, [...new Set(explicit.map((source) => source.root))]);
-  try {
-    const groups = await mapBounded(explicit, 4, async (source) => {
-      const projection = await projectHandoffEndpoints(runtime, source.root, source.workspaceId);
-      if (projection.status !== 'ready' || (projection.findings || []).some((item) => item.severity === 'error')) {
-        throw new Error(`tiinex.package-builder.endpoint-source-unqualified:${source.workspaceId}:
-${presentActionableFindings(projection.findings || [], projection.status)}`);
-      }
-      return endpointCandidatesForExplicitSource(source, projection.candidates || []);
-    });
-    return mergeExactHandoffEndpointChoices(groups);
-  } finally { await runtime.dispose(); }
+
+export async function loadPartyAuthoringReferenceChoicesForSources(extensionPath: string, sources: PartyReferenceSource[], currentRoleLeavesOnly = false): Promise<HandoffEndpointAuthoringCandidate[]> {
+  const explicit = sources.map((source) => ({ workspaceId: String(source.workspaceId || '').trim(), root: path.resolve(String(source.root || '').trim()) }));
+  if (!explicit.length) return [];
+  if (explicit.some((source) => !source.workspaceId || !source.root)) throw new Error('tiinex.package-builder.endpoint-source-invalid');
+  const byWorkspaceId = new Map<string, string[]>();
+  for (const source of explicit) byWorkspaceId.set(source.workspaceId, [...(byWorkspaceId.get(source.workspaceId) || []), source.root]);
+  const ambiguous = [...byWorkspaceId.entries()].find(([, roots]) => new Set(roots).size > 1);
+  if (ambiguous) throw new Error(`tiinex.package-builder.endpoint-source-workspace-ambiguous:${ambiguous[0]}`);
+  const context = await cachedOperatorContext(extensionPath, explicit.map((source) => source.root));
+  const groups = explicit.map((source) => {
+    const workspace = (context.workspaces || []).find((item) => item.workspaceId === source.workspaceId && sameRepositoryRoot(String(item.hostRoot || ''), source.root));
+    const projectedAuthoring = ((context.authoringReferenceCandidates || []) as any[])
+      .filter((candidate: any) => candidate.workspaceId === source.workspaceId && sameRepositoryRoot(String(candidate.hostRoot || ''), source.root));
+    const sourceCandidates = currentRoleLeavesOnly
+      ? ([
+          ...((workspace?.currentRoleEndpoints || []) as HandoffEndpointAuthoringCandidate[]),
+          ...((workspace?.currentRoleAuthoringEndpoints || []) as HandoffEndpointAuthoringCandidate[])
+        ])
+      : projectedAuthoring.length
+        ? projectedAuthoring
+        : [
+            ...(context.endpoints || []).filter((candidate: any) => candidate.workspaceId === source.workspaceId && sameRepositoryRoot(String(candidate.hostRoot || ''), source.root)),
+            ...((context.authoringEndpoints || []) as any[]).filter((candidate: any) => candidate.workspaceId === source.workspaceId && sameRepositoryRoot(String(candidate.hostRoot || ''), source.root))
+          ];
+    return endpointCandidatesForAuthoringSource(source, sourceCandidates as HandoffEndpointAuthoringCandidate[]);
+  });
+  return mergeHandoffEndpointAuthoringChoices(groups);
+}
+
+
+/** Backward-compatible Handoff names. Role/Party discovery itself is reusable authoring capability, not Handoff-owned semantics. */
+export async function loadHandoffEndpointChoicesForSources(extensionPath: string, sources: HandoffEndpointSource[]): Promise<HandoffEndpointChoice[]> {
+  return loadPartyReferenceChoicesForSources(extensionPath, sources);
 }
 
 export async function loadHandoffAuthoringEndpointChoicesForSources(extensionPath: string, sources: HandoffEndpointSource[], currentRoleLeavesOnly = false): Promise<HandoffEndpointAuthoringCandidate[]> {
-  const explicit = sources.map((source) => ({ workspaceId: String(source.workspaceId || '').trim(), root: path.resolve(String(source.root || '').trim()) }));
-  if (!explicit.length) return [];
-  if (explicit.some((source) => !source.workspaceId || !source.root)) throw new Error('tiinex.package-builder.endpoint-source-invalid');
-  const byWorkspaceId = new Map<string, string[]>();
-  for (const source of explicit) byWorkspaceId.set(source.workspaceId, [...(byWorkspaceId.get(source.workspaceId) || []), source.root]);
-  const ambiguous = [...byWorkspaceId.entries()].find(([, roots]) => new Set(roots).size > 1);
-  if (ambiguous) throw new Error(`tiinex.package-builder.endpoint-source-workspace-ambiguous:${ambiguous[0]}`);
-  const runtime = await prepareHostCoreRuntime(extensionPath, [...new Set(explicit.map((source) => source.root))]);
-  try {
-    const groups = await mapBounded(explicit, 4, async (source) => {
-      const projection = await projectHandoffEndpoints(runtime, source.root, source.workspaceId);
-      if (projection.status !== 'ready' || (projection.findings || []).some((item) => item.severity === 'error')) {
-        throw new Error(`tiinex.package-builder.endpoint-source-unqualified:${source.workspaceId}:\n${presentActionableFindings(projection.findings || [], projection.status)}`);
-      }
-      const sourceCandidates = currentRoleLeavesOnly
-        ? (projection.currentRoleCandidates || [])
-        : [
-            ...(projection.candidates || []),
-            ...(projection.authoringCandidates || [])
-          ];
-      return endpointCandidatesForAuthoringSource(source, sourceCandidates as HandoffEndpointAuthoringCandidate[]);
-    });
-    const byIdentity = new Map<string, HandoffEndpointAuthoringCandidate>();
-    for (const candidate of groups.flat()) {
-      const key = `${candidate.workspaceId}\u0000${candidate.artifactPath}\u0000${candidate.kind}\u0000${candidate.reference || ''}\u0000${candidate.label}`;
-      if (!byIdentity.has(key)) byIdentity.set(key, candidate);
-    }
-    return [...byIdentity.values()].sort((a, b) => a.label.localeCompare(b.label) || a.kind.localeCompare(b.kind) || a.workspaceId.localeCompare(b.workspaceId) || a.artifactPath.localeCompare(b.artifactPath));
-  } finally { await runtime.dispose(); }
+  return loadPartyAuthoringReferenceChoicesForSources(extensionPath, sources, currentRoleLeavesOnly);
 }
 
 /** Compatibility surface for callers that have not yet supplied an explicit source set.
@@ -431,7 +452,7 @@ export async function loadHandoffAuthoringEndpointChoicesForSources(extensionPat
  * endpoint discovery. New semantic authoring paths should pass exact sources directly. */
 export async function loadHandoffEndpointChoices(extensionPath: string): Promise<HandoffEndpointChoice[]> {
   const choices = await loadLocalWorkspaceChoices(extensionPath);
-  return loadHandoffEndpointChoicesForSources(extensionPath, choices.map((item) => ({ workspaceId: item.workspaceId, root: item.root })));
+  return loadPartyReferenceChoicesForSources(extensionPath, choices.map((item) => ({ workspaceId: item.workspaceId, root: item.root })));
 }
 
 export async function announceBuiltCarrier(outputPath: string, label: string, note = ''): Promise<void> {

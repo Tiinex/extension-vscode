@@ -95,6 +95,11 @@
         "icon": "$(folder-opened)"
       },
       {
+        "command": "tiinex.discovery.close",
+        "title": "Tiinex: Close Discovery Package",
+        "icon": "$(close)"
+      },
+      {
         "command": "tiinex.discovery.clear",
         "title": "Tiinex: Clear Discovery",
         "icon": "$(clear-all)"
@@ -232,7 +237,7 @@
       },
       {
         "command": "tiinex.git.commitRepository",
-        "title": "Tiinex: Commit Repository\u2026",
+        "title": "Tiinex: Commit Repository…",
         "icon": "$(check)"
       },
       {
@@ -266,6 +271,16 @@
         "command": "tiinex.incoming.replace",
         "title": "Replace",
         "icon": "$(replace-all)"
+      },
+      {
+        "command": "tiinex.incoming.accept",
+        "title": "Accept",
+        "icon": "$(check)"
+      },
+      {
+        "command": "tiinex.incoming.reject",
+        "title": "Reject",
+        "icon": "$(trash)"
       },
       {
         "command": "tiinex.outgoing.selectFolder",
@@ -321,6 +336,12 @@
         "command": "tiinex.outgoing.copyTransportText",
         "title": "Copy Handoff Transport Text",
         "icon": "$(copy)"
+      },
+      {
+        "command": "tiinex.transport.buildBootstrapReplacement",
+        "title": "Build Bootstrap Replacement",
+        "icon": "$(file-zip)",
+        "enablement": "!tiinex.transport.bootstrapReplacementBuilding"
       },
       {
         "command": "tiinex.transport.refresh",
@@ -424,10 +445,10 @@
             "commit-push"
           ],
           "enumDescriptions": [
-            "Do Nothing \u2014 leave staged changes staged; no Tiinex commit or push is initiated.",
-            "Ask \u2014 after a stable staged Tiinex state passes the Git safety gates, ask once for that exact staged state: Commit creates the local commit, Commit + Push creates then publishes only that exact commit through the existing push-safety gates, and Cancel leaves staging unchanged.",
-            "Commit \u2014 after a stable staged-state event, auto-commit only the exact staged selection when it contains Tiinex Markdown material and passes the Git safety gates; Tiinex qualification is not re-run here.",
-            "Commit + Push \u2014 apply the same staged-selection Git safety gates and require an aligned upstream before committing; then push only the exact commit created by that same Tiinex operation."
+            "Do Nothing — leave staged changes staged; no Tiinex commit or push is initiated.",
+            "Ask — after a stable staged Tiinex state passes the Git safety gates, ask once for that exact staged state: Commit creates the local commit, Commit + Push creates then publishes only that exact commit through the existing push-safety gates, and Cancel leaves staging unchanged.",
+            "Commit — after a stable staged-state event, auto-commit only the exact staged selection when it contains Tiinex Markdown material and passes the Git safety gates; Tiinex qualification is not re-run here.",
+            "Commit + Push — apply the same staged-selection Git safety gates and require an aligned upstream before committing; then push only the exact commit created by that same Tiinex operation."
           ],
           "default": "ask",
           "description": "Post-stage Git policy over a stable staged Tiinex selection. It is independent of tiinex.landing.stage, never performs Stage All, and does not re-run Tiinex qualification before ordinary commit/push."
@@ -549,6 +570,11 @@
           "group": "navigation@4"
         },
         {
+          "command": "tiinex.transport.buildBootstrapReplacement",
+          "when": "view == tiinex.transport",
+          "group": "navigation@7"
+        },
+        {
           "command": "tiinex.transport.refresh",
           "when": "view == tiinex.transport",
           "group": "navigation@9"
@@ -571,8 +597,18 @@
           "group": "inline@2"
         },
         {
+          "command": "tiinex.incoming.accept",
+          "when": "view == tiinex.incoming && viewItem == tiinex.incomingPackageDecision && !tiinex.incoming.reviewActionPending",
+          "group": "inline@2"
+        },
+        {
+          "command": "tiinex.incoming.reject",
+          "when": "view == tiinex.incoming && viewItem == tiinex.incomingPackageDecision && !tiinex.incoming.reviewActionPending",
+          "group": "inline@3"
+        },
+        {
           "command": "tiinex.incoming.close",
-          "when": "view == tiinex.incoming && (viewItem == tiinex.incomingPackage || viewItem == tiinex.incomingPackageLoading || viewItem == tiinex.incomingPackageBlocked)",
+          "when": "view == tiinex.incoming && viewItem =~ /^tiinex\\.incomingPackage/",
           "group": "inline@9"
         },
         {
@@ -739,6 +775,26 @@
           "command": "tiinex.outgoing.attachHandoff",
           "when": "view == tiinex.incoming && tiinex.outgoing.hasContext && (viewItem == tiinex.incomingHandoffLeaf || viewItem == tiinex.incomingLocalHandoffLeaf)",
           "group": "inline@2"
+        },
+        {
+          "command": "tiinex.discovery.close",
+          "when": "view == tiinex.discovery && viewItem == tiinex.discoveryPackage",
+          "group": "inline@9"
+        },
+        {
+          "command": "tiinex.transport.copyPackage",
+          "when": "view == tiinex.transport && viewItem == tiinex.transportPackageBootstrapReplacement",
+          "group": "inline@1"
+        },
+        {
+          "command": "tiinex.transport.copyText",
+          "when": "view == tiinex.transport && viewItem == tiinex.transportPackageBootstrapReplacement",
+          "group": "inline@2"
+        },
+        {
+          "command": "tiinex.transport.close",
+          "when": "view == tiinex.transport && viewItem == tiinex.transportPackageBootstrapReplacement",
+          "group": "inline@9"
         }
       ],
       "commandPalette": [
@@ -760,6 +816,14 @@
         },
         {
           "command": "tiinex.incoming.replace",
+          "when": "false"
+        },
+        {
+          "command": "tiinex.incoming.accept",
+          "when": "false"
+        },
+        {
+          "command": "tiinex.incoming.reject",
           "when": "false"
         },
         {
@@ -892,6 +956,14 @@
         },
         {
           "command": "tiinex.incoming.groundHandoff",
+          "when": "false"
+        },
+        {
+          "command": "tiinex.transport.buildBootstrapReplacement",
+          "when": "false"
+        },
+        {
+          "command": "tiinex.discovery.close",
           "when": "false"
         }
       ],
