@@ -14,6 +14,7 @@ import { repositoryContainsPath, sameRepositoryRoot } from './core/repositoryPat
 import { presentActionableFindings } from './core/findingPresentation';
 import { extractZipBuffer, readExactZipEntryFromFile } from './host/zip';
 import { representativeWorkspaceChoicesForRoot } from './core/workspaceChoice';
+import { qualifiedIncomingRootChoices, exactIncomingWorkspaceMap } from './core/incomingWorkspaceMapping';
 import { ParticipantProjection, QualifiedParticipantRole } from './core/participantProjection';
 import { assertStableQualifiedCarrierAllocation, qualifiedCarrierAllocationFromManufactureReceipt } from './core/carrierAllocation';
 import { endpointCandidatesForAuthoringSource, endpointCandidatesForExplicitSource, mergeExactHandoffEndpointChoices, mergeHandoffEndpointAuthoringChoices, HandoffEndpointAuthoringCandidate } from './core/handoffEndpointSelection';
@@ -250,6 +251,42 @@ export async function qualifyLocalWorkspaceChoice(extensionPath: string, rootVal
     const item = matches[0];
     return { workspaceId: item.workspaceId, title: item.title, repository: item.repository, ref: item.ref, root, workspaceTargetPath: item.workspaceTargetPath, sourceKind: item.sourceKind };
   } finally { await runtime.dispose(); }
+}
+
+/** Incoming comparison is intentionally separate from the all-or-nothing
+ * operator authoring context. One unrelated malformed/open Workspace may block
+ * authoring discovery, but must not block receiving a qualified carrier or
+ * choosing a different local target for Replace. Every included local source
+ * remains individually Core-qualified and ambiguous identities fail closed.
+ */
+export async function loadIncomingLocalWorkspaceChoices(extensionPath: string): Promise<PackageWorkspaceChoice[]> {
+  const roots = [...new Set(openWorkspaceRoots().map((item) => path.resolve(item)))];
+  if (!roots.length) return [];
+  const runtime = await prepareHostCoreRuntime(extensionPath, roots);
+  try {
+    const choices: PackageWorkspaceChoice[] = [];
+    for (const root of roots) {
+      // A blocked root is not a qualified local match; a runtime/process error
+      // is distinct and must still propagate rather than be hidden as no match.
+      const projected: WorkspacePackageSourcesResult = await projectWorkspacePackageSources(runtime, [root]);
+      if (projected.status !== 'ready' || (projected.findings || []).some((f) => f.severity === 'error')) continue;
+      // The operation is Core-scoped to [root]. A candidate's rootPath is a
+      // Workspace-relative snapshot entrypoint (usually '.') and cannot
+      // identify an absolute VS Code host root. Never compare it with root.
+      choices.push(...qualifiedIncomingRootChoices(root, projected.candidates || []));
+    }
+    exactIncomingWorkspaceMap(choices); // fail closed on duplicate qualified identities
+    return choices;
+  } finally { await runtime.dispose(); }
+}
+
+/** General-purpose authoring/local picker. Uses the same Core-qualified, one-root-at-a-time
+ * projection as Incoming. Unrelated uninitialized/plain VS Code folder roots do
+ * not invalidate a valid Tiinex Workspace. Workspace identity and duplicate
+ * qualification remain strict; this never falls back to filesystem name guesses.
+ */
+export async function loadQualifiedLocalWorkspaceChoices(extensionPath: string): Promise<PackageWorkspaceChoice[]> {
+  return loadIncomingLocalWorkspaceChoices(extensionPath);
 }
 
 export async function loadLocalWorkspaceChoices(extensionPath: string): Promise<PackageWorkspaceChoice[]> {

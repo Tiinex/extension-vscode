@@ -61,6 +61,17 @@ async function dependencyModeRuntime(extensionPath: string): Promise<{ coreRoot:
   return { coreRoot, contentRoots: normalizeContentRoots(contentRoots) };
 }
 
+/**
+ * Content packages explicitly selected by VS Code dependency mode for portable
+ * bootstrap composition. Open Workspace roots are deliberately excluded here:
+ * a bootstrap replacement may carry reusable registered Tiinex content, but it
+ * must not silently embed arbitrary project/business Workspace material merely
+ * because that Workspace is open in the host.
+ */
+export async function selectedBootstrapContentRoots(extensionPath: string): Promise<string[]> {
+  return [...(await dependencyModeRuntime(extensionPath)).contentRoots];
+}
+
 function markdownLinkTarget(markdown: string, label: RegExp): string {
   const lines = markdown.split(/\r?\n/);
   for (const line of lines) {

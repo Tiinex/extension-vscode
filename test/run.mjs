@@ -15,9 +15,11 @@ import { receivedHandoffContext, receivedGroundingProjection, withWorkspaceRoots
 import { detectOutgoingSourcePreset, operatorMatchedWorkspaceIds, OUTGOING_SOURCE_PRESET_MODES, outgoingSourcePresetLabel, preferByteIdenticalEmbeddedSelections, projectOutgoingSourcePreset, resolveExclusiveWorkspaceSourceSelection, resolvePrioritizedWorkspaceDuplicates } from '../dist/core/sourceSelection.js';
 import { comparePackageRecency, rootOutgoingLabel, rootOutgoingPrefix } from '../dist/core/outgoingUx.js';
 import { projectArtifactAuthoringModel } from '../dist/core/artifactAuthoringModel.js';
+import { localArtifactReference } from '../dist/core/artifactReferencePicker.js';
 import { artifactAuthoringCandidateCapability, PARTY_REFERENCE_CANDIDATE_SOURCE, partyReferenceAuthoringFillValue, partyReferenceCandidateSatisfiesAffordance } from '../dist/core/artifactAuthoringCandidateSource.js';
 import { dedupeTransitionPresetCandidates, qualifiedTransitionPresetCandidates } from '../dist/core/artifactAuthoringPresets.js';
 import { incomingReviewPresentation, incomingReviewReady } from '../dist/core/incomingReview.js';
+import { incomingSourceStatus, incomingSourceUnavailableMessage } from '../dist/core/incomingSource.js';
 import { artifactCreationReady, requireArtifactCreationReady } from '../dist/core/artifactAuthoringQualification.js';
 import { mergeTransportRouteSelection, selectedTransportRouteIds, transportPrepared, transportPreparedKey } from '../dist/core/transportQueue.js';
 import { gitAutomationBlockerText, gitOperatorResultMarkdown, isTiinexArtifactPath, normalizePostStagePolicy, projectGitOperatorCandidates } from '../dist/core/gitOperator.js';
@@ -26,6 +28,7 @@ import { pruneEmptyReplaceDirectories, restorePrunedReplaceDirectories } from '.
 import { applyEmptyDirectoryCleanup, nestedWorkspaceRootExclusions, planEmptyDirectoryCleanup } from '../dist/core/emptyDirectoryCleanup.js';
 import { planWorkspaceSession, validateWorkspaceTargetMapping } from '../dist/core/workspaceSession.js';
 import { representativeWorkspaceChoicesForRoot } from '../dist/core/workspaceChoice.js';
+import { qualifiedIncomingRootChoices, exactIncomingWorkspaceMap } from '../dist/core/incomingWorkspaceMapping.js';
 import { participantProjectionFromManufactureReceipt } from '../dist/core/participantProjection.js';
 import { assertStableQualifiedCarrierAllocation, qualifiedCarrierAllocationFromManufactureReceipt } from '../dist/core/carrierAllocation.js';
 import { applyExactHandoffEndpointSelection, applyHandoffEndpointAuthoringSelection, endpointCandidatesForAuthoringSource, endpointCandidatesForExplicitSource, exactHandoffEndpointMarkdownLink, mergeExactHandoffEndpointChoices, mergeHandoffEndpointAuthoringChoices } from '../dist/core/handoffEndpointSelection.js';
@@ -51,6 +54,103 @@ async function rejectsCode(fn, code) {
   await assert.rejects(fn, (error) => String(error?.message || error).includes(code));
 }
 
+await test('Incoming maps 17 Core-qualified per-root Workspace identities 1:1 with relative rootPath, not path guesses', async () => {
+  const ids = ['app','business','cli','core','docs','extension-chrome','interop-native','interop-openai','native','provider-github','provider-native','runtime-native','site','verse-atlas','verse-native','verse-playthings','vscode'];
+  const all = [];
+  for (const id of ids) {
+    const root = path.resolve('/repos/Tiinex', id); // exact root from host caller
+    const projected = [
+      { workspaceId: id, workspaceTargetPath: `.topics/.workspaces/tiinex-${id}.workspace.md`, rootPath: '.', repository: `Tiinex/${id}`, sourceKind: 'local-directory' },
+      { workspaceId: `${id}-nested`, workspaceTargetPath: `fixtures/.topics/.workspaces/tiinex-${id}-nested.workspace.md`, rootPath: 'fixtures' }
+    ];
+    const selected = qualifiedIncomingRootChoices(root, projected);
+    assert.equal(selected.length, 1, `${id} should select only its exact top-level artifact`);
+    assert.equal(selected[0].workspaceId, id);
+    assert.equal(selected[0].root, root);
+    all.push(...selected);
+  }
+  const byId = exactIncomingWorkspaceMap(all);
+  assert.equal(byId.size, 17);
+  for (const id of ids) assert.equal(byId.get(id).root, path.resolve('/repos/Tiinex', id));
+});
+
+await test('Incoming mapping respects renamed roots, rejects foreign host paths and fails closed on ambiguous identities', async () => {
+  const root = path.resolve('/private/renamed-Tiinex/workspace-actual');
+  const exact = { workspaceId: 'app', workspaceTargetPath: '.topics/.workspaces/tiinex-app.workspace.md', rootPath: '.', repository: 'Tiinex/app' };
+  const renamed = qualifiedIncomingRootChoices(root, [exact]);
+  assert.equal(renamed.length, 1);
+  assert.equal(renamed[0].root, root);
+  assert.deepEqual(qualifiedIncomingRootChoices(root, [{ ...exact, hostRoot: '/foreign/workspace' }]), []);
+  assert.equal(qualifiedIncomingRootChoices(root, [{ ...exact, hostRoot: root }]).length, 1);
+  assert.deepEqual(qualifiedIncomingRootChoices(root, []), []); // missing Workspace stays unmatched
+  assert.deepEqual(qualifiedIncomingRootChoices(root, [
+    { ...exact, workspaceId: 'app-alternative', workspaceTargetPath: '.topics/.workspaces/other.workspace.md' },
+    { ...exact, workspaceId: 'app-second', workspaceTargetPath: '.topics/.workspaces/also-other.workspace.md' }
+  ]), []); // ambiguous direct artifacts cannot become arbitrary choices
+  assert.throws(() => exactIncomingWorkspaceMap([
+    renamed[0], { ...renamed[0], root: path.resolve('/other/qualified-repository') }
+  ]), /tiinex.incoming.workspace-id-ambiguous:app/);
+});
+
+await test('Incoming packageBuilder does not conflate Core rootPath with a host repository path', async () => {
+  const fs = await import('node:fs/promises');
+  const builder = await fs.readFile(path.resolve(HERE, '../src/packageBuilder.ts'), 'utf8');
+  assert.match(builder, /qualifiedIncomingRootChoices\(root, projected\.candidates \|\| \[\]\)/);
+  const fn = builder.slice(builder.indexOf('export async function loadIncomingLocalWorkspaceChoices'), builder.indexOf('export async function loadLocalWorkspaceChoices'));
+  assert.doesNotMatch(fn, /sameRepositoryRoot\(String\(item\.(?:rootPath|localRepository)/);
+  assert.match(fn, /exactIncomingWorkspaceMap\(choices\)/);
+});
+
+await test('New Artifact schema picker ignores an unrelated unversioned VS Code root without guessing Workspace identity', async () => {
+  const fs = await import('node:fs/promises');
+  const tree = await fs.readFile(path.resolve(HERE, '../src/operatorTrees.ts'), 'utf8');
+  const builder = await fs.readFile(path.resolve(HERE, '../src/packageBuilder.ts'), 'utf8');
+  const authoring = tree.slice(tree.indexOf('  private async localWorkspaceChoices(force = false)'), tree.indexOf('  private async pickLocalAuthoringWorkspace()'));
+  assert.match(authoring, /loadQualifiedLocalWorkspaceChoices\(this\.extensionPath\)/);
+  assert.doesNotMatch(authoring, /loadLocalWorkspaceChoices\(this\.extensionPath\)/);
+  assert.match(builder, /export async function loadQualifiedLocalWorkspaceChoices[\s\S]*?return loadIncomingLocalWorkspaceChoices\(extensionPath\)/);
+  const valid = qualifiedIncomingRootChoices('/repos/project/core', [{ workspaceId: 'core', rootPath: '.', workspaceTargetPath: '.topics/.workspaces/tiinex-core.workspace.md' }]);
+  const plain = qualifiedIncomingRootChoices('/repos/project/Unversioned', []);
+  assert.equal(valid.length, 1);
+  assert.deepEqual(plain, []);
+  assert.equal(exactIncomingWorkspaceMap([...valid, ...plain]).size, 1);
+  assert.throws(() => exactIncomingWorkspaceMap([...valid, ...valid]), /workspace-id-ambiguous/);
+});
+
+await test('Incoming source status distinguishes current, changed and missing carriers without resurrecting stale qualification', async () => {
+  const fs = await import('node:fs/promises');
+  const os = await import('node:os');
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tiinex-incoming-source-test-'));
+  const file = path.join(root, 'source.handoff-package.zip');
+  try {
+    await fs.writeFile(file, 'A');
+    const qualified = await fs.stat(file);
+    const identity = { packagePath: file, bytes: qualified.size, mtimeMs: qualified.mtimeMs };
+    assert.equal(await incomingSourceStatus(identity), 'current');
+    await fs.writeFile(file, 'B-more-bytes');
+    assert.equal(await incomingSourceStatus(identity), 'changed');
+    await fs.unlink(file);
+    assert.equal(await incomingSourceStatus(identity), 'missing');
+    assert.match(incomingSourceUnavailableMessage('missing'), /Restore it and refresh Incoming/);
+    await fs.writeFile(file, 'A');
+    // Restoration requires requalification even if the user restores identical
+    // contents. The caller never treats a stored receipt as authority.
+    assert.equal(await incomingSourceStatus({ ...identity, mtimeMs: -1 }), 'changed');
+  } finally { await fs.rm(root, { recursive: true, force: true }); }
+});
+
+await test('Incoming activation, independent local comparison, retry and preview have separate fail-closed boundaries', async () => {
+  const fs = await import('node:fs/promises');
+  const tree = await fs.readFile(path.resolve(HERE, '../src/operatorTrees.ts'), 'utf8');
+  const builder = await fs.readFile(path.resolve(HERE, '../src/packageBuilder.ts'), 'utf8');
+  assert.match(tree, /private async refreshIncomingReviewReadiness[\s\S]*?state\.reviewReady = false;[\s\S]*?catch \(error\)/);
+  assert.match(tree, /try \{ await this\.autoShowIncomingPartyHandoff\(state\); \}/);
+  assert.match(tree, /loadIncomingLocalWorkspaceChoices\(this\.extensionPath\)/);
+  assert.match(builder, /loadIncomingLocalWorkspaceChoices[\s\S]*?projectWorkspacePackageSources\(runtime, \[root\]\)/);
+  assert.match(tree, /this\.incomingPending\.clear\(\);[\s\S]*?for \(const \[key, value\] of blocked\)/);
+  assert.match(tree, /private async guardIncomingSource[\s\S]*?this\.incomingPending\.set/);
+});
+
 await test('carrier filename collision, transport identity and Major frontier decisions stay behind the shared Core operation seam', async () => {
   const runtime = { root: '/core', entrypoint: '/core/tools/tiinex-portable.mjs', nodeExecutable: 'node', dispose: async () => {} };
   const calls = [];
@@ -73,10 +173,14 @@ await test('bootstrap replacement filename allocation and Transport title wiring
   const fs = await import('node:fs/promises');
   const root = path.resolve(HERE, '..');
   const tree = await fs.readFile(path.join(root, 'src', 'operatorTrees.ts'), 'utf8');
+  const bootstrapSource = await fs.readFile(path.join(root, 'src', 'tiinex', 'bootstrap.ts'), 'utf8');
   const manifest = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8'));
   assert.match(tree, /manufactureHandoffPackage/);
   assert.match(tree, /--carrier-mode', 'bootstrap'/);
   assert.match(tree, /--bootstrap-replacement/);
+  assert.match(bootstrapSource, /selectedBootstrapContentRoots/);
+  assert.match(tree, /--content-sources/);
+  assert.match(bootstrapSource, /state\?\.contentPackages/);
   assert.match(tree, /this\.outgoingFolder\(\) \|\| await this\.selectOutgoingFolder/);
   assert.match(tree, /transportPackageBootstrapReplacement/);
   assert.match(tree, /item\.genericTransportText/);
@@ -119,6 +223,41 @@ await test('participant projection exposes only exact Core-qualified semantic Ro
   });
   assert.equal(participantProjectionFromManufactureReceipt({ status: 'blocked', findings: [{ severity: 'error', code: 'participant.blocked', message: 'No exact Role material.' }] }).state, 'blocked');
   assert.equal(participantProjectionFromManufactureReceipt({ status: 'ready', transportExecutable: true, plan: { requirements: { participantRoles: [{ requirementName: 'Reviewer' }] } } }).state, 'blocked');
+});
+
+
+await test('Evidence reference picker formats exact relative links, handles special characters, and refuses outside-workspace files', async () => {
+  const root = path.resolve('/example/workspace');
+  assert.equal(localArtifactReference(root, '.topics/work/readme', path.join(root, '.topics/presentation/readme/overview.gif')), '[overview.gif](../../presentation/readme/overview.gif)');
+  assert.equal(localArtifactReference(root, '.topics/work/readme', path.join(root, 'media/My (1) capture.gif')), '[My (1) capture.gif](../../../media/My%20(1)%20capture.gif)');
+  assert.throws(() => localArtifactReference(root, '.topics/work/readme', '/elsewhere/secret.txt'), /reference-outside-workspace/);
+  assert.throws(() => localArtifactReference(root, '../outside', path.join(root, 'README.md')), /reference-outside-workspace/);
+});
+
+await test('Core-projected local evidence reference affordances are the only file picker controls', async () => {
+  const contract = { status: 'ready', target: { schemaId: 'tiinex.evidence.v1', label: 'Evidence' }, creation: {
+    inputBindings: [
+      { input: 'Supported Claim Or Question', kind: 'ordinary-group', section: 'Supported Claim Or Question', requiredFields: ['Supported Claim Or Question', 'Evidence Role'], optionalFields: ['Target Artifact', 'Claim Reference'] },
+      { input: 'Material', kind: 'ordinary-field', section: 'Evidence Material', requirement: 'required' }
+    ],
+    authoringAffordances: [
+      { input: 'Material', control: 'workspace-file-reference-picker', append: true, displayLabel: 'Add file reference', manualAllowed: true },
+      { input: 'Target Artifact', control: 'workspace-file-reference-picker', manualAllowed: true }
+    ]
+  } };
+  const guide = { factoryDescriptor: { sections: [{ group: 'Supported Claim Or Question', fieldConstraints: [] }, { group: 'Evidence Material', fieldConstraints: [] }] } };
+  const model = projectArtifactAuthoringModel(contract, guide);
+  const material = model.sections.find((section) => section.key === 'Evidence Material').fields.find((field) => field.key === 'Material');
+  const target = model.sections.find((section) => section.key === 'Supported Claim Or Question').fields.find((field) => field.key === 'Target Artifact');
+  assert.equal(material.affordance?.append, true);
+  assert.equal(target.affordance?.control, 'workspace-file-reference-picker');
+  assert.equal(model.sections.find((section) => section.key === 'Supported Claim Or Question').fields.find((field) => field.key === 'Evidence Role').affordance, undefined);
+  const fs = await import('node:fs/promises');
+  const panel = await fs.readFile(path.resolve(HERE, '../src/artifactAuthoringPanel.ts'), 'utf8');
+  const tree = await fs.readFile(path.resolve(HERE, '../src/operatorTrees.ts'), 'utf8');
+  assert.match(panel, /authoring-reference-picked/);
+  assert.match(panel, /reference-pick/);
+  assert.match(tree, /localArtifactReference/);
 });
 
 await test('artifact authoring candidate sources expose reusable Party-reference capability without Handoff coupling', async () => {
@@ -1368,7 +1507,27 @@ await test('generic authoring projects Core declaration constraints into repeata
   assert.deepEqual(transfers?.fields.find((field) => field.key === 'Controlling Artifact')?.allowedShapes, ['Markdown Link']);
   assert.deepEqual(required?.fields.find((field) => field.key === 'Availability')?.allowedValues, ['available', 'unavailable', 'unresolved', 'unknown']);
   assert.deepEqual(required?.fields.find((field) => field.key === 'Material Reference')?.allowedShapes, ['Markdown Link']);
+  assert.equal(transfers?.fields.find((field) => field.key === 'Description')?.multiline, false);
+  assert.equal(transfers?.fields.find((field) => field.key === 'Controlling Artifact')?.multiline, false);
+  assert.equal(required?.fields.find((field) => field.key === 'Purpose')?.multiline, false);
 });
+
+await test('generic authoring reserves multiline controls for Core body bindings rather than structured declaration/group fields', async () => {
+  const contract = {
+    status: 'ready', target: { schemaId: 'tiinex.example.v1', label: 'Example' }, transitionType: 'create-artifact',
+    creation: { inputBindings: [
+      { input: 'Body', kind: 'section-body', section: 'Body', requirement: 'required' },
+      { input: 'Group', kind: 'ordinary-group', section: 'Group', requiredFields: ['Summary'], optionalFields: [] }
+    ] }
+  };
+  const guide = { schemaId: 'tiinex.example.v1', factoryDescriptor: { sections: [
+    { group: 'Body', fieldConstraints: [] }, { group: 'Group', fieldConstraints: [] }
+  ] } };
+  const model = projectArtifactAuthoringModel({ contract }, { guide });
+  assert.equal(model.sections.find((section) => section.key === 'Body')?.fields[0]?.multiline, true);
+  assert.equal(model.sections.find((section) => section.key === 'Group')?.fields[0]?.multiline, false);
+});
+
 
 await test('generic authoring trusts shared Core draft status/severity and preserves exact finding details', async () => {
   const omission = {
@@ -1856,7 +2015,7 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(model, /intentionally knows no artifact-specific field[\s\S]*semantics/);
   assert.doesNotMatch(model, /\bFrom\b|\bTo\b|Transfers|Required Context/);
   assert.match(panel, /Schema and validation are projected by Tiinex Core/);
-  assert.match(panel, /Core authoring boundary/);
+  assert.doesNotMatch(panel, /Core authoring boundary/);
   assert.match(panel, /not currently bound by Core creation/);
   assert.match(panel, /Transition neighborhood/);
   assert.match(panel, /Core-projected Schema Transition neighborhood\./);

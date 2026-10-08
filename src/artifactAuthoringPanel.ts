@@ -84,6 +84,7 @@ export interface ArtifactAuthoringPanelHandlers {
   ready?(panel: any): Promise<void> | void;
   preview(input: ArtifactAuthoringSubmission): Promise<void>;
   create(input: ArtifactAuthoringSubmission): Promise<void>;
+  pickReference?(field: string, workspaceId: string): Promise<string | undefined>;
 }
 
 function escapeHtml(value: unknown): string {
@@ -103,12 +104,16 @@ function fieldControl(field: ArtifactAuthoringField, prefix: string, value = '')
   const id = fieldId(prefix, field.key);
   const required = field.required ? 'required' : '';
   const badge = field.required ? '<span class="required">required</span>' : '<span class="optional">optional</span>';
-  const help = field.help ? `<div class="help">${escapeHtml(field.help)}</div>` : '';
+  const referencePicker = field.affordance?.control === 'workspace-file-reference-picker'
+    ? `<button type="button" class="secondary reference-pick" data-reference-field="${escapeHtml(field.key)}" data-reference-target="${escapeHtml(id)}" data-reference-append="${field.affordance.append === true ? 'true' : 'false'}">${escapeHtml(field.affordance.displayLabel || 'Choose file')}</button>`
+    : '';
+  const help = (field.help ? `<div class="help">${escapeHtml(field.help)}</div>` : '')
+    + (referencePicker ? '<div class="help">Select a local Workspace file, or enter a relative path, Markdown link or URL manually. File selection does not itself verify the claim.</div>' : '');
   if (field.allowedValues.length) {
     return `<label class="field"><span>${escapeHtml(field.label)} ${badge}</span><select id="${id}" data-field="${escapeHtml(field.key)}" ${required}><option value="">Select…</option>${field.allowedValues.map((item) => `<option value="${escapeHtml(item)}"${item === value ? ' selected' : ''}>${escapeHtml(item)}</option>`).join('')}</select>${help}</label>`;
   }
-  if (!field.multiline) return `<label class="field"><span>${escapeHtml(field.label)} ${badge}</span><input id="${id}" data-field="${escapeHtml(field.key)}" value="${escapeHtml(value)}" ${required} />${help}</label>`;
-  return `<label class="field"><span>${escapeHtml(field.label)} ${badge}</span><textarea id="${id}" data-field="${escapeHtml(field.key)}" rows="3" ${required}>${escapeHtml(value)}</textarea>${help}</label>`;
+  if (!field.multiline) return `<label class="field"><span>${escapeHtml(field.label)} ${badge}</span><input id="${id}" data-field="${escapeHtml(field.key)}" value="${escapeHtml(value)}" ${required} />${referencePicker}${help}</label>`;
+  return `<label class="field"><span>${escapeHtml(field.label)} ${badge}</span><textarea id="${id}" data-field="${escapeHtml(field.key)}" rows="3" ${required}>${escapeHtml(value)}</textarea>${referencePicker}${help}</label>`;
 }
 
 function sectionFields(section: ArtifactAuthoringSection, prefix: string): string {
@@ -168,9 +173,10 @@ function html(input: ArtifactAuthoringPanelInput, nonce: string): string {
     ? `<label class="field"><span>Slug <span class="optional">optional</span></span><input id="slug" autocomplete="off" /><div class="help">Path label only. Leave blank to use From → To; Tiinex Core allocates and slugifies the final filename.</div></label>`
     : '';
   const parent = input.parentLabel ? `<div class="context-row"><strong>Continue from</strong><span>${escapeHtml(input.parentLabel)}</span></div>` : '';
-  const capabilityGaps = (model.capabilityGaps || []).length
-    ? `<section class="card capability-gap"><h2>Core authoring boundary</h2><div class="muted">These schema-optional fields are visible to Core validation but are not currently bound by Core creation, so this host will not pretend they can be written.</div>${model.capabilityGaps.map((gap) => `<div class="gap-row"><strong>${escapeHtml(gap.section)}</strong><span>${escapeHtml(gap.fields.join(', '))}</span></div>`).join('')}</section>`
-    : '';
+  // Capability gaps remain in the projected model for diagnostics/tests, but
+  // the normal authoring form only presents executable controls. Repeating the
+  // omitted schema fields as an internal Core boundary card adds no operator value.
+  const capabilityGaps = '';
   const transitionNeighborhood = '';
   return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
@@ -215,6 +221,8 @@ renderEndpointControls();renderTransitionNeighborhood();applyHostState({attachAv
 for(const [field,value] of Object.entries(initialValues||{})){setField(field,value);const assist=fieldAssists.find(item=>item.field===field);if(assist)for(const el of allField(field))applyAssist(assist,el)}
 function wireRepeatable(section){const items=q('.repeatable-items',section);const template=q('template.item-template',section);const none=q('[data-none]',section);let counter=0;function wireItem(item){q('.remove-item',item)?.addEventListener('click',()=>item.remove())}function add(entry){counter++;const html=template.innerHTML.replaceAll('9999',String(counter));items.insertAdjacentHTML('beforeend',html);const item=items.lastElementChild;wireItem(item);if(entry){q('[data-entry-name]',item).value=String(entry.name||'');for(const [field,value] of Object.entries(entry.fields||{})){const el=q('[data-field="'+CSS.escape(field)+'"]',item);if(el)el.value=String(value??'')}}return item}function update(){const disabled=!!none?.checked;items.style.display=disabled?'none':'';q('.add-item',section).style.display=disabled?'none':'';if(!disabled&&!q('.repeatable-item',items))add()}function setValue(value){if(value==='none'&&none){none.checked=true;items.innerHTML='';update();return}if(Array.isArray(value)){if(none)none.checked=false;items.innerHTML='';for(const entry of value)add(entry);update();return}}section.__tiinexSetTemplateValue=setValue;q('.add-item',section).addEventListener('click',()=>add());none?.addEventListener('change',update);qa('.repeatable-item',items).forEach(wireItem);update()}
 qa('.repeatable-section').forEach(wireRepeatable);
+// Event delegation covers optional fields and dynamically added declaration rows.
+document.addEventListener('click',event=>{const button=event.target.closest?.('.reference-pick');if(!button)return;event.preventDefault();if(busy)return;vscode.postMessage({type:'pick-reference',field:button.dataset.referenceField,targetId:button.dataset.referenceTarget,append:button.dataset.referenceAppend==='true',workspaceId:q('#workspace').value})});
 function resetTemplateField(key){const repeatable=qa('.repeatable-section').find(section=>section.dataset.input===key);if(repeatable){repeatable.__tiinexSetTemplateValue?.(repeatable.dataset.allowNone==='true'?'none':[]);return}const group=qa('.group-section').find(section=>section.dataset.input===key);if(group){for(const el of qa('[data-field]',group))el.value='';return}exactSetField(key,'')}function applyTemplate(){const id=q('#template')?.value||'';const t=templates.find(x=>x.id===id);q('#templateHelp')&&(q('#templateHelp').textContent=t?.description||'');const owned=[...new Set(templates.flatMap(x=>Object.keys(x.defaults||{})))];for(const key of owned)resetTemplateField(key);if(!t?.defaults)return;for(const [key,value] of Object.entries(t.defaults)){const repeatable=qa('.repeatable-section').find(section=>section.dataset.input===key);if(repeatable){repeatable.__tiinexSetTemplateValue?.(value);continue}const group=qa('.group-section').find(section=>section.dataset.input===key);if(group&&value&&typeof value==='object'&&!Array.isArray(value)){for(const [field,fieldValue] of Object.entries(value)){const el=q('[data-field="'+CSS.escape(field)+'"]',group);if(el)el.value=String(fieldValue??'')}continue}exactSetField(key,value)}}
 q('#template')?.addEventListener('change',applyTemplate);q('#template')?.addEventListener('input',applyTemplate);applyTemplate();
 function valueOf(el){return String(el?.value??'').trim()}
@@ -225,7 +233,7 @@ let busy=false;
 function setBusy(action,busyNow){busy=busyNow;const actions=q('#actions');if(action==='create'&&actions)actions.style.display=busyNow?'none':'';for(const button of [q('#cancel'),q('#preview'),q('#create')])if(button)button.disabled=busyNow}
 function send(action){if(busy)return;const errors=validate();const box=q('#error');if(errors.length){box.style.display='block';box.textContent=errors.join(' ');return}box.style.display='none';setBusy(action,true);q('#status').textContent=action==='preview'?'Preparing preview…':'Creating…';vscode.postMessage({type:action,payload:submission()})}
 q('#preview').addEventListener('click',()=>send('preview'));q('#create').addEventListener('click',()=>send('create'));q('#cancel').addEventListener('click',()=>{if(!busy)vscode.postMessage({type:'cancel'})});
-window.addEventListener('message',event=>{const msg=event.data||{};if(msg.type==='authoring-hydrate'){hydrateAuthoring(msg.payload||{});return}if(msg.type==='authoring-party-state'){hydrateParty(msg.payload||{});return}if(msg.type==='authoring-transition-state'){hydrateTransitions(msg.payload||{});return}if(msg.type==='authoring-host-state'){applyHostState(msg.payload||{});return}q('#status').textContent=msg.message||'';if(msg.type==='status')setBusy('preview',false);if(msg.type==='created')setBusy('create',false);if(msg.type==='error'){setBusy(msg.action==='preview'?'preview':'create',false);const box=q('#error');box.style.display='block';box.textContent=msg.message||'Blocked.'}});
+window.addEventListener('message',event=>{const msg=event.data||{};if(msg.type==='authoring-reference-picked'){const target=document.getElementById(String(msg.targetId||''));if(target&&target.matches('[data-field]')&&target.dataset.field===String(msg.field||'')){const selected=String(msg.reference||'');const old=String(target.value||'').trim();if(selected){target.value=msg.append&&old?old+(old.includes(selected)?'':'; '+selected):selected;target.dispatchEvent(new Event('input',{bubbles:true}))}}return}if(msg.type==='authoring-hydrate'){hydrateAuthoring(msg.payload||{});return}if(msg.type==='authoring-party-state'){hydrateParty(msg.payload||{});return}if(msg.type==='authoring-transition-state'){hydrateTransitions(msg.payload||{});return}if(msg.type==='authoring-host-state'){applyHostState(msg.payload||{});return}q('#status').textContent=msg.message||'';if(msg.type==='status')setBusy('preview',false);if(msg.type==='created')setBusy('create',false);if(msg.type==='error'){setBusy(msg.action==='preview'?'preview':'create',false);const box=q('#error');box.style.display='block';box.textContent=msg.message||'Blocked.'}});
 vscode.postMessage({type:'authoring-ready'});
 </script></body></html>`;
 }
@@ -238,6 +246,17 @@ export function openArtifactAuthoringPanel(input: ArtifactAuthoringPanelInput, h
     try {
       if (message?.type === 'authoring-ready') { await handlers.ready?.(panel); return; }
       if (message?.type === 'cancel') { panel.dispose(); return; }
+      if (message?.type === 'pick-reference') {
+        const field = String(message.field || '');
+        // A host handler cannot be invoked for an unqualified field merely by
+        // posting a forged webview message.
+        const allowedField = input.model.sections.flatMap((section) => section.fields).find((item) =>
+          item.key === field && item.affordance?.control === 'workspace-file-reference-picker');
+        if (!allowedField || String(message.workspaceId || '') !== input.selectedWorkspaceId) throw new Error('tiinex.authoring.reference-field-not-qualified');
+        const reference = await handlers.pickReference?.(field, input.selectedWorkspaceId);
+        if (reference) await panel.webview.postMessage({ type: 'authoring-reference-picked', targetId: String(message.targetId || ''), field, reference, append: allowedField.affordance?.append === true });
+        return;
+      }
       if (message?.type === 'preview') {
         await handlers.preview(message.payload as ArtifactAuthoringSubmission);
         await panel.webview.postMessage({ type: 'status', message: 'Preview ready.' });

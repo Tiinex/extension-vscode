@@ -6,6 +6,7 @@ export interface ArtifactAuthoringAffordance {
   displayLabel?: string;
   selectionKey?: string;
   manualAllowed?: boolean;
+  append?: boolean;
   fills?: Record<string, string>;
 }
 
@@ -88,7 +89,7 @@ function fieldModel(name: string, required: boolean, constraint: ConstraintLike 
     allowedValues,
     allowedShapes,
     help,
-    multiline: !allowedValues.length && kind !== 'ordinary-field',
+    multiline: !allowedValues.length && (kind === 'section-body' || kind === 'root-current-summary-body-title'),
     affordance
   };
 }
@@ -125,6 +126,7 @@ export function projectArtifactAuthoringModel(contractResult: any, schemaGuideRe
       displayLabel: String(item?.displayLabel || '').trim() || undefined,
       selectionKey: String(item?.selectionKey || '').trim() || undefined,
       manualAllowed: item?.manualAllowed !== false,
+      append: item?.append === true,
       fills: item?.fills ? Object.fromEntries(Object.entries(item.fills).map(([key, value]) => [String(key), String(value || '')])) : undefined
     });
   }
