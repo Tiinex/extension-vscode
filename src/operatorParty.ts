@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
-import { loadLocalWorkspaceChoices, loadOperatorPartySurfaceForSources, OperatorPartyScopeProjection } from './packageBuilder';
+import { loadQualifiedLocalWorkspaceChoices, loadOperatorPartySurfaceForSources, OperatorPartyScopeProjection, OperatorPartySurface, PackageWorkspaceChoice } from './packageBuilder';
 import { groupPartyReferenceCandidates } from './vscode/partyReferencePresentation';
 import { HandoffEndpointAuthoringCandidate } from './core/handoffEndpointSelection';
+import { scopedOperatorPartySources } from './core/operatorPartySourceScope';
 
 export type OperatorPartyState = 'none' | 'unknown' | 'resolved' | 'unresolved';
 
@@ -34,6 +35,20 @@ export function parseManualOperatorParty(value: string): { manual: boolean; disp
   return { manual: true, displayName: raw.slice('unknown::'.length).trim() };
 }
 
+// Core's operator-context projection is scoped to its supplied Workspace roots.
+// Project the already-qualified host sources separately, rather than treating
+// unrelated VS Code folders as one ambiguous package-local namespace.
+async function qualifiedOperatorPartySurface(extensionPath: string, choices: PackageWorkspaceChoice[]): Promise<OperatorPartySurface> {
+  const surfaces: OperatorPartySurface[] = [];
+  for (const choice of choices) {
+    surfaces.push(await loadOperatorPartySurfaceForSources(extensionPath, [{ workspaceId: choice.workspaceId, root: choice.root }]));
+  }
+  return {
+    candidates: surfaces.flatMap((surface) => surface.candidates),
+    scopes: surfaces.flatMap((surface) => surface.scopes)
+  };
+}
+
 export async function resolveOperatorParty(extensionPath: string, setting = operatorPartySetting()): Promise<ResolvedOperatorParty> {
   const raw = String(setting || '').trim();
   if (!raw) return empty('none', raw);
@@ -42,8 +57,12 @@ export async function resolveOperatorParty(extensionPath: string, setting = oper
     if (!manual.displayName) return empty('unresolved', raw);
     return { ...empty('unknown', raw), displayName: manual.displayName, recipientLabels: [manual.displayName] };
   }
-  const choices = await loadLocalWorkspaceChoices(extensionPath);
-  const surface = await loadOperatorPartySurfaceForSources(extensionPath, choices.map((item) => ({ workspaceId: item.workspaceId, root: item.root })));
+  // A selected Operator Party is an exact Role/Party target. Do not qualify
+  // unrelated open VS Code folders as one combined operator context: their
+  // package-local identities can collide even when this target is unambiguous.
+  const choices = await loadQualifiedLocalWorkspaceChoices(extensionPath);
+  const scoped = scopedOperatorPartySources(choices, raw);
+  const surface = await qualifiedOperatorPartySurface(extensionPath, scoped);
   const candidate = surface.candidates.find((item) => String(item.target || '').trim() === raw);
   if (!candidate) return empty('unresolved', raw);
   const scope = surface.scopes.find((item) => String(item.target || '').trim() === raw);
@@ -58,8 +77,8 @@ export async function resolveOperatorParty(extensionPath: string, setting = oper
 }
 
 export async function pickOperatorParty(extensionPath: string): Promise<ResolvedOperatorParty | null> {
-  const choices = await loadLocalWorkspaceChoices(extensionPath);
-  const surface = await loadOperatorPartySurfaceForSources(extensionPath, choices.map((item) => ({ workspaceId: item.workspaceId, root: item.root })));
+  const choices = await loadQualifiedLocalWorkspaceChoices(extensionPath);
+  const surface = await qualifiedOperatorPartySurface(extensionPath, choices);
   const current = operatorPartySetting();
   type Item = vscode.QuickPickItem & { action: 'none' | 'manual' | 'candidate' | 'separator'; candidate?: HandoffEndpointAuthoringCandidate };
   const items: Item[] = [

@@ -29,6 +29,7 @@ import { applyEmptyDirectoryCleanup, nestedWorkspaceRootExclusions, planEmptyDir
 import { planWorkspaceSession, validateWorkspaceTargetMapping } from '../dist/core/workspaceSession.js';
 import { representativeWorkspaceChoicesForRoot } from '../dist/core/workspaceChoice.js';
 import { qualifiedIncomingRootChoices, exactIncomingWorkspaceMap } from '../dist/core/incomingWorkspaceMapping.js';
+import { scopedOperatorPartySources } from '../dist/core/operatorPartySourceScope.js';
 import { participantProjectionFromManufactureReceipt } from '../dist/core/participantProjection.js';
 import { assertStableQualifiedCarrierAllocation, qualifiedCarrierAllocationFromManufactureReceipt } from '../dist/core/carrierAllocation.js';
 import { applyExactHandoffEndpointSelection, applyHandoffEndpointAuthoringSelection, endpointCandidatesForAuthoringSource, endpointCandidatesForExplicitSource, exactHandoffEndpointMarkdownLink, mergeExactHandoffEndpointChoices, mergeHandoffEndpointAuthoringChoices } from '../dist/core/handoffEndpointSelection.js';
@@ -90,6 +91,22 @@ await test('Incoming mapping respects renamed roots, rejects foreign host paths 
   assert.throws(() => exactIncomingWorkspaceMap([
     renamed[0], { ...renamed[0], root: path.resolve('/other/qualified-repository') }
   ]), /tiinex.incoming.workspace-id-ambiguous:app/);
+});
+
+await test('Operator Party scopes a qualified target to its exact Workspace and never conflates open roots', async () => {
+  const choices = [
+    { workspaceId: 'business', root: '/repos/Tiinex/business' },
+    { workspaceId: 'vscode', root: '/repos/Tiinex/extension-vscode' },
+    { workspaceId: 'native', root: '/repos/Tiinex/native' }
+  ];
+  assert.deepEqual(scopedOperatorPartySources(choices, 'business::.topics/roles/anchor.trace.md'), [choices[0]]);
+  assert.deepEqual(scopedOperatorPartySources(choices, 'missing::.topics/roles/anchor.trace.md'), []);
+  assert.deepEqual(scopedOperatorPartySources(choices, 'legacy-target-without-workspace-id'), choices);
+  const fs = await import('node:fs/promises');
+  const party = await fs.readFile(path.resolve(HERE, '../src/operatorParty.ts'), 'utf8');
+  assert.match(party, /loadQualifiedLocalWorkspaceChoices\(extensionPath\)/);
+  assert.doesNotMatch(party, /loadLocalWorkspaceChoices\(extensionPath\)/);
+  assert.match(party, /loadOperatorPartySurfaceForSources\(extensionPath, \[\{ workspaceId: choice\.workspaceId, root: choice\.root \}\]\)/);
 });
 
 await test('Incoming packageBuilder does not conflate Core rootPath with a host repository path', async () => {
