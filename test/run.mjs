@@ -101,6 +101,18 @@ await test('Incoming packageBuilder does not conflate Core rootPath with a host 
   assert.match(fn, /exactIncomingWorkspaceMap\(choices\)/);
 });
 
+await test('Incoming Replace consumes the same per-root qualification as Incoming preview', async () => {
+  const fs = await import('node:fs/promises');
+  const apply = await fs.readFile(path.resolve(HERE, '../src/incomingApply.ts'), 'utf8');
+  const builder = await fs.readFile(path.resolve(HERE, '../src/packageBuilder.ts'), 'utf8');
+  assert.match(apply, /import \{ loadIncomingLocalWorkspaceChoices, PackageWorkspaceChoice \} from '\.\/packageBuilder'/);
+  const body = apply.slice(apply.indexOf('export async function applyIncomingWorkspaces'));
+  assert.match(body, /const locals = await loadIncomingLocalWorkspaceChoices\(extensionPath\)/);
+  assert.doesNotMatch(body, /loadLocalWorkspaceChoices\(extensionPath\)/);
+  assert.match(builder, /export async function loadIncomingLocalWorkspaceChoices[\s\S]*?projectWorkspacePackageSources\(runtime, \[root\]\)/);
+  assert.match(builder, /exactIncomingWorkspaceMap\(choices\)/); // fail closed on real collisions
+});
+
 await test('New Artifact schema picker ignores an unrelated unversioned VS Code root without guessing Workspace identity', async () => {
   const fs = await import('node:fs/promises');
   const tree = await fs.readFile(path.resolve(HERE, '../src/operatorTrees.ts'), 'utf8');

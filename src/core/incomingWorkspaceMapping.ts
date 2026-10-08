@@ -53,7 +53,8 @@ export function qualifiedIncomingRootChoices(
 export function exactIncomingWorkspaceMap(choices: readonly IncomingRootChoice[]): Map<string, IncomingRootChoice> {
   const byId = new Map<string, IncomingRootChoice>();
   for (const item of choices) {
-    if (byId.has(item.workspaceId)) throw new Error(`tiinex.incoming.workspace-id-ambiguous:${item.workspaceId}`);
+    const previous = byId.get(item.workspaceId);
+    if (previous) throw new Error(`tiinex.incoming.workspace-id-ambiguous:${item.workspaceId}:roots=${previous.root};${item.root}`);
     byId.set(item.workspaceId, item);
   }
   return byId;

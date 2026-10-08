@@ -4,7 +4,7 @@ import { access, copyFile, lstat, mkdir, mkdtemp, readFile, readdir, readlink, r
 import * as vscode from 'vscode';
 import { preferredNodeExecutable } from './host/nodeExecutable';
 import { IndexedCarrierPackage, IndexedCarrierWorkspace } from './carrierIndex';
-import { loadLocalWorkspaceChoices, PackageWorkspaceChoice } from './packageBuilder';
+import { loadIncomingLocalWorkspaceChoices, PackageWorkspaceChoice } from './packageBuilder';
 import { compareIncomingWorkspaceToLocal, prepareBundledRuntime, prepareHostCoreRuntime, projectWorkspacePackageSources, SourceFrontierComparisonResult, WorkspacePackageSourcesResult } from './tiinex/bootstrap';
 import { extractZipBuffer, inspectZipBuffer, readExactZipEntryFromFile } from './host/zip';
 import { safeRelativePath, safeTarget } from './core/paths';
@@ -620,7 +620,11 @@ export async function applyIncomingWorkspaces(extensionPath: string, index: Inde
         },
         async (progress) => {
           progress.report({ message: 'Loading local workspaces...' });
-          const locals = await loadLocalWorkspaceChoices(extensionPath);
+          // Apply must use the same one-root-at-a-time, Core-qualified mapping as
+          // Incoming preview. The global authoring operator context may contain
+          // recursively discovered Workspaces from unrelated open roots and can
+          // reject Replace even when its Incoming targets are unambiguous.
+          const locals = await loadIncomingLocalWorkspaceChoices(extensionPath);
           const localById = new Map(locals.map((item) => [item.workspaceId, item]));
           const plans: WorkspaceApplyPlan[] = [];
           const exactWorkspaceIds: string[] = [];
