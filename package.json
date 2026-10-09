@@ -298,6 +298,16 @@
         "icon": "$(new-file)"
       },
       {
+        "command": "tiinex.artifact.attachToForm",
+        "title": "Attach to Form",
+        "icon": "$(paperclip)"
+      },
+      {
+        "command": "tiinex.artifact.moveRebase",
+        "title": "Tiinex: Move/Rebase Artifact",
+        "icon": "$(arrow-swap)"
+      },
+      {
         "command": "tiinex.artifact.repair",
         "title": "Tiinex: Repair Artifact",
         "icon": "$(tools)"
@@ -464,6 +474,21 @@
           ],
           "default": "ask",
           "description": "When Incoming has qualified Handoff routes whose To falls within the Core-projected scope of tiinex.operator.party, optionally preview and reveal every matching actual Handoff. Manual unknown Parties match only their exact display label. This never grants Party/Role authority."
+        },
+        "tiinex.copilot.panelActions": {
+          "type": "string",
+          "enum": [
+            "none",
+            "pack-and-transport",
+            "inspect-unpack-pack-and-transport"
+          ],
+          "enumDescriptions": [
+            "No delegated Tiinex operator panel actions. Copilot may still create artifacts, ground and use the normal Core CLI.",
+            "Allow agent-driven outgoing preview, packaging and transport preparation only.",
+            "Also allow incoming inspection and unpacking into safe staging. Never grants Merge/Replace, Reject, delete, reset or source overwrite."
+          ],
+          "default": "none",
+          "description": "Delegated VS Code Tiinex operator-panel actions for future Copilot native tools only. Does not restrict ordinary authoring, Core CLI, grounding, or human panel actions."
         }
       }
     },
@@ -996,6 +1021,16 @@
           "command": "tiinex.artifact.new",
           "when": "explorerResourceIsFolder || (!explorerResourceIsFolder && resourceFilename =~ /\\.trace\\.md$/)",
           "group": "1_authoring@1"
+        },
+        {
+          "command": "tiinex.artifact.attachToForm",
+          "when": "!explorerResourceIsFolder",
+          "group": "1_authoring@1.5"
+        },
+        {
+          "command": "tiinex.artifact.moveRebase",
+          "when": "!explorerResourceIsFolder && resourceFilename =~ /\\.trace\\.md$/",
+          "group": "1_authoring@1.7"
         },
         {
           "command": "tiinex.artifact.newFeedback",

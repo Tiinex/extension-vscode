@@ -3,6 +3,7 @@ import { loadQualifiedLocalWorkspaceChoices, loadOperatorPartySurfaceForSources,
 import { groupPartyReferenceCandidates } from './vscode/partyReferencePresentation';
 import { HandoffEndpointAuthoringCandidate } from './core/handoffEndpointSelection';
 import { scopedOperatorPartySources } from './core/operatorPartySourceScope';
+import { orderedBoundedMap } from './core/orderedBoundedMap';
 
 export type OperatorPartyState = 'none' | 'unknown' | 'resolved' | 'unresolved';
 
@@ -39,17 +40,20 @@ export function parseManualOperatorParty(value: string): { manual: boolean; disp
 // Project the already-qualified host sources separately, rather than treating
 // unrelated VS Code folders as one ambiguous package-local namespace.
 async function qualifiedOperatorPartySurface(extensionPath: string, choices: PackageWorkspaceChoice[]): Promise<OperatorPartySurface> {
-  const surfaces: OperatorPartySurface[] = [];
-  for (const choice of choices) {
-    surfaces.push(await loadOperatorPartySurfaceForSources(extensionPath, [{ workspaceId: choice.workspaceId, root: choice.root }]));
-  }
+  const started = Date.now();
+  // Independent Core projections must NOT be merged into one operator context.
+  // Three concurrent projections reduce host picker latency without starting
+  // one expensive qualification process per open Workspace simultaneously.
+  const surfaces = await orderedBoundedMap(choices, 3, (choice) =>
+    loadOperatorPartySurfaceForSources(extensionPath, [{ workspaceId: choice.workspaceId, root: choice.root }]));
+  console.info(`Tiinex Operator Party qualification: ${choices.length} independent Workspace roots in ${Date.now() - started} ms`);
   return {
     candidates: surfaces.flatMap((surface) => surface.candidates),
     scopes: surfaces.flatMap((surface) => surface.scopes)
   };
 }
 
-export async function resolveOperatorParty(extensionPath: string, setting = operatorPartySetting()): Promise<ResolvedOperatorParty> {
+export async function resolveOperatorParty(extensionPath: string, setting = operatorPartySetting(), qualifiedChoices?: () => Promise<PackageWorkspaceChoice[]>): Promise<ResolvedOperatorParty> {
   const raw = String(setting || '').trim();
   if (!raw) return empty('none', raw);
   const manual = parseManualOperatorParty(raw);
@@ -60,9 +64,19 @@ export async function resolveOperatorParty(extensionPath: string, setting = oper
   // A selected Operator Party is an exact Role/Party target. Do not qualify
   // unrelated open VS Code folders as one combined operator context: their
   // package-local identities can collide even when this target is unambiguous.
-  const choices = await loadQualifiedLocalWorkspaceChoices(extensionPath);
+  // Incoming's startup already prefetched exact, Core-qualified Workspace
+  // choices. Reuse that in-flight/ready projection when supplied by the host;
+  // don't rescan every VS Code root once package orientation has finished.
+  const choices = await (qualifiedChoices ? qualifiedChoices() : loadQualifiedLocalWorkspaceChoices(extensionPath));
   const scoped = scopedOperatorPartySources(choices, raw);
   const surface = await qualifiedOperatorPartySurface(extensionPath, scoped);
+  return resolvedPartyFromQualifiedSurface(raw, surface);
+}
+
+// Values from a single Core-qualified picker projection are reused for the
+// immediately selected exact target. Do not rerun discovery or subprocess
+// qualification merely to return the choice the user just saw.
+function resolvedPartyFromQualifiedSurface(raw: string, surface: OperatorPartySurface): ResolvedOperatorParty {
   const candidate = surface.candidates.find((item) => String(item.target || '').trim() === raw);
   if (!candidate) return empty('unresolved', raw);
   const scope = surface.scopes.find((item) => String(item.target || '').trim() === raw);
@@ -76,8 +90,13 @@ export async function resolveOperatorParty(extensionPath: string, setting = oper
   };
 }
 
-export async function pickOperatorParty(extensionPath: string): Promise<ResolvedOperatorParty | null> {
-  const choices = await loadQualifiedLocalWorkspaceChoices(extensionPath);
+export async function pickOperatorParty(extensionPath: string, qualifiedChoices?: () => Promise<PackageWorkspaceChoice[]>): Promise<ResolvedOperatorParty | null> {
+  const started = Date.now();
+  // Share the host's prefetched/in-flight, Core-qualified Workspace set.
+  // Opening a picker must not launch another full root discovery when Incoming
+  // or New Artifact has already qualified those same sources.
+  const choices = await (qualifiedChoices ? qualifiedChoices() : loadQualifiedLocalWorkspaceChoices(extensionPath));
+  console.info(`Tiinex Operator Party discovery: ${choices.length} qualified Workspace roots in ${Date.now() - started} ms`);
   const surface = await qualifiedOperatorPartySurface(extensionPath, choices);
   const current = operatorPartySetting();
   type Item = vscode.QuickPickItem & { action: 'none' | 'manual' | 'candidate' | 'separator'; candidate?: HandoffEndpointAuthoringCandidate };
@@ -112,7 +131,12 @@ export async function pickOperatorParty(extensionPath: string): Promise<Resolved
   // newly selected global value after this command returns.
   await configuration.update('operator.party', undefined, vscode.ConfigurationTarget.Workspace);
   await configuration.update('operator.party', value, vscode.ConfigurationTarget.Global);
-  return resolveOperatorParty(extensionPath, value);
+  // None and Manual are explicit choices and do not need a Core query.
+  // A selected Role/Party comes from the exact Core-qualified projection that
+  // populated this picker, including any scope/recipient data from that result.
+  // Later authoring/transport actions retain their own qualification gates.
+  if (selected.action !== 'candidate') return resolveOperatorParty(extensionPath, value);
+  return resolvedPartyFromQualifiedSurface(value, surface);
 }
 
 function empty(state: OperatorPartyState, setting: string): ResolvedOperatorParty {

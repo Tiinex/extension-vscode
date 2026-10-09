@@ -1,4 +1,4 @@
-export type ArtifactAuthoringSectionKind = 'fields' | 'group' | 'repeatable' | 'body';
+export type ArtifactAuthoringSectionKind = 'fields' | 'group' | 'repeatable' | 'body' | 'composite';
 
 export interface ArtifactAuthoringAffordance {
   control: string;
@@ -17,6 +17,11 @@ export interface ArtifactAuthoringField {
   allowedValues: string[];
   allowedShapes: string[];
   help: string;
+  sourceSchemaId?: string;
+  sourceHelp?: {
+    group: string; schemaPath: string; repository: string; commit: string;
+    groupLine: number; fieldLine: number | null; contextScope: string; fieldRule?: string; excerpt: string;
+  };
   multiline: boolean;
   affordance?: ArtifactAuthoringAffordance;
 }
@@ -28,6 +33,7 @@ export interface ArtifactAuthoringSection {
   required: boolean;
   allowNone: boolean;
   fields: ArtifactAuthoringField[];
+  parts?: ArtifactAuthoringSection[];
 }
 
 export interface ArtifactAuthoringCapabilityGap {
@@ -107,7 +113,7 @@ function guideSection(guide: any, name: string): any {
  * host controls. This layer intentionally knows no artifact-specific field
  * semantics: field domains, requiredness and repeatability all come from Core.
  */
-export function projectArtifactAuthoringModel(contractResult: any, schemaGuideResult: any): ArtifactAuthoringModel {
+export function projectArtifactAuthoringModel(contractResult: any, schemaGuideResult: any, fieldHelpResult?: any): ArtifactAuthoringModel {
   const contract = contractResult?.contract || contractResult?.result?.contract || contractResult || {};
   const guide = schemaGuideResult?.guide || schemaGuideResult?.result?.guide || schemaGuideResult || {};
   const schemaId = String(contract?.target?.schemaId || guide?.schemaId || '').trim();
@@ -151,6 +157,25 @@ export function projectArtifactAuthoringModel(contractResult: any, schemaGuideRe
     const sectionName = String(binding?.section || binding?.group || input || 'Artifact').trim();
     const constraints = byConstraint.get(sectionName) || new Map<string, ConstraintLike>();
     const kind = String(binding?.kind || '').trim();
+    if (kind === 'unmapped') {
+      // There is no qualified Core representation binding for this input.
+      // Rendering it as an editable scalar silently loses user data on Create.
+      capabilityGaps.push({ section: sectionName, fields: [input], reason: 'schema-optional-fields-not-bound-for-creation' });
+      continue;
+    }
+    if (kind === 'composite-declaration-section') {
+      const section = ensure(sectionName, 'composite', true, false);
+      section.parts = (binding?.parts || []).map((part: any) => {
+        const partName = String(part.section || part.input || '').trim();
+        const partConstraints = byConstraint.get(String(part.group || partName)) || new Map<string, ConstraintLike>();
+        const fields = [
+          ...strings(part.requiredFields).map((field) => fieldModel(field, true, partConstraints.get(field), 'named-declaration-section', affordanceByInput.get(field))),
+          ...strings(part.optionalFields).map((field) => fieldModel(field, false, partConstraints.get(field), 'named-declaration-section', affordanceByInput.get(field)))
+        ];
+        return { key: partName, label: partName, kind: 'repeatable' as const, required: true, allowNone: part.allowLiteralNone === true, fields };
+      });
+      continue;
+    }
     if (kind === 'named-declaration-section') {
       const section = ensure(sectionName, 'repeatable', true, Boolean(binding?.allowLiteralNone));
       for (const field of strings(binding?.requiredFields)) addField(section, fieldModel(field, true, constraints.get(field), kind, affordanceByInput.get(field)));
@@ -191,7 +216,26 @@ export function projectArtifactAuthoringModel(contractResult: any, schemaGuideRe
     transitionType: String(contract?.transitionType || 'create-artifact'),
     status: String(contract?.status || contractResult?.status || 'unknown'),
     contractId: String(contract?.id || ''),
-    sections: order.map((key) => sections.get(key)!).filter((section) => section.fields.length),
+    sections: order.map((key) => sections.get(key)!).filter((section) => section.fields.length || section.parts?.length)
+      .map((section) => ({ ...section, fields: section.fields.map((field) => {
+        // Match only exact Core-projected input/field identity. A group-level
+        // excerpt is not automatically the source rule for an unrelated field.
+        const qualified = (fieldHelpResult?.fields || []).find((entry: any) =>
+          fieldHelpResult?.schemaId === schemaId &&
+          entry.status === 'qualified' && entry.input === field.key &&
+          entry.group === section.key && entry.field === field.key &&
+          entry.source?.schemaId === schemaId &&
+          entry.source?.fieldLine > 0 && entry.source?.contextScope === 'schema-validation-group'
+        );
+        const source = qualified?.source;
+        const sourceHelp = source ? {
+          group: String(qualified.group), schemaPath: String(source.schemaPath),
+          repository: String(source.repository), commit: String(source.commit),
+          groupLine: Number(source.groupLine), fieldLine: Number(source.fieldLine),
+          contextScope: String(source.contextScope), fieldRule: String(source.fieldRule || ''), excerpt: String(source.excerpt || '')
+        } : undefined;
+        return { ...field, sourceSchemaId: schemaId, ...(sourceHelp ? { sourceHelp } : {}) };
+      }) })),
     capabilityGaps
   };
 }

@@ -12,15 +12,16 @@ import { qualifiedRoutes, QualifiedRouteReceipt, receivedHandoffContext, receive
 import { mergeTransportRouteSelection, selectedTransportRouteIds, StoredTransportQueueItem, transportPrepared, transportPreparedKey, TransportPreparedRecord } from './core/transportQueue';
 import { loadPartyAuthoringReferenceChoicesForSources, loadHandoffRouteChoicesForSource, loadLocalWorkspaceChoices, loadIncomingLocalWorkspaceChoices, loadQualifiedLocalWorkspaceChoices, clearPackageBuilderDiscoveryCache, buildHandoffPackageFromForm, announceBuiltCarrier, routeChoiceKeyForHandoff, IncomingPackageWorkspaceSource, PackageWorkspaceChoice, PackageWorkspaceSourceOverride, PackageRouteRouting, PackageParticipantProjection, PackageParticipantRole, projectHandoffPackageParticipants, qualifyLocalWorkspaceChoice } from './packageBuilder';
 import { applyExactHandoffEndpointSelection, applyHandoffEndpointAuthoringSelection } from './core/handoffEndpointSelection';
-import { ArtifactAuthoringCatalog, ArtifactDraftParent, clearArtifactAuthoringCaches, loadArtifactAuthoringCatalog, loadArtifactAuthoringModel, prepareArtifactDraft, PreparedArtifactDraft, qualifyArtifactDraftParent, qualifyExistingHandoff, writePreparedArtifactDraft } from './authoring';
+import { ArtifactAuthoringCatalog, ArtifactDraftParent, clearArtifactAuthoringCaches, loadArtifactAuthoringCatalog, invalidateArtifactAuthoringCatalog, loadArtifactAuthoringModel, prepareArtifactDraft, PreparedArtifactDraft, qualifyArtifactDraftParent, qualifyExistingHandoff, writePreparedArtifactDraft } from './authoring';
 import { initializeWorkspaceDirectory } from './workspaceInitialization';
 
-import { compareIncomingWorkspaceToLocal, groundPackageForReview, GroundingResult, orientPackage, prepareBundledRuntime, prepareHostCoreRuntime, preparePackageRuntimeWithRecovery, projectHandoffCarrierMajorFrontier, projectHandoffCarrierMajorAllocation, projectHandoffCarrierTransportName, manufactureHandoffPackage, projectPackageTransport, projectWorkspaceCarrierEntry, projectTransitionNeighborhood, selectedBootstrapContentRoots } from './tiinex/bootstrap';
+import { compareIncomingWorkspaceToLocal, groundPackageForReview, GroundingResult, orientPackage, prepareBundledRuntime, prepareHostCoreRuntime, preparePackageRuntimeWithRecovery, projectHandoffCarrierMajorFrontier, projectHandoffCarrierMajorAllocation, projectHandoffCarrierTransportName, manufactureHandoffPackage, projectPackageTransport, projectTransportCompletion, TransportCompletionReceipt, projectWorkspaceCarrierEntry, projectTransitionNeighborhood, selectedBootstrapContentRoots } from './tiinex/bootstrap';
 import { applyIncomingWorkspaces, IncomingApplyStrategy } from './incomingApply';
 import { detectOutgoingSourcePreset, operatorMatchedWorkspaceIds, OUTGOING_SOURCE_PRESET_MODES, outgoingSourcePresetLabel, OutgoingSourcePresetMode, projectOutgoingSourcePreset, resolveExclusiveWorkspaceSourceSelection, resolvePrioritizedWorkspaceDuplicates } from './core/sourceSelection';
 import { comparePackageRecency, rootOutgoingLabel, rootOutgoingPrefix } from './core/outgoingUx';
 import { incomingReviewPresentation, incomingReviewReady, IncomingReviewDecision } from './core/incomingReview';
 import { incomingSourceStatus, incomingSourceUnavailableMessage } from './core/incomingSource';
+import { waitForStableFile } from './core/stableFile';
 import { artifactAuthoringCandidateCapability, partyReferenceAuthoringFillValue, partyReferenceCandidateSatisfiesAffordance } from './core/artifactAuthoringCandidateSource';
 import { dedupeTransitionPresetCandidates, qualifiedTransitionPresetCandidates } from './core/artifactAuthoringPresets';
 import { payloadCheckoutEligibility, qualifiedGitHubBlobReference } from './host/git';
@@ -31,6 +32,11 @@ import { extractZipBuffer, readExactZipEntryFromBuffer, readExactZipEntryFromFil
 import { ArtifactAuthoringSubmission, openArtifactAuthoringPanel } from './artifactAuthoringPanel';
 import { sameRepositoryRoot } from './core/repositoryPath';
 import { localArtifactReference } from './core/artifactReferencePicker';
+import { attachFileToOpenForm } from './vscode/attachFileToForm';
+import { moveArtifactFromExplorer } from './vscode/lineageMaintenance';
+import { applyDeferredArtifactAndAssets } from './vscode/lineageMaintenance';
+import { prepareDeferredFormTransaction } from './vscode/deferredFormTransaction';
+import type { ArtifactAuthoringModel } from './core/artifactAuthoringModel';
 import { safeRelativePath, safeTarget } from './core/paths';
 import { artifactPrefersMarkdownPreview, artifactReferenceAvailable, markdownLinkTargets, materialTargetKey, resolveArtifactReference } from './core/artifactNavigation';
 import { planWorkspaceSession, validateWorkspaceTargetMapping } from './core/workspaceSession';
@@ -41,7 +47,12 @@ import { presentOperatorError } from './core/operatorError';
 import { acceptCoreParticipantProjection, participantPresentation, selectAdditionalParticipantRoles } from './vscode/outgoingParticipantController';
 import { groupPartyReferenceCandidates, presentPartyReferenceCandidates } from './vscode/partyReferencePresentation';
 import { configureExtensionHostAcceptance, extensionHostAcceptanceEnabled, extensionHostAcceptanceEvents, extensionHostAcceptanceOutgoingFolder, extensionHostAcceptanceOutgoingParent, extensionHostAcceptanceOutgoingSourceKeys, recordExtensionHostAcceptanceEvent } from './vscode/extensionHostAcceptance';
-import { pickOperatorParty, resolveOperatorParty } from './operatorParty';
+import { pickOperatorParty, resolveOperatorParty, ResolvedOperatorParty } from './operatorParty';
+import { incomingRestorationEntries } from './vscode/incomingRestoreEntries';
+import { IncomingReviewScheduler } from './vscode/incomingReviewScheduler';
+import { blockedCarrierHasNewSource } from './core/incomingAutoRetry';
+import { pickIncomingWorkspaces } from './vscode/incomingWorkspacePicker';
+import { showTransportCompletionTab } from './vscode/transportCompletionPresentation';
 
 export type OperatorSection = 'discovery' | 'incoming' | 'outgoing';
 
@@ -168,6 +179,8 @@ interface IncomingPendingState {
   phase?: 'loading' | 'blocked';
   blockedSummary?: string;
   blockedDetail?: string;
+  /** Presentation-only saved decision; not a substitute for new qualification. */
+  reviewDecision?: IncomingReviewDecision;
 }
 
 interface IncomingState {
@@ -521,7 +534,13 @@ export class TiinexOperatorTrees implements vscode.Disposable {
   };
   private incoming: IncomingState[] = [];
   private readonly incomingPending = new Map<string, IncomingPendingState>();
+  private incomingRestoreEpoch = 0;
+  private readonly incomingReviewScheduler = new IncomingReviewScheduler();
+  private readonly incomingReviewGeneration = new Map<string, number>();
+  private readonly incomingWorkspacePickBusy = new Set<string>();
   private readonly incomingReviewActions = new Set<string>();
+  /** Presentation retry only; never qualified carrier truth or a review decision. */
+  private readonly incomingPreviewRetryPaths = new Set<string>();
   private outgoing: OutgoingState | null = null;
   private outgoingFolderSelection = '';
   private outgoingLoading = false;
@@ -534,7 +553,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
   private discoveryStartupLatestIdentity = '';
   private discoveryCutoffMs = 0;
   private readonly discoverySuppressedPaths = new Set<string>();
-  private readonly authoringPanels = new Map<any, { workspaceId: string; root: string; schemaId: string; post(type: string, payload: any): Promise<void> }>();
+  private readonly authoringPanels = new Map<any, { workspaceId: string; root: string; schemaId: string; model: ArtifactAuthoringModel; targetDirectory: string; isLocal?: boolean; pendingAttachments?: import('./core/deferredFormAttachment').DeferredFormAttachment[]; post(type: string, payload: any): Promise<void> }>();
 
   constructor(private readonly context: vscode.ExtensionContext, private readonly extensionPath: string) {
     this.localArtifactLinkProvider = new LocalArtifactLinkProvider(extensionPath);
@@ -578,7 +597,12 @@ export class TiinexOperatorTrees implements vscode.Disposable {
   async start(): Promise<void> {
     await this.ensureTreePreferenceDefaults();
     await this.restoreTransportQueue();
-    await this.restoreIncomingQueue();
+    // A stored Incoming path is not qualified package truth. Display a Loading
+    // card immediately and restore via Core after the rest of the host starts.
+    this.primeIncomingRestore();
+    void this.restoreIncomingQueue().catch((error) => {
+      console.error('Tiinex Incoming startup restore blocked:', shortMessage(error));
+    });
     // Start reusable Core authoring projections as early background work so the
     // first explicit context-menu action does not pay avoidable cold-start cost.
     // Qualification remains Core-owned; this is presentation-path prefetch only.
@@ -646,7 +670,16 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     if (!info.isFile() || !/\.trace\.md$/i.test(path.basename(resource.fsPath))) return this.pickArtifactParent(choice.workspaceId, catalog);
     const relative = normalizePath(path.relative(root, resource.fsPath));
     if (!relative || relative.startsWith('../')) throw new Error('tiinex.authoring.selected-parent-outside-workspace');
-    const exact = catalog.parents.find((item) => normalizePath(item.path) === relative);
+    // A prior Core Parent catalog can predate a newly authored Evidence. The
+    // host writes via Node fs, which does not necessarily emit VS Code's
+    // onDidCreateFiles event. Reproject once on a miss: Core still decides
+    // candidacy, and the selected Parent is independently audited before use.
+    let exact = catalog.parents.find((item) => normalizePath(item.path) === relative);
+    if (!exact) {
+      invalidateArtifactAuthoringCatalog(this.extensionPath, root);
+      const refreshed = await loadArtifactAuthoringCatalog(this.extensionPath, root);
+      exact = refreshed.parents.find((item) => normalizePath(item.path) === relative);
+    }
     if (!exact) throw new Error(`tiinex.authoring.selected-parent-unqualified:${relative}`);
     // Carry the exact selected bytes into the authoring session. Core Parent
     // qualification runs alongside the cached schema model in showArtifactAuthoring,
@@ -782,6 +815,15 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       });
     } catch (error) {
       const detail = shortMessage(error);
+      if (detail.includes('tiinex.authoring.selected-parent-unqualified:')) {
+        const choice = await vscode.window.showWarningMessage(
+          'The selected file is not currently a Core-qualified Parent. Nothing was created. Choose a qualified Parent through the directory authoring flow, or repair the selected artifact first.',
+          'Choose qualified Parent', 'Show Problems'
+        );
+        if (choice === 'Choose qualified Parent' && resource?.scheme === 'file') await this.beginArtifactAuthoring(vscode.Uri.file(path.dirname(resource.fsPath)), preselectedSchemaId);
+        else if (choice === 'Show Problems') await vscode.commands.executeCommand('workbench.actions.view.problems');
+        return;
+      }
       if (detail.includes('tiinex.authoring.parent-blocked:')) {
         const action = await vscode.window.showWarningMessage(
           `Selected Parent is not qualified for continuation. Core kept authoring fail-closed. Choose another Parent, or use Tiinex: Repair Artifact when Core exposes a deterministic repair.\n\n${detail.replace(/^tiinex\.authoring\.parent-blocked:[^\n]*/, '').trim()}`,
@@ -795,6 +837,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
   }
 
   dispose(): void {
+    this.incomingRestoreEpoch += 1;
     this.stopWatcher();
     this.authoringPanels.clear();
   }
@@ -895,6 +938,14 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     register('tiinex.tree.openWorkspaceMarkdown', (node: OperatorNode) => this.openWorkspaceMarkdownNode(node));
     register('tiinex.workspace.initialize', (resource?: vscode.Uri) => this.initializeWorkspace(resource));
     register('tiinex.artifact.new', (resource?: vscode.Uri) => this.beginArtifactAuthoring(resource));
+    register('tiinex.artifact.attachToForm', async (resource?: vscode.Uri) => {
+      try { await attachFileToOpenForm(resource, [...this.authoringPanels].map(([panel, item]) => ({ panel, ...item })), this.extensionPath); }
+      catch (error) { await vscode.window.showWarningMessage(`Tiinex Attach to Form blocked: ${shortMessage(error)}`); }
+    });
+    register('tiinex.artifact.moveRebase', async (resource?: vscode.Uri) => {
+      try { await moveArtifactFromExplorer(this.extensionPath, resource, await this.localWorkspaceChoices()); }
+      catch (error) { await vscode.window.showWarningMessage(`Tiinex Move/Rebase blocked: ${shortMessage(error)}`); }
+    });
     register('tiinex.artifact.newFeedback', (resource?: vscode.Uri) => this.beginArtifactAuthoring(resource, 'tiinex.feedback.v1'));
     register('tiinex.artifact.newHandoff', (resource?: vscode.Uri) => this.beginArtifactAuthoring(resource, 'tiinex.handoff.v1'));
     register('tiinex.artifact.attachHandoff', (resource?: vscode.Uri) => this.attachHandoffFromExplorer(resource));
@@ -1110,7 +1161,8 @@ export class TiinexOperatorTrees implements vscode.Disposable {
         if (path.dirname(outputPath) !== path.resolve(folder) || path.basename(outputPath) !== filename) throw new Error('tiinex.transport.bootstrap-replacement.output-identity-mismatch');
         const queueWarning = await this.queueBuiltTransportPackage(outputPath, false);
         const suffix = queueWarning ? ` Package built, but Transport queue qualification reported: ${queueWarning}` : '';
-        await vscode.window.showInformationMessage(`Bootstrap replacement ready: ${path.basename(outputPath)}.${suffix}`);
+        await this.showPreparedTransportTab(outputPath, 'not-copied');
+        if (suffix) await vscode.window.showWarningMessage(suffix);
       } finally { await runtime.dispose(); }
     } finally {
       this.bootstrapReplacementBuildPending = false;
@@ -1137,44 +1189,62 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     this.transportProvider.refresh();
   }
 
-  private async restoreIncomingQueue(): Promise<void> {
+  private primeIncomingRestore(): void {
     const stored = this.context.workspaceState.get<StoredIncomingQueueItem[]>('tiinex.incoming.queue.v1', []) || [];
-    const restored: IncomingState[] = [];
-    this.incomingPending.clear();
-    for (const record of stored) {
-      const packagePath = String(record?.packagePath || '').trim();
-      if (!packagePath) continue;
+    for (const record of incomingRestorationEntries(stored)) {
+      const resolved = record.packagePath;
+      if (!this.incomingPending.has(resolved)) this.incomingPending.set(resolved, {
+        packagePath: resolved, filename: path.basename(resolved), mtimeMs: 0, bytes: 0, phase: 'loading',
+        reviewDecision: record.reviewDecision
+      });
+    }
+    this.incomingProvider.refresh();
+  }
+
+  private async restoreIncomingQueue(): Promise<void> {
+    const epoch = this.incomingRestoreEpoch;
+    const stored = this.context.workspaceState.get<StoredIncomingQueueItem[]>('tiinex.incoming.queue.v1', []) || [];
+    for (const record of incomingRestorationEntries(stored)) {
+      const packagePath = record.packagePath;
+      if (epoch !== this.incomingRestoreEpoch) return;
+      if (!this.incomingPending.has(packagePath)) continue; // closed during restoration
       try {
         const state = await this.qualifyIncoming(packagePath);
-        await this.refreshIncomingReviewReadiness(state);
+        if (epoch !== this.incomingRestoreEpoch) return;
+        if (!this.incomingPending.has(packagePath)) continue;
         const decision = String(record?.reviewDecision || '') as IncomingReviewDecision;
         if (decision === 'accepted' || decision === 'rejected') state.reviewDecision = decision;
-        restored.push(state);
+        this.incomingPending.delete(packagePath);
+        this.incoming = [state, ...this.incoming.filter((item) => path.resolve(item.index.packagePath) !== packagePath)];
+        this.sortIncomingByDiscoveryOrder();
+        this.queueIncomingReviewReadiness(state);
       } catch (error) {
+        if (epoch !== this.incomingRestoreEpoch) return;
+        if (!this.incomingPending.has(packagePath)) continue;
         try {
           const info = await stat(packagePath);
-          if (!info.isFile()) continue;
+          if (!info.isFile()) throw new Error('not a file');
           const presentation = presentOperatorError(error);
-          this.incomingPending.set(path.resolve(packagePath), {
-            packagePath: path.resolve(packagePath), filename: path.basename(packagePath), mtimeMs: info.mtimeMs, bytes: info.size,
+          this.incomingPending.set(packagePath, {
+            packagePath, filename: path.basename(packagePath), mtimeMs: info.mtimeMs, bytes: info.size,
             phase: 'blocked', blockedSummary: presentation.summary, blockedDetail: incomingBlockedDetail(error, presentation.detail)
           });
         } catch {
           // The queue card remains closeable even if its Discovery source was
           // deleted while VS Code was closed. No old orientation is restored.
-          const resolved = path.resolve(packagePath);
-          this.incomingPending.set(resolved, {
-            packagePath: resolved, filename: path.basename(resolved), mtimeMs: 0, bytes: 0,
+          this.incomingPending.set(packagePath, {
+            packagePath, filename: path.basename(packagePath), mtimeMs: 0, bytes: 0,
             phase: 'blocked', blockedSummary: incomingSourceUnavailableMessage('missing'),
             blockedDetail: incomingSourceUnavailableMessage('missing')
           });
         }
       }
+      if (epoch !== this.incomingRestoreEpoch) return;
+      await this.persistIncomingQueue();
+      this.incomingProvider.refresh();
+      this.discoveryProvider.refresh();
+      await this.updateUiContexts();
     }
-    this.incoming = restored;
-    this.sortIncomingByDiscoveryOrder();
-    await this.persistIncomingQueue();
-    this.incomingProvider.refresh();
   }
 
   private async persistIncomingQueue(): Promise<void> {
@@ -1185,7 +1255,10 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     });
     for (const pending of this.incomingPending.values()) {
       const resolved = path.resolve(pending.packagePath);
-      if (!records.has(resolved)) records.set(resolved, { packagePath: pending.packagePath });
+      if (!records.has(resolved)) records.set(resolved, {
+        packagePath: pending.packagePath,
+        ...(pending.reviewDecision ? { reviewDecision: pending.reviewDecision } : {})
+      });
     }
     await this.context.workspaceState.update('tiinex.incoming.queue.v1', [...records.values()]);
   }
@@ -1413,11 +1486,11 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       if (!route) return;
       routeId = route.routeId;
     }
-    const text = await this.guidedEntryTransportText(item, routeId);
-    if (!text) return;
-    await vscode.env.clipboard.writeText(text);
+    const receipt = await this.guidedEntryTransportText(item, routeId);
+    if (!receipt) return;
+    await vscode.env.clipboard.writeText(receipt.clipboardText!);
     await this.markTransportPrepared(item, routeId, 'textPrepared');
-    await vscode.window.showInformationMessage('Copied exact Tiinex Guided Entry transport text.');
+    await showTransportCompletionTab(receipt, { clipboard: 'copied', expectedCarrierFilename: item.filename });
   }
 
   private async copyTransportText(node?: TransportNode): Promise<void> {
@@ -1425,9 +1498,15 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     if (!item) return;
     let routeId = node?.data.kind === 'route' ? String(node.data.routeId || '') : '';
     let text = '';
+    let guidedReceipt: TransportCompletionReceipt | null = null;
     if (!item.routes.length) {
       const bootstrapReplacement = /^tiinex-bootstrap-replacement(?:-|\.|$)/i.test(item.filename);
-      text = bootstrapReplacement ? item.genericTransportText : await this.guidedEntryTransportText(item);
+      if (bootstrapReplacement) text = item.genericTransportText;
+      else {
+        guidedReceipt = await this.guidedEntryTransportText(item);
+        if (!guidedReceipt) return;
+        text = guidedReceipt.clipboardText || '';
+      }
       if (!text) return;
     } else {
       const visible = this.visibleTransportRoutes(item);
@@ -1450,12 +1529,37 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       await vscode.window.showInformationMessage('This Workspace carrier has no transport text available.');
       return;
     }
-    await vscode.env.clipboard.writeText(text);
+    const receipt = guidedReceipt || await this.projectTransportReceipt(item.packagePath, { route: routeId });
+    if (receipt.status !== 'ready' || receipt.clipboardText !== text) throw new Error('tiinex.transport.exact-clipboard-qualification-mismatch');
+    await vscode.env.clipboard.writeText(receipt.clipboardText);
     await this.markTransportPrepared(item, routeId, 'textPrepared');
-    await vscode.window.showInformationMessage('Copied exact Tiinex transport text.');
+    await showTransportCompletionTab(receipt, { clipboard: 'copied', expectedCarrierFilename: item.filename, expectedClipboardText: text });
   }
 
-  private async guidedEntryTransportText(item: TransportPackageState, routeId = ''): Promise<string> {
+  private async projectTransportReceipt(
+    packagePath: string,
+    selection: {route?:string; entryId?:string; targetEntryId?:string; customInstruction?:string; primaryRole?:unknown; participants?:unknown[]} = {}
+  ): Promise<TransportCompletionReceipt> {
+    const roots = (vscode.workspace.workspaceFolders || []).map((folder: vscode.WorkspaceFolder) => folder.uri.fsPath);
+    const runtime = await prepareHostCoreRuntime(this.extensionPath, roots, nodeExecutable());
+    try { return await projectTransportCompletion(runtime, packagePath, selection); }
+    finally { await runtime.dispose(); }
+  }
+
+  private async showPreparedTransportTab(packagePath: string, clipboard: 'copied' | 'not-copied' | 'unknown' = 'unknown'): Promise<void> {
+    if (extensionHostAcceptanceEnabled()) {
+      recordExtensionHostAcceptanceEvent('carrier-built-announcement', { outputPath:packagePath, label:'Transport receipt', note:'Previewed by Core' });
+      return;
+    }
+    try {
+      const receipt = await this.projectTransportReceipt(packagePath);
+      await showTransportCompletionTab(receipt, { clipboard, expectedCarrierFilename: path.basename(packagePath) });
+    } catch (error) {
+      await vscode.window.showWarningMessage(`Tiinex carrier built, but transport instructions could not be opened: ${shortMessage(error)}`);
+    }
+  }
+
+  private async guidedEntryTransportText(item: TransportPackageState, routeId = ''): Promise<TransportCompletionReceipt | null> {
     const roots = (vscode.workspace.workspaceFolders || []).map((folder: vscode.WorkspaceFolder) => folder.uri.fsPath);
     const runtime = await prepareHostCoreRuntime(this.extensionPath, roots, nodeExecutable());
     try {
@@ -1480,7 +1584,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
         canPickMany: false,
         ignoreFocusOut: true
       });
-      if (!modeSelection) return '';
+      if (!modeSelection) return null;
 
       let customInstruction = '';
       if (modeSelection.mode === 'CUSTOM') {
@@ -1490,7 +1594,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
           placeHolder: 'Session intent…',
           ignoreFocusOut: true
         });
-        if (!entered?.trim()) return '';
+        if (!entered?.trim()) return null;
         customInstruction = entered.trim();
       }
 
@@ -1514,7 +1618,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
           canPickMany: false,
           ignoreFocusOut: true
         });
-        if (!targetSelection) return '';
+        if (!targetSelection) return null;
         if (targetSelection.targetKind.toLocaleLowerCase() !== 'none' && targetSelection.targetEntryId.toLocaleUpperCase() !== 'NONE') targetEntryId = targetSelection.targetEntryId;
       }
 
@@ -1559,7 +1663,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
         canPickMany: false,
         ignoreFocusOut: true
       });
-      if (!primarySelection) return '';
+      if (!primarySelection) return null;
       const primary = primarySelection.candidate || null;
       const operatorParty = await resolveOperatorParty(this.extensionPath);
       const selectedParticipants: Array<{ label: string; reference: string; workspaceId: string; path: string }> = [];
@@ -1600,6 +1704,8 @@ export class TiinexOperatorTrees implements vscode.Disposable {
 
       const primaryInput = primary ? { label: primary.label, reference: primary.reference, workspaceId: primary.workspaceId, path: primary.path } : null;
       const participantInputs = selectedParticipants.map((participant) => ({ label: participant.label, reference: participant.reference, workspaceId: participant.workspaceId, path: participant.path }));
+      let qualifiedPrimaryInput = primaryInput;
+      let qualifiedParticipantInputs = participantInputs;
       let rendered = await projectWorkspaceCarrierEntry(runtime, item.packagePath, modeSelection.mode, customInstruction, primaryInput, participantInputs, routeId, targetEntryId);
       if (rendered.status !== 'ready' && ['session-role-material-unresolved', 'participant-role-material-unresolved'].includes(String(rendered.reasonCode || ''))) {
         const selected = [
@@ -1618,9 +1724,17 @@ export class TiinexOperatorTrees implements vscode.Disposable {
         const pinnedPrimary = primary ? { ...primaryInput!, reference: pinnedByIdentity.get(roleCandidateKey(primary)) || primary.reference } : null;
         const pinnedParticipants = selectedParticipants.map((participant) => ({ ...participant, reference: pinnedByIdentity.get(roleCandidateKey(participant)) || participant.reference }));
         rendered = await projectWorkspaceCarrierEntry(runtime, item.packagePath, modeSelection.mode, customInstruction, pinnedPrimary, pinnedParticipants, routeId, targetEntryId);
+        qualifiedPrimaryInput = pinnedPrimary;
+        qualifiedParticipantInputs = pinnedParticipants;
       }
       if (rendered.status !== 'ready' || !rendered.transportText) throw new Error(`tiinex.transport.guided-entry-render-${rendered.reasonCode || rendered.status || 'blocked'}`);
-      return String(rendered.transportText);
+      const receipt = await projectTransportCompletion(runtime, item.packagePath, {
+        route: routeId, entryId: modeSelection.mode, targetEntryId, customInstruction,
+        primaryRole: qualifiedPrimaryInput,
+        participants: qualifiedParticipantInputs
+      });
+      if (receipt.status !== 'ready' || !receipt.clipboardText) throw new Error(`tiinex.transport.guided-entry-receipt-${receipt.reasonCode || receipt.status || 'blocked'}`);
+      return receipt;
     } finally { await runtime.dispose(); }
   }
 
@@ -1851,7 +1965,24 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       this.discoveryProvider.refresh();
       const latest = this.discovered[0];
       const latestIdentity = discoveryIdentity(latest);
-      if (autoOpenLatest && latest && latestIdentity !== before && latestIdentity !== this.discoveryStartupLatestIdentity && this.config().get<boolean>('discovery.latestToIncoming', false)) await this.setIncoming(latest.path);
+      const blocked = latest && this.incomingPending.get(path.resolve(latest.path));
+      const blockedBytesChanged = blockedCarrierHasNewSource(blocked, latest);
+      if (autoOpenLatest && latest && latestIdentity !== this.discoveryStartupLatestIdentity &&
+          this.config().get<boolean>('discovery.latestToIncoming', false) &&
+          (latestIdentity !== before || blockedBytesChanged)) {
+        // A watcher can see an incomplete carrier; its first qualification may
+        // fail while a copy is still growing. Retry only when newly observed
+        // source identity differs from the *blocked* bytes, and requalify those
+        // bytes through Core. Never treat the old blocked result as trusted.
+        const stable = await waitForStableFile(latest.path, { stableSamples: 3, intervalMs: 350, maxSamples: 60 });
+        if (stable) {
+          if (blockedBytesChanged && this.incomingPending.get(path.resolve(latest.path)) === blocked) {
+            this.incomingPending.delete(path.resolve(latest.path));
+            this.carrierCache.delete(path.resolve(latest.path));
+          }
+          await this.setIncoming(latest.path);
+        } else console.info(`Tiinex Auto Incoming deferred: carrier not stable yet (${latest.filename})`);
+      }
       await this.updateUiContexts();
     } catch (error) {
       this.discovered = [];
@@ -1923,8 +2054,11 @@ export class TiinexOperatorTrees implements vscode.Disposable {
   }
 
   private async qualifyIncoming(packagePath: string, appliedWorkspaceIds = new Set<string>()): Promise<IncomingState> {
+    const started = Date.now();
     const index = await this.carrier(packagePath);
+    console.info(`Tiinex Incoming index: ${Date.now() - started} ms for ${index.filename}`);
     const prepared = await preparePackageRuntimeWithRecovery(packagePath, this.extensionPath, nodeExecutable());
+    console.info(`Tiinex Incoming Core orientation: ${Date.now() - started} ms cumulative for ${index.filename}`);
     try {
       const orientation = prepared.orientation;
       const ready = String(orientation.status || '').toLowerCase() === 'ready' || orientation.ready === true;
@@ -1941,6 +2075,14 @@ export class TiinexOperatorTrees implements vscode.Disposable {
   private async guardIncomingSource(state: IncomingState): Promise<boolean> {
     const source = await incomingSourceStatus(state.index);
     if (source === 'current') return true;
+    // Keep the fail-closed source guard, but make sporadic refresh requests
+    // diagnosable: an unchanged filename is not unchanged carrier bytes.
+    let observed = 'unavailable';
+    try {
+      const info = await stat(state.index.packagePath);
+      observed = `bytes=${info.size} mtimeMs=${info.mtimeMs}`;
+    } catch { /* source may have been removed */ }
+    console.warn(`Tiinex Incoming source drift at action: ${source}; qualified bytes=${state.index.bytes} mtimeMs=${state.index.mtimeMs}; observed ${observed}`);
     const resolved = path.resolve(state.index.packagePath);
     const message = incomingSourceUnavailableMessage(source);
     this.incoming = this.incoming.filter((item) => path.resolve(item.index.packagePath) !== resolved);
@@ -1989,12 +2131,22 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     await this.updateUiContexts();
 
     try {
+      // Recipient identity is a separate, Core-qualified local Workspace input.
+      // Start it concurrently with package orientation so the first Handoff
+      // preview does not pay both cold waits sequentially. Promise rejection is
+      // captured immediately, including when the package is closed/blocked.
+      const lookup = this.config().get<'no' | 'ask' | 'yes'>('incoming.autoShowPartyHandoff', 'ask') === 'no' ? undefined
+        : resolveOperatorParty(this.extensionPath, undefined, () => this.localWorkspaceChoices()).then(
+          (operator) => ({ ok: true as const, operator }),
+          (error: unknown) => ({ ok: false as const, error })
+        );
       let state!: IncomingState;
+      const started = Date.now();
       await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'Tiinex qualifying Incoming Handoff package', cancellable: false }, async () => {
         const existing = this.incomingState(packagePath);
         state = await this.qualifyIncoming(packagePath, existing?.appliedWorkspaceIds || new Set());
-        await this.refreshIncomingReviewReadiness(state);
       });
+      console.info(`Tiinex Incoming carrier qualification: ${Date.now() - started} ms for ${metadata.filename}`);
       // Close may have been invoked while qualification was running. In that case
       // the dry loading root has already been cancelled and must not reappear.
       if (!this.incomingPending.has(resolved)) return;
@@ -2005,11 +2157,45 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       this.incomingProvider.refresh();
       this.discoveryProvider.refresh();
       await this.updateUiContexts();
-      try { await this.autoShowIncomingPartyHandoff(state); }
-      catch (previewError) {
-        // A failed optional Markdown preview is not an Incoming qualification
-        // failure; keep the one qualified carrier and avoid a duplicate Blocked row.
-        await vscode.window.showWarningMessage(`Tiinex Incoming is ready, but its Handoff preview could not open: ${shortMessage(previewError)}`);
+      // A recipient can read the qualified Handoff without first comparing all
+      // local Workspaces. Review readiness remains false until the separately
+      // scheduled Core comparison settles (Accept/Reject rechecks it exactly).
+      try {
+        await this.autoShowIncomingPartyHandoff(state, lookup);
+        this.incomingPreviewRetryPaths.delete(resolved);
+      } catch (previewError) {
+        // The carrier can finish arriving after orientation but before the
+        // virtual Markdown provider reads it. Never preview stale bytes:
+        // reindex and reorient new bytes, then retry that *qualified* state once.
+        if (String(shortMessage(previewError)).includes('tiinex.material.source-changed') && this.incomingState(resolved) === state) {
+          try {
+            const stable = await waitForStableFile(resolved, { stableSamples: 3, intervalMs: 350, maxSamples: 60 });
+            if (stable && this.incomingState(resolved) === state) {
+              this.carrierCache.delete(resolved);
+              const fresh = await this.qualifyIncoming(resolved, state.appliedWorkspaceIds);
+              if (await incomingSourceStatus(fresh.index) !== 'current') throw new Error('tiinex.material.source-changed');
+              state = fresh;
+              this.incoming = [fresh, ...this.incoming.filter((item) => path.resolve(item.index.packagePath) !== resolved)];
+              this.sortIncomingByDiscoveryOrder();
+              await this.persistIncomingQueue();
+              this.incomingProvider.refresh();
+              await this.autoShowIncomingPartyHandoff(state, lookup);
+              this.incomingPreviewRetryPaths.delete(resolved);
+              previewError = undefined;
+            }
+          } catch (retryError) { previewError = retryError; }
+        }
+        if (previewError && this.incomingState(resolved) === state) {
+          this.incomingPreviewRetryPaths.add(resolved);
+          // A changed source invalidates the previously qualified bytes. The
+          // carrier must remain Blocked until new bytes are qualified; never
+          // leave a stale Ready card after a failed recovery.
+          const source = await incomingSourceStatus(state.index);
+          if (source !== 'current' && this.incomingState(resolved) === state) await this.guardIncomingSource(state);
+          else void vscode.window.showWarningMessage(`Tiinex Incoming is ready, but its Handoff preview could not open: ${shortMessage(previewError)}`);
+        }
+      } finally {
+        if (this.incomingState(resolved) === state) this.queueIncomingReviewReadiness(state);
       }
     } catch (error) {
       // Never replace an already promoted, qualified Incoming state with a
@@ -2085,6 +2271,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
   }
 
   private async clearIncoming(): Promise<void> {
+    this.incomingRestoreEpoch += 1;
     this.incoming = [];
     this.incomingPending.clear();
     await this.persistIncomingQueue();
@@ -2098,6 +2285,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     const resolved = path.resolve(packagePath);
     this.incoming = this.incoming.filter((item) => path.resolve(item.index.packagePath) !== resolved);
     this.incomingPending.delete(resolved);
+    this.incomingPreviewRetryPaths.delete(resolved);
     await this.persistIncomingQueue();
     this.incomingProvider.refresh();
     this.discoveryProvider.refresh();
@@ -2105,6 +2293,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
   }
 
   private async refreshIncoming(): Promise<void> {
+    this.incomingRestoreEpoch += 1;
     this.deltaCache.clear();
     const known = new Map<string, { packagePath: string; appliedWorkspaceIds: Set<string>; decision: IncomingReviewDecision; performed: boolean }>();
     for (const state of this.incoming) known.set(path.resolve(state.index.packagePath), {
@@ -2126,7 +2315,9 @@ export class TiinexOperatorTrees implements vscode.Disposable {
           const next = await this.qualifyIncoming(record.packagePath, record.appliedWorkspaceIds);
           next.reviewDecision = record.decision;
           next.reviewPerformed = record.performed;
-          await this.refreshIncomingReviewReadiness(next);
+          // Qualification is the publication gate. Local review comparison is
+          // independent and must not delay all following Incoming packages.
+          next.reviewReady = false;
           refreshed.push(next);
         } catch (error) {
           const presentation = presentOperatorError(error);
@@ -2148,9 +2339,43 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     this.incomingProvider.refresh();
     this.discoveryProvider.refresh();
     await this.updateUiContexts();
+    // Reuse the existing serial background scheduler; stale card identities are
+    // automatically skipped if Close or another Refresh supersedes them.
+    for (const state of this.incoming) this.queueIncomingReviewReadiness(state);
+    // A successful Refresh must also restore the preview that previously
+    // failed; showing the tree alone is not a complete recovery.
+    for (const state of this.incoming) {
+      const key = path.resolve(state.index.packagePath);
+      if (!this.incomingPreviewRetryPaths.has(key)) continue;
+      try {
+        if (await incomingSourceStatus(state.index) !== 'current') continue;
+        await this.autoShowIncomingPartyHandoff(state);
+        this.incomingPreviewRetryPaths.delete(key);
+      } catch (error) {
+        console.warn(`Tiinex Incoming refreshed Handoff preview still blocked: ${shortMessage(error)}`);
+      }
+    }
   }
 
-  private async refreshIncomingReviewReadiness(state: IncomingState): Promise<void> {
+  private queueIncomingReviewReadiness(state: IncomingState): void {
+    const packagePath = path.resolve(state.index.packagePath);
+    const generation = (this.incomingReviewGeneration.get(packagePath) || 0) + 1;
+    this.incomingReviewGeneration.set(packagePath, generation);
+    const current = () => this.incomingState(packagePath) === state && this.incomingReviewGeneration.get(packagePath) === generation;
+    this.incomingReviewScheduler.enqueue(
+      current,
+      async () => {
+        const started = Date.now();
+        await this.refreshIncomingReviewReadiness(state, current);
+        console.info(`Tiinex Incoming local review comparison: ${Date.now() - started} ms for ${state.index.filename}`);
+      },
+      () => this.incomingProvider.refresh(),
+      (error) => console.warn('Tiinex Incoming local review comparison blocked:', shortMessage(error))
+    );
+  }
+
+  private async refreshIncomingReviewReadiness(state: IncomingState, current: () => boolean = () => true): Promise<void> {
+    if (!current()) return;
     this.deltaCache.clear();
     state.reviewReady = false;
     state.reviewComparisonDetail = undefined;
@@ -2158,6 +2383,9 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       const sourceState = await incomingSourceStatus(state.index);
       if (sourceState !== 'current') throw new Error(`tiinex.incoming.source-${sourceState}: ${incomingSourceUnavailableMessage(sourceState)}`);
       const delta = await this.packageDeltaView(state.index);
+      // A previous comparison may finish after a new Replace/Refresh started.
+      // Its result must never grant readiness to that newer local state.
+      if (!current()) return;
       state.reviewReady = incomingReviewReady(
         state.reviewPerformed,
         state.index.workspaces.map((workspace) => ({
@@ -2166,9 +2394,8 @@ export class TiinexOperatorTrees implements vscode.Disposable {
         }))
       );
     } catch (error) {
-      // Local comparison is a separate, strictly optional readiness gate.
-      // A failing open Workspace must never revoke the carrier's qualified
-      // orientation, nor appear as a forged exact match for Accept/Reject.
+      // A failure is not an exact match, even when Core reports unavailable.
+      if (!current()) return;
       state.reviewComparisonDetail = shortMessage(error);
       state.reviewReady = false;
     }
@@ -2410,11 +2637,29 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       state.reviewDecision = '';
       state.reviewPerformed = true;
       this.deltaCache.clear();
-      // Replace/Merge mutates local Workspace bytes. Re-run the same complete
-      // Incoming qualification path as the explicit Refresh action so the tree,
-      // exact-byte deltas, review readiness and Discovery projection update
-      // immediately without requiring a second operator click.
-      await this.refreshIncoming();
+      for (const item of this.incoming) {
+        const key = path.resolve(item.index.packagePath);
+        this.incomingReviewGeneration.set(key, (this.incomingReviewGeneration.get(key) || 0) + 1);
+        item.reviewReady = false;
+      }
+      // Replace/Merge changes local roots, not the carried archive. Preserve
+      // the Core-qualified carrier orientation only while its exact source
+      // identity remains current. Recalculate local review independently.
+      const stale = await Promise.all(this.incoming.map((item) => incomingSourceStatus(item.index)));
+      if (stale.some((value) => value !== 'current')) {
+        await this.refreshIncoming(); // altered bytes must be requalified
+      } else {
+        this.incomingRestoreEpoch += 1;
+        for (const item of this.incoming) {
+          item.reviewReady = false;
+          item.reviewComparisonDetail = undefined;
+        }
+        this.deltaCache.clear();
+        this.incomingProvider.refresh();
+        this.discoveryProvider.refresh();
+        await this.updateUiContexts();
+        for (const item of this.incoming) this.queueIncomingReviewReadiness(item);
+      }
       this.outgoingProvider.refresh();
     } catch (error) {
       recordExtensionHostAcceptanceEvent('incoming-apply-blocked', { strategy: forcedStrategy || '', message: shortMessage(error) });
@@ -2447,50 +2692,58 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
 
   private async mergeReplaceIncoming(node?: OperatorNode, forcedStrategy?: IncomingApplyStrategy): Promise<void> {
     const state = this.incomingState(node?.data.packagePath || '');
-    if (!state || !(await this.guardIncomingSource(state))) return;
+    if (!state) return;
+    const selectionKey = path.resolve(state.index.packagePath);
+    if (this.incomingWorkspacePickBusy.has(selectionKey)) return;
+    this.incomingWorkspacePickBusy.add(selectionKey);
+    try {
+    if (!(await this.guardIncomingSource(state))) return;
     let workspaceIds: string[];
     if (node?.data.workspaceId) workspaceIds = [node.data.workspaceId];
     else {
       // Preselection is presentation only: Core's shared source comparison owns
       // whether an Incoming Workspace is an exact byte match. The VS Code host
       // merely reflects that qualification in the multi-select UX.
-      const delta = await this.packageDeltaView(state.index);
-      const defaults = new Set(state.index.workspaces
-        .filter((workspace) => !state.appliedWorkspaceIds.has(workspace.workspaceId))
-        .filter((workspace) => delta.workspaces.get(workspace.workspaceId)?.state !== 'exact')
-        .map((workspace) => workspace.workspaceId));
       const choices = state.index.workspaces
         .filter((workspace) => !state.appliedWorkspaceIds.has(workspace.workspaceId))
         .map((workspace) => ({
           label: workspace.label || workspace.workspaceId,
           description: workspace.workspaceId,
           detail: `${workspace.repository || '(repository not declared)'}${workspace.ref ? ` @ ${workspace.ref}` : ' · Ref unasserted'}`,
-          workspaceId: workspace.workspaceId,
-          picked: defaults.has(workspace.workspaceId)
+          workspaceId: workspace.workspaceId
         }));
       if (!choices.length) {
         await vscode.window.showInformationMessage('Every Workspace in this Incoming package is already applied in this session.');
         return;
       }
-      const selected = await vscode.window.showQuickPick(choices, {
-        title: forcedStrategy === 'merge' ? 'Review Merge Plan' : forcedStrategy === 'replace' ? 'Review Replace Plan' : 'Review Incoming Merge / Replace Plan',
-        placeHolder: defaults.size ? 'Workspaces not already qualified-identical are preselected' : 'Select one or more Workspaces, or Esc to cancel',
-        canPickMany: true,
-        ignoreFocusOut: true
-      });
-      if (selected === undefined) return;
-      workspaceIds = selected.map((item: typeof choices[number]) => item.workspaceId);
+      const selected = await pickIncomingWorkspaces(choices, async () => {
+        const delta = await this.packageDeltaView(state.index);
+        return new Set([...delta.workspaces].filter(([, item]) => item.state === 'exact').map(([id]) => id));
+      }, forcedStrategy === 'merge' ? 'Review Merge Plan' : forcedStrategy === 'replace' ? 'Review Replace Plan' : 'Review Incoming Merge / Replace Plan');
+      if (!selected) return;
+      workspaceIds = selected;
       if (!workspaceIds.length) return;
     }
     const session = await this.prepareIncomingRepositorySession(state, workspaceIds, forcedStrategy);
     if (session !== 'ready') return;
     await this.runIncomingApply(state, workspaceIds, forcedStrategy);
+    } finally { this.incomingWorkspacePickBusy.delete(selectionKey); }
   }
 
-  private async autoShowIncomingPartyHandoff(state: IncomingState): Promise<void> {
+  private async autoShowIncomingPartyHandoff(
+    state: IncomingState,
+    lookup?: Promise<{ ok: true; operator: ResolvedOperatorParty } | { ok: false; error: unknown }>
+  ): Promise<void> {
     const policy = this.config().get<'no' | 'ask' | 'yes'>('incoming.autoShowPartyHandoff', 'ask');
     if (policy === 'no') return;
-    const operator = await resolveOperatorParty(this.extensionPath);
+    const started = Date.now();
+    // Resolve against the same prefetched, Core-qualified local Workspace
+    // choices already used by authoring; explicit Send to Incoming starts the
+    // lookup alongside carrier orientation instead of after it.
+    const candidate = lookup ? await lookup : { ok: true as const, operator: await resolveOperatorParty(this.extensionPath, undefined, () => this.localWorkspaceChoices()) };
+    if (!candidate.ok) throw candidate.error;
+    const operator = candidate.operator;
+    console.info(`Tiinex Incoming role-matched preview: Operator Party resolved in ${Date.now() - started} ms`);
     if (!['resolved', 'unknown'].includes(operator.state) || !operator.displayName) return;
     const recipientLabels = new Set(operator.recipientLabels.map((value) => String(value || '').trim().toLocaleLowerCase()).filter(Boolean));
     if (!recipientLabels.size) return;
@@ -2506,11 +2759,13 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       );
       if (accepted !== 'Open Handoff') return;
     }
+    const presentationStarted = Date.now();
     await vscode.commands.executeCommand('tiinex.incoming.focus');
     for (const route of matches) {
       await this.openRouteHandoff(state, route);
       await this.revealIncomingRoute(state, route);
     }
+    console.info(`Tiinex Incoming role-matched preview: ${matches.length} qualified Handoff routes opened/revealed in ${Date.now() - presentationStarted} ms`);
   }
 
   private async openRouteHandoff(state: IncomingState, route: QualifiedRouteReceipt): Promise<boolean> {
@@ -3056,7 +3311,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     try {
       locals = await vscode.window.withProgress(
         { location: vscode.ProgressLocation.Notification, title: 'Tiinex qualifying local Workspace choices', cancellable: false },
-        () => loadLocalWorkspaceChoices(this.extensionPath)
+        () => loadQualifiedLocalWorkspaceChoices(this.extensionPath)
       );
     } catch (error) {
       await vscode.window.showErrorMessage(`Tiinex Workspace selection blocked: ${shortMessage(error)}`);
@@ -3959,14 +4214,22 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     submission: ArtifactAuthoringSubmission,
     parentArtifact: ArtifactDraftParent | null,
     targetDirectory: string,
-    attachAvailable: boolean
+    attachAvailable: boolean,
+    deferred?: { draft: PreparedArtifactDraft; plan: any }
   ): Promise<{ draft: PreparedArtifactDraft; writtenPath: string; attachedToOutgoing: boolean; followUpError: string }> {
     const root = await this.ensureOutgoingAuthoringRoot(workspace);
-    const draft = await vscode.window.withProgress(
+    const draft = deferred?.draft || await vscode.window.withProgress(
       { location: vscode.ProgressLocation.Notification, title: `Tiinex creating ${schemaId}`, cancellable: false },
       () => this.prepareAuthoringSubmission(workspace, schemaId, submission, parentArtifact, targetDirectory)
     );
-    const writtenPath = await writePreparedArtifactDraft(this.extensionPath, draft);
+    const writtenPath = deferred
+      ? (await applyDeferredArtifactAndAssets(this.extensionPath, { workspaceId: workspace.workspaceId, root }, deferred.plan)
+          ? path.resolve(root, draft.path)
+          : (() => { throw new Error('tiinex.authoring.deferred-attachment-user-cancelled'); })())
+      : await writePreparedArtifactDraft(this.extensionPath, draft);
+    // A successful write changes the Parent candidate set even if no VS Code
+    // filesystem event fires. Preserve cached schema models, not stale Parents.
+    invalidateArtifactAuthoringCatalog(this.extensionPath, root);
     this.localLeafContextCache.delete(workspace.workspaceId);
     let followUpError = '';
     let attachedToOutgoing = false;
@@ -4074,7 +4337,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     workspace: OutgoingWorkspace,
     schemaId: string,
     parentArtifact: ArtifactDraftParent | null,
-    options: { attachAvailable: boolean; attachDefault: boolean; targetDirectory?: string }
+    options: { attachAvailable: boolean; attachDefault: boolean; targetDirectory?: string; seedValues?: Record<string, unknown>; sourceContextLabel?: string }
   ): Promise<void> {
     try {
       const root = await this.ensureOutgoingAuthoringRoot(workspace);
@@ -4120,6 +4383,9 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
         workspaces: [{ workspaceId: workspace.workspaceId, label: workspace.label || workspace.workspaceId, description: workspace.source === 'local' ? 'LOCAL' : `INCOMING · ${workspace.sourceLabel}` }],
         selectedWorkspaceId: workspace.workspaceId,
         fieldAssists: [],
+        initialValues: options.seedValues || {},
+        sourceContextLabel: options.sourceContextLabel || '',
+        enableSaveAsTransition: schemaId !== 'tiinex.transition.definition.v1' && schemaId !== 'tiinex.schema.transition.companion.v1',
         templates: initialPresentation.templates,
         selectedTemplateId: initialPresentation.selectedTemplateId,
         templateLabel: initialPresentation.templateLabel,
@@ -4160,20 +4426,50 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
           const destination = options.targetDirectory || (parentArtifact?.path ? path.posix.dirname(parentArtifact.path) : '.topics');
           return localArtifactReference(root, destination, file);
         },
+        saveTransition: async (submission) => {
+          // A partial source artifact is NOT created. The separately qualified
+          // Transition Definition has independent identity and validation.
+          const transitionModel = await loadArtifactAuthoringModel(this.extensionPath, 'tiinex.transition.definition.v1', 'create-artifact');
+          if (transitionModel.status !== 'ready') throw new Error('tiinex.authoring.transition-creation-not-qualified');
+          const allowed = new Set(transitionModel.sections.filter((section) => section.kind === 'fields').flatMap((section) => section.fields.map((field) => field.key)));
+          const seed = Object.fromEntries(Object.entries(submission.values || {}).filter(([key, value]) => allowed.has(key) && typeof value === 'string'));
+          const base = String(options.targetDirectory || (parentArtifact?.path ? path.posix.dirname(parentArtifact.path) : '.topics'));
+          const destination = path.posix.join(base, base.endsWith('/.transitions') ? '' : '.transitions');
+          if (destination !== '.topics/.transitions' && !destination.startsWith('.topics/')) throw new Error('tiinex.authoring.transition-target-outside-topics');
+          await this.showArtifactAuthoring(workspace, 'tiinex.transition.definition.v1', null, {
+            attachAvailable: false, attachDefault: false, targetDirectory: destination,
+            seedValues: seed, sourceContextLabel: submission.title || schemaId
+          });
+        },
         preview: async (submission) => {
-          const draft = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `Tiinex preparing ${model.label} preview`, cancellable: false }, () => this.prepareAuthoringSubmission(workspace, schemaId, submission, parentArtifact, options.targetDirectory || ''));
+          const pending = this.authoringPanels.get(panel)?.pendingAttachments || [];
+          const prepare = (value: ArtifactAuthoringSubmission) => this.prepareAuthoringSubmission(workspace, schemaId, value, parentArtifact, options.targetDirectory || '');
+          const deferred = await prepareDeferredFormTransaction(this.extensionPath, { workspaceId: workspace.workspaceId, root }, submission, pending, prepare);
+          const draft = deferred?.draft || await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `Tiinex preparing ${model.label} preview`, cancellable: false }, () => prepare(submission));
           await this.openVirtualMarkdown(`authoring/${workspace.workspaceId}/${draft.path}`, draft.markdown);
         },
         create: async (submission) => {
           const selectedWorkspace = this.outgoing?.workspaces.find((item) => item.workspaceId === workspace.workspaceId && item.root && sameRepositoryRoot(item.root, workspace.root));
           const liveWorkspace = selectedWorkspace || workspace;
           const liveAttachAvailable = this.authoringHostState(liveWorkspace, schemaId).attachAvailable;
-          const created = await this.createAuthoredArtifact(liveWorkspace, schemaId, submission, parentArtifact, options.targetDirectory || '', liveAttachAvailable);
+          const pending = this.authoringPanels.get(panel)?.pendingAttachments || [];
+          const prepare = (value: ArtifactAuthoringSubmission) => this.prepareAuthoringSubmission(liveWorkspace, schemaId, value, parentArtifact, options.targetDirectory || '');
+          const deferred = await prepareDeferredFormTransaction(this.extensionPath, { workspaceId: liveWorkspace.workspaceId, root: await this.ensureOutgoingAuthoringRoot(liveWorkspace) }, submission, pending, prepare);
+          const created = await this.createAuthoredArtifact(liveWorkspace, schemaId, submission, parentArtifact, options.targetDirectory || '', liveAttachAvailable, deferred || undefined);
+          if (deferred) {
+            const existing = this.authoringPanels.get(panel);
+            if (existing?.pendingAttachments) existing.pendingAttachments.length = 0;
+            // Non-closing forms must reflect committed references rather than
+            // retaining links to no-longer-present source files.
+            await panel.webview.postMessage({ type: 'authoring-deferred-committed', replacements: deferred.replacements, message: 'Artifact and attached files committed together.' });
+          }
           void vscode.window.showInformationMessage(`Created ${created.draft.path}`);
           if (created.followUpError) void vscode.window.showWarningMessage(`Artifact was created, but post-create UI/Outgoing follow-up was incomplete: ${created.followUpError}`);
         }
       });
-      this.authoringPanels.set(panel, { workspaceId: workspace.workspaceId, root: workspace.root, schemaId, post });
+      this.authoringPanels.set(panel, { workspaceId: workspace.workspaceId, root, schemaId, model,
+        targetDirectory: options.targetDirectory || (parentArtifact?.path ? path.posix.dirname(parentArtifact.path) : '.topics'),
+        isLocal: workspace.source === 'local', pendingAttachments: [], post });
       panel.onDidDispose?.(() => this.authoringPanels.delete(panel));
 
       // Independent hydration lanes: Party/Identity discovery cannot delay presets,
@@ -4634,7 +4930,7 @@ The Handoff can remain schema-valid, but Core can materialize semantic endpoint 
           }
         );
         this.closeOutgoing();
-        await announceBuiltCarrier(built.outputPath, 'Workspace carrier');
+        await this.showPreparedTransportTab(built.outputPath, 'unknown');
         if (transportWarning) await vscode.window.showWarningMessage(`Tiinex carrier was packed successfully, but Transport qualification needs attention: ${transportWarning}`);
       } catch (error) {
         await vscode.window.showErrorMessage(`Tiinex Outgoing package blocked: ${shortMessage(error)}`, 'Open Workspace', 'Show Details').then(async (choice: string | undefined) => {
@@ -4698,11 +4994,7 @@ The Handoff can remain schema-valid, but Core can materialize semantic endpoint 
         }
       );
       this.closeOutgoing();
-      await announceBuiltCarrier(
-        built.outputPath,
-        'Handoff carrier',
-        built.autoCopiedTransportText ? 'Exact Handoff transport text was copied to the clipboard.' : 'Use the copy action beside an attached Handoff route to copy its exact transport text.'
-      );
+      await this.showPreparedTransportTab(built.outputPath, built.autoCopiedTransportText ? 'copied' : 'not-copied');
       if (transportWarning) await vscode.window.showWarningMessage(`Tiinex carrier was packed successfully, but Transport qualification needs attention: ${transportWarning}`);
     } catch (error) {
       recordExtensionHostAcceptanceEvent('pack-blocked', { message: shortMessage(error) });
@@ -4732,7 +5024,7 @@ The Handoff can remain schema-valid, but Core can materialize semantic endpoint 
   }
 
   private async pickOperatorParty(): Promise<void> {
-    const selected = await pickOperatorParty(this.extensionPath);
+    const selected = await pickOperatorParty(this.extensionPath, () => this.localWorkspaceChoices());
     if (!selected) return;
     const label = selected.state === 'none' ? 'None' : selected.state === 'unresolved' ? 'Unresolved' : `${selected.displayName} · ${selected.kind}`;
     await vscode.window.showInformationMessage(`Tiinex Operator Party: ${label}`);

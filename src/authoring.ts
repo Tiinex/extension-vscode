@@ -3,7 +3,7 @@ import os from 'node:os';
 import { access, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import * as vscode from 'vscode';
 import { preferredNodeExecutable } from './host/nodeExecutable';
-import { ArtifactMaterializationParentCandidate, ArtifactMaterializationSchemaCandidate, createArtifactDraft, inspectArtifactCreationContract, prepareBundledRuntime, projectArtifactMaterialization, projectArtifactSchemaGuide, projectAuthoringParent, projectHandoffLeaves } from './tiinex/bootstrap';
+import { ArtifactMaterializationParentCandidate, ArtifactMaterializationSchemaCandidate, createArtifactDraft, inspectArtifactCreationContract, prepareBundledRuntime, projectArtifactMaterialization, projectArtifactSchemaGuide, projectArtifactFieldHelp, projectAuthoringParent, projectHandoffLeaves } from './tiinex/bootstrap';
 import { ArtifactAuthoringModel, projectArtifactAuthoringModel } from './core/artifactAuthoringModel';
 import { requireArtifactCreationReady } from './core/artifactAuthoringQualification';
 import { presentSharedFindings } from './core/findingPresentation';
@@ -56,6 +56,12 @@ export function clearArtifactAuthoringCaches(): void {
   authoringCatalogCache.clear();
 }
 
+/** A newly written artifact changes the Core-projected Parent candidates, not
+ * the schema's static creation contract. Invalidate only this exact root. */
+export function invalidateArtifactAuthoringCatalog(extensionPath: string, root: string): void {
+  authoringCatalogCache.delete(authoringCatalogCacheKey(extensionPath, root));
+}
+
 function authoringModelCacheKey(extensionPath: string, schemaId: string, transitionType: string): string {
   return `${path.resolve(extensionPath)}\u0000${String(schemaId || '').trim()}\u0000${String(transitionType || '').trim()}`;
 }
@@ -71,11 +77,14 @@ export async function loadArtifactAuthoringModel(extensionPath: string, schemaId
   const value = (async () => {
     const runtime = await prepareBundledRuntime(extensionPath, nodeExecutable());
     try {
-      const [contract, guide] = await Promise.all([
+      const [contract, guide, fieldHelp] = await Promise.all([
         inspectArtifactCreationContract(runtime, schemaId, transitionType),
-        projectArtifactSchemaGuide(runtime, schemaId, transitionType === 'continue-from-record' ? 'continue' : 'create')
+        projectArtifactSchemaGuide(runtime, schemaId, transitionType === 'continue-from-record' ? 'continue' : 'create'),
+        // Help is presentation-only. A missing capability must not disable
+        // otherwise-qualified artifact creation on an older Core runtime.
+        projectArtifactFieldHelp(runtime, schemaId).catch(() => null)
       ]);
-      const model = projectArtifactAuthoringModel(contract, guide);
+      const model = projectArtifactAuthoringModel(contract, guide, fieldHelp);
       if (model.status !== 'ready') throw new Error(`tiinex.authoring.contract-blocked:${model.status}`);
       return model;
     } finally { await runtime.dispose(); }

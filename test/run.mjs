@@ -16,6 +16,7 @@ import { detectOutgoingSourcePreset, operatorMatchedWorkspaceIds, OUTGOING_SOURC
 import { comparePackageRecency, rootOutgoingLabel, rootOutgoingPrefix } from '../dist/core/outgoingUx.js';
 import { projectArtifactAuthoringModel } from '../dist/core/artifactAuthoringModel.js';
 import { localArtifactReference } from '../dist/core/artifactReferencePicker.js';
+import { qualifiedFileAttachmentFields } from '../dist/core/formAttachmentFields.js';
 import { artifactAuthoringCandidateCapability, PARTY_REFERENCE_CANDIDATE_SOURCE, partyReferenceAuthoringFillValue, partyReferenceCandidateSatisfiesAffordance } from '../dist/core/artifactAuthoringCandidateSource.js';
 import { dedupeTransitionPresetCandidates, qualifiedTransitionPresetCandidates } from '../dist/core/artifactAuthoringPresets.js';
 import { incomingReviewPresentation, incomingReviewReady } from '../dist/core/incomingReview.js';
@@ -30,6 +31,10 @@ import { planWorkspaceSession, validateWorkspaceTargetMapping } from '../dist/co
 import { representativeWorkspaceChoicesForRoot } from '../dist/core/workspaceChoice.js';
 import { qualifiedIncomingRootChoices, exactIncomingWorkspaceMap } from '../dist/core/incomingWorkspaceMapping.js';
 import { scopedOperatorPartySources } from '../dist/core/operatorPartySourceScope.js';
+import { orderedBoundedMap } from '../dist/core/orderedBoundedMap.js';
+import { incomingRestorationEntries } from '../dist/vscode/incomingRestoreEntries.js';
+import { IncomingReviewScheduler } from '../dist/vscode/incomingReviewScheduler.js';
+import { blockedCarrierHasNewSource } from '../dist/core/incomingAutoRetry.js';
 import { participantProjectionFromManufactureReceipt } from '../dist/core/participantProjection.js';
 import { assertStableQualifiedCarrierAllocation, qualifiedCarrierAllocationFromManufactureReceipt } from '../dist/core/carrierAllocation.js';
 import { applyExactHandoffEndpointSelection, applyHandoffEndpointAuthoringSelection, endpointCandidatesForAuthoringSource, endpointCandidatesForExplicitSource, exactHandoffEndpointMarkdownLink, mergeExactHandoffEndpointChoices, mergeHandoffEndpointAuthoringChoices } from '../dist/core/handoffEndpointSelection.js';
@@ -54,6 +59,162 @@ async function test(name, fn) {
 async function rejectsCode(fn, code) {
   await assert.rejects(fn, (error) => String(error?.message || error).includes(code));
 }
+
+await test('Newly created Parent refreshes its own Core catalog and exact selection stays fail-closed', async () => {
+  const fs = await import('node:fs/promises');
+  const tree = await fs.readFile(path.resolve(HERE, '../src/operatorTrees.ts'), 'utf8');
+  const authoring = await fs.readFile(path.resolve(HERE, '../src/authoring.ts'), 'utf8');
+  const selected = tree.slice(tree.indexOf('private async parentArtifactForResource('), tree.indexOf('private async targetDirectoryForResource('));
+  const create = tree.slice(tree.indexOf('private async createAuthoredArtifact('), tree.indexOf('private authoringDiscoverySources('));
+  assert.match(authoring, /export function invalidateArtifactAuthoringCatalog\(extensionPath: string, root: string\)/);
+  assert.match(authoring, /authoringCatalogCache\.delete\(authoringCatalogCacheKey\(extensionPath, root\)\)/);
+  assert.match(create, /writePreparedArtifactDraft\(this\.extensionPath, draft\);[\s\S]*?invalidateArtifactAuthoringCatalog\(this\.extensionPath, root\)/);
+  assert.match(selected, /if \(!exact\) \{[\s\S]*?invalidateArtifactAuthoringCatalog\(this\.extensionPath, root\);[\s\S]*?await loadArtifactAuthoringCatalog\(this\.extensionPath, root\)/);
+  assert.ok(selected.indexOf('if (!exact) throw new Error(`tiinex.authoring.selected-parent-unqualified:') > selected.indexOf('const refreshed = await loadArtifactAuthoringCatalog'), 'miss must still fail closed after one qualified retry');
+  assert.match(selected, /const relative = normalizePath\(path\.relative\(root, resource\.fsPath\)\)/);
+  assert.match(selected, /catalog\.parents\.find\(/);
+});
+
+await test('Attach to Form accepts only Core-qualified file fields, preserving section routing and append meaning', async () => {
+  const model = { sections: [
+    { key: 'Evidence Material', label: 'Evidence Material', fields: [
+      { key: 'Material', label: 'Material', affordance: { control: 'workspace-file-reference-picker', append: true } },
+      { key: 'Material Kind', label: 'Material Kind', affordance: { control: 'reference-picker' } }
+    ] },
+    { key: 'Other', label: 'Other', fields: [{ key: 'Reference', label: 'Reference', affordance: { control: 'workspace-file-reference-picker' } }] }
+  ] };
+  assert.deepEqual(qualifiedFileAttachmentFields(model), [
+    { sectionKey: 'Evidence Material', fieldKey: 'Material', label: 'Evidence Material → Material', append: true },
+    { sectionKey: 'Other', fieldKey: 'Reference', label: 'Other → Reference', append: false }
+  ]);
+  assert.deepEqual(qualifiedFileAttachmentFields({ sections: [{ key: 'T', label: 'T', fields: [{ key: 'a', label: 'a' }] }] }), []);
+});
+
+await test('Incoming qualified preview runs before local review comparison; queued reviews serialize and ignore closed packages', async () => {
+  const fs = await import('node:fs/promises');
+  const tree = await fs.readFile(path.resolve(HERE, '../src/operatorTrees.ts'), 'utf8');
+  const incoming = tree.slice(tree.indexOf('private async setIncoming('), tree.indexOf('private async groundIncomingHandoff('));
+  const firstPreview = incoming.indexOf('await this.autoShowIncomingPartyHandoff(state, lookup)');
+  const enqueue = incoming.indexOf('this.queueIncomingReviewReadiness(state)', firstPreview);
+  assert.ok(firstPreview > 0 && enqueue > firstPreview, 'Qualified preview must precede local comparison scheduling');
+  assert.doesNotMatch(incoming.slice(0, firstPreview), /await this.refreshIncomingReviewReadiness\(state\)/);
+  assert.match(incoming, /resolveOperatorParty\(this\.extensionPath, undefined, \(\) => this\.localWorkspaceChoices\(\)\)/);
+  assert.match(incoming, /this\.config\(\)\.get<'no' \| 'ask' \| 'yes'>\('incoming\.autoShowPartyHandoff', 'ask'\) === 'no' \? undefined/);
+
+  const scheduler = new IncomingReviewScheduler();
+  let current = true;
+  const events = [];
+  let releaseFirst;
+  const holdFirst = new Promise((resolve) => { releaseFirst = resolve; });
+  scheduler.enqueue(() => current, async () => { events.push('first-start'); await holdFirst; events.push('first-finished'); }, () => events.push('first-rendered'), () => events.push('first-failed'));
+  scheduler.enqueue(() => true, async () => { events.push('second-start'); }, () => events.push('second-rendered'), () => events.push('second-failed'));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(events, ['first-start'], 'Comparison must be serial, never running 17 Core comparisons concurrently');
+  current = false;
+  releaseFirst();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(events, ['first-start', 'first-finished', 'second-start', 'second-rendered'], 'Closed/old package may not repaint on settlement');
+
+  scheduler.enqueue(() => true, async () => { throw new Error('unavailable'); }, () => events.push('failure-rendered'), () => events.push('failure-reported'));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(events.slice(-2), ['failure-reported', 'failure-rendered']);
+});
+
+await test('Outgoing qualified source selection avoids global operator-context identity and preserves fail-closed mapping', async () => {
+  const fs = await import('node:fs/promises');
+  const tree = await fs.readFile(path.resolve(HERE, '../src/operatorTrees.ts'), 'utf8');
+  const start = tree.indexOf('private async selectOutgoingWorkspaces(');
+  const finish = tree.indexOf('type SourceItem', start);
+  assert.ok(start > 0 && finish > start);
+  const qualification = tree.slice(start, finish);
+  assert.match(qualification, /loadQualifiedLocalWorkspaceChoices\(this\.extensionPath\)/);
+  assert.doesNotMatch(qualification, /loadLocalWorkspaceChoices\(this\.extensionPath\)/);
+  const duplicate = [
+    { workspaceId: 'business', root: '/repos/business' },
+    { workspaceId: 'business', root: '/repos/alternate-business' }
+  ];
+  assert.throws(() => exactIncomingWorkspaceMap(duplicate), /workspace-id-ambiguous:business/);
+});
+
+await test('Incoming startup projects Loading without blocking activation or resurrecting cancelled roots', async () => {
+  const fs = await import('node:fs/promises');
+  const tree = await fs.readFile(path.resolve(HERE, '../src/operatorTrees.ts'), 'utf8');
+  const start = tree.slice(tree.indexOf('async start(): Promise<void>'), tree.indexOf('async openIncoming('));
+  assert.match(start, /this\.primeIncomingRestore\(\);/);
+  assert.match(start, /void this\.restoreIncomingQueue\(\)/);
+  assert.doesNotMatch(start, /await this\.restoreIncomingQueue\(\)/);
+  assert.match(tree, /epoch !== this\.incomingRestoreEpoch/);
+  assert.match(tree, /if \(!this\.incomingPending\.has\(packagePath\)\) continue/);
+  const queued = incomingRestorationEntries([
+    { packagePath: '/tmp/incoming.zip', reviewDecision: 'accepted' },
+    { packagePath: '/tmp/incoming.zip', reviewDecision: 'rejected' },
+    { packagePath: '   ' },
+    { packagePath: '/tmp/other.zip', reviewDecision: 'rejected' }
+  ]);
+  assert.deepEqual(queued.map((item) => item.filename), ['incoming.zip', 'other.zip']);
+  assert.deepEqual(queued.map((item) => item.reviewDecision), ['accepted', 'rejected']);
+});
+
+await test('Operator Party bounded projections run independently with stable order and bounded concurrency', async () => {
+  const fs = await import('node:fs/promises');
+  const party = await fs.readFile(path.resolve(HERE, '../src/operatorParty.ts'), 'utf8');
+  assert.match(party, /orderedBoundedMap\(choices, 3,/);
+  assert.match(party, /loadOperatorPartySurfaceForSources\(extensionPath, \[\{ workspaceId: choice\.workspaceId, root: choice\.root \}\]\)/);
+  const builder = await fs.readFile(path.resolve(HERE, '../src/packageBuilder.ts'), 'utf8');
+  assert.match(builder, /loadPartyReferenceChoicesForSources[\s\S]*?orderedBoundedMap\(explicit, 3, \(source\) => loadPartyReferenceChoicesForSources\(extensionPath, \[source\]\)\)/);
+  assert.match(builder, /loadPartyAuthoringReferenceChoicesForSources[\s\S]*?orderedBoundedMap\(explicit, 3, \(source\) =>[\s\S]*?\[source\], currentRoleLeavesOnly\)/);
+  let active = 0;
+  let peak = 0;
+  const values = await orderedBoundedMap([12, 3, 7, 1], 2, async (delay, index) => {
+    active += 1; peak = Math.max(peak, active);
+    await new Promise((resolve) => setTimeout(resolve, delay));
+    active -= 1;
+    return index;
+  });
+  assert.deepEqual(values, [0, 1, 2, 3]);
+  assert.equal(peak, 2);
+  await assert.rejects(orderedBoundedMap([], 0, async (value) => value), /invalid-parallelism/);
+});
+
+await test('Incoming Workspace source discovery is bounded, ordered and still rejects ambiguous qualified identities', async () => {
+  const fs = await import('node:fs/promises');
+  const builder = await fs.readFile(path.resolve(HERE, '../src/packageBuilder.ts'), 'utf8');
+  const functionBody = builder.slice(builder.indexOf('export async function loadIncomingLocalWorkspaceChoices'), builder.indexOf('export async function loadQualifiedLocalWorkspaceChoices'));
+  assert.match(functionBody, /orderedBoundedMap\(roots, 3, async \(root\) =>/);
+  assert.match(functionBody, /projectWorkspacePackageSources\(runtime, \[root\]\)/);
+  assert.match(functionBody, /const choices = rootChoices\.flat\(\)/);
+  assert.match(functionBody, /exactIncomingWorkspaceMap\(choices\)/);
+  const roots = ['/repo/a', '/repo/b', '/repo/c', '/repo/d'];
+  const delays = [20, 2, 8, 1];
+  let running = 0;
+  let maxRunning = 0;
+  const results = await orderedBoundedMap(roots, 3, async (root, index) => {
+    running++;
+    maxRunning = Math.max(maxRunning, running);
+    await new Promise((resolve) => setTimeout(resolve, delays[index]));
+    running--;
+    return qualifiedIncomingRootChoices(root, [{ workspaceId: `ws${index}`, workspaceTargetPath: `.topics/.workspaces/ws${index}.workspace.md`, rootPath: '.' }]);
+  });
+  assert.equal(maxRunning, 3);
+  const flattened = results.flat();
+  assert.deepEqual(flattened.map((x) => x.workspaceId), ['ws0', 'ws1', 'ws2', 'ws3']);
+  assert.equal(exactIncomingWorkspaceMap(flattened).size, 4);
+  assert.throws(() => exactIncomingWorkspaceMap([...flattened, { ...flattened[0], root: '/different-root' }]), /workspace-id-ambiguous:ws0/);
+});
+
+await test('Incoming automatic role preview lazily reuses prefetched qualified Workspace sources', async () => {
+  const fs = await import('node:fs/promises');
+  const tree = await fs.readFile(path.resolve(HERE, '../src/operatorTrees.ts'), 'utf8');
+  const party = await fs.readFile(path.resolve(HERE, '../src/operatorParty.ts'), 'utf8');
+  const autoShow = tree.slice(tree.indexOf('private async autoShowIncomingPartyHandoff'), tree.indexOf('private async openRouteHandoff'));
+  assert.match(autoShow, /resolveOperatorParty\(this\.extensionPath, undefined, \(\) => this\.localWorkspaceChoices\(\)\)/);
+  assert.match(party, /qualifiedChoices \? qualifiedChoices\(\) : loadQualifiedLocalWorkspaceChoices\(extensionPath\)/);
+  assert.match(party, /return resolvedPartyFromQualifiedSurface\(value, surface\)/);
+  assert.match(tree, /pickOperatorParty\(this\.extensionPath, \(\) => this\.localWorkspaceChoices\(\)\)/);
+  const check = party.slice(party.indexOf('export async function resolveOperatorParty'), party.indexOf('export async function pickOperatorParty'));
+  assert.ok(check.indexOf('if (!raw)') < check.indexOf('qualifiedChoices ? qualifiedChoices()'), 'No Party must not start discovery');
+  assert.ok(check.indexOf('if (manual.manual)') < check.indexOf('qualifiedChoices ? qualifiedChoices()'), 'Manual Party must not start discovery');
+});
 
 await test('Incoming maps 17 Core-qualified per-root Workspace identities 1:1 with relative rootPath, not path guesses', async () => {
   const ids = ['app','business','cli','core','docs','extension-chrome','interop-native','interop-openai','native','provider-github','provider-native','runtime-native','site','verse-atlas','verse-native','verse-playthings','vscode'];
@@ -173,7 +334,7 @@ await test('Incoming activation, independent local comparison, retry and preview
   const tree = await fs.readFile(path.resolve(HERE, '../src/operatorTrees.ts'), 'utf8');
   const builder = await fs.readFile(path.resolve(HERE, '../src/packageBuilder.ts'), 'utf8');
   assert.match(tree, /private async refreshIncomingReviewReadiness[\s\S]*?state\.reviewReady = false;[\s\S]*?catch \(error\)/);
-  assert.match(tree, /try \{ await this\.autoShowIncomingPartyHandoff\(state\); \}/);
+  assert.match(tree, /if \(await incomingSourceStatus\(state\.index\) !== 'current'\) continue;[\s\S]*?await this\.autoShowIncomingPartyHandoff\(state\);[\s\S]*?this\.incomingPreviewRetryPaths\.delete\(key\)/);
   assert.match(tree, /loadIncomingLocalWorkspaceChoices\(this\.extensionPath\)/);
   assert.match(builder, /loadIncomingLocalWorkspaceChoices[\s\S]*?projectWorkspacePackageSources\(runtime, \[root\]\)/);
   assert.match(tree, /this\.incomingPending\.clear\(\);[\s\S]*?for \(const \[key, value\] of blocked\)/);
@@ -261,6 +422,69 @@ await test('Evidence reference picker formats exact relative links, handles spec
   assert.equal(localArtifactReference(root, '.topics/work/readme', path.join(root, 'media/My (1) capture.gif')), '[My (1) capture.gif](../../../media/My%20(1)%20capture.gif)');
   assert.throws(() => localArtifactReference(root, '.topics/work/readme', '/elsewhere/secret.txt'), /reference-outside-workspace/);
   assert.throws(() => localArtifactReference(root, '../outside', path.join(root, 'README.md')), /reference-outside-workspace/);
+});
+
+await test('schema-grounded form help attaches exact Core field lines and rejects invented source authority', async () => {
+  const contract = { status: 'ready', target: { schemaId: 'tiinex.evidence.v1', label: 'Evidence' }, creation: { inputBindings: [
+    { input: 'Material', kind: 'ordinary-field', section: 'Evidence Material', requirement: 'required' },
+    { input: 'Material Kind', kind: 'ordinary-field', section: 'Evidence Material', requirement: 'required' }
+  ] } };
+  const guide = { factoryDescriptor: { sections: [{ group: 'Evidence Material', fieldConstraints: [] }] } };
+  const fieldHelp = { schemaId: 'tiinex.evidence.v1', fields: [
+    { status: 'qualified', input: 'Material', group: 'Evidence Material', field: 'Material',
+      source: { schemaId: 'tiinex.evidence.v1', schemaPath: '.topics/.schemas/core/evidence/tiinex.evidence.v1.schema.md',
+        repository: 'Tiinex/docs', commit: 'qualified-commit', groupLine: 120, fieldLine: 145,
+        contextScope: 'schema-validation-group', excerpt: 'Required Fields\n- Material' } },
+    { status: 'unresolved', input: 'Material Kind', group: 'Evidence Material', field: 'Material Kind', source: null }
+  ] };
+  const model = projectArtifactAuthoringModel({ contract }, { guide }, fieldHelp);
+  const material = model.sections[0].fields.find((field) => field.key === 'Material');
+  const kind = model.sections[0].fields.find((field) => field.key === 'Material Kind');
+  assert.equal(material.sourceHelp?.fieldLine, 145);
+  assert.equal(material.sourceHelp?.repository, 'Tiinex/docs');
+  assert.equal(kind.sourceHelp, undefined, 'Unresolved fields cannot borrow another field provenance');
+  const mismatched = projectArtifactAuthoringModel({ contract }, { guide }, { fields: [{
+    status: 'qualified', input: 'Material', group: 'Wrong Group', field: 'Material', source: fieldHelp.fields[0].source
+  }] });
+  assert.equal(mismatched.sections[0].fields[0].sourceHelp, undefined);
+  const wrongSchema = projectArtifactAuthoringModel({ contract }, { guide }, { schemaId: 'tiinex.task.v1', fields: fieldHelp.fields });
+  assert.equal(wrongSchema.sections[0].fields[0].sourceHelp, undefined, 'Mixed schema results must never bind');
+  const source = await (await import('node:fs/promises')).readFile(path.resolve(HERE, '../src/artifactAuthoringPanel.ts'), 'utf8');
+  assert.match(source, /schema-provenance/);
+  assert.match(source, /Schema reference/);
+  assert.match(source, /field-source-help/);
+  assert.doesNotMatch(source, /Group-level context; not every rule applies to this field/, 'Do not lead with group-scope debugging instead of field-specific guidance');
+});
+
+await test('Generic authoring exposes Add/Remove only for a qualified repeatable binding, never for legacy Evidence ordinary fields', async () => {
+  const old = projectArtifactAuthoringModel({target:{schemaId:'tiinex.evidence.v1'},creation:{inputBindings:[
+    { input:'Material', kind:'ordinary-field',section:'Evidence Material',field:'Material',requirement:'required' },
+    { input:'Material Kind',kind:'ordinary-field',section:'Evidence Material',field:'Material Kind',requirement:'required' }
+  ]}}, {factoryDescriptor:{sections:[{group:'Evidence Material',fieldConstraints:[]}]}});
+  assert.equal(old.sections.find(s=>s.key==='Evidence Material')?.kind,'fields');
+  const futureNativeOwnedProjection = projectArtifactAuthoringModel({target:{schemaId:'experimental.only'},creation:{inputBindings:[
+    { input:'Evidence Material',kind:'named-declaration-section',section:'Evidence Material',
+      requiredFields:['Material','Material Kind'],optionalFields:['Description','Material Provenance','Material Limits'] }
+  ]}}, {factoryDescriptor:{declarations:[{group:'Evidence Material',fieldConstraints:[]}]}});
+  const group=futureNativeOwnedProjection.sections.find(s=>s.key==='Evidence Material');
+  assert.equal(group?.kind,'repeatable');
+  assert.deepEqual(group.fields.filter(f=>f.required).map(f=>f.key),['Material','Material Kind']);
+  assert.deepEqual(group.fields.filter(f=>!f.required).map(f=>f.key),['Description','Material Provenance','Material Limits']);
+  // The synthetic projection is not operative: only the owning Native schema
+  // plus Core contract qualification may authorize this shape in a real form.
+});
+
+await test('Incoming Replace selection starts before expensive exact-byte delta comparison', async () => {
+  const fs = await import('node:fs/promises');
+  const tree = await fs.readFile(path.resolve(HERE, '../src/operatorTrees.ts'), 'utf8');
+  const host = await fs.readFile(path.resolve(HERE, '../src/vscode/incomingWorkspacePicker.ts'), 'utf8');
+  const method = tree.slice(tree.indexOf('private async mergeReplaceIncoming('), tree.indexOf('private async autoShowIncomingPartyHandoff('));
+  assert.match(method, /await pickIncomingWorkspaces\(choices, async \(\) =>/);
+  assert.ok(method.indexOf('await pickIncomingWorkspaces(choices, async () =>') < method.indexOf('const delta = await this.packageDeltaView(state.index);'), 'Core delta work starts only after displaying workspace picker');
+  assert.match(method, /incomingWorkspacePickBusy/);
+  assert.match(host, /picker\.show\(\)/);
+  assert.ok(host.indexOf('picker.show()') < host.indexOf('projectExactMatches().then'), 'The chooser opens before Core comparison');
+  assert.match(host, /if \(!userEdited\)/); // late results may not erase user input
 });
 
 await test('Core-projected local evidence reference affordances are the only file picker controls', async () => {
@@ -412,7 +636,9 @@ await test('generic authoring UX keeps Party, Transition and host-state hydratio
   assert.match(tree, /resetDirtyWorkspaces\(inspected\.dirtyRoots, inspected\.roots\.length\)/);
   assert.match(tree, /Reject and Reset/);
   const applyMethod = tree.slice(tree.indexOf('private async runIncomingApply'), tree.indexOf('private async resumeIncomingMultiRootSession'));
-  assert.match(applyMethod, /await this\.refreshIncoming\(\)/, 'Replace\/Merge must run the same full Incoming requalification refresh automatically');
+  assert.match(applyMethod, /incomingSourceStatus\(item\.index\)/, 'Replace/Merge must validate the exact qualified carrier identity before preserving orientation');
+  assert.match(applyMethod, /if \(stale\.some\(\(value\) => value !== 'current'\)\) \{\s*await this\.refreshIncoming\(\)/, 'Source changes require Core requalification');
+  assert.match(applyMethod, /this\.queueIncomingReviewReadiness\(item\)/, 'Local changes must schedule fresh exact review instead of trusting stale deltas');
   assert.match(tree, /restoreIncomingQueue/);
   assert.match(tree, /tiinex\.incoming\.queue\.v1/);
   assert.match(tree, /persistIncomingQueue/);
@@ -438,7 +664,7 @@ await test('generic authoring UX keeps Party, Transition and host-state hydratio
   assert.equal(menu('tiinex.incoming.reject')?.when, 'view == tiinex.incoming && viewItem == tiinex.incomingPackageDecision && !tiinex.incoming.reviewActionPending');
   assert.equal(command('tiinex.incoming.reject')?.icon, '$(trash)');
   assert.equal(command('tiinex.incoming.close')?.icon, '$(close)');
-  assert.equal(menu('tiinex.incoming.close')?.when, 'view == tiinex.incoming && viewItem =~ /^tiinex\.incomingPackage/');
+  assert.equal(menu('tiinex.incoming.close')?.when, String.raw`view == tiinex.incoming && viewItem =~ /^tiinex\.incomingPackage/`);
   assert.ok(menus.some((item) => item.command === 'tiinex.discovery.close' && item.when === 'view == tiinex.discovery && viewItem == tiinex.discoveryPackage'));
   assert.match(tree, /discoverySuppressedPaths\.add\(resolved\)/);
   assert.match(tree, /ordinal: routes\.length \+ 1/);
@@ -481,7 +707,7 @@ await test('Handoff endpoint host scoping preserves exact same-label choices and
 await test('Handoff authoring endpoint choices preserve exact Core target References without upgrading authoring-assist candidates', async () => {
   const source = { workspaceId: 'business', root: '/repo/business' };
   const exact = endpointCandidatesForAuthoringSource(source, [{
-    id: 'sigma-current', target: 'business::.topics/roles/sigma-current.trace.md', reference: '', kind: 'role',
+    id: 'sigma-current', target: 'business::.topics/roles/sigma-current.trace.md', reference: 'business::.topics/roles/sigma-current.trace.md', kind: 'role',
     label: 'Sigma Role — Current', authoringLabel: 'Sigma', workspaceId: 'business', artifactPath: '.topics/roles/sigma-current.trace.md',
     schemaId: 'tiinex.party.role.v1', qualification: 'qualified-exact'
   }]);
@@ -491,6 +717,7 @@ await test('Handoff authoring endpoint choices preserve exact Core target Refere
     schemaId: 'tiinex.party.role.v1', qualification: 'authoring-assist'
   }]);
   assert.equal(exact[0]?.reference, 'business::.topics/roles/sigma-current.trace.md');
+  assert.equal(endpointCandidatesForAuthoringSource(source, [{...exact[0], reference:''}])[0]?.reference, '', 'Core-only target never manufactures a missing explicit Reference');
   assert.equal(String(assist[0]?.reference || ''), '');
   const merged = mergeHandoffEndpointAuthoringChoices([assist, exact, [{ ...assist[0], artifactPath: '.topics/roles/anchor-other.trace.md', label: 'Anchor Role — Other' }]]);
   assert.equal(merged.length, 3);
@@ -967,8 +1194,7 @@ await test('extension contributes stable Discovery, Incoming, Outgoing and Trans
     assert.doesNotMatch(incomingReplaceMenu?.when || '', new RegExp(exactContext));
   }
   const incomingCloseMenu = itemMenus.find((item) => item.command === 'tiinex.incoming.close');
-  assert.match(incomingCloseMenu?.when || '', /tiinex\.incomingPackage/);
-  assert.match(incomingCloseMenu?.when || '', /tiinex\.incomingPackageLoading/);
+  assert.equal(incomingCloseMenu?.when, String.raw`view == tiinex.incoming && viewItem =~ /^tiinex\.incomingPackage/`, 'one anchored menu prefix covers qualified Loading/Decision/Package states');
   assert.equal(incomingCloseMenu?.group, 'inline@9');
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.package' && /outgoingRoot/.test(item.when || '') && !/canPackage/.test(item.when || '') && item.group === 'inline@1'));
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.outgoing.close' && /outgoingRoot/.test(item.when || '')));
@@ -998,7 +1224,8 @@ await test('extension contributes stable Discovery, Incoming, Outgoing and Trans
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.copyPackage' && /transportPackage/.test(item.when || '') && item.group === 'inline@1'));
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.guidedEntry' && /transportPackagePointerless/.test(item.when || '') && item.group === 'inline@2'));
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.guidedEntry' && /viewItem == tiinex\.transportPackage/.test(item.when || '') && !/Pointerless/.test(item.when || '') && item.group === 'inline@2'));
-  assert.equal(itemMenus.some((item) => item.command === 'tiinex.transport.copyText' && /viewItem == tiinex\.transportPackage/.test(item.when || '') && !/Route/.test(item.when || '')), false);
+  assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.copyText' && item.when === 'view == tiinex.transport && viewItem == tiinex.transportPackageBootstrapReplacement'), 'bootstrap replacement is explicitly text-copyable');
+  assert.equal(itemMenus.some((item) => item.command === 'tiinex.transport.copyText' && item.when === 'view == tiinex.transport && viewItem == tiinex.transportPackage'), false);
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.close' && /transportPackage/.test(item.when || '') && item.group === 'inline@9'));
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.copyPackage' && /transportRoute/.test(item.when || '')));
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.copyText' && /transportRoute/.test(item.when || '')));
@@ -1206,7 +1433,12 @@ await test('extension activation synchronously registers all native Tiinex views
     },
     workspace: {
       registerTextDocumentContentProvider() { return disposable(); },
-      onDidChangeConfiguration() { return disposable(); }
+      onDidChangeConfiguration() { return disposable(); },
+      onDidChangeWorkspaceFolders() { return disposable(); },
+      onDidCreateFiles() { return disposable(); },
+      onDidDeleteFiles() { return disposable(); },
+      onDidRenameFiles() { return disposable(); },
+      onDidSaveTextDocument() { return disposable(); }
     },
     languages: { registerDocumentLinkProvider() { return disposable(); } },
     commands: {
@@ -1251,8 +1483,12 @@ await test('participant controller selects zero/one/many qualified extras and st
   const errors = [];
   let selectionMode = 'all';
   const vscode = {
+    QuickPickItemKind: { Separator: -1 },
     window: {
-      showQuickPick: async (items) => selectionMode === 'all' ? items : selectionMode === 'partial' ? items.slice(0, 1) : selectionMode === 'none' ? [] : undefined,
+      showQuickPick: async (items) => {
+        const selectable = items.filter((item) => item.role);
+        return selectionMode === 'all' ? selectable : selectionMode === 'partial' ? selectable.slice(0, 1) : selectionMode === 'none' ? [] : undefined;
+      },
       showWarningMessage: async (value) => { warnings.push(String(value)); },
       showErrorMessage: async (value) => { errors.push(String(value)); },
       showInformationMessage: async () => undefined
@@ -1277,9 +1513,9 @@ await test('participant controller selects zero/one/many qualified extras and st
     selectionMode = 'none';
     assert.deepEqual(await controller.selectAdditionalParticipantRoles(projection.roles), []);
     selectionMode = 'partial';
-    assert.deepEqual((await controller.selectAdditionalParticipantRoles(projection.roles))?.map((item) => item.label), ['Sigma']);
+    assert.deepEqual((await controller.selectAdditionalParticipantRoles(projection.roles))?.map((item) => item.label), ['Reviewer']);
     selectionMode = 'all';
-    assert.deepEqual((await controller.selectAdditionalParticipantRoles(projection.roles))?.map((item) => item.label), ['Sigma', 'Reviewer']);
+    assert.deepEqual((await controller.selectAdditionalParticipantRoles(projection.roles))?.map((item) => item.label), ['Reviewer', 'Sigma']);
     assert.equal(await controller.acceptCoreParticipantProjection(projection, [projection.roles[0]]), projection);
     const incompleteProjection = { ...projection, roles: [projection.roles[1]] };
     assert.equal(await controller.acceptCoreParticipantProjection(incompleteProjection, [projection.roles[0]]), null);
@@ -1671,7 +1907,8 @@ await test('post-stage Git policy is singular, SCM-first and debounced while red
   assert.match(automatic, /requireNoConflictMarkers:\s*true/);
   assert.match(automatic, /requirePushSafety:\s*policy === 'commit-push'/);
   assert.match(automatic, /staged\.some\(isTiinexArtifactPath\)/);
-  assert.doesNotMatch(automatic, /validateStagedWithRuntime|projectStagedValidation|prepareBundledRuntime/);
+  assert.doesNotMatch(automatic, /validateStagedWithRuntime|projectStagedValidation/, 'Git post-stage must not become a second staged artifact validator');
+  assert.match(automatic, /prepareBundledRuntime[\s\S]*?deriveMessage: async \(\) => \(await projectGitCommitProvenance/, 'shared Core derives exact Git commit provenance');
   assert.match(automation, /policy === 'ask'/);
   assert.match(automation, /lastPromptedAsk/);
   assert.match(automation, /Choose the Git outcome/);
@@ -2045,9 +2282,9 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.doesNotMatch(model, /\bFrom\b|\bTo\b|Transfers|Required Context/);
   assert.match(panel, /Schema and validation are projected by Tiinex Core/);
   assert.doesNotMatch(panel, /Core authoring boundary/);
-  assert.match(panel, /not currently bound by Core creation/);
+  assert.match(panel, /const capabilityGaps = '';/, 'form must not misrepresent schema-only optional fields as editable Core-authorized fields');
   assert.match(panel, /Transition neighborhood/);
-  assert.match(panel, /Core-projected Schema Transition neighborhood\./);
+  assert.match(panel, /Core-qualified Transition definitions available to this artifact type/);
   assert.match(panel, /applyAssist/);
   assert.match(panel, /assistCapabilityErrors/);
   assert.match(panel, /cannot be written by the current Core creation contract/);
@@ -2088,9 +2325,9 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(participantPicker, /projection\.state !== 'qualified' \|\| !projection\.roles\.length/);
   assert.match(participantPicker, /No additional Core-qualified participants are established/);
   assert.match(participantPicker, /attached without participant Role pointers/);
-  assert.match(participantPicker, /Additional participant Roles · qualified open Workspaces/);
+  assert.match(participantPicker, /Additional participants · current Roles/);
   assert.match(participantPicker, /canPickMany: true/);
-  assert.match(participantPicker, /Core requalifies the exact set before Attach and Pack/);
+  assert.match(participantPicker, /Workspace-local Role identity is requalified by Core before Attach and Pack/);
   assert.match(participantPicker, /acceptCoreParticipantProjection/);
   assert.match(participantPicker, /selected-not-projected/);
   assert.match(participantPicker, /showQuickPick/);
@@ -2109,10 +2346,10 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(tree, /projectTransitionNeighborhood/);
   assert.doesNotMatch(tree, /transitionAuthoringNeighborhood/);
   assert.match(tree, /Attachment does not mean applicable, executable, recommended, or ordered/);
-  assert.match(tree, /candidate\.authoringProfile\?\.state === 'qualified'/);
-  assert.match(tree, /templateLabel: 'Preset'/);
-  assert.match(tree, /selectedTemplateId: 'direct'/);
-  assert.match(tree, /Direct \/ blank/);
+  assert.match(await fs.readFile(path.resolve(HERE, '..', 'src', 'core', 'artifactAuthoringPresets.ts'), 'utf8'), /candidate\.authoringProfile\?\.state === 'qualified'/);
+  assert.match(tree, /templateLabel: 'Preset \/ intent'/);
+  assert.match(tree, /selectedTemplateId: 'manual'/);
+  assert.match(tree, /Manual \/ custom/);
   assert.doesNotMatch(tree, /id: 'work'|id: 'conversation'|id: 'discuss'/);
   assert.doesNotMatch(tree, /bounded-work Handoff contract|bounded live conversation or brainstorm|bounded review Handoff contract/);
   assert.match(panel, /input\.templateLabel \|\| 'Preset'/);
@@ -2135,7 +2372,7 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(tree, /pathTitle = `\$\{from\} to \$\{to\}`/);
   assert.match(tree, /Core still owns[\s\S]*slugification, lineage dimensioning, collision handling and allocation/);
   assert.match(tree, /loadArtifactAuthoringModel\(this\.extensionPath, schemaId, transition\)/);
-  assert.match(tree, /schemaId === 'tiinex\.handoff\.v1' && options\.attachAvailable/);
+  assert.match(tree, /if \(submission\.attachToOutgoing\)[\s\S]*?!attachAvailable \|\| schemaId !== 'tiinex\.handoff\.v1'/);
   assert.match(tree, /Handoff artifacts only/);
   assert.match(tree, /this Workspace is not selected in Outgoing/);
   assert.match(panel, /attachUnavailableReason/);
@@ -2195,13 +2432,13 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(tree, /if \(persist\) \{/);
   assert.match(tree, /await this\.selectOutgoingFolder\(this\.discoveryFolder\(\) \|\| undefined, false\)/);
   const workspaceClose = tree.indexOf('this.closeOutgoing();', tree.indexOf("Tiinex packing Workspace carrier"));
-  const workspaceAnnounce = tree.indexOf("await announceBuiltCarrier(built.outputPath, 'Workspace carrier');");
+  const workspaceAnnounce = tree.indexOf("await this.showPreparedTransportTab(built.outputPath, 'unknown');");
   const handoffClose = tree.indexOf('this.closeOutgoing();', tree.indexOf("Tiinex packing Handoff carrier"));
-  const handoffAnnounce = tree.indexOf("await announceBuiltCarrier(", tree.indexOf("Tiinex packing Handoff carrier"));
+  const handoffAnnounce = tree.indexOf("await this.showPreparedTransportTab(built.outputPath,", tree.indexOf("Tiinex packing Handoff carrier"));
   assert.ok(workspaceClose >= 0 && workspaceAnnounce > workspaceClose);
   assert.ok(handoffClose >= 0 && handoffAnnounce > handoffClose);
   const previewCall = tree.indexOf('Tiinex preparing ${model.label} preview');
-  const createCall = tree.indexOf('this.createAuthoredArtifact(workspace, schemaId, submission', previewCall);
+  const createCall = tree.indexOf('this.createAuthoredArtifact(liveWorkspace, schemaId, submission', previewCall);
   assert.ok(previewCall >= 0 && createCall > previewCall);
   assert.match(tree, /writePreparedArtifactDraft\(this\.extensionPath, draft\)/);
   assert.match(tree, /selectedIds = new Set\(\(this\.outgoing\?\.workspaces \|\| \[\]\)\.map/);
@@ -2223,7 +2460,7 @@ await test('generic Artifact Authoring renders Core contracts while Handoff host
   assert.match(packageBuilder, /Qualifying selected Workspace sources/);
   assert.match(packageBuilder, /mapBounded\(overrides, 4/);
   assert.match(packageBuilder, /mapBounded\(sources, 4/);
-  assert.match(packageBuilder, /mapBounded\(explicit, 4/);
+  assert.match(packageBuilder, /orderedBoundedMap\(explicit, 3/);
   assert.match(packageBuilder, /Qualifying selected Handoff route Workspaces/);
   assert.match(packageBuilder, /Running Core route\/allocation preflight and package preview/);
   assert.match(packageBuilder, /Manufacturing and qualifying carrier/);
@@ -2368,10 +2605,10 @@ await test('Outgoing participant affordance consumes exact Core route projection
   const end = tree.indexOf('private async projectOutgoingParticipants', start);
   const body = tree.slice(start, end);
   assert.ok(start >= 0 && end > start);
-  assert.match(body, /const catalog = await this\.endpointCatalog\(workspace\)/);
+  assert.match(body, /const catalog = await loadPartyAuthoringReferenceChoicesForSources\(/);
   assert.match(body, /item\.kind === 'role'/);
-  assert.match(body, /selectAdditionalParticipantRoles\(candidates\)/);
-  assert.match(body, /projectOutgoingParticipants\(workspace, handoffPath, selections\)/);
+  assert.match(body, /selectAdditionalParticipantRoles\(candidates, await this\.localWorkspaceChoices\(\)\)/);
+  assert.match(body, /this\.projectOutgoingParticipants\(workspace, handoffPath, selections\)/);
   assert.match(body, /acceptCoreParticipantProjection\(projection, selections\)/);
   assert.doesNotMatch(tree, /private async selectAdditionalParticipants/);
 });
@@ -2613,7 +2850,7 @@ await test('package-level Transport uses Guided Entry while Handoff Pointer rows
   const tree = await fs.readFile(path.join(root, 'src', 'operatorTrees.ts'), 'utf8');
   const bootstrap = await fs.readFile(path.join(root, 'src', 'tiinex', 'bootstrap.ts'), 'utf8');
   const manifest = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8'));
-  assert.match(tree, /contextValue: routeLess \? 'tiinex\.transportPackagePointerless' : 'tiinex\.transportPackage'/);
+  assert.match(tree, /contextValue: \/\^tiinex-bootstrap-replacement[\s\S]*?tiinex\.transportPackageBootstrapReplacement'[\s\S]*?routeLess \? 'tiinex\.transportPackagePointerless' : 'tiinex\.transportPackage'/);
   assert.match(tree, /register\('tiinex\.transport\.guidedEntry'/);
   assert.match(tree, /private async guidedEntryTransport\(/);
   assert.match(tree, /Guided Entry · Choose Handoff route/);
@@ -2622,7 +2859,8 @@ await test('package-level Transport uses Guided Entry while Handoff Pointer rows
   const itemMenus = manifest.contributes?.menus?.['view/item/context'] || [];
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.guidedEntry' && /transportPackagePointerless/.test(item.when || '')));
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.guidedEntry' && /viewItem == tiinex\.transportPackage/.test(item.when || '') && !/Pointerless/.test(item.when || '')));
-  assert.equal(itemMenus.some((item) => item.command === 'tiinex.transport.copyText' && /viewItem == tiinex\.transportPackage/.test(item.when || '') && !/Route/.test(item.when || '')), false);
+  assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.copyText' && item.when === 'view == tiinex.transport && viewItem == tiinex.transportPackageBootstrapReplacement'), 'bootstrap replacement is explicitly text-copyable');
+  assert.equal(itemMenus.some((item) => item.command === 'tiinex.transport.copyText' && item.when === 'view == tiinex.transport && viewItem == tiinex.transportPackage'), false);
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.copyText' && /transportRoute/.test(item.when || '')));
 });
 
@@ -2643,7 +2881,8 @@ await test('Artifact Authoring host UX keeps repair and direct-create behavior b
   assert.match(panel, /await handlers\.create/);
   assert.match(panel, /id=\"actions\"/);
   assert.match(panel, /setBusy\(action,true\)/);
-  assert.match(panel, /actions\.style\.display=busyNow\?'none':''/);
+  assert.match(panel, /if\(actions\)actions\.style\.display=''/, 'the authoring status remains visible during Preview and Create');
+  assert.match(panel, /for\(const el of qa\('input,select,textarea,button'\)\)/, 'freeze every editable control while pending');
   assert.match(panel, /panel\.dispose\(\)/);
 });
 
@@ -2861,7 +3100,7 @@ await test('tree errors keep compact summaries visible and blocked Incoming carr
   assert.match(tree, /shortMessage\(error\)/);
   assert.match(tree, /'Show Details'/);
   assert.match(tree, /phase\?: 'loading' \| 'blocked'/);
-  assert.match(tree, /contextValue: item\.state \? 'tiinex\.incomingPackage' : blocked \? 'tiinex\.incomingPackageBlocked'/);
+  assert.match(tree, /contextValue: item\.state \? review\?\.contextValue \|\| 'tiinex\.incomingPackage' : blocked \? 'tiinex\.incomingPackageBlocked'/);
   assert.match(tree, /This carrier was rejected before Incoming activation/);
   assert.match(tree, /No Handoff route was accepted and no Workspace bytes were applied/);
   assert.match(tree, /incomingBlockedDetail\(error, presentation\.detail\)/);
@@ -2908,6 +3147,92 @@ await test('stable debounce requires consecutive unchanged probes', async () => 
   const stable = await waitForStableProbe(async () => probes[Math.min(index++, probes.length - 1)], async () => { sleeps += 1; }, { stableSamples: 3, intervalMs: 25, maxSamples: 6 });
   assert.equal(stable, true);
   assert.equal(sleeps, 3);
+});
+
+await test('Auto Incoming gates moving carrier bytes and Refresh retries the failed qualified preview', async () => {
+  const fs = await import('node:fs/promises');
+  const tree = await fs.readFile(path.resolve(HERE, '../src/operatorTrees.ts'), 'utf8');
+  const indexing = await fs.readFile(path.resolve(HERE, '../src/carrierIndex.ts'), 'utf8');
+  const refreshDiscovery = tree.slice(tree.indexOf('private async refreshDiscovery('), tree.indexOf('private visibleDiscoveredPackages('));
+  const setIncoming = tree.slice(tree.indexOf('private async setIncoming('), tree.indexOf('private async groundIncomingHandoff('));
+  const refreshIncoming = tree.slice(tree.indexOf('private async refreshIncoming('), tree.indexOf('private queueIncomingReviewReadiness('));
+  assert.match(refreshDiscovery, /waitForStableFile\(latest\.path/);
+  assert.ok(refreshDiscovery.indexOf('waitForStableFile(latest.path') < refreshDiscovery.indexOf('await this.setIncoming(latest.path)'), 'settle the file before automatic Core qualification');
+  assert.match(indexing, /const after = await stat\(resolved\)/);
+  assert.match(indexing, /throw new Error\('tiinex\.discovery\.source-changed'\)/);
+  assert.match(setIncoming, /this\.carrierCache\.delete\(resolved\);[\s\S]*?const fresh = await this\.qualifyIncoming\(resolved, state\.appliedWorkspaceIds\)/);
+  assert.match(setIncoming, /incomingSourceStatus\(fresh\.index\)/);
+  assert.match(setIncoming, /this\.incomingPreviewRetryPaths\.add\(resolved\)/);
+  assert.match(setIncoming, /this\.guardIncomingSource\(state\)/); // fail closed on persistent source drift
+  assert.match(refreshIncoming, /this\.incomingPreviewRetryPaths\.has\(key\)/);
+  assert.match(refreshIncoming, /incomingSourceStatus\(state\.index\)/);
+  assert.match(refreshIncoming, /await this\.autoShowIncomingPartyHandoff\(state\)/);
+});
+
+await test('Incoming Refresh publishes qualifications before background comparison and Replace avoids re-orienting unchanged source', async () => {
+  const fs = await import('node:fs/promises');
+  const tree = await fs.readFile(path.resolve(HERE, '../src/operatorTrees.ts'), 'utf8');
+  const refresh = tree.slice(tree.indexOf('private async refreshIncoming('), tree.indexOf('private queueIncomingReviewReadiness('));
+  const apply = tree.slice(tree.indexOf('private async runIncomingApply('), tree.indexOf('private async resumeIncomingMultiRootSession('));
+  assert.doesNotMatch(refresh, /await this\.refreshIncomingReviewReadiness\(next\)/);
+  assert.ok(refresh.indexOf('this.incoming = refreshed') > -1 && refresh.indexOf('this.incoming = refreshed') < refresh.indexOf('this.queueIncomingReviewReadiness(state)'), 'Publish qualified Incoming before queued comparisons');
+  assert.match(refresh, /incomingSourceStatus\(state\.index\)/);
+  assert.match(apply, /incomingSourceStatus\(item\.index\)/);
+  assert.match(apply, /this\.queueIncomingReviewReadiness\(item\)/);
+  assert.match(apply, /await this\.refreshIncoming\(\)/); // explicit drift fallback only
+  assert.doesNotMatch(apply, /this\.carrierCache\.clear\(\)/);
+});
+
+await test('Incoming review generations invalidate stale background comparison readiness after Replace', async () => {
+  const fs = await import('node:fs/promises');
+  const tree = await fs.readFile(path.resolve(HERE, '../src/operatorTrees.ts'), 'utf8');
+  const queue = tree.slice(tree.indexOf('private queueIncomingReviewReadiness('), tree.indexOf('private async decideIncoming('));
+  const apply = tree.slice(tree.indexOf('private async runIncomingApply('), tree.indexOf('private async resumeIncomingMultiRootSession('));
+  assert.match(queue, /this\.incomingReviewGeneration\.set\(packagePath, generation\)/);
+  assert.match(queue, /this\.incomingReviewGeneration\.get\(packagePath\) === generation/);
+  assert.match(queue, /await this\.refreshIncomingReviewReadiness\(state, current\)/);
+  assert.match(queue, /if \(!current\(\)\) return;[\s\S]*?state\.reviewReady = incomingReviewReady/);
+  assert.match(apply, /this\.incomingReviewGeneration\.set\(key, \(this\.incomingReviewGeneration\.get\(key\) \|\| 0\) \+ 1\)/);
+  assert.match(apply, /item\.reviewReady = false/);
+});
+
+await test('Schema field help presents exact rule first and separately collapses group context', async () => {
+  const fs = await import('node:fs/promises');
+  const panel = await fs.readFile(path.resolve(HERE, '../src/artifactAuthoringPanel.ts'), 'utf8');
+  assert.match(panel, /<details class="schema-provenance"><summary>Schema reference<\/summary>/);
+  assert.match(panel, /<details class="field-source-help">/);
+  assert.match(panel, /<p>\$\{escapeHtml\(rule\)\}<\/p>/);
+  assert.doesNotMatch(panel, /The following excerpt is group-level context, not a rule specific to this field/);
+  assert.match(panel, /provenance\.fieldLine/);
+});
+
+await test('Outgoing measures distinct Core qualification, route preflight, manufacture and publishing without weakening package gates', async () => {
+  const fs = await import('node:fs/promises');
+  const pkg = await fs.readFile(path.resolve(HERE, '../src/packageBuilder.ts'), 'utf8');
+  for (const stage of ['qualified-runtime','qualified-workspace-sources','route-and-participant-qualification','route-allocation-preflight','carrier-manufacture','carrier-publish']) {
+    assert.ok(pkg.includes("checkpoint('" + stage + "')"), stage);
+  }
+  assert.match(pkg, /assertStableQualifiedCarrierAllocation\(topologyPreview, built\)/);
+  assert.match(pkg, /assertExactWorkspaceSelection\(built, requestedWorkspaceIds\)/);
+});
+
+await test('Auto Discovery retries blocked carriers only after changed source bytes and preserves fail-closed requalification', async () => {
+  const fs = await import('node:fs/promises');
+  const tree = await fs.readFile(path.resolve(HERE, '../src/operatorTrees.ts'), 'utf8');
+  const refresh = tree.slice(tree.indexOf('private async refreshDiscovery('), tree.indexOf('private visibleDiscoveredPackages('));
+  assert.match(refresh, /blockedCarrierHasNewSource\(blocked, latest\)/);
+  assert.match(refresh, /waitForStableFile\(latest\.path/);
+  assert.ok(refresh.indexOf('if (blockedBytesChanged') > refresh.indexOf('if (stable)'), 'blocked record only removed after file stability');
+  assert.match(refresh, /this\.carrierCache\.delete\(path\.resolve\(latest\.path\)\)/);
+  assert.match(refresh, /await this\.setIncoming\(latest\.path\)/);
+});
+
+await test('Blocked Auto Incoming retries only on new file identity, never trusting the old qualification', async () => {
+  assert.equal(blockedCarrierHasNewSource(null, { bytes: 3, mtimeMs: 2 }), false);
+  assert.equal(blockedCarrierHasNewSource({ phase: 'loading', bytes: 3, mtimeMs: 2 }, { bytes: 4, mtimeMs: 3 }), false);
+  assert.equal(blockedCarrierHasNewSource({ phase: 'blocked', bytes: 3, mtimeMs: 2 }, { bytes: 3, mtimeMs: 2 }), false);
+  assert.equal(blockedCarrierHasNewSource({ phase: 'blocked', bytes: 3, mtimeMs: 2 }, { bytes: 4, mtimeMs: 2 }), true);
+  assert.equal(blockedCarrierHasNewSource({ phase: 'blocked', bytes: 3, mtimeMs: 2 }, { bytes: 3, mtimeMs: 4 }), true);
 });
 
 await test('safe landing paths reject traversal and absolute forms', async () => {
@@ -3178,7 +3503,7 @@ await test('Handoff endpoint selections persist exact Core References and Pack c
   assert.match(panel, /field\+' Reference'/);
   const tree = await fs.readFile(path.join(root, 'src', 'operatorTrees.ts'), 'utf8');
   assert.match(tree, /reference: item\.reference \|\| ''/);
-  assert.match(tree, /applyExactHandoffEndpointSelection\(values, field, submission\.endpointSelections\?\.\[field\]\)/);
+  assert.match(tree, /const selected = submission\.endpointSelections\?\.\[field\];[\s\S]*?applyExactHandoffEndpointSelection\(values, field, selected\)/);
   const endpointSelection = await fs.readFile(path.join(root, 'src', 'core', 'handoffEndpointSelection.ts'), 'utf8');
   assert.match(endpointSelection, /endpointFieldContainer\(values, field\)/);
   assert.match(endpointSelection, /container\[field\] = label/);
@@ -4218,9 +4543,9 @@ await test('Candidate 018 keeps lineage as artifact membership and normalizes na
   assert.equal(commands.get('tiinex.outgoing.detachHandoff')?.icon, '$(debug-disconnect)');
   assert.equal((manifest.contributes?.commands || []).some((item) => item.icon === '$(unlink)'), false);
   const vscode195CodiconsUsedByTiinex = new Set([
-    'add', 'arrow-down', 'arrow-right', 'arrow-up', 'check', 'circle-slash', 'clear-all', 'close', 'cloud', 'cloud-download',
+    'account', 'add', 'arrow-down', 'arrow-right', 'arrow-swap', 'arrow-up', 'check', 'circle-slash', 'clear-all', 'close', 'cloud', 'cloud-download',
     'comment', 'copy', 'debug-disconnect', 'diff', 'file-zip', 'folder-opened', 'git-merge', 'git-pull-request-create',
-    'discard', 'link', 'list-selection', 'list-tree', 'new-file', 'package', 'preview', 'references', 'refresh', 'replace-all',
+    'discard', 'link', 'list-selection', 'list-tree', 'new-file', 'package', 'paperclip', 'preview', 'references', 'refresh', 'replace-all',
     'root-folder-opened', 'save', 'send', 'settings', 'target', 'tools', 'trash'
   ]);
   const contributedCodicons = (manifest.contributes?.commands || [])
@@ -4451,3 +4776,58 @@ await test('Selected Core manufacture is authoritative, routed Major receives ob
 });
 
 console.log(`\n${count}/${count} Tiinex VS Code bridge core cases passed.`);
+
+await test('Transition Definition and Companion forms consume real Core-owned nested declaration creation contracts', async () => {
+  const { buildArtifactCreationContract } = await import('@tiinex/core/schemas/creation.contracts.js');
+  const definition = buildArtifactCreationContract({ schemaId: 'tiinex.transition.definition.v1', transitionType: 'create-artifact' });
+  const companion = buildArtifactCreationContract({ schemaId: 'tiinex.schema.transition.companion.v1', transitionType: 'create-artifact' });
+  assert.equal(definition.status, 'ready', 'Save as Transition must not be exposed without real Core rendering');
+  assert.equal(companion.status, 'ready', 'companion authoring is not a host-synthesized Markdown path');
+  const sections = projectArtifactAuthoringModel(definition, {}).sections;
+  for (const [parent, expectedParts] of [
+    ['Lifecycle And Continuity Effects', ['Lifecycle Effects', 'Parent Effects']],
+    ['Placement Intent', ['Destination Bindings', 'Output Placements']]
+  ]) {
+    const section = sections.find(item => item.key === parent);
+    assert.equal(section?.kind, 'composite', parent);
+    assert.deepEqual(section.parts?.map(item => item.key), expectedParts, parent);
+    assert.ok(section.parts.every(item => item.kind === 'repeatable' && item.allowNone), parent);
+  }
+  assert.equal(projectArtifactAuthoringModel(companion, {}).sections.find(item => item.key === 'Transition Attachments')?.kind, 'repeatable');
+  const host = await (await import('node:fs/promises')).readFile(path.resolve(HERE, '../src/operatorTrees.ts'), 'utf8');
+  const panel = await (await import('node:fs/promises')).readFile(path.resolve(HERE, '../src/artifactAuthoringPanel.ts'), 'utf8');
+  assert.match(host, /saveTransition: async \(submission\) => \{/);
+  assert.match(host, /transitionModel\.status !== 'ready'/);
+  assert.match(host, /targetDirectory: destination/);
+  assert.match(panel, /if \(message\?\.type === 'save-transition'\)/);
+  assert.match(panel, /function compositeSection\(/);
+  assert.match(panel, /if\(busy\)return;vscode\.postMessage\(\{type:'pick-reference'/);
+});
+
+await test('Move/Rebase Explorer and Attach to Form expose one qualified Core planning/apply boundary', async () => {
+  const fs = await import('node:fs/promises');
+  const root = path.resolve(HERE, '..');
+  const pkg = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8'));
+  const contextActions = pkg.contributes.menus['tiinex.explorer.actions'];
+  assert.ok(pkg.contributes.commands.some((entry) => entry.command === 'tiinex.artifact.moveRebase'));
+  assert.ok(contextActions.some((entry) => entry.command === 'tiinex.artifact.moveRebase' && /trace/.test(entry.when)));
+  const explorer = await fs.readFile(path.join(root, 'src/operatorTrees.ts'), 'utf8');
+  const host = await fs.readFile(path.join(root, 'src/vscode/lineageMaintenance.ts'), 'utf8');
+  const form = await fs.readFile(path.join(root, 'src/vscode/attachFileToForm.ts'), 'utf8');
+  assert.match(explorer, /register\('tiinex\.artifact\.moveRebase'/);
+  assert.match(explorer, /moveArtifactFromExplorer\(this\.extensionPath/);
+  assert.match(host, /qualifyInstalledCore\(extensionPath\)/);
+  assert.match(host, /projectPortableLineageMaintenance\(/);
+  assert.match(host, /inspectPortableAssetRelocationWorkspace\(/);
+  assert.match(host, /applyPortableLineageMaintenancePlan\(/);
+  assert.match(host, /confirmPreview\(plan/);
+  assert.match(form, /pendingAttachments/);
+  assert.doesNotMatch(form, /relocateOrdinaryFileForForm\(/, 'Attach must defer all mutation until Create');
+  assert.doesNotMatch(form, /Not yet supported by the qualified Core asset contract|Moving and lineage-renaming ordinary files requires/);
+  const gallery = path.join(root, '.topics/presentation/vscode-extension/readme');
+  const media = await fs.readdir(gallery);
+  assert.ok(media.includes('01-tiinex-overview.png') && media.includes('02-guided-entry-what-where.png'));
+  assert.deepEqual(media.filter((name) => name.endsWith('.gif')), [], 'No large GIFs retained in VS Code .topics presentation');
+  const bytes = (await Promise.all(media.filter(name => name.endsWith('.png')).map(async name => (await fs.stat(path.join(gallery,name))).size))).reduce((a,b) => a+b,0);
+  assert.ok(bytes < 1024 * 1024, 'Croppped README still images should total less than 1 MiB');
+});

@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import * as vscode from 'vscode';
+import { orderedBoundedMap } from './core/orderedBoundedMap';
 import { extensionHostAcceptanceEnabled, recordExtensionHostAcceptanceEvent } from './vscode/extensionHostAcceptance';
 import { preferredNodeExecutable } from './host/nodeExecutable';
 import { manufactureHandoffPackage, manufactureHandoffPackageDetailed, projectHandoffCarrierOutputCollision, projectHandoffParticipants, OperatorContextResult, prepareBundledRuntime, prepareHostCoreRuntime, prepareSelectedHostCoreRuntime, projectHandoffLeaves, projectHandoffEndpoints, projectOperatorContext, projectWorkspacePackageSources, WorkspacePackageSourcesResult } from './tiinex/bootstrap';
@@ -260,22 +261,28 @@ export async function qualifyLocalWorkspaceChoice(extensionPath: string, rootVal
  * remains individually Core-qualified and ambiguous identities fail closed.
  */
 export async function loadIncomingLocalWorkspaceChoices(extensionPath: string): Promise<PackageWorkspaceChoice[]> {
+  const started = Date.now();
   const roots = [...new Set(openWorkspaceRoots().map((item) => path.resolve(item)))];
   if (!roots.length) return [];
   const runtime = await prepareHostCoreRuntime(extensionPath, roots);
+  const runtimeReadyMs = Date.now() - started;
   try {
-    const choices: PackageWorkspaceChoice[] = [];
-    for (const root of roots) {
+    // Root qualification is independent, and every projection runs in its own
+    // Core subprocess. Keep concurrency bounded and order stable; never merge
+    // different roots into a single operator context or guess their identities.
+    const rootChoices = await orderedBoundedMap(roots, 3, async (root) => {
       // A blocked root is not a qualified local match; a runtime/process error
       // is distinct and must still propagate rather than be hidden as no match.
       const projected: WorkspacePackageSourcesResult = await projectWorkspacePackageSources(runtime, [root]);
-      if (projected.status !== 'ready' || (projected.findings || []).some((f) => f.severity === 'error')) continue;
+      if (projected.status !== 'ready' || (projected.findings || []).some((f) => f.severity === 'error')) return [];
       // The operation is Core-scoped to [root]. A candidate's rootPath is a
       // Workspace-relative snapshot entrypoint (usually '.') and cannot
       // identify an absolute VS Code host root. Never compare it with root.
-      choices.push(...qualifiedIncomingRootChoices(root, projected.candidates || []));
-    }
+      return qualifiedIncomingRootChoices(root, projected.candidates || []);
+    });
+    const choices = rootChoices.flat();
     exactIncomingWorkspaceMap(choices); // fail closed on duplicate qualified identities
+    console.info(`Tiinex Workspace source discovery: ${roots.length} roots, ${choices.length} qualified Workspaces in ${Date.now() - started} ms (runtime preparation ${runtimeReadyMs} ms)`);
     return choices;
   } finally { await runtime.dispose(); }
 }
@@ -435,6 +442,13 @@ export async function loadPartyReferenceChoicesForSources(extensionPath: string,
   for (const source of explicit) byWorkspaceId.set(source.workspaceId, [...(byWorkspaceId.get(source.workspaceId) || []), source.root]);
   const ambiguous = [...byWorkspaceId.entries()].find(([, roots]) => new Set(roots).size > 1);
   if (ambiguous) throw new Error(`tiinex.package-builder.endpoint-source-workspace-ambiguous:${ambiguous[0]}`);
+  if (explicit.length > 1) {
+    // A combined operator-context projection can discover the same package-local
+    // Workspace in unrelated host roots. Independently qualify each exact source,
+    // preserving Core's candidate/currentness semantics and the strict ID check.
+    const groups = await orderedBoundedMap(explicit, 3, (source) => loadPartyReferenceChoicesForSources(extensionPath, [source]));
+    return mergeExactHandoffEndpointChoices(groups);
+  }
   const context = await cachedOperatorContext(extensionPath, explicit.map((source) => source.root));
   const groups = explicit.map((source) => {
     const candidates = (context.endpoints || []).filter((candidate: any) => candidate.workspaceId === source.workspaceId && sameRepositoryRoot(String(candidate.hostRoot || ''), source.root));
@@ -493,6 +507,11 @@ export async function loadPartyAuthoringReferenceChoicesForSources(extensionPath
   for (const source of explicit) byWorkspaceId.set(source.workspaceId, [...(byWorkspaceId.get(source.workspaceId) || []), source.root]);
   const ambiguous = [...byWorkspaceId.entries()].find(([, roots]) => new Set(roots).size > 1);
   if (ambiguous) throw new Error(`tiinex.package-builder.endpoint-source-workspace-ambiguous:${ambiguous[0]}`);
+  if (explicit.length > 1) {
+    const groups = await orderedBoundedMap(explicit, 3, (source) =>
+      loadPartyAuthoringReferenceChoicesForSources(extensionPath, [source], currentRoleLeavesOnly));
+    return mergeHandoffEndpointAuthoringChoices(groups);
+  }
   const context = await cachedOperatorContext(extensionPath, explicit.map((source) => source.root));
   const groups = explicit.map((source) => {
     const workspace = (context.workspaces || []).find((item) => item.workspaceId === source.workspaceId && sameRepositoryRoot(String(item.hostRoot || ''), source.root));
@@ -761,9 +780,17 @@ export async function buildHandoffPackageFromForm(extensionPath: string, input: 
   // fails closed when runtime bytes differ from the carried Core source; the host
   // must bind the selected source instead of weakening that gate.
   let runtime: Awaited<ReturnType<typeof prepareBundledRuntime>> | null = null;
+  const packageStarted = Date.now();
+  let stageStarted = packageStarted;
+  const checkpoint = (stage: string): void => {
+    const now = Date.now();
+    console.info(`Tiinex Outgoing timing: ${stage} ${now - stageStarted} ms; total ${now - packageStarted} ms`);
+    stageStarted = now;
+  };
   try {
     reportProgress(input, 'Preparing qualified Core runtime…');
     runtime = await prepareSelectedCoreManufactureRuntime(extensionPath, input, scratch);
+    checkpoint('qualified-runtime');
     reportProgress(input, 'Qualifying selected Workspace sources…');
     const incomingSources = await qualifyIncomingWorkspaceSources(runtime, scratch, input.incomingWorkspaceSources || []);
     const overrideSources = await qualifyWorkspaceSourceOverrides(runtime, input.workspaceSourceOverrides || []);
@@ -812,6 +839,7 @@ export async function buildHandoffPackageFromForm(extensionPath: string, input: 
     if (missingWorkspaceIds.length && !input.packageParentPath) throw new Error(`tiinex.package-builder.workspace-id-unresolved:${missingWorkspaceIds.join(',')}`);
     if (!selectedSources.length) throw new Error('tiinex.package-builder.no-local-workspace-source');
     const materialBindings = await materialBindingsForDiscoverySources(runtime, selectedSources, discoverySources);
+    checkpoint('qualified-workspace-sources');
     if (route.pointerless) {
       const existingCarrierNames = input.outputDirectory ? await existingCarrierFilenames(String(input.outputDirectory)) : [];
       const args = await workspaceCarrierArgs(selectedSources, scratch, String(input.expectedCarrierFilename || ''), String(input.packageParentPath || ''), String(input.packageMajorReason || '').trim(), String(input.carrierPrefix || '').trim(), existingCarrierNames);
@@ -822,6 +850,7 @@ export async function buildHandoffPackageFromForm(extensionPath: string, input: 
       const stage = path.join(scratch, 'manufactured');
       reportProgress(input, 'Manufacturing and qualifying carrier…');
       const built = await manufactureHandoffPackage(runtime, [...args, '--output-dir', stage]);
+      checkpoint('workspace-manufacture');
       if (built.status !== 'ready' || !built.primaryOutput?.path || built?.carrierProjection?.mode !== 'workspace' || (built?.carrierProjection?.routes || []).length !== 0) throw new Error(`tiinex.package-builder.workspace-manufacture-blocked:\n${receiptBlocker(built)}`);
       assertExpectedCarrierDimension(built, String(input.expectedCarrierDimension || ''));
       assertExpectedCarrierFilename(built, String(input.expectedCarrierFilename || ''));
@@ -834,6 +863,7 @@ export async function buildHandoffPackageFromForm(extensionPath: string, input: 
       const filename = await destinationCarrierFilename(runtime, built.primaryOutput.path, folder, coreFilename);
       reportProgress(input, 'Publishing carrier…');
       const outputPath = await publishCarrierFile(built.primaryOutput.path, folder, filename);
+      checkpoint('workspace-publish');
       return { outputPath, routingText, routeRoutingTexts: [], autoCopiedTransportText: false, routeId: route.id, routeIds: [route.id], workspaceIds: selectedSources.map((item) => item.workspaceId) };
     }
     if (!route.workspaceId || !selectedSources.some((item) => item.workspaceId === route.workspaceId)) throw new Error('tiinex.package-builder.route-workspace-not-selected');
@@ -852,12 +882,14 @@ export async function buildHandoffPackageFromForm(extensionPath: string, input: 
 ${participantProjection.detail}`);
       qualifiedRouteInputs.push({ route: item.route, participantRoles: [...participantProjection.roles], endpointRoles: item.endpointRoles });
     }
+    checkpoint('route-and-participant-qualification');
     const args = await handoffArgs(selectedSources, route, qualifiedRouteInputs, scratch, String(input.packageParentPath || ''), String(input.packageMajorReason || '').trim(), String(input.packageParentRoutePointer || ''), String(input.packageParentRouteId || ''), input.packageConsolidation === true, String(input.carrierPrefix || '').trim(), materialBindings, String(input.expectedCarrierFilename || '').trim(), input.outputDirectory ? await existingCarrierFilenames(String(input.outputDirectory)) : []);
     // Core owns routed Handoff bytes plus continuation/allocation truth. The host
     // only consumes and cross-checks the returned allocation/lineage projection.
     // Destination existence is a host fact; Core projects any transport-only collision name.
     reportProgress(input, 'Running Core route/allocation preflight and package preview…');
     const topologyPreview = await manufactureHandoffPackage(runtime, args);
+    checkpoint('route-allocation-preflight');
     if (topologyPreview.status !== 'ready' || topologyPreview.transportExecutable === false) throw new Error(`tiinex.package-builder.preview-blocked:\n${receiptBlocker(topologyPreview)}`);
     assertExactWorkspaceSelection(topologyPreview, requestedWorkspaceIds);
     if (input.packageParentPath && !input.packageMajorReason) qualifiedCarrierAllocationFromManufactureReceipt(topologyPreview);
@@ -879,6 +911,7 @@ ${participantProjection.detail}`);
     // of paying for a second route-selected dry run plus the real manufacture.
     reportProgress(input, 'Manufacturing and requalifying finished carrier…');
     const built = await manufactureHandoffPackage(runtime, [...manufactureArgs, '--output-dir', stage]);
+    checkpoint('carrier-manufacture');
     if (built.status !== 'ready' || !built.primaryOutput?.path || !humanOutputMatchesRoute(built, route)) throw new Error(`tiinex.package-builder.manufacture-blocked:
 ${receiptBlocker(built)}`);
     assertExactWorkspaceSelection(built, requestedWorkspaceIds);
@@ -895,6 +928,7 @@ ${receiptBlocker(built)}`);
     const filename = await destinationCarrierFilename(runtime, built.primaryOutput.path, folder, coreFilename);
     reportProgress(input, 'Publishing qualified carrier…');
     const outputPath = await publishCarrierFile(built.primaryOutput.path, folder, filename);
+    checkpoint('carrier-publish');
     const autoCopied = routeTexts.length === 1;
     if (autoCopied) await vscode.env.clipboard.writeText(routeTexts[0].text);
     return { outputPath, routingText: autoCopied ? routeTexts[0].text : '', routeRoutingTexts: routeTexts, autoCopiedTransportText: autoCopied, routeId: route.id, routeIds: routeInputs.map((item) => item.route.id), workspaceIds: selectedSources.map((item) => item.workspaceId) };

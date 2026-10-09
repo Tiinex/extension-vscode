@@ -447,6 +447,52 @@ export async function projectPackageTransport(
   return projected;
 }
 
+export interface TransportCompletionReceipt {
+  status: 'ready' | 'blocked' | string;
+  reasonCode?: string;
+  carrier?: { filename?: string; kind?: string; routeId?: string };
+  canonicalTransportText?: string;
+  clipboardText?: string;
+  markdown?: string;
+  routes?: Array<{ routeId?: string; recipient?: string; pointerPath?: string }>;
+  targetSource?: { canonicalIdentifier?: string; sourceKind?: string; artifactPath?: string } | null;
+  clipboardStatus?: 'not-performed';
+  [key: string]: unknown;
+}
+
+/** Read-only exact carrier+Entry source-qualified receipt. No host rendering
+ * or clipboard step is permitted to synthesize Tiinex routing instructions. */
+export async function projectTransportCompletion(
+  runtime: PackageRuntime,
+  packagePath: string,
+  selection: {
+    route?: string; entryId?: string; targetEntryId?: string; customInstruction?: string;
+    primaryRole?: unknown; participants?: unknown[];
+  } = {},
+  runner: ProcessRunner = runProcess
+): Promise<TransportCompletionReceipt> {
+  const scratch = await mkdtemp(path.join(os.tmpdir(), 'tiinex-transport-completion-'));
+  try {
+    const args = ['project-transport-completion', packagePath];
+    if (selection.route) args.push('--route', selection.route);
+    if (selection.entryId) args.push('--entry', selection.entryId);
+    if (selection.targetEntryId) args.push('--target-entry-id', selection.targetEntryId);
+    if (selection.customInstruction) args.push('--custom-instruction', selection.customInstruction);
+    if (selection.primaryRole) {
+      const file = path.join(scratch, 'primary-role.json');
+      await writeFile(file, JSON.stringify({primaryRole:selection.primaryRole}), 'utf8');
+      args.push('--primary-role', file);
+    }
+    if (selection.participants?.length) {
+      const file = path.join(scratch, 'participants.json');
+      await writeFile(file, JSON.stringify({participants:selection.participants}), 'utf8');
+      args.push('--participants', file);
+    }
+    args.push('--compact');
+    return await runTiinexJson<TransportCompletionReceipt>(runtime,args,runner);
+  } finally { await rm(scratch,{recursive:true,force:true}); }
+}
+
 export interface GroundingResult {
   status: string;
   readiness?: { state?: string };
@@ -817,6 +863,21 @@ export interface ArtifactCreationContractResult {
   validation?: any;
   qualification?: string;
   findings?: Array<{ severity?: string; code?: string; message?: string }>;
+}
+
+export interface ArtifactFieldHelpResult {
+  status: string;
+  schemaId: string;
+  source?: { schemaPath?: string; repository?: string; commit?: string };
+  fields?: Array<{
+    input: string; section: string; group: string; field: string; status: string; kind: string;
+    source?: null | { schemaPath: string; repository: string; commit: string; groupHeading: string; groupLine: number; fieldLine: number | null; contextScope: string; excerpt: string };
+  }>;
+}
+
+export async function projectArtifactFieldHelp(runtime: PackageRuntime, schemaId: string, runner: ProcessRunner = runProcess): Promise<ArtifactFieldHelpResult> {
+  if (!schemaId) throw new Error('tiinex.authoring.schema-required');
+  return runTiinexJson<ArtifactFieldHelpResult>(runtime, ['form-field-help', '--schema', schemaId, '--compact'], runner);
 }
 
 export interface ArtifactSchemaGuideResult {

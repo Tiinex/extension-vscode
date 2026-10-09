@@ -81,7 +81,11 @@ export async function indexCarrierPackage(packagePath: string): Promise<IndexedC
 
   workspaces.sort((a, b) => a.workspaceId.localeCompare(b.workspaceId, undefined, { sensitivity: 'base' }));
   carrierArtifacts.sort((a, b) => a.path.localeCompare(b.path));
-  return { packagePath: resolved, filename: path.basename(resolved), mtimeMs: info.mtimeMs, bytes: info.size, carrierFiles, carrierArtifacts, workspaces };
+  const after = await stat(resolved);
+  if (!after.isFile() || after.size !== info.size || after.mtimeMs !== info.mtimeMs || outer.length !== info.size) {
+    throw new Error('tiinex.discovery.source-changed');
+  }
+  return { packagePath: resolved, filename: path.basename(resolved), mtimeMs: after.mtimeMs, bytes: after.size, carrierFiles, carrierArtifacts, workspaces };
 }
 
 export async function readCarrierWorkspaceFile(packagePath: string, archivePath: string, filePath: string): Promise<Buffer> {
