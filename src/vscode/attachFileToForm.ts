@@ -5,6 +5,7 @@ import { ArtifactAuthoringModel } from '../core/artifactAuthoringModel';
 import { qualifiedFileAttachmentFields } from '../core/formAttachmentFields';
 import { localArtifactReference } from '../core/artifactReferencePicker';
 import { DeferredFormAttachment } from '../core/deferredFormAttachment';
+import { suggestedMaterialKind, suggestedMaterialEntryName } from '../core/fileAttachmentPresentation';
 
 export interface OpenAuthoringFileTarget {
   panel: any;
@@ -62,7 +63,9 @@ export async function attachFileToOpenForm(resource: vscode.Uri | undefined, for
   const reference = localArtifactReference(formChoice.form.root, formChoice.form.targetDirectory, attachedPath);
   const delivered = await formChoice.form.panel.webview.postMessage({
     type: 'authoring-file-attached', field: field.fieldKey, sectionKey: field.sectionKey,
-    reference, append: field.append, deferred
+    reference, append: field.append, deferred,
+    entryNameSuggestion: suggestedMaterialEntryName(path.basename(attachedPath)),
+    materialKindSuggestion: suggestedMaterialKind(path.basename(attachedPath))
   });
   if (delivered && deferred) {
     const pending = formChoice.form.pendingAttachments || (formChoice.form.pendingAttachments = []);

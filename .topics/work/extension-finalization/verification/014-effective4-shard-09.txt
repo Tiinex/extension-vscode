@@ -1,0 +1,239 @@
+TAP version 13
+# Subtest: root create-artifact does not require a Parent and uses exact Core renderer when available
+ok 1 - root create-artifact does not require a Parent and uses exact Core renderer when available
+  ---
+  duration_ms: 277.771221
+  type: 'test'
+  ...
+# Subtest: composes compatible Workspace capabilities into one deterministic plan
+ok 2 - composes compatible Workspace capabilities into one deterministic plan
+  ---
+  duration_ms: 4.246447
+  type: 'test'
+  ...
+# Subtest: exact duplicate entries collapse but conflicting semantics fail closed
+ok 3 - exact duplicate entries collapse but conflicting semantics fail closed
+  ---
+  duration_ms: 1.428428
+  type: 'test'
+  ...
+# Subtest: repository and Workspace target kinds are not silently merged
+ok 4 - repository and Workspace target kinds are not silently merged
+  ---
+  duration_ms: 0.907388
+  type: 'test'
+  ...
+# Subtest: migration projection proposes explicit subject move beneath work without mutating source
+ok 5 - migration projection proposes explicit subject move beneath work without mutating source
+  ---
+  duration_ms: 1.22907
+  type: 'test'
+  ...
+# Subtest: migration projection blocks destination conflict instead of merging subject trees
+ok 6 - migration projection blocks destination conflict instead of merging subject trees
+  ---
+  duration_ms: 1.179112
+  type: 'test'
+  ...
+# Subtest: qualified workspace scaffold projects only required directory creation for an empty target
+ok 7 - qualified workspace scaffold projects only required directory creation for an empty target
+  ---
+  duration_ms: 11.954135
+  type: 'test'
+  ...
+# Subtest: scaffold planning preserves compatible existing directories and creates only missing roots
+ok 8 - scaffold planning preserves compatible existing directories and creates only missing roots
+  ---
+  duration_ms: 4.840934
+  type: 'test'
+  ...
+# Subtest: scaffold planning fails closed on target kind conflict
+ok 9 - scaffold planning fails closed on target kind conflict
+  ---
+  duration_ms: 3.509917
+  type: 'test'
+  ...
+# Subtest: scaffold planning requires explicit target binding
+ok 10 - scaffold planning requires explicit target binding
+  ---
+  duration_ms: 22.469528
+  type: 'test'
+  ...
+# Subtest: host-like dogfood can apply create-directory actions then replan to pure preserve/no-op
+ok 11 - host-like dogfood can apply create-directory actions then replan to pure preserve/no-op
+  ---
+  duration_ms: 15.802174
+  type: 'test'
+  ...
+# Subtest: relocates a subject subtree, rebases external relative Parent references and cascades Parent/self integrity
+ok 12 - relocates a subject subtree, rebases external relative Parent references and cascades Parent/self integrity
+  ---
+  duration_ms: 76.115162
+  type: 'test'
+  ...
+# Subtest: workspace-qualified references are retargeted only when their target Workspace path relocates
+ok 13 - workspace-qualified references are retargeted only when their target Workspace path relocates
+  ---
+  duration_ms: 23.651024
+  type: 'test'
+  ...
+# Subtest: unaffected local Parent chains do not require representable Parent-integrity entries
+ok 14 - unaffected local Parent chains do not require representable Parent-integrity entries
+  ---
+  duration_ms: 3.118215
+  type: 'test'
+  ...
+# Subtest: inline inheritance override compiler accepts multiple distinct declarations
+ok 15 - inline inheritance override compiler accepts multiple distinct declarations
+  ---
+  duration_ms: 4.708125
+  type: 'test'
+  ...
+# Subtest: exact inheritance category override deactivates constraints sourced from that category
+ok 16 - exact inheritance category override deactivates constraints sourced from that category
+  ---
+  duration_ms: 3.293543
+  type: 'test'
+  ...
+# Subtest: registered runtime projections use exact same-snapshot lineage without source-substitution contradictions
+ok 17 - registered runtime projections use exact same-snapshot lineage without source-substitution contradictions
+  ---
+  duration_ms: 1512.932444
+  type: 'test'
+  ...
+# Subtest: current Party Role runtime qualifies the exact carried same-snapshot Parent instead of preferring its older browse+git recovery locator
+ok 18 - current Party Role runtime qualifies the exact carried same-snapshot Parent instead of preferring its older browse+git recovery locator
+  ---
+  duration_ms: 24.293175
+  type: 'test'
+  ...
+# Subtest: historical plain-id Loom Role does not silently upgrade into the current exact Role revision
+ok 19 - historical plain-id Loom Role does not silently upgrade into the current exact Role revision
+  ---
+  duration_ms: 22.770047
+  type: 'test'
+  ...
+# Subtest: organization and Evidence exact runtime validation authority qualify from the synchronized same-snapshot lineage
+ok 20 - organization and Evidence exact runtime validation authority qualify from the synchronized same-snapshot lineage
+  ---
+  duration_ms: 9.191573
+  type: 'test'
+  ...
+# Subtest: source-coherent compiled inheritance qualifies when the exact declared Parent source is supplied
+ok 21 - source-coherent compiled inheritance qualifies when the exact declared Parent source is supplied
+  ---
+  duration_ms: 1.016836
+  type: 'test'
+  ...
+# Subtest: source substitution remains rejected even when schema identity and path are unchanged
+ok 22 - source substitution remains rejected even when schema identity and path are unchanged
+  ---
+  duration_ms: 1.254593
+  type: 'test'
+  ...
+# Subtest: schema material equivalence is independent of repository commit when cryptographic material identity matches
+ok 23 - schema material equivalence is independent of repository commit when cryptographic material identity matches
+  ---
+  duration_ms: 3.51592
+  type: 'test'
+  ...
+# Subtest: schema material equivalence accepts one shared cryptographic identity but fails closed on contradictory shared evidence
+ok 24 - schema material equivalence accepts one shared cryptographic identity but fails closed on contradictory shared evidence
+  ---
+  duration_ms: 7.088709
+  type: 'test'
+  ...
+# Subtest: schema material equivalence fails closed without shared cryptographic evidence or across declared schema identities
+ok 25 - schema material equivalence fails closed without shared cryptographic evidence or across declared schema identities
+  ---
+  duration_ms: 0.4142
+  type: 'test'
+  ...
+# Subtest: schema material equivalence normalizes binding checksum objects
+ok 26 - schema material equivalence normalizes binding checksum objects
+  ---
+  duration_ms: 0.617857
+  type: 'test'
+  ...
+# Subtest: prospective creation and draft staging require exact Root target when exact authority is qualified
+ok 27 - prospective creation and draft staging require exact Root target when exact authority is qualified
+  ---
+  duration_ms: 71.773685
+  type: 'test'
+  ...
+# Subtest: locally qualified Evidence-v1 refuses a fabricated published source link
+ok 28 - locally qualified Evidence-v1 refuses a fabricated published source link
+  ---
+  duration_ms: 1466.200302
+  type: 'test'
+  ...
+# Subtest: qualified exact Evidence material renders an exact Current link while stale material authority is refused
+ok 29 - qualified exact Evidence material renders an exact Current link while stale material authority is refused
+  ---
+  duration_ms: 8.826712
+  type: 'test'
+  ...
+# Subtest: candidate validation treats an older immutable schema locator as qualified when explicit resolution proves byte-equivalent material
+ok 30 - candidate validation treats an older immutable schema locator as qualified when explicit resolution proves byte-equivalent material
+  ---
+  duration_ms: 18.68383
+  type: 'test'
+  ...
+# Subtest: candidate validation does not grant authority to byte-identical material at a different canonical source path
+ok 31 - candidate validation does not grant authority to byte-identical material at a different canonical source path
+  ---
+  duration_ms: 7.081613
+  type: 'test'
+  ...
+# Subtest: candidate validation still blocks an immutable schema locator when explicit resolution proves different material
+ok 32 - candidate validation still blocks an immutable schema locator when explicit resolution proves different material
+  ---
+  duration_ms: 29.920434
+  type: 'test'
+  ...
+# Subtest: candidate validation remains fail-closed for an older immutable schema locator without material-resolution evidence
+ok 33 - candidate validation remains fail-closed for an older immutable schema locator without material-resolution evidence
+  ---
+  duration_ms: 9.686083
+  type: 'test'
+  ...
+# Subtest: historical bare Root bytes are preserved while shared audit and editor project the same warning severity
+ok 34 - historical bare Root bytes are preserved while shared audit and editor project the same warning severity
+  ---
+  duration_ms: 20.823439
+  type: 'test'
+  ...
+# Subtest: resolved link material identity contradiction remains blocking even in historical audit
+ok 35 - resolved link material identity contradiction remains blocking even in historical audit
+  ---
+  duration_ms: 9.166877
+  type: 'test'
+  ...
+# Subtest: manufacture preflight preserves exact historical Parent Schema authority from the integrity-qualified local Parent while Current Schema stays prospective
+ok 36 - manufacture preflight preserves exact historical Parent Schema authority from the integrity-qualified local Parent while Current Schema stays prospective
+  ---
+  duration_ms: 49.957058
+  type: 'test'
+  ...
+# Subtest: manufacture preflight gates active Handoff candidate prospectively without reclassifying carried history
+ok 37 - manufacture preflight gates active Handoff candidate prospectively without reclassifying carried history
+  ---
+  duration_ms: 6.76036
+  type: 'test'
+  ...
+# Subtest: workspace editor assistance preserves resolver-capable Current Schema permalink while resealing exact package conformance
+ok 38 - workspace editor assistance preserves resolver-capable Current Schema permalink while resealing exact package conformance
+  ---
+  duration_ms: 59.65877
+  type: 'test'
+  ...
+1..38
+# tests 38
+# suites 0
+# pass 38
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 15837.102179
+

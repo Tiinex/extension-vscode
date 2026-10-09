@@ -1,0 +1,9 @@
+file:///mnt/data/tiinex4-pack-smoke/scripts/vsix-release-policy.mjs:6
+  if (binding.bindingMode !== 'installed-package') throw new Error('tiinex.vsix.release.sibling-core-not-published');
+                                                         ^
+
+Error: tiinex.vsix.release.sibling-core-not-published
+    at qualifyVsixReleaseCoreBinding (file:///mnt/data/tiinex4-pack-smoke/scripts/vsix-release-policy.mjs:6:58)
+    at file:///mnt/data/tiinex4-pack-smoke/scripts/package-vsix.mjs:25:30
+
+Node.js v22.16.0

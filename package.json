@@ -18,6 +18,31 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "languageModelTools": [
+      {
+        "name": "tiinex_inspectCapabilities",
+        "displayName": "Inspect Tiinex Capabilities",
+        "modelDescription": "Read-only discovery of Core-qualified Tiinex operation names, intent, safety and contract IDs. Use to learn what Tiinex can do before proposing any action; discovery does not grant execution or Role authorization.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "inspectTiinexCapabilities",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "maxLength": 120,
+              "description": "Optional short name or intent filter for the Core operation catalog."
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    ],
+    "chatSkills": [
+      {
+        "path": "./skills/tiinex-discovery/SKILL.md"
+      }
+    ],
     "commands": [
       {
         "command": "tiinex.operator.pickParty",
@@ -304,7 +329,7 @@
       },
       {
         "command": "tiinex.artifact.moveRebase",
-        "title": "Tiinex: Move/Rebase Artifact",
+        "title": "Tiinex: Move/Rebase File or Artifact",
         "icon": "$(arrow-swap)"
       },
       {
@@ -388,6 +413,11 @@
         "command": "tiinex.transport.close",
         "title": "Remove",
         "icon": "$(close)"
+      },
+      {
+        "command": "tiinex.agent.previewRoleSync",
+        "title": "Tiinex: Preview Role as Agent",
+        "icon": "$(robot)"
       }
     ],
     "configuration": {
@@ -1029,7 +1059,7 @@
         },
         {
           "command": "tiinex.artifact.moveRebase",
-          "when": "!explorerResourceIsFolder && resourceFilename =~ /\\.trace\\.md$/",
+          "when": "!explorerResourceIsFolder",
           "group": "1_authoring@1.7"
         },
         {
@@ -1083,7 +1113,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build && node scripts/test-installed-core-fixture.mjs",
     "vsix": "npm run build && node scripts/package-vsix.mjs",
-    "validate": "npm run typecheck && npm test && npm run test:package && npm run vsix",
+    "validate": "npm run typecheck && npm test && npm run test:package && npm run vsix && npm run test:authoring-boundaries",
     "dev:build": "tsc -p tsconfig.json",
     "dev:build:local": "node scripts/core-mode.mjs all-local && npm run dev:build",
     "dev:build:latest": "node scripts/core-mode.mjs all-latest && npm run dev:build",
@@ -1095,7 +1125,11 @@
     "test:extension-host": "node scripts/test-extension-host.mjs",
     "release:check": "npm run validate && npm run release:audit",
     "release:audit": "node scripts/release-check.mjs",
-    "vscode:prepublish": "npm run build && npm run release:audit"
+    "vscode:prepublish": "npm run build && npm run release:audit",
+    "test:authoring-boundaries": "node test/authoringBoundaries.regression.cjs && node test/webviewSourceContext.regression.cjs && node test/nativeAgentDiscovery.regression.cjs && node test/nativeAgentRoleSync.regression.cjs && node test/skillPackaging.regression.mjs && node scripts/run-host-boundaries.mjs && node test/vsixReleaseBoundary.regression.mjs",
+    "test:transition-roundtrip": "node test/transitionRoundtrip.integration.mjs",
+    "vsix:release": "npm run build && node scripts/package-vsix-release.mjs",
+    "test:packed-core-integration": "node scripts/test-packed-core-integration.mjs"
   },
   "dependencies": {
     "@tiinex/core": "^0.45.0"

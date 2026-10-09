@@ -1,0 +1,341 @@
+TAP version 13
+# Subtest: read-only Handoff participant projection returns exact qualified Core authority
+ok 1 - read-only Handoff participant projection returns exact qualified Core authority
+  ---
+  duration_ms: 8.678244
+  type: 'test'
+  ...
+# Subtest: read-only Handoff participant projection fails closed on blocked closure
+ok 2 - read-only Handoff participant projection fails closed on blocked closure
+  ---
+  duration_ms: 2.356515
+  type: 'test'
+  ...
+# Subtest: identifier-only historical schema authority is qualified without claiming an exact historical revision
+ok 3 - identifier-only historical schema authority is qualified without claiming an exact historical revision
+  ---
+  duration_ms: 5.628374
+  type: 'test'
+  ...
+# Subtest: real active Anchor and Prism identifier-only historical Parents continue directly without current-schema target substitution
+ok 4 - real active Anchor and Prism identifier-only historical Parents continue directly without current-schema target substitution
+  ---
+  duration_ms: 1862.776728
+  type: 'test'
+  ...
+# Subtest: identifier-only historical Parent stays identifier-only even when current exact Role schema material is available to authoring
+ok 5 - identifier-only historical Parent stays identifier-only even when current exact Role schema material is available to authoring
+  ---
+  duration_ms: 75.525003
+  type: 'test'
+  ...
+# Subtest: identifier-only continuation fails closed when exact historical Parent bytes fail self-integrity
+ok 6 - identifier-only continuation fails closed when exact historical Parent bytes fail self-integrity
+  ---
+  duration_ms: 11.245082
+  type: 'test'
+  ...
+# Subtest: identifier-only continuation fails closed when historical Current Schema id is missing
+ok 7 - identifier-only continuation fails closed when historical Current Schema id is missing
+  ---
+  duration_ms: 20.350144
+  type: 'test'
+  ...
+# Subtest: identifier-only historical authority never upgrades into same-revision target authority by schema-id equality
+ok 8 - identifier-only historical authority never upgrades into same-revision target authority by schema-id equality
+  ---
+  duration_ms: 3.632794
+  type: 'test'
+  ...
+# Subtest: identifier-only correction still blocks a declared historical schema target that resolves to another schema identity
+ok 9 - identifier-only correction still blocks a declared historical schema target that resolves to another schema identity
+  ---
+  duration_ms: 47.80177
+  type: 'test'
+  ...
+# Subtest: identifier-only correction still blocks malformed historical Parent recovery
+ok 10 - identifier-only correction still blocks malformed historical Parent recovery
+  ---
+  duration_ms: 55.286608
+  type: 'test'
+  ...
+# Subtest: local apply writes exact projected Move bytes and removes old paths
+ok 11 - local apply writes exact projected Move bytes and removes old paths
+  ---
+  duration_ms: 105.578148
+  type: 'test'
+  ...
+# Subtest: local apply fails closed on input drift without mutating paths
+ok 12 - local apply fails closed on input drift without mutating paths
+  ---
+  duration_ms: 7.726859
+  type: 'test'
+  ...
+# Subtest: local apply blocks an unplanned target collision
+ok 13 - local apply blocks an unplanned target collision
+  ---
+  duration_ms: 8.833286
+  type: 'test'
+  ...
+# Subtest: local apply rejects a tampered projected plan fingerprint before filesystem mutation
+ok 14 - local apply rejects a tampered projected plan fingerprint before filesystem mutation
+  ---
+  duration_ms: 16.956988
+  type: 'test'
+  ...
+# Subtest: Move relocates a whole coordinate lineage into an empty directory and preserves semantic Parent
+ok 15 - Move relocates a whole coordinate lineage into an empty directory and preserves semantic Parent
+  ---
+  duration_ms: 26.987537
+  type: 'test'
+  ...
+# Subtest: Move middle segment compacts source coordinate tree without manufacturing semantic Parent ancestry
+ok 16 - Move middle segment compacts source coordinate tree without manufacturing semantic Parent ancestry
+  ---
+  duration_ms: 36.563673
+  type: 'test'
+  ...
+# Subtest: Move into a non-empty target namespace deterministically compacts target roots before moved roots
+ok 17 - Move into a non-empty target namespace deterministically compacts target roots before moved roots
+  ---
+  duration_ms: 3.997045
+  type: 'test'
+  ...
+# Subtest: Prepend before a semantic root rewires only the insertion chain and shifts local coordinates deeper
+ok 18 - Prepend before a semantic root rewires only the insertion chain and shifts local coordinates deeper
+  ---
+  duration_ms: 15.006739
+  type: 'test'
+  ...
+# Subtest: Prepend supports an ordered multi-artifact chain on an existing Parent edge
+ok 19 - Prepend supports an ordered multi-artifact chain on an existing Parent edge
+  ---
+  duration_ms: 15.602553
+  type: 'test'
+  ...
+# Subtest: Directory namespace qualification reports drift and projects the normalize-directory recovery without changing semantic Parent
+ok 20 - Directory namespace qualification reports drift and projects the normalize-directory recovery without changing semantic Parent
+  ---
+  duration_ms: 7.890964
+  type: 'test'
+  ...
+# Subtest: Normalize Directory is an explicit no-op for an already compact namespace
+ok 21 - Normalize Directory is an explicit no-op for an already compact namespace
+  ---
+  duration_ms: 3.457105
+  type: 'test'
+  ...
+# Subtest: Unrelated unqualified Tiinex material does not block a directory-local normalization plan
+ok 22 - Unrelated unqualified Tiinex material does not block a directory-local normalization plan
+  ---
+  duration_ms: 2.946612
+  type: 'test'
+  ...
+# Subtest: Affected unqualified Tiinex material blocks lineage maintenance fail-closed
+ok 23 - Affected unqualified Tiinex material blocks lineage maintenance fail-closed
+  ---
+  duration_ms: 2.095082
+  type: 'test'
+  ...
+# Subtest: Workspace namespace qualification discovers compact and drifted numeric directories while excluding mixed Tiinex surfaces
+ok 24 - Workspace namespace qualification discovers compact and drifted numeric directories while excluding mixed Tiinex surfaces
+  ---
+  duration_ms: 3.654526
+  type: 'test'
+  ...
+# Subtest: Workspace namespace qualification reports an unqualified numeric namespace as blocked without rewriting it
+ok 25 - Workspace namespace qualification reports an unqualified numeric namespace as blocked without rewriting it
+  ---
+  duration_ms: 1.355746
+  type: 'test'
+  ...
+# Subtest: Workspace namespace qualification inventories non-numeric Tiinex directory surfaces without recommending Normalize
+ok 26 - Workspace namespace qualification inventories non-numeric Tiinex directory surfaces without recommending Normalize
+  ---
+  duration_ms: 2.458823
+  type: 'test'
+  ...
+# Subtest: Bounded Workspace Representation keeps lineage qualification scope-limited and suppresses Normalize recommendations
+ok 27 - Bounded Workspace Representation keeps lineage qualification scope-limited and suppresses Normalize recommendations
+  ---
+  duration_ms: 1.429161
+  type: 'test'
+  ...
+# Subtest: Lineage maintenance blocks mutation-ready projection unless Workspace Representation is explicitly complete
+ok 28 - Lineage maintenance blocks mutation-ready projection unless Workspace Representation is explicitly complete
+  ---
+  duration_ms: 0.548421
+  type: 'test'
+  ...
+# Subtest: Unsupported arbitrary lineage reorder remains fail-closed and non-executable
+ok 29 - Unsupported arbitrary lineage reorder remains fail-closed and non-executable
+  ---
+  duration_ms: 1.721865
+  type: 'test'
+  ...
+# Subtest: CLI workspace lineage qualification discovers namespace drift without caller-supplied directory enumeration
+ok 30 - CLI workspace lineage qualification discovers namespace drift without caller-supplied directory enumeration
+  ---
+  duration_ms: 104.831088
+  type: 'test'
+  ...
+# Subtest: CLI lineage qualification binds loaded Workspace files to the explicit workspace id
+ok 31 - CLI lineage qualification binds loaded Workspace files to the explicit workspace id
+  ---
+  duration_ms: 20.99378
+  type: 'test'
+  ...
+# Subtest: CLI lineage maintenance projection uses the same loaded Workspace file binding
+ok 32 - CLI lineage maintenance projection uses the same loaded Workspace file binding
+  ---
+  duration_ms: 18.382762
+  type: 'test'
+  ...
+# Subtest: cooperative Workspace lock blocks a second lineage-maintenance apply
+ok 33 - cooperative Workspace lock blocks a second lineage-maintenance apply
+  ---
+  duration_ms: 80.118013
+  type: 'test'
+  ...
+# Subtest: explicit recovery rolls back a process death after atomic source backup
+ok 34 - explicit recovery rolls back a process death after atomic source backup
+  ---
+  duration_ms: 349.244967
+  type: 'test'
+  ...
+# Subtest: recovery finalizes a durably committed transaction after process death without rolling it back
+ok 35 - recovery finalizes a durably committed transaction after process death without rolling it back
+  ---
+  duration_ms: 410.239614
+  type: 'test'
+  ...
+# Subtest: recovery fails closed and preserves unexpected concurrent target bytes
+ok 36 - recovery fails closed and preserves unexpected concurrent target bytes
+  ---
+  duration_ms: 575.405402
+  type: 'test'
+  ...
+# Subtest: recovery removes a dead orphan lock created before a transaction journal existed
+ok 37 - recovery removes a dead orphan lock created before a transaction journal existed
+  ---
+  duration_ms: 21.450089
+  type: 'test'
+  ...
+# Subtest: recovery does not clear a lock owned by an unverifiable foreign host
+ok 38 - recovery does not clear a lock owned by an unverifiable foreign host
+  ---
+  duration_ms: 33.993199
+  type: 'test'
+  ...
+# Subtest: CLI recover-lineage-maintenance exposes explicit local crash recovery
+ok 39 - CLI recover-lineage-maintenance exposes explicit local crash recovery
+  ---
+  duration_ms: 9.048939
+  type: 'test'
+  ...
+# Subtest: successful apply removes transaction journal and Workspace lock
+ok 40 - successful apply removes transaction journal and Workspace lock
+  ---
+  duration_ms: 119.038442
+  type: 'test'
+  ...
+# Subtest: projects children, leaves, explicit currentness, and lifecycle as separate axes
+ok 41 - projects children, leaves, explicit currentness, and lifecycle as separate axes
+  ---
+  duration_ms: 28.890667
+  type: 'test'
+  ...
+# Subtest: superseded currentness requires explicit qualified fact and preserves successor
+ok 42 - superseded currentness requires explicit qualified fact and preserves successor
+  ---
+  duration_ms: 1.652444
+  type: 'test'
+  ...
+# Subtest: conflicting qualified currentness facts fail closed instead of using order
+ok 43 - conflicting qualified currentness facts fail closed instead of using order
+  ---
+  duration_ms: 3.762242
+  type: 'test'
+  ...
+# Subtest: lexical lifecycle/status fields do not establish currentness or closure
+ok 44 - lexical lifecycle/status fields do not establish currentness or closure
+  ---
+  duration_ms: 1.468164
+  type: 'test'
+  ...
+# Subtest: portable operation catalog exposes the read-only operative-state projection
+ok 45 - portable operation catalog exposes the read-only operative-state projection
+  ---
+  duration_ms: 2.812557
+  type: 'test'
+  ...
+# Subtest: c14n-v1 canonical target digest follows the canonical validator slice rules
+ok 46 - c14n-v1 canonical target digest follows the canonical validator slice rules
+  ---
+  duration_ms: 4.216467
+  type: 'test'
+  ...
+# Subtest: parent c14n-v1 verification hashes the resolved target directly instead of comparing an unrelated v2 self value
+ok 47 - parent c14n-v1 verification hashes the resolved target directly instead of comparing an unrelated v2 self value
+  ---
+  duration_ms: 18.538673
+  type: 'test'
+  ...
+# Subtest: commit-pinned GitHub parent identity does not collapse to current same-path material and selects exact ref material when available
+ok 48 - commit-pinned GitHub parent identity does not collapse to current same-path material and selects exact ref material when available
+  ---
+  duration_ms: 26.371186
+  type: 'test'
+  ...
+# Subtest: projects an explicit focused relation neighborhood without choosing a semantic winner
+ok 49 - projects an explicit focused relation neighborhood without choosing a semantic winner
+  ---
+  duration_ms: 42.243722
+  type: 'test'
+  ...
+# Subtest: depth=2 expands through the first-hop frontier without changing depth=1 semantics
+ok 50 - depth=2 expands through the first-hop frontier without changing depth=1 semantics
+  ---
+  duration_ms: 16.691288
+  type: 'test'
+  ...
+# Subtest: unresolved references outside the selected neighborhood do not leak findings into the focused projection
+ok 51 - unresolved references outside the selected neighborhood do not leak findings into the focused projection
+  ---
+  duration_ms: 16.413035
+  type: 'test'
+  ...
+# Subtest: bounded coverage keeps negative evidence scope-limited
+ok 52 - bounded coverage keeps negative evidence scope-limited
+  ---
+  duration_ms: 6.883462
+  type: 'test'
+  ...
+# Subtest: qualified supersession is explicit invocation input and never inferred from chronology
+ok 53 - qualified supersession is explicit invocation input and never inferred from chronology
+  ---
+  duration_ms: 2.396527
+  type: 'test'
+  ...
+# Subtest: ambiguous focus fails closed instead of selecting by arrival order
+ok 54 - ambiguous focus fails closed instead of selecting by arrival order
+  ---
+  duration_ms: 2.96983
+  type: 'test'
+  ...
+# Subtest: portable operation catalog exposes relation-neighborhood projection as read-only
+ok 55 - portable operation catalog exposes relation-neighborhood projection as read-only
+  ---
+  duration_ms: 3.851738
+  type: 'test'
+  ...
+1..55
+# tests 55
+# suites 0
+# pass 55
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 15006.111402
+

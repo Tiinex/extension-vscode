@@ -215,6 +215,20 @@ try {
       assert.equal(path.relative(installedRoot, packagedRuntime.root), path.join('node_modules', '@tiinex', 'core'));
       const catalog = await installedBootstrap.runTiinexJson(packagedRuntime, ['operations']);
       assert.ok(catalog.operations.some(op => op.name === 'manufacture-handoff-package'));
+    // Release ABI is checked *inside the extracted VSIX*, not against a sibling
+    // Core source or a runtime that merely passed source-level unit tests.
+    const agentCatalog = await installedBootstrap.runTiinexJson(packagedRuntime, ['inspect-agent-capabilities', '--query', 'agent']);
+    assert.equal(agentCatalog.status, 'ready');
+    assert.ok(agentCatalog.operations.some(op => op.id === 'project-agent-role-sync'));
+    assert.ok(agentCatalog.operations.every(op => op.hostExecution === 'not-qualified' && op.roleAuthorization === 'not-established'));
+    const shippedManifest = JSON.parse(await readFile(path.join(installedRoot, 'package.json'), 'utf8'));
+    for (const skill of shippedManifest.contributes?.chatSkills || []) {
+      const relative = String(skill.path || '').replace(/^\.\//, '');
+      assert.ok(relative.startsWith('skills/') && !relative.includes('..'));
+      const bytes = await readFile(path.join(installedRoot, relative));
+      assert.ok(bytes.length > 0, 'each declared VS Code skill must physically ship in VSIX');
+    }
+    pass('extracted VSIX uses packaged Core for agent discovery and ships every declared skill');
     } finally { await packagedRuntime.dispose(); }
     await rm(receipt.output, { force: true });
     pass('extracted VSIX loads its bundled lockfile and runs its own public Core entrypoint');

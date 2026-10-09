@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { ArtifactAuthoringModel, ArtifactAuthoringSection, ArtifactAuthoringField } from './core/artifactAuthoringModel';
+import { sourceScalarPreview } from './core/transitionSourceSeed';
 
 export interface AuthoringWorkspaceOption {
   workspaceId: string;
@@ -69,6 +70,7 @@ export interface ArtifactAuthoringPanelInput {
   initialValues?: Record<string, unknown>;
   enableSaveAsTransition?: boolean;
   sourceContextLabel?: string;
+  sourceFormValues?: Record<string, unknown>;
 }
 
 export interface ArtifactAuthoringSubmission {
@@ -196,6 +198,15 @@ function html(input: ArtifactAuthoringPanelInput, nonce: string): string {
   const handoffSlug = model.schemaId === 'tiinex.handoff.v1'
     ? `<label class="field"><span>Slug <span class="optional">optional</span></span><input id="slug" autocomplete="off" /><div class="help">Path label only. Leave blank to use From → To; Tiinex Core allocates and slugifies the final filename.</div></label>`
     : '';
+  const sourceScalars = sourceScalarPreview(input.sourceFormValues || {});
+  const sourceTargets = model.sections.filter(section => section.kind === 'fields' || section.kind === 'group' || section.kind === 'body')
+    .flatMap(section => section.fields.filter(field => !field.allowedValues.length).map(field => ({ section: section.key, field: field.key })));
+  const sourceContext = input.sourceContextLabel && sourceScalars.length ? `<details class="card" open><summary><strong>Unfinished source form — values preserved for explicit reuse</strong></summary>
+    <p class="help">These values are not automatically Transition roles, purposes or effects. Choose a destination and click Copy to field; only fields you edit are saved.</p>
+    <label class="field"><span>Source value</span><select id="sourceValue">${sourceScalars.map((item,index)=>`<option value="${index}">${escapeHtml(item.label)} — ${escapeHtml(item.value.slice(0,80))}</option>`).join('')}</select></label>
+    <label class="field"><span>Destination field (explicit choice)</span><select id="sourceTarget">${sourceTargets.map((item,index)=>`<option value="${index}">${escapeHtml(item.section)} → ${escapeHtml(item.field)}</option>`).join('')}</select></label>
+    <button type="button" class="secondary" id="copySourceValue">Copy selected value to field</button>
+    <p class="help">Original source form stays open. No Evidence or assets are created by Save as Transition.</p></details>` : '';
   const parent = input.parentLabel ? `<div class="context-row"><strong>Continue from</strong><span>${escapeHtml(input.parentLabel)}</span></div>` : '';
   // Capability gaps remain in the projected model for diagnostics/tests, but
   // the normal authoring form only presents executable controls. Repeating the
@@ -214,13 +225,14 @@ function html(input: ArtifactAuthoringPanelInput, nonce: string): string {
 <div class="grid"><label class="field"><span>Workspace</span><select id="workspace">${workspaceOptions}</select></label><label class="field"><span>Title <span class="required">required</span></span><input id="title" autocomplete="off" /><div class="help">Artifact title. For Handoffs this becomes the rendered H1 and Summary.</div></label>${handoffSlug}${templates.length ? `<label class="field"><span>${escapeHtml(input.templateLabel || 'Preset')}</span><select id="template">${templateOptions}</select><div class="template-help" id="templateHelp">Choose a qualified Transition preset, or Manual for the full schema form.</div></label>` : ''}<div class="field"><span>Host action</span>${attach}</div></div><div id="endpointControls" data-loading="${input.authoringAssistLoading ? 'true' : 'false'}">${input.authoringAssistLoading ? '<div class="loading">Core authoring candidates loading…</div>' : endpointControls}</div>${parent}</div>
 ${assistLists}
 <div id="transitionNeighborhood">${input.transitionLoading ? '<section class="card transition-neighborhood"><h2>Transition neighborhood</h2><div class="muted">Core transition discovery loading…</div></section>' : transitionNeighborhood}</div>
-${input.sourceContextLabel ? `<p class="help">Source context: ${escapeHtml(input.sourceContextLabel)}. Only exactly matching Core inputs may be prefilled; the Transition remains a separate artifact.</p>` : ''}<div id="artifactFields">${model.sections.map(sectionHtml).join('')}</div>
+${sourceContext}<div id="artifactFields">${model.sections.map(sectionHtml).join('')}</div>
 ${capabilityGaps}
 <div id="error" class="error"></div><div class="actions" id="actions"><span id="status" class="status"></span><label class="close-when-done"><input id="closeWhenDone" type="checkbox" checked /> Close when done</label><button type="button" class="secondary" id="cancel">Cancel</button>${input.enableSaveAsTransition ? '<button type="button" class="secondary" id="saveTransition">Save as Transition…</button>' : ''}<button type="button" class="secondary" id="preview">Preview</button><button type="button" id="create">Create</button></div>
 <script nonce="${nonce}">
 const vscode=acquireVsCodeApi();
 function setFormPresentation(mode){const full=mode==='full';for(const el of document.querySelectorAll('.optional-fields'))el.open=full;document.getElementById('quickForm').setAttribute('aria-pressed',String(!full));document.getElementById('fullForm').setAttribute('aria-pressed',String(full))}
 document.getElementById('quickForm').addEventListener('click',()=>setFormPresentation('quick'));document.getElementById('fullForm').addEventListener('click',()=>setFormPresentation('full'));
+const sourceScalars=${safeJson(sourceScalars)};const sourceTargets=${safeJson(sourceTargets)};
 const model=${safeJson(model)};let fieldAssists=${safeJson(fieldAssists)};let templates=${safeJson(templates)};let transitionDefinitions=${safeJson(transitionDefinitions)};const initialValues=${safeJson(input.initialValues || {})};
 function escapeHtml(value){return String(value??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&#39;')}
 function q(s,r=document){return r.querySelector(s)}function qa(s,r=document){return [...r.querySelectorAll(s)]}
@@ -251,6 +263,15 @@ qa('.repeatable-section').forEach(wireRepeatable);
 // Event delegation covers optional fields and dynamically added declaration rows.
 document.addEventListener('click',event=>{const button=event.target.closest?.('.reference-pick');if(!button)return;event.preventDefault();if(busy)return;vscode.postMessage({type:'pick-reference',field:button.dataset.referenceField,targetId:button.dataset.referenceTarget,append:button.dataset.referenceAppend==='true',workspaceId:q('#workspace').value})});
 function resetTemplateField(key){const repeatable=qa('.repeatable-section').find(section=>section.dataset.input===key);if(repeatable){repeatable.__tiinexSetTemplateValue?.(repeatable.dataset.allowNone==='true'?'none':[]);return}const group=qa('.group-section').find(section=>section.dataset.input===key);if(group){for(const el of qa('[data-field]',group))el.value='';return}exactSetField(key,'')}function applyTemplate(){const id=q('#template')?.value||'';const t=templates.find(x=>x.id===id);q('#templateHelp')&&(q('#templateHelp').textContent=t?.description||'');const owned=[...new Set(templates.flatMap(x=>Object.keys(x.defaults||{})))];for(const key of owned)resetTemplateField(key);if(!t?.defaults)return;for(const [key,value] of Object.entries(t.defaults)){const repeatable=qa('.repeatable-section').find(section=>section.dataset.input===key);if(repeatable){repeatable.__tiinexSetTemplateValue?.(value);continue}const group=qa('.group-section').find(section=>section.dataset.input===key);if(group&&value&&typeof value==='object'&&!Array.isArray(value)){for(const [field,fieldValue] of Object.entries(value)){const el=q('[data-field="'+CSS.escape(field)+'"]',group);if(el)el.value=String(fieldValue??'')}continue}exactSetField(key,value)}}
+q('#copySourceValue')?.addEventListener('click',()=>{
+  const source=sourceScalars[Number(q('#sourceValue')?.value||0)],destination=sourceTargets[Number(q('#sourceTarget')?.value||0)];
+  if(!source||!destination)return;
+  const section=qa('.ordinary-section,.group-section').find(item=>String(item.dataset.section||item.dataset.input||'')===destination.section);
+  const field=section?q('[data-field="'+CSS.escape(destination.field)+'"]',section):null;
+  if(!field)return;
+  field.value=source.value;field.dispatchEvent(new Event('input',{bubbles:true}));
+  q('#status').textContent='Copied source value to '+destination.field+'. Review semantic meaning before Create.';
+});
 q('#template')?.addEventListener('change',applyTemplate);q('#template')?.addEventListener('input',applyTemplate);applyTemplate();
 for(const [input,value] of Object.entries(initialValues||{})){
  const composite=qa('.composite-section').find(el=>el.dataset.input===input);
@@ -272,13 +293,52 @@ function send(action){if(busy)return;const errors=validate();const box=q('#error
 q('#saveTransition')?.addEventListener('click',()=>{if(busy)return;vscode.postMessage({type:'save-transition',payload:submission()})});q('#preview').addEventListener('click',()=>send('preview'));q('#create').addEventListener('click',()=>send('create'));q('#cancel').addEventListener('click',()=>{if(!busy)vscode.postMessage({type:'cancel'})});
 window.addEventListener('message',event=>{const msg=event.data||{};if(msg.type==='authoring-file-attached'){if(busy)return;
   const section=qa('.ordinary-section,.group-section,.repeatable-section').find(el=>String(el.dataset.section||el.dataset.input||'')===String(msg.sectionKey||''));
-  const targets=section?qa('[data-field]',section).filter(el=>el.dataset.field===String(msg.field||'')):[];
-  const target=targets.find(el=>!String(el.value||'').trim())||targets[0];
-  if(target){const selected=String(msg.reference||'');const old=String(target.value||'').trim();
-    if(selected){target.value=msg.append&&old?old+(old.includes(selected)?'':'; '+selected):selected;target.dispatchEvent(new Event('input',{bubbles:true}));q('#status').textContent=msg.deferred?'File attached. It will move with this artifact at Create.':'File reference attached to form.';}}
-  else q('#status').textContent='The target field is not currently visible. No reference was added.';
+  const selected=String(msg.reference||'');
+  if(!section||!selected){q('#status').textContent='No qualified receiving field was found; nothing was attached.';return}
+  let target;
+  if(section.classList.contains('repeatable-section')){
+    // Each independent attachment receives its own qualified named material
+    // declaration. Never concatenate or overwrite another entry's Material.
+    const items=q('.repeatable-items',section);
+    const eligible=()=>qa('.repeatable-item',items).find(item=>{
+      const source=q('[data-field="'+CSS.escape(String(msg.field||''))+'"]',item);
+      return source&&!String(source.value||'').trim()&&!String(q('[data-entry-name]',item)?.value||'').trim()
+        && qa('[data-field]',item).every(el=>!String(el.value||'').trim());
+    });
+    let item=eligible();
+    if(!item){const add=q('.add-item',section);if(!add){q('#status').textContent='No qualified material entry can be added.';return}add.click();item=eligible()}
+    if(!item){q('#status').textContent='Material group cannot accept another entry.';return}
+    target=q('[data-field="'+CSS.escape(String(msg.field||''))+'"]',item);
+    const name=q('[data-entry-name]',item);
+    if(name&&!String(name.value||'').trim()){
+      const existing=new Set(qa('.repeatable-item',items).filter(other=>other!==item).map(other=>String(q('[data-entry-name]',other)?.value||'').trim()));
+      const base=String(msg.entryNameSuggestion||'material').replace(/[^a-zA-Z0-9-]/g,'-').slice(0,64)||'material';
+      let value=base,index=2;while(existing.has(value))value=base+'-'+index++;
+      name.value=value;
+    }
+    if(String(msg.field)==='Material'){
+      const kind=q('[data-field="Material Kind"]',item),suggested=String(msg.materialKindSuggestion||'');
+      if(kind&&suggested&&!String(kind.value||'').trim()){
+        if(kind.tagName!=='SELECT'||qa('option',kind).some(option=>option.value===suggested)){
+          kind.value=suggested;kind.dispatchEvent(new Event('input',{bubbles:true}));
+        }
+      }
+    }
+  } else {
+    const targets=qa('[data-field]',section).filter(el=>el.dataset.field===String(msg.field||''));
+    target=targets.find(el=>!String(el.value||'').trim())||targets[0];
+  }
+  if(!target){q('#status').textContent='The qualified target field is not visible; no reference was added.';return}
+  const old=String(target.value||'').trim();
+  target.value=!section.classList.contains('repeatable-section')&&msg.append&&old
+    ? old+(old.includes(selected)?'':'; '+selected):selected;
+  target.dispatchEvent(new Event('input',{bubbles:true}));
+  q('#status').textContent=msg.deferred
+    ? 'Material linked. Move is PENDING until Create; Preview does not move files.'
+    : 'Material reference added. Verify the suggested filename-based Material Kind and describe this source.';
   return;
-}if(msg.type==='authoring-deferred-committed'){
+}
+if(msg.type==='authoring-deferred-committed'){
   for(const replacement of msg.replacements||[])for(const field of qa('[data-field]')){
     if(typeof field.value==='string'&&field.value.includes(replacement.before)){
       field.value=field.value.replaceAll(replacement.before,replacement.after);

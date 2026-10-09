@@ -1,0 +1,1 @@
+PASS Marketplace VSIX release guard rejects local/placeholder/mismatched Core and preserves development-smoke distinction

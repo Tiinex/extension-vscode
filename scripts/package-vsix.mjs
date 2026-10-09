@@ -5,6 +5,9 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
+import { collectVscodeSkillEntries } from './skill-packaging.mjs';
+import { qualifyVsixReleaseCoreBinding } from './vsix-release-policy.mjs';
+import { qualifyCoreAgentAbi } from './vsix-core-abi.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
@@ -20,11 +23,22 @@ await rm(OUT, { force: true });
 
 const { qualifyInstalledCore } = require('../dist/host/corePackageBinding.js');
 const binding = await qualifyInstalledCore(ROOT);
+const releaseQualification = qualifyVsixReleaseCoreBinding(binding, { release: process.env.TIINEX_VSIX_RELEASE === '1' });
 const coreRoot = binding.root;
 const corePackage = JSON.parse(await readFile(binding.packageJsonPath, 'utf8'));
 const declaredCoreRange = binding.declaredRange;
 const lockedCoreVersion = binding.lockedVersion;
 const coreEntrypointRelative = safeContainedRelative(coreRoot, binding.entrypoint);
+// A matching package/lock tuple alone does not establish ABI compatibility.
+// The selected runtime must actually implement the commands expected by the
+// extension; a stale published Core cannot be hidden by a sibling source tree.
+const coreProbe = await run(process.execPath, [binding.entrypoint, 'inspect-agent-capabilities', '--query', 'agent', '--compact'], {
+  cwd: coreRoot, maxBuffer: 4 * 1024 * 1024, windowsHide: true
+});
+let coreAgentAbi;
+try { coreAgentAbi = qualifyCoreAgentAbi(JSON.parse(coreProbe.stdout)); }
+catch(error) { throw new Error(`tiinex.vsix.core-agent-abi.unqualified:${String(error?.message||error)}`); }
+
 const packagedManifest = structuredClone(packageJson);
 const packagedLock = JSON.parse(await readFile(path.join(ROOT, 'package-lock.json'), 'utf8'));
 if (binding.bindingMode === 'sibling-source') {
@@ -51,6 +65,9 @@ for (const relative of packagedCorePaths) {
   files.push([`extension/node_modules/@tiinex/core/${relative}`, data]);
 }
 for (const relative of await walk(path.join(ROOT, 'media'))) files.push([`extension/media/${relative}`, await readFile(path.join(ROOT, 'media', relative))]);
+// The generated VSIX is assembled explicitly, not from .vscodeignore. Ship
+// every declared skill plus its local support files; never only the manifest.
+files.push(...await collectVscodeSkillEntries(ROOT, packagedManifest));
 
 const coreRepresentation = representationReceipt(coreFiles);
 const contentTypes = `<?xml version="1.0" encoding="utf-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="json" ContentType="application/json"/><Default Extension="js" ContentType="application/javascript"/><Default Extension="mjs" ContentType="application/javascript"/><Default Extension="map" ContentType="application/json"/><Default Extension="md" ContentType="text/markdown"/><Default Extension="txt" ContentType="text/plain"/><Default Extension="" ContentType="application/octet-stream"/><Override PartName="/extension.vsixmanifest" ContentType="text/xml"/></Types>`;
@@ -63,6 +80,9 @@ await writeFile(OUT, bytes);
 const candidateSha256 = createHash('sha256').update(bytes).digest('hex');
 console.log(JSON.stringify({
   status: 'ready',
+  releaseQualified: releaseQualification.releaseQualified,
+  coreAgentAbi,
+  packageMode: releaseQualification.releaseQualified ? 'marketplace-release' : 'development-smoke',
   output: OUT,
   bytes: bytes.length,
   sha256: candidateSha256,

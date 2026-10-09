@@ -80,6 +80,30 @@ Lineage mode changes **artifact membership only**. It does not change whether po
 
 Discovery and Incoming can compare carried Workspaces with qualified local Workspaces. Exact matches are shown as such; changed Workspaces expose bounded `+added ~changed -removed` summaries.
 
+## Files and artifact authoring (prerelease)
+
+Use the Explorer context menu on a local Workspace file:
+
+| Action | What happens |
+| --- | --- |
+| **Tiinex: New Artifact** on `.trace.md` | Opens a Core-qualified continuation using that file as Parent. An unqualified Parent is blocked and explained; it is not silently repaired. |
+| **Attach to Form** on an ordinary file | Adds a separate editable Material entry when the chosen Core schema supports repeating material. Material Kind and entry name are **filename-based suggestions**, not verified facts. |
+| **Tiinex: Move/Rebase File or Artifact** | Previews a Core-owned transaction for ordinary files or qualified artifacts. A PNG needs an explicit target directory and numeric lineage coordinate; no guessed move. |
+| **Save as Transition…** | Opens a separate Definition form. The unfinished source form remains open, and its values are available for explicit copying into compatible fields. No Evidence is created or semantic role guessed. |
+
+**File moves:** choosing **Yes — move when this artifact is created** marks an attachment **PENDING**. Preview does not move files; Create uses the Core combined transaction. Cancel, missing approval, source drift and unsafe paths must leave the original files untouched.
+
+**Before Marketplace release:** automated Core and host source checks are not a substitute for installed Windows / VSIX acceptance. Avoid exercising an unverified Move/Rebase on valuable artifacts; use disposable sample Workspaces until the release gate is complete.
+
+## Native Copilot discovery (prerelease)
+
+The read-only `inspectTiinexCapabilities` tool queries the **installed/qualified Core** operation catalog. The packaged `tiinex-discovery` skill explains how to use discovery without treating a catalog entry as executable authority.
+
+- The tool lists Core operation intents, safety classes and contract identifiers. It **cannot execute** Move/Rebase, mutation, Handoff transport or Role assignment.
+- **Role → agent preview:** run **Tiinex: Preview Role as Agent** and select a qualified Role file from an open Workspace. Core produces an exact preview and only writes `.github/agents/tiinex-<role>.agent.md` after explicit Apply. Unknown frontmatter and human notes survive unchanged; edited generated content or unqualified tool/permission frontmatter is blocked. No Role holder assignment or tool grant follows.
+- Local test: Core `inspect-agent-capabilities --query lineage`; host `node test/nativeAgentDiscovery.regression.cjs`. The latter requires the project's normal TypeScript dev dependency.
+- Marketplace publishing requires the exact installed/published `@tiinex/core` to support agent discovery and Role sync. VSIX packaging now includes declared `skills/` content, checked with `test/skillPackaging.regression.mjs`; this is source/packaging evidence, not proof of a typechecked Windows VSIX.
+
 ## Incoming safety model
 
 Incoming never implies acceptance.

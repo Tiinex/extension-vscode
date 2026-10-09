@@ -1,0 +1,22 @@
+TAP version 13
+# Subtest: Core Role agent projection does not grant role holder or execute tools; preserves human edits
+ok 1 - Core Role agent projection does not grant role holder or execute tools; preserves human edits
+  ---
+  duration_ms: 30.887741
+  type: 'test'
+  ...
+# Subtest: Node plan/check/apply uses exact approved plan hash and rejects unsafe targets and symlink
+ok 2 - Node plan/check/apply uses exact approved plan hash and rejects unsafe targets and symlink
+  ---
+  duration_ms: 38.144725
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1912.556274

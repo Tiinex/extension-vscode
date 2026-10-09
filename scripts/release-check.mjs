@@ -1,6 +1,7 @@
 import { access, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { collectVscodeSkillEntries } from './skill-packaging.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const manifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
@@ -53,6 +54,20 @@ if (!gitignore.split(/\r?\n/).includes('dist-audit/')) errors.push('.gitignore m
 // Release automation is intentionally identity-neutral here. Microsoft is retiring
 // global Azure DevOps PAT publishing; the CI workflow should supply Entra/workload
 // identity credentials rather than committing a long-lived secret contract.
+// Native agent contributions must reference shipped, reviewable resources.
+const nativeTool = (manifest.contributes?.languageModelTools || []).find((item) => item.name === 'tiinex_inspectCapabilities');
+if (!nativeTool || nativeTool.inputSchema?.type !== 'object') errors.push('native-agent.discovery-tool.contribution-missing');
+try {
+  const skillEntries = await collectVscodeSkillEntries(root,manifest);
+  if (nativeTool && !skillEntries.some(([name]) => name === 'extension/skills/tiinex-discovery/SKILL.md'))
+    errors.push('native-agent.discovery-skill-not-packaged');
+} catch(error) { errors.push(String(error?.message || error)); }
+if (vscodeignore.split(/\r?\n/).some((line) => line.trim() === 'skills/**')) errors.push('native-agent.skills-excluded-from-vsix');
+if (!manifest.scripts?.['vsix:release'] || !manifest.scripts['vsix:release'].includes('package-vsix-release.mjs')) errors.push('scripts.vsix:release must use exact Core release gate');
+await required('scripts/vsix-release-policy.mjs');
+await required('scripts/vsix-core-abi.mjs');
+await required('scripts/package-vsix-release.mjs');
+await required('test/vsixReleaseBoundary.regression.mjs');
 if (!manifest.scripts?.validate) errors.push('scripts.validate missing');
 
 

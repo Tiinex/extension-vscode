@@ -4,11 +4,15 @@ import { registerTiinexDiagnostics } from './diagnostics';
 import { TiinexOperatorTrees } from './operatorTrees';
 import { manualRepositoryCommitCommand, registerGitAutomation } from './gitAutomation';
 import { applyEmptyDirectoryCleanup, nestedWorkspaceRootExclusions, planEmptyDirectoryCleanup } from './core/emptyDirectoryCleanup';
+import { registerTiinexNativeAgentDiscovery } from './vscode/nativeAgentDiscovery';
+import { registerTiinexNativeAgentRoleSync } from './vscode/nativeAgentRoleSync';
 
 function message(error: unknown): string { return error instanceof Error ? error.message : String(error); }
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const extensionPath = String((context as any).extensionPath || '');
+  registerTiinexNativeAgentDiscovery(context, extensionPath);
+  registerTiinexNativeAgentRoleSync(context, extensionPath);
   const trees = new TiinexOperatorTrees(context, extensionPath);
   context.subscriptions.push(trees);
   let diagnostics: Awaited<ReturnType<typeof registerTiinexDiagnostics>> | null = null;

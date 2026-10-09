@@ -1,0 +1,233 @@
+TAP version 13
+# Subtest: content-source Entry artifacts are qualified through the generic Entry contract
+ok 1 - content-source Entry artifacts are qualified through the generic Entry contract
+  ---
+  duration_ms: 319.327265
+  type: 'test'
+  ...
+# Subtest: Target Entry descendants are discovered as WHERE entries with qualified target metadata
+ok 2 - Target Entry descendants are discovered as WHERE entries with qualified target metadata
+  ---
+  duration_ms: 314.543784
+  type: 'test'
+  ...
+# Subtest: schema-valid Entry artifacts outside declared Entry surfaces do not shadow reusable content-source Entries
+ok 3 - schema-valid Entry artifacts outside declared Entry surfaces do not shadow reusable content-source Entries
+  ---
+  duration_ms: 238.892449
+  type: 'test'
+  ...
+# Subtest: carried Entry artifacts win exact-byte duplicates from reusable content sources and .schemas never leaks as an Entry instance
+ok 4 - carried Entry artifacts win exact-byte duplicates from reusable content sources and .schemas never leaks as an Entry instance
+  ---
+  duration_ms: 195.421178
+  type: 'test'
+  ...
+# Subtest: Entry schema and reusable Entry fixtures carry valid self integrity
+ok 5 - Entry schema and reusable Entry fixtures carry valid self integrity
+  ---
+  duration_ms: 57.779155
+  type: 'test'
+  ...
+# Subtest: carried Entry discovery projects only current semantic lineage leaves
+ok 6 - carried Entry discovery projects only current semantic lineage leaves
+  ---
+  duration_ms: 185.447632
+  type: 'test'
+  ...
+# Subtest: Session Entry grounding material is projected as required grounding obligations
+ok 7 - Session Entry grounding material is projected as required grounding obligations
+  ---
+  duration_ms: 135.444362
+  type: 'test'
+  ...
+# Subtest: carried Entry descendant schemas participate in discovery without leaking schema artifacts as Entries
+ok 8 - carried Entry descendant schemas participate in discovery without leaking schema artifacts as Entries
+  ---
+  duration_ms: 182.517048
+  type: 'test'
+  ...
+# Subtest: Evidence continuation is a qualified Core capability when a real Parent is selected in New Artifact
+ok 9 - Evidence continuation is a qualified Core capability when a real Parent is selected in New Artifact
+  ---
+  duration_ms: 123.114661
+  type: 'test'
+  ...
+# Subtest: Evidence is Core-creation-qualified and exposes explicit source-owned reference affordances
+ok 10 - Evidence is Core-creation-qualified and exposes explicit source-owned reference affordances
+  ---
+  duration_ms: 2444.156261
+  type: 'test'
+  ...
+# Subtest: Evidence creation renders exact structured claim plus relative Markdown asset references and passes validation
+ok 11 - Evidence creation renders exact structured claim plus relative Markdown asset references and passes validation
+  ---
+  duration_ms: 12.085284
+  type: 'test'
+  ...
+# Subtest: schema group/shadow conflict remains fail closed at renderer boundary
+ok 12 - schema group/shadow conflict remains fail closed at renderer boundary
+  ---
+  duration_ms: 3.634496
+  type: 'test'
+  ...
+# Subtest: Evidence local references resolve relative to authored Evidence path, not workspace root
+ok 13 - Evidence local references resolve relative to authored Evidence path, not workspace root
+  ---
+  duration_ms: 122.011482
+  type: 'test'
+  ...
+# Subtest: Common CLI Evidence preflight does not silently qualify a broken local Claim Reference
+ok 14 - Common CLI Evidence preflight does not silently qualify a broken local Claim Reference
+  ---
+  duration_ms: 105.001672
+  type: 'test'
+  ...
+# Subtest: fresh qualified Evidence may become Evidence Parent, no schema-type ban
+ok 15 - fresh qualified Evidence may become Evidence Parent, no schema-type ban
+  ---
+  duration_ms: 112.460944
+  type: 'test'
+  ...
+# Subtest: historical unqualified schema URL blocks a Parent with actionable cause, never silent promotion
+ok 16 - historical unqualified schema URL blocks a Parent with actionable cause, never silent promotion
+  ---
+  duration_ms: 1733.22851
+  type: 'test'
+  ...
+# Subtest: pre-launch Evidence keeps tiinex.evidence.v1 and binds exactly one native-owned repeated material section
+ok 17 - pre-launch Evidence keeps tiinex.evidence.v1 and binds exactly one native-owned repeated material section
+  ---
+  duration_ms: 95.445429
+  type: 'test'
+  ...
+# Subtest: Evidence v1 generates, seals, validates, and reads back two distinct source entries with individual metadata
+ok 18 - Evidence v1 generates, seals, validates, and reads back two distinct source entries with individual metadata
+  ---
+  duration_ms: 37.469829
+  type: 'test'
+  ...
+# Subtest: One material entry works; zero entries, duplicate names, missing source/description and unqualified metadata fail closed
+ok 19 - One material entry works; zero entries, duplicate names, missing source/description and unqualified metadata fail closed
+  ---
+  duration_ms: 31.54053
+  type: 'test'
+  ...
+# Subtest: Old scalar Material cannot masquerade as a structured repeated collection or be silently dropped
+ok 20 - Old scalar Material cannot masquerade as a structured repeated collection or be silently dropped
+  ---
+  duration_ms: 14.878529
+  type: 'test'
+  ...
+# Subtest: Native v1 revision is source-checksummed and explicitly unpublished rather than a fabricated GitHub snapshot
+ok 21 - Native v1 revision is source-checksummed and explicitly unpublished rather than a fabricated GitHub snapshot
+  ---
+  duration_ms: 2.457431
+  type: 'test'
+  ...
+# Subtest: Evidence field help is sourced from an exact qualified schema section
+ok 22 - Evidence field help is sourced from an exact qualified schema section
+  ---
+  duration_ms: 98.413847
+  type: 'test'
+  ...
+# Subtest: Ordinary Evidence group children inherit only their own exact schema provenance
+ok 23 - Ordinary Evidence group children inherit only their own exact schema provenance
+  ---
+  duration_ms: 29.897386
+  type: 'test'
+  ...
+# Subtest: Handoff schema fields preserve their separate binding and provenance
+ok 24 - Handoff schema fields preserve their separate binding and provenance
+  ---
+  duration_ms: 45.882387
+  type: 'test'
+  ...
+# Subtest: Unknown inputs never inherit unrelated help and missing schema is unavailable
+ok 25 - Unknown inputs never inherit unrelated help and missing schema is unavailable
+  ---
+  duration_ms: 25.689343
+  type: 'test'
+  ...
+# Subtest: Whole projection reports unresolved mappings instead of fabricating source authority
+ok 26 - Whole projection reports unresolved mappings instead of fabricating source authority
+  ---
+  duration_ms: 19.750042
+  type: 'test'
+  ...
+# Subtest: portable operation makes the same qualified field help available to host/LLM consumers
+ok 27 - portable operation makes the same qualified field help available to host/LLM consumers
+  ---
+  duration_ms: 6.06573
+  type: 'test'
+  ...
+# Subtest: unmapped Presentation Surface creation fields stay explicitly unresolved
+ok 28 - unmapped Presentation Surface creation fields stay explicitly unresolved
+  ---
+  duration_ms: 19.824171
+  type: 'test'
+  ...
+# Subtest: CLI form-field-help returns field/line provenance without external material input
+ok 29 - CLI form-field-help returns field/line provenance without external material input
+  ---
+  duration_ms: 3555.904898
+  type: 'test'
+  ...
+# Subtest: portable CLI unresolved field reports a structured finding, never a character-expanded string
+ok 30 - portable CLI unresolved field reports a structured finding, never a character-expanded string
+  ---
+  duration_ms: 2606.910985
+  type: 'test'
+  ...
+# Subtest: generic creation omits optional-only sections when no optional input is supplied
+ok 31 - generic creation omits optional-only sections when no optional input is supplied
+  ---
+  duration_ms: 188.521616
+  type: 'test'
+  ...
+# Subtest: generic creation renders and preserves supplied optional scalar and declaration sections
+ok 32 - generic creation renders and preserves supplied optional scalar and declaration sections
+  ---
+  duration_ms: 92.662414
+  type: 'test'
+  ...
+# Subtest: schema ids project to human labels without changing semantic ids
+ok 33 - schema ids project to human labels without changing semantic ids
+  ---
+  duration_ms: 3.181774
+  type: 'test'
+  ...
+# Subtest: commit provenance renders one path-sorted box-drawing tree with metadata only at leaves
+ok 34 - commit provenance renders one path-sorted box-drawing tree with metadata only at leaves
+  ---
+  duration_ms: 1.628414
+  type: 'test'
+  ...
+# Subtest: portable operation exposes host-neutral commit provenance projection
+ok 35 - portable operation exposes host-neutral commit provenance projection
+  ---
+  duration_ms: 1.397991
+  type: 'test'
+  ...
+# Subtest: Git adapter derives bytes from index, deleted bytes from HEAD, and ignores unstaged working-tree edits
+ok 36 - Git adapter derives bytes from index, deleted bytes from HEAD, and ignores unstaged working-tree edits
+  ---
+  duration_ms: 245.195861
+  type: 'test'
+  ...
+# Subtest: Git adapter renders rename provenance at destination leaf
+ok 37 - Git adapter renders rename provenance at destination leaf
+  ---
+  duration_ms: 156.282312
+  type: 'test'
+  ...
+1..37
+# tests 37
+# suites 0
+# pass 37
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 23802.20753
+

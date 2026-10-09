@@ -1,0 +1,14 @@
+# Effective turn 5 source and release boundary receipt
+
+Parent: tiinex-032-1-1-1-1-1-1, qualified Anchor continuation.
+Core + 15 other non-VSCode workspace source trees compared against exact parent archive: 16/16 byte-identical, no extra noncanonical files. Only VS Code source changes.
+
+Reproduced: npm ci --ignore-scripts --no-audit --no-fund --fetch-retries=0 --fetch-timeout=9500 => registry.npmjs.org EAI_AGAIN / undici-types 6.20.0. Clean dependency-backed tsc and Windows VSIX are NOT qualified.
+
+Real development VSIX `package-vsix.mjs` smoke: ready; packageMode=development-smoke; releaseQualified=false; 463 entries, includes packaged Core and skill. Extracted ZIP: exact bundled Core binding mode installed-package (999.0.0 placeholder), agent operations `inspect-agent-capabilities` and `project-agent-role-sync` both declared `hostExecution=not-qualified` and `roleAuthorization=not-established`. Package uses local sibling Core; no Marketplace claim.
+
+New Marketplace-specific release guard requires an installed-package Core with exact manifest/lock/runtime semver tuple, non-placeholder version. Real packager was invoked with TIINEX_VSIX_RELEASE=1 against sibling Core: denied with `tiinex.vsix.release.sibling-core-not-published` and cleared existing VSIX candidate. New independent abi guard calls selected Core CLI before packaging and fails closed if operation/safety contract drifts. This is a preventive release hardening, NOT a clean release build.
+
+Host P0 regression: PASS using prior Core source, including ordinary file Move/Rebase cancel/apply, Evidence attachment per entry, Transition value preservation, Role sync plan/cancel/approve and trust denials. Core had 566 PASS, 1 SKIP over 85 test files in 11 shards in previous unchanged carrier. No re-run needed to claim the immutable prior receipt as inherited, but no fresh full suite run this turn.
+
+User should not be asked to debug. Await actual dependency-enabled TypeScript/VSIX and installed Windows acceptance plus full media/docs completion before a separate Sigma Handoff.

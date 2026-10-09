@@ -1,0 +1,3 @@
+BUNDLED_BINDING {"mode":"installed-package","version":"999.0.0","declared":"999.0.0","lock":"999.0.0"}
+PASS bundled Core agent operations inspect-agent-capabilities, project-agent-role-sync
+PASS declared bundled skill read separately by ZIP inspection

@@ -1,0 +1,5 @@
+
+> tiinex-vscode@0.1.7 test:transition-roundtrip
+> node test/transitionRoundtrip.integration.mjs
+
+PASS Core Transition Create→persist→reopen; explicit field mapping, claim/material preservation boundary, negative source cases

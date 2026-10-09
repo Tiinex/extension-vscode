@@ -34,6 +34,7 @@ import { sameRepositoryRoot } from './core/repositoryPath';
 import { localArtifactReference } from './core/artifactReferencePicker';
 import { attachFileToOpenForm } from './vscode/attachFileToForm';
 import { moveArtifactFromExplorer } from './vscode/lineageMaintenance';
+import { compatibleTransitionSeed } from './core/transitionSourceSeed';
 import { applyDeferredArtifactAndAssets } from './vscode/lineageMaintenance';
 import { prepareDeferredFormTransaction } from './vscode/deferredFormTransaction';
 import type { ArtifactAuthoringModel } from './core/artifactAuthoringModel';
@@ -4337,7 +4338,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     workspace: OutgoingWorkspace,
     schemaId: string,
     parentArtifact: ArtifactDraftParent | null,
-    options: { attachAvailable: boolean; attachDefault: boolean; targetDirectory?: string; seedValues?: Record<string, unknown>; sourceContextLabel?: string }
+    options: { attachAvailable: boolean; attachDefault: boolean; targetDirectory?: string; seedValues?: Record<string, unknown>; sourceContextLabel?: string; sourceFormValues?: Record<string, unknown> }
   ): Promise<void> {
     try {
       const root = await this.ensureOutgoingAuthoringRoot(workspace);
@@ -4385,6 +4386,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
         fieldAssists: [],
         initialValues: options.seedValues || {},
         sourceContextLabel: options.sourceContextLabel || '',
+        sourceFormValues: options.sourceFormValues || {},
         enableSaveAsTransition: schemaId !== 'tiinex.transition.definition.v1' && schemaId !== 'tiinex.schema.transition.companion.v1',
         templates: initialPresentation.templates,
         selectedTemplateId: initialPresentation.selectedTemplateId,
@@ -4431,14 +4433,17 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
           // Transition Definition has independent identity and validation.
           const transitionModel = await loadArtifactAuthoringModel(this.extensionPath, 'tiinex.transition.definition.v1', 'create-artifact');
           if (transitionModel.status !== 'ready') throw new Error('tiinex.authoring.transition-creation-not-qualified');
-          const allowed = new Set(transitionModel.sections.filter((section) => section.kind === 'fields').flatMap((section) => section.fields.map((field) => field.key)));
-          const seed = Object.fromEntries(Object.entries(submission.values || {}).filter(([key, value]) => allowed.has(key) && typeof value === 'string'));
+          const seed = compatibleTransitionSeed(submission.values || {}, transitionModel);
+          // Source values not assignable by exact schema identity remain visible
+          // as read-only context in the second form. The user explicitly chooses
+          // any semantic mapping; a claim cannot silently become a Role/Purpose.
           const base = String(options.targetDirectory || (parentArtifact?.path ? path.posix.dirname(parentArtifact.path) : '.topics'));
           const destination = path.posix.join(base, base.endsWith('/.transitions') ? '' : '.transitions');
           if (destination !== '.topics/.transitions' && !destination.startsWith('.topics/')) throw new Error('tiinex.authoring.transition-target-outside-topics');
           await this.showArtifactAuthoring(workspace, 'tiinex.transition.definition.v1', null, {
             attachAvailable: false, attachDefault: false, targetDirectory: destination,
-            seedValues: seed, sourceContextLabel: submission.title || schemaId
+            seedValues: seed, sourceContextLabel: submission.title || schemaId,
+            sourceFormValues: submission.values || {}
           });
         },
         preview: async (submission) => {

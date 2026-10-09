@@ -31,7 +31,7 @@ const modules = new Map();
 function load(rel) {
   const file=path.resolve(repo,'src',rel+'.ts'); if(modules.has(file))return modules.get(file);
   const m={exports:{}};modules.set(file,m.exports);
-  const myRequire=(id)=>id==='vscode'?vscode:id==='../host/corePackageBinding'?{qualifyInstalledCore:async()=>({root:coreRoot})}:id==='./lineageMaintenance'?load('vscode/lineageMaintenance'):id==='./lineageMaintenanceInventory'?load('vscode/lineageMaintenanceInventory'):id==='../core/formAttachmentFields'?{qualifiedFileAttachmentFields:()=>[{fieldKey:'Material',sectionKey:'Evidence Material',label:'Material',append:true}]}:id==='../core/artifactReferencePicker'?load('core/artifactReferencePicker'):id==='../core/deferredFormAttachment'?load('core/deferredFormAttachment'):require(id);
+  const myRequire=(id)=>id==='vscode'?vscode:id==='../host/corePackageBinding'?{qualifyInstalledCore:async()=>({root:coreRoot})}:id==='./lineageMaintenance'?load('vscode/lineageMaintenance'):id==='./lineageMaintenanceInventory'?load('vscode/lineageMaintenanceInventory'):id==='../core/formAttachmentFields'?{qualifiedFileAttachmentFields:()=>[{fieldKey:'Material',sectionKey:'Evidence Material',label:'Material',append:true}]}:id==='../core/artifactReferencePicker'?load('core/artifactReferencePicker'):id==='../core/deferredFormAttachment'?load('core/deferredFormAttachment'):id==='../core/fileAttachmentPresentation'?load('core/fileAttachmentPresentation'):require(id);
   const wrapper=new Function('require','module','exports','__filename','__dirname',transpile(file));
   wrapper(myRequire,m,m.exports,file,path.dirname(file));modules.set(file,m.exports);return m.exports;
 }
@@ -81,7 +81,21 @@ async function main(){
   assert.match(outgoing[0].reference,/\.\.\/assets\/second\.png/);
   assert.equal(pending.length,1);
   assert.equal(fs.existsSync(second),true,'Attach never moves source before Create');
-  console.log('PASS Attach to Form: Yes records pending reference; source remains byte-exact and unmoved');
+  assert.equal(outgoing[0].entryNameSuggestion,'second');
+  assert.equal(outgoing[0].materialKindSuggestion,'PNG image');
+  console.log('PASS Attach to Form: Yes records pending reference and per-source hints; source remains byte-exact and unmoved');
+  // The same Explorer command now also routes an ordinary PNG to Core asset
+  // inspection and the journaled apply path; no host fs.rename fallback.
+  const third=path.join(root,'.topics/assets/third.png');fs.writeFileSync(third,Buffer.from([9,8,7,6]));
+  answers.choice=[vscode.Uri.file(path.join(root,'.topics/review'))];
+  answers.consent=undefined;
+  await host.moveArtifactFromExplorer('unused',vscode.Uri.file(third),[workspace],core);
+  assert.equal(fs.existsSync(third),true,'Explorer asset cancel must not mutate');
+  answers.consent='Apply reviewed plan';
+  await host.moveArtifactFromExplorer('unused',vscode.Uri.file(third),[workspace],core);
+  assert.equal(fs.existsSync(third),false);
+  assert.deepEqual(fs.readFileSync(path.join(root,'.topics/review/001-1-1-third-01.png')),Buffer.from([9,8,7,6]));
+  console.log('PASS Explorer ordinary PNG: Core Preview/Cancel and Apply preserve bytes and change references safely');
   fs.mkdirSync(path.join(root,'.topics/chain'),{recursive:true});
   const mkArtifact=(name,label)=>{const p=path.join(root,'.topics/chain',name);fs.writeFileSync(p,sealC14nV2Self(md.replaceAll('Tested',label)).markdown+'\n');return p;};
   const insert=mkArtifact('009-insert.trace.md','Insert');const target=mkArtifact('001-target.trace.md','Target');

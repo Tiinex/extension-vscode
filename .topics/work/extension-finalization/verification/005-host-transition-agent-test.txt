@@ -1,0 +1,14 @@
+# 2026-10-09 Effective turn 2 — host / transition / agent checks
+
+Core agent-capability focused + real Transition/Companion/Evidence focused: 12 PASS, 0 FAIL, 0 SKIP (004-focused-core-test.txt).
+
+Native-agent host test: PASS real TypeScript transpilation, mock VS Code registration and disposal, Core CLI delegation and denied invalid/untrusted inputs.
+Webview source-context test: PASS generated Transition Webview source snapshot, correct HTML/JS escaping.
+Transition Create→persist→reopen regression: PASS real Core creation contract, validation, c14n-v2, disk reread and explicit cross-schema mapping restriction. Not installed Windows Webview acceptance.
+Host authoring + lineage: PASS separate per-file material entries, conservative filename hints; Core-backed ordinary PNG and trace.md Move/Rebase Cancel/Preview/Apply, Prepend, Normalize, pending form source unmodified.
+Marketplace static release audit: ready; zero errors and zero warnings; tool/skill path presence checked. This is not clean VSIX packaging.
+
+Full Core sweep with concurrency=4 exceeded execution timeout after observing 222 successful subtests; full-suite PASS/FAIL unknown. The prior 562 PASS / 1 SKIP receipt belongs to predecessor Core, not a PASS for this candidate.
+npm ci --ignore-scripts --no-audit --no-fund with fetch-retries=0: BLOCKED by registry.npmjs.org EAI_AGAIN fetching undici-types 6.20.0; no qualified dependency-backed tsc/VSIX here.
+
+Remaining: end-to-end installed Windows UI Create/Preview/Reload; packaged npm @tiinex/core ABI/published-version matching new native capability operation; Core Role agent projection and 3-way frontmatter-preserving sync; full Core suite completion; four media/deduplicated docs/Marketplace gate.

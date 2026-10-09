@@ -1,0 +1,287 @@
+TAP version 13
+# Subtest: common author defaults ordinary first-party continuations through directory allocation while exact path remains an intentional override
+ok 1 - common author defaults ordinary first-party continuations through directory allocation while exact path remains an intentional override
+  ---
+  duration_ms: 403.660639
+  type: 'test'
+  ...
+# Subtest: authoring Parent keeps exact canonical declared schema target qualified
+ok 2 - authoring Parent keeps exact canonical declared schema target qualified
+  ---
+  duration_ms: 124.393351
+  type: 'test'
+  ...
+# Subtest: materialization keeps target directory independent from same-workspace Parent directory
+ok 3 - materialization keeps target directory independent from same-workspace Parent directory
+  ---
+  duration_ms: 2022.93041
+  type: 'test'
+  ...
+# Subtest: explicit repository-root target directory allocates in the repository root
+ok 4 - explicit repository-root target directory allocates in the repository root
+  ---
+  duration_ms: 21.641731
+  type: 'test'
+  ...
+# Subtest: Workspace-qualified Parent requires durable published recovery and renders only the immutable locator
+ok 5 - Workspace-qualified Parent requires durable published recovery and renders only the immutable locator
+  ---
+  duration_ms: 85.441846
+  type: 'test'
+  ...
+# Subtest: candidate validation blocks persisted Workspace-qualified Parent recovery while historical audit preserves it
+ok 6 - candidate validation blocks persisted Workspace-qualified Parent recovery while historical audit preserves it
+  ---
+  duration_ms: 35.695752
+  type: 'test'
+  ...
+# Subtest: authoring Parent permits direct continuation from exact verified bytes carrying only historical malformed ancestor recovery debt
+ok 7 - authoring Parent permits direct continuation from exact verified bytes carrying only historical malformed ancestor recovery debt
+  ---
+  duration_ms: 61.485875
+  type: 'test'
+  ...
+# Subtest: editor assistance preserves malformed Workspace-qualified Parent debt when no exact durable replacement is proven
+ok 8 - editor assistance preserves malformed Workspace-qualified Parent debt when no exact durable replacement is proven
+  ---
+  duration_ms: 78.048746
+  type: 'test'
+  ...
+# Subtest: editor assistance locates child self mismatch on the primary self Value and offers a deterministic reseal Quick Fix
+ok 9 - editor assistance locates child self mismatch on the primary self Value and offers a deterministic reseal Quick Fix
+  ---
+  duration_ms: 71.078941
+  type: 'test'
+  ...
+# Subtest: editor assistance prioritizes a mutated Parent digest on the Parent Value and offers a deterministic parent+self repair
+ok 10 - editor assistance prioritizes a mutated Parent digest on the Parent Value and offers a deterministic parent+self repair
+  ---
+  duration_ms: 97.104248
+  type: 'test'
+  ...
+# Subtest: self-integrity diagnostic ignores generic field:Value evidence and anchors the Towards:self digest
+ok 11 - self-integrity diagnostic ignores generic field:Value evidence and anchors the Towards:self digest
+  ---
+  duration_ms: 21.359653
+  type: 'test'
+  ...
+# Subtest: editor assistance validates exact schema permalinks against explicit host resolution evidence and offers latest as warning-only stale Quick Fix
+ok 12 - editor assistance validates exact schema permalinks against explicit host resolution evidence and offers latest as warning-only stale Quick Fix
+  ---
+  duration_ms: 17.048132
+  type: 'test'
+  ...
+# Subtest: editor assistance reports an unresolved schema permalink as error and offers master repair only when host resolution proves a latest candidate
+ok 13 - editor assistance reports an unresolved schema permalink as error and offers master repair only when host resolution proves a latest candidate
+  ---
+  duration_ms: 15.516843
+  type: 'test'
+  ...
+# Subtest: local continuation preserves the exact declared Parent Schema target when its reference authority is unresolved
+ok 14 - local continuation preserves the exact declared Parent Schema target when its reference authority is unresolved
+  ---
+  duration_ms: 15.503966
+  type: 'test'
+  ...
+# Subtest: Feedback continuation composes exact inherited Signal creation bindings and renders a valid child
+ok 15 - Feedback continuation composes exact inherited Signal creation bindings and renders a valid child
+  ---
+  duration_ms: 25.901566
+  type: 'test'
+  ...
+# Subtest: editor assistance repairs bare Envelope and Current Schema ids when exact immutable authorities are qualified
+ok 16 - editor assistance repairs bare Envelope and Current Schema ids when exact immutable authorities are qualified
+  ---
+  duration_ms: 29.773237
+  type: 'test'
+  ...
+# Subtest: editor assistance prefers same-Workspace relative schema source when local schema bytes differ from published authority
+ok 17 - editor assistance prefers same-Workspace relative schema source when local schema bytes differ from published authority
+  ---
+  duration_ms: 22.971292
+  type: 'test'
+  ...
+# Subtest: editor assistance emits one Core-owned lineage changeset when schema-reference repair changes an ancestor self digest
+ok 18 - editor assistance emits one Core-owned lineage changeset when schema-reference repair changes an ancestor self digest
+  ---
+  duration_ms: 49.724916
+  type: 'test'
+  ...
+# Subtest: bootstrap carrier filename allocation starts at 001 and advances from the highest local carrier
+ok 19 - bootstrap carrier filename allocation starts at 001 and advances from the highest local carrier
+  ---
+  duration_ms: 2.000936
+  type: 'test'
+  ...
+# Subtest: bootstrap carrier export reuses canonical Package V1 manufacture and carries no Workspace or route
+ok 20 - bootstrap carrier export reuses canonical Package V1 manufacture and carries no Workspace or route
+  ---
+  duration_ms: 10246.117263
+  type: 'test'
+  ...
+# Subtest: bootstrap carrier human output exposes only output path and transport text by default
+ok 21 - bootstrap carrier human output exposes only output path and transport text by default
+  ---
+  duration_ms: 0.583678
+  type: 'test'
+  ...
+# Subtest: bootstrap replacement transport projection is Core-owned and remains bootstrap-only
+ok 22 - bootstrap replacement transport projection is Core-owned and remains bootstrap-only
+  ---
+  duration_ms: 1.581506
+  type: 'test'
+  ...
+# Subtest: embedded bootstrap catalog exposes Process and Scaffold content and keeps Entry discovery fail-closed without its schema contract
+ok 23 - embedded bootstrap catalog exposes Process and Scaffold content and keeps Entry discovery fail-closed without its schema contract
+  ---
+  duration_ms: 2029.289334
+  type: 'test'
+  ...
+# Subtest: embedded bootstrap catalog reports initialized Schema content without archive archaeology
+ok 24 - embedded bootstrap catalog reports initialized Schema content without archive archaeology
+  ---
+  duration_ms: 3104.482877
+  type: 'test'
+  ...
+# Subtest: mechanics-only bootstrap stays valid but fails closed on schema-aware authoring without a qualified content source
+ok 25 - mechanics-only bootstrap stays valid but fails closed on schema-aware authoring without a qualified content source
+  ---
+  duration_ms: 2203.298522
+  type: 'test'
+  ...
+# Subtest: content-composed bootstrap supports black-box schema-aware authoring from its own bundled Native content
+ok 26 - content-composed bootstrap supports black-box schema-aware authoring from its own bundled Native content
+  ---
+  duration_ms: 16131.672148
+  type: 'test'
+  ...
+# Subtest: bootstrap recovery derives explicit Start/root bootstrap ownership when package contract cannot qualify
+ok 27 - bootstrap recovery derives explicit Start/root bootstrap ownership when package contract cannot qualify
+  ---
+  duration_ms: 5.158272
+  type: 'test'
+  ...
+# Subtest: bootstrap recovery does not erase non-bootstrap blockers
+ok 28 - bootstrap recovery does not erase non-bootstrap blockers
+  ---
+  duration_ms: 2.813882
+  type: 'test'
+  ...
+# Subtest: bootstrap embeds the exact Core portable CLI bytes instead of maintaining a parallel CLI implementation
+ok 29 - bootstrap embeds the exact Core portable CLI bytes instead of maintaining a parallel CLI implementation
+  ---
+  duration_ms: 1161.819076
+  type: 'test'
+  ...
+# Subtest: bootstrap build timestamp is truthful bundle metadata while composition identity stays timestamp-independent
+ok 30 - bootstrap build timestamp is truthful bundle metadata while composition identity stays timestamp-independent
+  ---
+  duration_ms: 1406.006046
+  type: 'test'
+  ...
+# Subtest: legacy bootstrap manifest v1 remains inspectable without invented comparison metadata
+ok 31 - legacy bootstrap manifest v1 remains inspectable without invented comparison metadata
+  ---
+  duration_ms: 700.945303
+  type: 'test'
+  ...
+# Subtest: extracted bootstrap version command projects exact local Core, composition, schemas and companions without network
+ok 32 - extracted bootstrap version command projects exact local Core, composition, schemas and companions without network
+  ---
+  duration_ms: 9827.182876
+  type: 'test'
+  ...
+# Subtest: source-checkout version stays truthful when no bootstrap manifest surrounds the runtime
+ok 33 - source-checkout version stays truthful when no bootstrap manifest surrounds the runtime
+  ---
+  duration_ms: 3177.56379
+  type: 'test'
+  ...
+# Subtest: browser entry dependency src/public/index.js has no Node builtin import
+ok 34 - browser entry dependency src/public/index.js has no Node builtin import
+  ---
+  duration_ms: 2.730212
+  type: 'test'
+  ...
+# Subtest: browser entry dependency src/public/applicationProjection.js has no Node builtin import
+ok 35 - browser entry dependency src/public/applicationProjection.js has no Node builtin import
+  ---
+  duration_ms: 0.257431
+  type: 'test'
+  ...
+# Subtest: browser entry dependency src/public/companionResources.js has no Node builtin import
+ok 36 - browser entry dependency src/public/companionResources.js has no Node builtin import
+  ---
+  duration_ms: 0.246951
+  type: 'test'
+  ...
+# Subtest: browser entry dependency src/artifacts/artifact.parse.js has no Node builtin import
+ok 37 - browser entry dependency src/artifacts/artifact.parse.js has no Node builtin import
+  ---
+  duration_ms: 0.275711
+  type: 'test'
+  ...
+# Subtest: browser entry dependency src/tooling/portable/handoff/carrierContinuationProjection.js has no Node builtin import
+ok 38 - browser entry dependency src/tooling/portable/handoff/carrierContinuationProjection.js has no Node builtin import
+  ---
+  duration_ms: 0.249567
+  type: 'test'
+  ...
+# Subtest: bundled Role schema material is the Axiom-amended Assignment Modes revision
+ok 39 - bundled Role schema material is the Axiom-amended Assignment Modes revision
+  ---
+  duration_ms: 15.547567
+  type: 'test'
+  ...
+# Subtest: Role Assignment Modes validator accepts only exact canonical serialization
+ok 40 - Role Assignment Modes validator accepts only exact canonical serialization
+  ---
+  duration_ms: 140.929372
+  type: 'test'
+  ...
+# Subtest: current Business Sigma Role authority is consumed from canonical schema qualification, not raw Assignment Modes parsing
+ok 41 - current Business Sigma Role authority is consumed from canonical schema qualification, not raw Assignment Modes parsing
+  ---
+  duration_ms: 21.920034
+  type: 'test'
+  ...
+# Subtest: Role section parsing treats end-of-input structurally and does not truncate on the letter z inside Holder Relationship prose
+ok 42 - Role section parsing treats end-of-input structurally and does not truncate on the letter z inside Holder Relationship prose
+  ---
+  duration_ms: 8.626323
+  type: 'test'
+  ...
+# Subtest: common author preserves exact historical Role Parent schema locator while validating continuation against current Role schema
+ok 43 - common author preserves exact historical Role Parent schema locator while validating continuation against current Role schema
+  ---
+  duration_ms: 1132.559054
+  type: 'test'
+  ...
+# Subtest: common author qualifies a continuation from the exact pre-migration Axiom Role without revalidating historical bytes as the current Role revision
+ok 44 - common author qualifies a continuation from the exact pre-migration Axiom Role without revalidating historical bytes as the current Role revision
+  ---
+  duration_ms: 85.417034
+  type: 'test'
+  ...
+# Subtest: common author still fails closed when exact historical Parent bytes are tampered
+ok 45 - common author still fails closed when exact historical Parent bytes are tampered
+  ---
+  duration_ms: 22.22208
+  type: 'test'
+  ...
+# Subtest: common Role authoring fails closed for missing or invalid Assignment Modes
+ok 46 - common Role authoring fails closed for missing or invalid Assignment Modes
+  ---
+  duration_ms: 109.712698
+  type: 'test'
+  ...
+1..46
+# tests 46
+# suites 0
+# pass 46
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 43588.989117
+

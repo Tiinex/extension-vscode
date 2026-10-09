@@ -4810,7 +4810,7 @@ await test('Move/Rebase Explorer and Attach to Form expose one qualified Core pl
   const pkg = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8'));
   const contextActions = pkg.contributes.menus['tiinex.explorer.actions'];
   assert.ok(pkg.contributes.commands.some((entry) => entry.command === 'tiinex.artifact.moveRebase'));
-  assert.ok(contextActions.some((entry) => entry.command === 'tiinex.artifact.moveRebase' && /trace/.test(entry.when)));
+  assert.ok(contextActions.some((entry) => entry.command === 'tiinex.artifact.moveRebase' && entry.when === '!explorerResourceIsFolder'));
   const explorer = await fs.readFile(path.join(root, 'src/operatorTrees.ts'), 'utf8');
   const host = await fs.readFile(path.join(root, 'src/vscode/lineageMaintenance.ts'), 'utf8');
   const form = await fs.readFile(path.join(root, 'src/vscode/attachFileToForm.ts'), 'utf8');

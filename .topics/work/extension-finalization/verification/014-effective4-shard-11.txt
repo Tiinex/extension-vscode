@@ -1,0 +1,137 @@
+TAP version 13
+# Subtest: typed artifact candidates are found across .topics, never by dot folder convention or whole-workspace search
+ok 1 - typed artifact candidates are found across .topics, never by dot folder convention or whole-workspace search
+  ---
+  duration_ms: 232.690097
+  type: 'test'
+  ...
+# Subtest: Workspace scanner fails closed on symlink escape and explicit resource limits
+ok 2 - Workspace scanner fails closed on symlink escape and explicit resource limits
+  ---
+  duration_ms: 16.01995
+  type: 'test'
+  ...
+# Subtest: untyped prose remains unqualified and nested .workspaces never auto-selects primary authority
+ok 3 - untyped prose remains unqualified and nested .workspaces never auto-selects primary authority
+  ---
+  duration_ms: 9.39985
+  type: 'test'
+  ...
+# Subtest: Node adapter projects typed Transition catalog without implying applicable preset
+ok 4 - Node adapter projects typed Transition catalog without implying applicable preset
+  ---
+  duration_ms: 13.823785
+  type: 'test'
+  ...
+# Subtest: Guided Entry mode catalog uses reusable content sources and remains transport-only
+ok 5 - Guided Entry mode catalog uses reusable content sources and remains transport-only
+  ---
+  duration_ms: 259.04466
+  type: 'test'
+  ...
+# Subtest: Guided Entry catalog separates WHAT purpose Entries from WHERE Target Entries and composes a selected target
+ok 6 - Guided Entry catalog separates WHAT purpose Entries from WHERE Target Entries and composes a selected target
+  ---
+  duration_ms: 502.284744
+  type: 'test'
+  ...
+# Subtest: Core renders Session Entry grounding obligations without VS Code semantics
+ok 7 - Core renders Session Entry grounding obligations without VS Code semantics
+  ---
+  duration_ms: 548.530373
+  type: 'test'
+  ...
+# Subtest: EXPLORE requires current cross-Workspace grounding before participant-facing directions
+ok 8 - EXPLORE requires current cross-Workspace grounding before participant-facing directions
+  ---
+  duration_ms: 210.695575
+  type: 'test'
+  ...
+# Subtest: Guided Entry renders canonical cold-start shell plus RESUME intent and session context
+ok 9 - Guided Entry renders canonical cold-start shell plus RESUME intent and session context
+  ---
+  duration_ms: 192.979877
+  type: 'test'
+  ...
+# Subtest: Guided Entry rejects duplicate Primary Role participant and missing CUSTOM instruction
+ok 10 - Guided Entry rejects duplicate Primary Role participant and missing CUSTOM instruction
+  ---
+  duration_ms: 420.929125
+  type: 'test'
+  ...
+# Subtest: Guided Entry uses a commit-pinned external Role reference only when the Role is not carried
+ok 11 - Guided Entry uses a commit-pinned external Role reference only when the Role is not carried
+  ---
+  duration_ms: 360.447795
+  type: 'test'
+  ...
+# Subtest: Guided Entry deduplicates Roles by exact identity rather than human label alone
+ok 12 - Guided Entry deduplicates Roles by exact identity rather than human label alone
+  ---
+  duration_ms: 120.526571
+  type: 'test'
+  ...
+# Subtest: Workspace initialization requests host schema resolution before writing semantics
+ok 13 - Workspace initialization requests host schema resolution before writing semantics
+  ---
+  duration_ms: 4.335511
+  type: 'test'
+  ...
+# Subtest: Workspace initialization preserves a resolvable schema permalink and seals exact bytes
+ok 14 - Workspace initialization preserves a resolvable schema permalink and seals exact bytes
+  ---
+  duration_ms: 28.0867
+  type: 'test'
+  ...
+# Subtest: Workspace exact bytes remain qualified through source-to-local-to-Pack handoff, while the first host-side byte drift fails self-integrity
+ok 15 - Workspace exact bytes remain qualified through source-to-local-to-Pack handoff, while the first host-side byte drift fails self-integrity
+  ---
+  duration_ms: 1903.187244
+  type: 'test'
+  ...
+# Subtest: init-workspace turns an ordinary non-Git directory into a discoverable local-directory Workspace
+ok 16 - init-workspace turns an ordinary non-Git directory into a discoverable local-directory Workspace
+  ---
+  duration_ms: 124.758063
+  type: 'test'
+  ...
+# Subtest: Git checkout without origin remains local-directory while an origin is optional enrichment
+ok 17 - Git checkout without origin remains local-directory while an origin is optional enrichment
+  ---
+  duration_ms: 379.577476
+  type: 'test'
+  ...
+# Subtest: shared Workspace enumeration applies .gitignore in a non-Git directory without hard-coded ZIP behavior
+ok 18 - shared Workspace enumeration applies .gitignore in a non-Git directory without hard-coded ZIP behavior
+  ---
+  duration_ms: 206.533569
+  type: 'test'
+  ...
+# Subtest: shared Workspace enumeration preserves tracked files even when .gitignore matches them
+ok 19 - shared Workspace enumeration preserves tracked files even when .gitignore matches them
+  ---
+  duration_ms: 236.71267
+  type: 'test'
+  ...
+# Subtest: Workspace package-source discovery excludes schema-definition material while leaving dedicated schema discovery untouched
+ok 20 - Workspace package-source discovery excludes schema-definition material while leaving dedicated schema discovery untouched
+  ---
+  duration_ms: 136.482797
+  type: 'test'
+  ...
+# Subtest: Guided Entry session Role projection exposes current leaves and never leaks .schemas Role material
+ok 21 - Guided Entry session Role projection exposes current leaves and never leaks .schemas Role material
+  ---
+  duration_ms: 61.943217
+  type: 'test'
+  ...
+1..21
+# tests 21
+# suites 0
+# pass 21
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 13543.759087
+

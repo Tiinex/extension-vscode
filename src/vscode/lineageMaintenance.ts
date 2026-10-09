@@ -55,13 +55,25 @@ async function applied(core: CoreLineage, plan: any, workspace: QualifiedLocalWo
 /** Exposed Explorer action. The selected artifact must belong to exactly one
  * qualified local Workspace. No hidden selection or parent mutation. */
 export async function moveArtifactFromExplorer(extensionPath: string, resource: vscode.Uri | undefined, choices: QualifiedLocalWorkspace[], coreOverride?: CoreLineage): Promise<void> {
-  if (!resource || resource.scheme !== 'file' || !resource.fsPath.endsWith('.trace.md')) throw new Error('Select a Tiinex .trace.md artifact.');
+  if (!resource || resource.scheme !== 'file') throw new Error('Select a local Tiinex artifact or ordinary file.');
   const info = await lstat(resource.fsPath);
-  if (!info.isFile() || info.isSymbolicLink()) throw new Error('A real local artifact file is required.');
+  if (!info.isFile() || info.isSymbolicLink()) throw new Error('A real local file is required.');
   const candidates = choices.filter((item) => { try { return topicsDirectory(safeWithin(item.root, resource.fsPath)); } catch { return false; } });
   if (candidates.length !== 1) throw new Error('Exactly one qualified local Workspace must own the selected artifact.');
   const selected = candidates[0];
   const oldPath = safeWithin(selected.root, resource.fsPath);
+  if (!oldPath.endsWith('.trace.md')) {
+    // Ordinary assets use Core's *existing* exact asset/reference inspection,
+    // drift-checked Apply and recovery journal. No separate host move engine.
+    const chosen = await vscode.window.showOpenDialog({ canSelectFiles: false, canSelectFolders: true,
+      canSelectMany: false, defaultUri: vscode.Uri.file(path.dirname(resource.fsPath)),
+      title: 'Move/Rebase · ordinary file destination', openLabel: 'Review asset destination' });
+    if (!chosen?.[0]) return;
+    const destination = safeWithin(selected.root, chosen[0].fsPath);
+    if (!topicsDirectory(destination)) throw new Error('Target must remain inside this Workspace .topics.');
+    await relocateOrdinaryFileForForm(extensionPath, selected, resource, destination, coreOverride, 'Move/Rebase · ordinary file');
+    return;
+  }
   // VS Code reserves QuickPickItem.kind for separator metadata. Use a separate
   // domain-specific discriminator and an explicit generic so TypeScript cannot
   // infer the readonly string-array showQuickPick overload.
@@ -100,14 +112,14 @@ export async function moveArtifactFromExplorer(extensionPath: string, resource: 
 
 /** Returns a path only after exact Core inspection, user preview/confirmation
  * and durable Apply all succeed. No mutation on cancel/block. */
-export async function relocateOrdinaryFileForForm(extensionPath: string, workspace: QualifiedLocalWorkspace, resource: vscode.Uri, targetDirectory: string, coreOverride?: CoreLineage): Promise<string | undefined> {
+export async function relocateOrdinaryFileForForm(extensionPath: string, workspace: QualifiedLocalWorkspace, resource: vscode.Uri, targetDirectory: string, coreOverride?: CoreLineage, label = 'Attach to Form'): Promise<string | undefined> {
   const oldPath = safeWithin(workspace.root, resource.fsPath);
   if (!topicsDirectory(targetDirectory) || oldPath.endsWith('.trace.md')) throw new Error('Ordinary file relocation requires a .topics target and non-artifact source.');
-  const coordinate = await vscode.window.showInputBox({ title: 'Attach to Form · exact target lineage', prompt: 'Enter the qualified numeric dimension for the intended artifact (e.g. 001-1-1). The artifact has not been created, so Tiinex will not guess it.', placeHolder: '001-1-1', validateInput: (value) => /^(?:0*[1-9]\d*)(?:-0*[1-9]\d*)*$/.test(value) ? undefined : 'Enter a positive numeric lineage dimension.' });
+  const coordinate = await vscode.window.showInputBox({ title: `${label} · exact target lineage`, prompt: 'Enter the qualified numeric dimension for the intended artifact (e.g. 001-1-1). The artifact has not been created, so Tiinex will not guess it.', placeHolder: '001-1-1', validateInput: (value) => /^(?:0*[1-9]\d*)(?:-0*[1-9]\d*)*$/.test(value) ? undefined : 'Enter a positive numeric lineage dimension.' });
   if (!coordinate) return undefined;
   const core = coreOverride || await boundCore(extensionPath);
   const plan = await core.inspectPortableAssetRelocationWorkspace({ workspaceRoot: workspace.root, workspaceId: workspace.workspaceId, assetPaths: [oldPath], targetDirectory, lineageDimension: coordinate });
-  if (!await confirmPreview(plan, 'Attach to Form · file relocation')) return undefined;
+  if (!await confirmPreview(plan, `${label} · file relocation`)) return undefined;
   const change = plan.changes.find((item: any) => item.kind === 'binary-asset' && item.fromPath === oldPath);
   if (!change) throw new Error('Core returned no exact relocated asset identity.');
   if (!await applied(core, plan, workspace)) return undefined;
