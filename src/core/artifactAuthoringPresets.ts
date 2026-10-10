@@ -49,6 +49,19 @@ export function dedupeTransitionPresetCandidates<T extends TransitionPresetCandi
   );
 }
 
+/** Discovery delivers an early local Core snapshot, then a later Core snapshot
+ * over a superset of roots. The later snapshot supersedes the early one:
+ * merging both would manufacture cross-invocation duplicates because Core
+ * representation keys are scoped to each discovery. The Core, not VS Code,
+ * decides whether material from different origins is semantically identical.
+ * An empty enriched result retains the early snapshot for graceful fallback.
+ */
+export function selectCompletedTransitionPresetCandidates<T extends TransitionPresetCandidate>(
+  early: readonly T[], enriched: readonly T[]
+): T[] {
+  return dedupeTransitionPresetCandidates(enriched.length > 0 ? enriched : early);
+}
+
 export function qualifiedTransitionPresetCandidates<T extends TransitionPresetCandidate>(candidates: readonly T[]): T[] {
   return dedupeTransitionPresetCandidates(candidates.filter((candidate) =>
     candidate.authoringProfile?.state === 'qualified'

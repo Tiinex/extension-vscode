@@ -17,7 +17,7 @@ assert.equal(suggestedMaterialKind('notes.TXT'),'text document');
 assert.equal(suggestedMaterialKind('file.bin'),'','unqualified binary name must not claim kind');
 assert.equal(suggestedMaterialEntryName('Äntligen Bild 1.PNG'),'antligen-bild-1');
 const {compatibleTransitionSeed,sourceScalarPreview}=loadHelper('transitionSourceSeed.ts');
-const {projectTransitionAuthoringPresets,qualifiedTransitionPresetCandidates}=loadHelper('artifactAuthoringPresets.ts');
+const {projectTransitionAuthoringPresets,qualifiedTransitionPresetCandidates,selectCompletedTransitionPresetCandidates}=loadHelper('artifactAuthoringPresets.ts');
 const qualifiedPreset=(representationKey, purpose)=>({representationKey,canonicalIdentifier:'tiinex.same-name.v1',version:'1.0.0',label:'Same label',purpose,
  authoringProfile:{state:'qualified',defaults:{Purpose:purpose},boundary:{explicitSelectionRequired:true,recommendation:'not-projected',executionAuthorized:false}}});
 const unrelated=[qualifiedPreset('workspace-a','Source A'),qualifiedPreset('workspace-b','Source B')];
@@ -29,6 +29,28 @@ assert.equal(new Set(projection.templates.map(x=>x.id)).size,3,'each Core repres
 assert.deepEqual(projection.templates.slice(1).map(x=>x.defaults.Purpose),['Source A','Source B'],'do not swap source-specific generation defaults');
 assert.notEqual(projection.templates[1].label,projection.templates[2].label,'same public name must be disambiguated');
 assert.deepEqual(projectTransitionAuthoringPresets([{...qualifiedPreset('workspace-x','Invalid'),authoringProfile:{state:'blocked',defaults:{Purpose:'Invalid'},boundary:{explicitSelectionRequired:true,recommendation:'not-projected',executionAuthorized:false}}}]).templates.map(x=>x.id),['manual'],'blocked Core definitions cannot become prefills');
+
+const earlySnapshot=[qualifiedPreset('composed-native:18:core/evidence/source','Evidence source')];
+const enrichedSnapshot=[qualifiedPreset('supplied-transition-material:385','Evidence source')];
+assert.equal(
+  selectCompletedTransitionPresetCandidates(earlySnapshot,enrichedSnapshot).length,1,
+  'the complete Core snapshot supersedes the fast Core snapshot instead of doubling the same preset'
+);
+assert.equal(
+  selectCompletedTransitionPresetCandidates(earlySnapshot,enrichedSnapshot)[0].representationKey,
+  'supplied-transition-material:385',
+  'the later Core snapshot selects the local qualified origin'
+);
+assert.equal(
+  selectCompletedTransitionPresetCandidates(earlySnapshot,[])[0].representationKey,
+  'composed-native:18:core/evidence/source',
+  'an unavailable enriched snapshot retains the qualified fast result'
+);
+assert.equal(
+  selectCompletedTransitionPresetCandidates(earlySnapshot,unrelated).length,2,
+  'genuinely distinct qualified Core representations within one snapshot remain distinct'
+);
+
 
 const input={Purpose:'exact-matching top level','Supported Claim Or Question':{'Supported Claim Or Question':'Original claim','Evidence Role':'illustrates'},
  'Evidence Material':[{name:'screenshot-1',fields:{Material:'[a.png](a.png)','Material Kind':'PNG image',Description:'Observed UI'}}],

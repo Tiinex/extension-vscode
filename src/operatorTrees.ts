@@ -23,7 +23,7 @@ import { incomingReviewPresentation, incomingReviewReady, IncomingReviewDecision
 import { incomingSourceStatus, incomingSourceUnavailableMessage } from './core/incomingSource';
 import { waitForStableFile } from './core/stableFile';
 import { artifactAuthoringCandidateCapability, partyReferenceAuthoringFillValue, partyReferenceCandidateSatisfiesAffordance } from './core/artifactAuthoringCandidateSource';
-import { dedupeTransitionPresetCandidates, projectTransitionAuthoringPresets } from './core/artifactAuthoringPresets';
+import { dedupeTransitionPresetCandidates, projectTransitionAuthoringPresets, selectCompletedTransitionPresetCandidates } from './core/artifactAuthoringPresets';
 import { payloadCheckoutEligibility, qualifiedGitHubBlobReference } from './host/git';
 import { revealFileInNativeFolder } from './host/reveal';
 import { existingCarrierFilenames } from './host/carrierPublish';
@@ -4522,9 +4522,12 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
         return post('authoring-transition-state', { ...presentation, transitionDefinitions: definitions, message: 'Embedded / local Transition presets ready.' });
       }).catch(() => post('authoring-transition-state', { ...initialPresentation, transitionDefinitions: [], message: 'Transition discovery unavailable; Manual remains available.' }));
       void Promise.all([fastTransitionPromise, enrichedTransitionPromise]).then(([fast, enriched]) => {
-        const merged = dedupeTransitionPresetCandidates([...fast, ...enriched]);
-        const presentation = this.transitionAuthoringPresentation(merged);
-        return post('authoring-transition-state', { ...presentation, transitionDefinitions: merged, message: 'Transition preset discovery complete.' });
+        // Each Core projection is already qualified for its own root set. The
+        // superset projection supersedes the early one; concatenating two
+        // snapshots invents duplicates when their representation keys differ.
+        const completed = selectCompletedTransitionPresetCandidates(fast, enriched);
+        const presentation = this.transitionAuthoringPresentation(completed);
+        return post('authoring-transition-state', { ...presentation, transitionDefinitions: completed, message: 'Transition preset discovery complete.' });
       }).catch(() => undefined);
     } catch (error) {
       await vscode.window.showErrorMessage(`Tiinex ${schemaId} authoring blocked: ${shortMessage(error)}`, 'Show Details').then(async (choice: string | undefined) => {
