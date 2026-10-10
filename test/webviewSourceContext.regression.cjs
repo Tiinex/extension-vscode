@@ -15,8 +15,12 @@ const {openArtifactAuthoringPanel}=compiled.exports;
 const model={label:'Transition Definition',schemaId:'tiinex.transition.definition.v1',sections:[{kind:'group',key:'Purpose And Scope',label:'Purpose And Scope',allowNone:false,fields:[{key:'Purpose',label:'Purpose',required:true,allowedValues:[],allowedShapes:[],help:'',multiline:false},{key:'Semantic Boundary',label:'Semantic Boundary',required:true,allowedValues:[],allowedShapes:[],help:'',multiline:false}]}]};
 const content='Original question <with tags> and \"quotes\"';
 openArtifactAuthoringPanel({model,workspaces:[{workspaceId:'vscode',label:'VS Code',description:'local'}],selectedWorkspaceId:'vscode',attachAvailable:false,attachDefault:false,sourceContextLabel:'Unfinished Evidence',sourceFormValues:{'Supported Claim Or Question':{'Supported Claim Or Question':content}, 'Evidence Material':[{name:'screenshot',fields:{Material:'[image](image.png)',Description:'Original'}}]},initialValues:{}},{preview:async()=>{},create:async()=>{}});
+// User-facing Save as Transition is intentionally paused. No alternate
+// form snapshot is introduced; Core Transition discovery remains available.
+assert.match(fs.readFileSync(path.resolve(__dirname,'../src/operatorTrees.ts'),'utf8'),/enableSaveAsTransition:\s*false/);
 assert.ok(panel?.webview?.html);
 const html=panel.webview.html;
+assert.doesNotMatch(html,/id="saveTransition"|Save as Transition…/);
 assert.match(html,/Unfinished source form/);
 assert.match(html,/Source value/);
 assert.match(html,/Copy selected value to field/);

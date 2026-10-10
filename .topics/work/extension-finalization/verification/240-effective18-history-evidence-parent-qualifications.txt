@@ -1,0 +1,46 @@
+TAP version 13
+# Subtest: old immutable Evidence with accepted EXACT byte equivalent schema can be a Parent without modifying historical bytes
+ok 1 - old immutable Evidence with accepted EXACT byte equivalent schema can be a Parent without modifying historical bytes
+  ---
+  duration_ms: 49.875298
+  type: 'test'
+  ...
+# Subtest: old pinned historical Evidence with distinct schema and no host read still BLOCK, no silent rewrite
+ok 2 - old pinned historical Evidence with distinct schema and no host read still BLOCK, no silent rewrite
+  ---
+  duration_ms: 399.544777
+  type: 'test'
+  ...
+# Subtest: same remote bytes from a contradictory commit/path are not accepted as historical Parent authority
+ok 3 - same remote bytes from a contradictory commit/path are not accepted as historical Parent authority
+  ---
+  duration_ms: 6.050239
+  type: 'test'
+  ...
+# Subtest: byte-equivalent historical Evidence can actually author and reopen a verified Evidence child with pinned Parent Schema
+ok 4 - byte-equivalent historical Evidence can actually author and reopen a verified Evidence child with pinned Parent Schema
+  ---
+  duration_ms: 32.740159
+  type: 'test'
+  ...
+# Subtest: first-class Core CLI historical Evidence Parent is available without VS Code or mutable schema rewrites
+ok 5 - first-class Core CLI historical Evidence Parent is available without VS Code or mutable schema rewrites
+  ---
+  duration_ms: 2534.563932
+  type: 'test'
+  ...
+# Subtest: missing historical provider receipt offers LLM an exact repository-read recovery action rather than a dead-end
+ok 6 - missing historical provider receipt offers LLM an exact repository-read recovery action rather than a dead-end
+  ---
+  duration_ms: 6.734398
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3970.713311

@@ -1,0 +1,3 @@
+PACKED CLI Cross-Workspace artifact+PNG: PLAN→APPLY→exact SHA/C14n→replay BLOCK PASS
+PACKED CLI historical Evidence: unresolved→EXACT synthetic-receipt equivalent→Parent ready (original bytes unchanged).
+Note: synthetic provider receipt is only a test fixture; this is NOT proof of remote GitHub publication.

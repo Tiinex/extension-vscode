@@ -1,0 +1,47 @@
+TAP version 13
+# Subtest: Core-local workspace inspection builds one real mixed plan and Apply preserves bytes, references and self integrity
+ok 1 - Core-local workspace inspection builds one real mixed plan and Apply preserves bytes, references and self integrity
+  ---
+  duration_ms: 64.047918
+  type: 'test'
+  ...
+# Subtest: Unsupported Markdown and non-Tiinex JS incoming references fail CLOSED rather than claiming complete closure
+ok 2 - Unsupported Markdown and non-Tiinex JS incoming references fail CLOSED rather than claiming complete closure
+  ---
+  duration_ms: 32.115167
+  type: 'test'
+  ...
+# Subtest: Unquoted HTML and CSS URLs to a relocated asset block as unsupported reference owners
+ok 3 - Unquoted HTML and CSS URLs to a relocated asset block as unsupported reference owners
+  ---
+  duration_ms: 25.28335
+  type: 'test'
+  ...
+# Subtest: Workspace inventory snapshots reject new files and modified unrelated links before Apply
+ok 4 - Workspace inventory snapshots reject new files and modified unrelated links before Apply
+  ---
+  duration_ms: 20.322819
+  type: 'test'
+  ...
+# Subtest: No symlink or invalid text is silently skipped by complete reference inventory
+ok 5 - No symlink or invalid text is silently skipped by complete reference inventory
+  ---
+  duration_ms: 5.685749
+  type: 'test'
+  ...
+# Subtest: CLI inspect-scoped-move-workspace runs manually without VS Code and produces an Apply-compatible plan
+ok 6 - CLI inspect-scoped-move-workspace runs manually without VS Code and produces an Apply-compatible plan
+  ---
+  duration_ms: 2019.499115
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3206.814721
+

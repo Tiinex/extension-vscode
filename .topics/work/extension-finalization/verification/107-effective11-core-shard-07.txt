@@ -1,0 +1,341 @@
+TAP version 13
+# Subtest: Core-local workspace inspection builds one real mixed plan and Apply preserves bytes, references and self integrity
+ok 1 - Core-local workspace inspection builds one real mixed plan and Apply preserves bytes, references and self integrity
+  ---
+  duration_ms: 96.61679
+  type: 'test'
+  ...
+# Subtest: Unsupported Markdown and non-Tiinex JS incoming references fail CLOSED rather than claiming complete closure
+ok 2 - Unsupported Markdown and non-Tiinex JS incoming references fail CLOSED rather than claiming complete closure
+  ---
+  duration_ms: 44.162715
+  type: 'test'
+  ...
+# Subtest: Unquoted HTML and CSS URLs to a relocated asset block as unsupported reference owners
+ok 3 - Unquoted HTML and CSS URLs to a relocated asset block as unsupported reference owners
+  ---
+  duration_ms: 33.631577
+  type: 'test'
+  ...
+# Subtest: Workspace inventory snapshots reject new files and modified unrelated links before Apply
+ok 4 - Workspace inventory snapshots reject new files and modified unrelated links before Apply
+  ---
+  duration_ms: 41.472856
+  type: 'test'
+  ...
+# Subtest: No symlink or invalid text is silently skipped by complete reference inventory
+ok 5 - No symlink or invalid text is silently skipped by complete reference inventory
+  ---
+  duration_ms: 7.12437
+  type: 'test'
+  ...
+# Subtest: CLI inspect-scoped-move-workspace runs manually without VS Code and produces an Apply-compatible plan
+ok 6 - CLI inspect-scoped-move-workspace runs manually without VS Code and produces an Apply-compatible plan
+  ---
+  duration_ms: 5505.783395
+  type: 'test'
+  ...
+# Subtest: manufacture excludes generated .release/old.tgz but preserves tasks and source
+ok 7 - manufacture excludes generated .release/old.tgz but preserves tasks and source
+  ---
+  duration_ms: 99.857046
+  type: 'test'
+  ...
+# Subtest: manufacture excludes generated .outgoing-handoff-packages/old.zip but preserves tasks and source
+ok 8 - manufacture excludes generated .outgoing-handoff-packages/old.zip but preserves tasks and source
+  ---
+  duration_ms: 71.602163
+  type: 'test'
+  ...
+# Subtest: manufacture excludes generated .vscode/link/state.json but preserves tasks and source
+ok 9 - manufacture excludes generated .vscode/link/state.json but preserves tasks and source
+  ---
+  duration_ms: 37.928826
+  type: 'test'
+  ...
+# Subtest: manufacture excludes generated tools/__pycache__/browser-smoke.cpython-313.pyc but preserves tasks and source
+ok 10 - manufacture excludes generated tools/__pycache__/browser-smoke.cpython-313.pyc but preserves tasks and source
+  ---
+  duration_ms: 30.016105
+  type: 'test'
+  ...
+# Subtest: manufacture excludes generated tools/browser-smoke.pyc but preserves tasks and source
+ok 11 - manufacture excludes generated tools/browser-smoke.pyc but preserves tasks and source
+  ---
+  duration_ms: 66.186319
+  type: 'test'
+  ...
+# Subtest: manufacture excludes generated tools/legacy.pyo but preserves tasks and source
+ok 12 - manufacture excludes generated tools/legacy.pyo but preserves tasks and source
+  ---
+  duration_ms: 61.780533
+  type: 'test'
+  ...
+# Subtest: exact carrier output path is idempotent for byte-identical duplicate transport
+ok 13 - exact carrier output path is idempotent for byte-identical duplicate transport
+  ---
+  duration_ms: 122.970673
+  type: 'test'
+  ...
+# Subtest: exact carrier output path fails closed and preserves divergent existing bytes
+ok 14 - exact carrier output path fails closed and preserves divergent existing bytes
+  ---
+  duration_ms: 25.667172
+  type: 'test'
+  ...
+# Subtest: shared explicit Handoff routes keep --route as presentation selection instead of collapsing manufacture
+ok 15 - shared explicit Handoff routes keep --route as presentation selection instead of collapsing manufacture
+  ---
+  duration_ms: 0.488731
+  type: 'test'
+  ...
+# Subtest: pointerless filename is a safe transport label, exposes only generic transport, and never invents route or lineage
+ok 16 - pointerless filename is a safe transport label, exposes only generic transport, and never invents route or lineage
+  ---
+  duration_ms: 1.322875
+  type: 'test'
+  ...
+# Subtest: manufacture CLI summary preserves exact semantic participant projection for hosts
+ok 17 - manufacture CLI summary preserves exact semantic participant projection for hosts
+  ---
+  duration_ms: 0.46499
+  type: 'test'
+  ...
+# Subtest: closure plan preserves exact semantic participant route projection for host receipts
+ok 18 - closure plan preserves exact semantic participant route projection for host receipts
+  ---
+  duration_ms: 1.135285
+  type: 'test'
+  ...
+# Subtest: runtime/source alignment qualifies exact Core bootstrap bytes and exposes the policy digest
+ok 19 - runtime/source alignment qualifies exact Core bootstrap bytes and exposes the policy digest
+  ---
+  duration_ms: 137.115822
+  type: 'test'
+  ...
+# Subtest: release-normalized package metadata may differ when exact Tooling source bytes match
+ok 20 - release-normalized package metadata may differ when exact Tooling source bytes match
+  ---
+  duration_ms: 133.986528
+  type: 'test'
+  ...
+# Subtest: same Core package name/version cannot hide stale runtime policy bytes
+ok 21 - same Core package name/version cannot hide stale runtime policy bytes
+  ---
+  duration_ms: 169.702956
+  type: 'test'
+  ...
+# Subtest: pointerless Workspace manufacture fails closed on stale Core runtime/source bytes
+ok 22 - pointerless Workspace manufacture fails closed on stale Core runtime/source bytes
+  ---
+  duration_ms: 225.529708
+  type: 'test'
+  ...
+# Subtest: bootstrap chooses explicit stable package floor
+ok 23 - bootstrap chooses explicit stable package floor
+  ---
+  duration_ms: 2.381284
+  type: 'test'
+  ...
+# Subtest: default patch needs no version edit or tag
+ok 24 - default patch needs no version edit or tag
+  ---
+  duration_ms: 1.117982
+  type: 'test'
+  ...
+# Subtest: features get minor
+ok 25 - features get minor
+  ---
+  duration_ms: 0.601392
+  type: 'test'
+  ...
+# Subtest: breaking marker before 1.0 gets minor, not an involuntary 1.0
+ok 26 - breaking marker before 1.0 gets minor, not an involuntary 1.0
+  ---
+  duration_ms: 0.258851
+  type: 'test'
+  ...
+# Subtest: explicit major opts in to 1.0
+ok 27 - explicit major opts in to 1.0
+  ---
+  duration_ms: 0.265151
+  type: 'test'
+  ...
+# Subtest: strongest batch signal wins
+ok 28 - strongest batch signal wins
+  ---
+  duration_ms: 0.441834
+  type: 'test'
+  ...
+# Subtest: surface removal is not downgraded by patch marker
+ok 29 - surface removal is not downgraded by patch marker
+  ---
+  duration_ms: 0.577553
+  type: 'test'
+  ...
+# Subtest: post-1.0 break yields major
+ok 30 - post-1.0 break yields major
+  ---
+  duration_ms: 0.507931
+  type: 'test'
+  ...
+# Subtest: retry of already released commit skips
+ok 31 - retry of already released commit skips
+  ---
+  duration_ms: 0.641373
+  type: 'test'
+  ...
+# Subtest: a prerelease of same commit does not suppress its stable promotion
+ok 32 - a prerelease of same commit does not suppress its stable promotion
+  ---
+  duration_ms: 1.032767
+  type: 'test'
+  ...
+# Subtest: only master can obtain permission
+ok 33 - only master can obtain permission
+  ---
+  duration_ms: 0.90891
+  type: 'test'
+  ...
+# Subtest: PR, fork, local invocation and disabled config cannot publish
+ok 34 - PR, fork, local invocation and disabled config cannot publish
+  ---
+  duration_ms: 0.264203
+  type: 'test'
+  ...
+# Subtest: registry auth/network/server failures never mean package absent
+ok 35 - registry auth/network/server failures never mean package absent
+  ---
+  duration_ms: 1.87366
+  type: 'test'
+  ...
+# Subtest: only actual 404 permits bootstrap
+ok 36 - only actual 404 permits bootstrap
+  ---
+  duration_ms: 1.301132
+  type: 'test'
+  ...
+# Subtest: registry 404 can settle to a visible package under an explicit bounded retry policy
+ok 37 - registry 404 can settle to a visible package under an explicit bounded retry policy
+  ---
+  duration_ms: 0.663026
+  type: 'test'
+  ...
+# Subtest: bounded registry retry still reports durable 404 as absence
+ok 38 - bounded registry retry still reports durable 404 as absence
+  ---
+  duration_ms: 0.610747
+  type: 'test'
+  ...
+# Subtest: authorization and server failures are never retried as propagation lag
+ok 39 - authorization and server failures are never retried as propagation lag
+  ---
+  duration_ms: 0.502562
+  type: 'test'
+  ...
+# Subtest: published archive state distinguishes exact idempotency, version collision and absence
+ok 40 - published archive state distinguishes exact idempotency, version collision and absence
+  ---
+  duration_ms: 0.217775
+  type: 'test'
+  ...
+# Subtest: Native-composed Handoff definitions qualify without App while remaining non-executable/non-recommended
+ok 41 - Native-composed Handoff definitions qualify without App while remaining non-executable/non-recommended
+  ---
+  duration_ms: 290.608814
+  type: 'test'
+  ...
+# Subtest: Native zero-input Handoff authoring transitions remain available regardless of Parent schema
+ok 42 - Native zero-input Handoff authoring transitions remain available regardless of Parent schema
+  ---
+  duration_ms: 91.327753
+  type: 'test'
+  ...
+# Subtest: external transitions remain separate and Native inclusion is explicit in the programmatic API
+ok 43 - external transitions remain separate and Native inclusion is explicit in the programmatic API
+  ---
+  duration_ms: 40.16128
+  type: 'test'
+  ...
+# Subtest: Native Handoff transition material is composed from selected schema content, not a generated Core-native copy
+ok 44 - Native Handoff transition material is composed from selected schema content, not a generated Core-native copy
+  ---
+  duration_ms: 0.744318
+  type: 'test'
+  ...
+# Subtest: embedded bootstrap carries selected Native content independently of App and does not recreate Core-native generated transition files
+ok 45 - embedded bootstrap carries selected Native content independently of App and does not recreate Core-native generated transition files
+  ---
+  duration_ms: 691.967081
+  type: 'test'
+  ...
+# Subtest: schema sync requires an explicit content Workspace and never defaults to Core/cwd ownership
+ok 46 - schema sync requires an explicit content Workspace and never defaults to Core/cwd ownership
+  ---
+  duration_ms: 35.166055
+  type: 'test'
+  ...
+# Subtest: schema sync/check materializes canonical schema authority into the selected .schemas content surface
+ok 47 - schema sync/check materializes canonical schema authority into the selected .schemas content surface
+  ---
+  duration_ms: 97.510332
+  type: 'test'
+  ...
+# Subtest: schema sync preserves collocated executable companions while updating their generated binding/runtime projections
+ok 48 - schema sync preserves collocated executable companions while updating their generated binding/runtime projections
+  ---
+  duration_ms: 48.608185
+  type: 'test'
+  ...
+# Subtest: published sync preserves exact immutable bindings for unchanged schema bytes and advances only changed schemas
+ok 49 - published sync preserves exact immutable bindings for unchanged schema bytes and advances only changed schemas
+  ---
+  duration_ms: 56.851096
+  type: 'test'
+  ...
+# Subtest: node portable input includePathPrefixes prunes traversal while preserving Workspace-relative .topics paths
+ok 50 - node portable input includePathPrefixes prunes traversal while preserving Workspace-relative .topics paths
+  ---
+  duration_ms: 23.923556
+  type: 'test'
+  ...
+# Subtest: operator context exposes only root-owned top-level Workspace artifacts while preserving legitimate siblings
+ok 51 - operator context exposes only root-owned top-level Workspace artifacts while preserving legitimate siblings
+  ---
+  duration_ms: 152.474652
+  type: 'test'
+  ...
+# Subtest: operator context participant projection keeps only exact Role candidates with deterministic target dedupe
+ok 52 - operator context participant projection keeps only exact Role candidates with deterministic target dedupe
+  ---
+  duration_ms: 0.659071
+  type: 'test'
+  ...
+# Subtest: operator Party scope expands explicit same-Workspace Organization membership for recipient presentation only
+ok 53 - operator Party scope expands explicit same-Workspace Organization membership for recipient presentation only
+  ---
+  duration_ms: 1.708802
+  type: 'test'
+  ...
+# Subtest: operator Party Organization expansion fails closed when same-Workspace Organization label is ambiguous
+ok 54 - operator Party Organization expansion fails closed when same-Workspace Organization label is ambiguous
+  ---
+  duration_ms: 0.553562
+  type: 'test'
+  ...
+# Subtest: published Core package excludes repository-only cases and fixtures
+ok 55 - published Core package excludes repository-only cases and fixtures # SKIP npm_execpath is required to inspect the actual npm pack surface
+  ---
+  duration_ms: 2.002717
+  type: 'test'
+  ...
+1..55
+# tests 55
+# suites 0
+# pass 54
+# fail 0
+# cancelled 0
+# skipped 1
+# todo 0
+# duration_ms 14028.891791
+

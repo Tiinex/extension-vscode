@@ -1,0 +1,407 @@
+TAP version 13
+# Subtest: common author and renderer preserve a Workspace-qualified Parent as the truthful recovery locator
+ok 1 - common author and renderer preserve a Workspace-qualified Parent as the truthful recovery locator
+  ---
+  duration_ms: 55.489767
+  type: 'test'
+  ...
+# Subtest: common creation rendering uses the qualified immutable Root schema target instead of generating mixed bare/exact schema references
+ok 2 - common creation rendering uses the qualified immutable Root schema target instead of generating mixed bare/exact schema references
+  ---
+  duration_ms: 2.816436
+  type: 'test'
+  ...
+# Subtest: locally qualified Evidence preserves source identity without inventing a published schema permalink
+ok 3 - locally qualified Evidence preserves source identity without inventing a published schema permalink
+  ---
+  duration_ms: 94.688437
+  type: 'test'
+  ...
+# Subtest: common author recovers Parent schema authority from the selected qualified content-source runtime
+ok 4 - common author recovers Parent schema authority from the selected qualified content-source runtime
+  ---
+  duration_ms: 85.823402
+  type: 'test'
+  ...
+# Subtest: runtime Parent schema recovery fails closed on ambiguous qualified representations and writes no Workspace schema copy
+ok 5 - runtime Parent schema recovery fails closed on ambiguous qualified representations and writes no Workspace schema copy
+  ---
+  duration_ms: 45.328334
+  type: 'test'
+  ...
+# Subtest: Root validation rejects malformed mixed Workspace-qualified Parent recovery locators
+ok 6 - Root validation rejects malformed mixed Workspace-qualified Parent recovery locators
+  ---
+  duration_ms: 0.962254
+  type: 'test'
+  ...
+# Subtest: qualified selected Handoff Pointer topology derives dense non-Major carrier siblings without manual reservation
+ok 7 - qualified selected Handoff Pointer topology derives dense non-Major carrier siblings without manual reservation
+  ---
+  duration_ms: 2.217964
+  type: 'test'
+  ...
+# Subtest: qualified pointerless parent carrier derives first child as dense sibling -1 without inventing semantic route authority
+ok 8 - qualified pointerless parent carrier derives first child as dense sibling -1 without inventing semantic route authority
+  ---
+  duration_ms: 0.6406
+  type: 'test'
+  ...
+# Subtest: parallel branches return by appending their own dense -1 continuation and prefix families remain independent
+ok 9 - parallel branches return by appending their own dense -1 continuation and prefix families remain independent
+  ---
+  duration_ms: 1.802777
+  type: 'test'
+  ...
+# Subtest: batch consolidation uses N+1 from the common pre-batch frontier and later batches preserve that prefix
+ok 10 - batch consolidation uses N+1 from the common pre-batch frontier and later batches preserve that prefix
+  ---
+  duration_ms: 1.722744
+  type: 'test'
+  ...
+# Subtest: consolidation fails closed without qualified common-frontier topology and rejects a non-N+1 override
+ok 11 - consolidation fails closed without qualified common-frontier topology and rejects a non-N+1 override
+  ---
+  duration_ms: 0.507762
+  type: 'test'
+  ...
+# Subtest: explicit carrier sibling override is accepted only when it matches qualified topology and ambiguity fails visible
+ok 12 - explicit carrier sibling override is accepted only when it matches qualified topology and ambiguity fails visible
+  ---
+  duration_ms: 0.426013
+  type: 'test'
+  ...
+# Subtest: legacy explicit sibling reservation remains available only when qualified topology is unavailable
+ok 13 - legacy explicit sibling reservation remains available only when qualified topology is unavailable
+  ---
+  duration_ms: 46.180002
+  type: 'test'
+  ...
+# Subtest: return Handoff transport no longer requires a semantic or CLI sibling reservation
+ok 14 - return Handoff transport no longer requires a semantic or CLI sibling reservation
+  ---
+  duration_ms: 1.855311
+  type: 'test'
+  ...
+# Subtest: manual CLI offline-compatible Append/Prepend + New Parent executes qualified disk mutation; Apply is replay-safe
+ok 15 - manual CLI offline-compatible Append/Prepend + New Parent executes qualified disk mutation; Apply is replay-safe
+  ---
+  duration_ms: 16647.29904
+  type: 'test'
+  ...
+# Subtest: Core-local workspace inspection builds one real mixed plan and Apply preserves bytes, references and self integrity
+ok 16 - Core-local workspace inspection builds one real mixed plan and Apply preserves bytes, references and self integrity
+  ---
+  duration_ms: 158.40167
+  type: 'test'
+  ...
+# Subtest: Unsupported Markdown and non-Tiinex JS incoming references fail CLOSED rather than claiming complete closure
+ok 17 - Unsupported Markdown and non-Tiinex JS incoming references fail CLOSED rather than claiming complete closure
+  ---
+  duration_ms: 36.75298
+  type: 'test'
+  ...
+# Subtest: Unquoted HTML and CSS URLs to a relocated asset block as unsupported reference owners
+ok 18 - Unquoted HTML and CSS URLs to a relocated asset block as unsupported reference owners
+  ---
+  duration_ms: 72.409299
+  type: 'test'
+  ...
+# Subtest: Workspace inventory snapshots reject new files and modified unrelated links before Apply
+ok 19 - Workspace inventory snapshots reject new files and modified unrelated links before Apply
+  ---
+  duration_ms: 41.569125
+  type: 'test'
+  ...
+# Subtest: No symlink or invalid text is silently skipped by complete reference inventory
+ok 20 - No symlink or invalid text is silently skipped by complete reference inventory
+  ---
+  duration_ms: 7.132043
+  type: 'test'
+  ...
+# Subtest: CLI inspect-scoped-move-workspace runs manually without VS Code and produces an Apply-compatible plan
+ok 21 - CLI inspect-scoped-move-workspace runs manually without VS Code and produces an Apply-compatible plan
+  ---
+  duration_ms: 4055.513723
+  type: 'test'
+  ...
+# Subtest: Cross-Workspace inspect offers GitHub connector read recovery without authorizing a move
+ok 22 - Cross-Workspace inspect offers GitHub connector read recovery without authorizing a move
+  ---
+  duration_ms: 23.680086
+  type: 'test'
+  ...
+# Subtest: manufacture excludes generated .release/old.tgz but preserves tasks and source
+ok 23 - manufacture excludes generated .release/old.tgz but preserves tasks and source
+  ---
+  duration_ms: 72.145326
+  type: 'test'
+  ...
+# Subtest: manufacture excludes generated .outgoing-handoff-packages/old.zip but preserves tasks and source
+ok 24 - manufacture excludes generated .outgoing-handoff-packages/old.zip but preserves tasks and source
+  ---
+  duration_ms: 62.938059
+  type: 'test'
+  ...
+# Subtest: manufacture excludes generated .vscode/link/state.json but preserves tasks and source
+ok 25 - manufacture excludes generated .vscode/link/state.json but preserves tasks and source
+  ---
+  duration_ms: 84.421274
+  type: 'test'
+  ...
+# Subtest: manufacture excludes generated tools/__pycache__/browser-smoke.cpython-313.pyc but preserves tasks and source
+ok 26 - manufacture excludes generated tools/__pycache__/browser-smoke.cpython-313.pyc but preserves tasks and source
+  ---
+  duration_ms: 93.338303
+  type: 'test'
+  ...
+# Subtest: manufacture excludes generated tools/browser-smoke.pyc but preserves tasks and source
+ok 27 - manufacture excludes generated tools/browser-smoke.pyc but preserves tasks and source
+  ---
+  duration_ms: 77.559111
+  type: 'test'
+  ...
+# Subtest: manufacture excludes generated tools/legacy.pyo but preserves tasks and source
+ok 28 - manufacture excludes generated tools/legacy.pyo but preserves tasks and source
+  ---
+  duration_ms: 76.417236
+  type: 'test'
+  ...
+# Subtest: exact carrier output path is idempotent for byte-identical duplicate transport
+ok 29 - exact carrier output path is idempotent for byte-identical duplicate transport
+  ---
+  duration_ms: 120.300504
+  type: 'test'
+  ...
+# Subtest: exact carrier output path fails closed and preserves divergent existing bytes
+ok 30 - exact carrier output path fails closed and preserves divergent existing bytes
+  ---
+  duration_ms: 35.826166
+  type: 'test'
+  ...
+# Subtest: shared explicit Handoff routes keep --route as presentation selection instead of collapsing manufacture
+ok 31 - shared explicit Handoff routes keep --route as presentation selection instead of collapsing manufacture
+  ---
+  duration_ms: 0.81806
+  type: 'test'
+  ...
+# Subtest: pointerless filename is a safe transport label, exposes only generic transport, and never invents route or lineage
+ok 32 - pointerless filename is a safe transport label, exposes only generic transport, and never invents route or lineage
+  ---
+  duration_ms: 4.037768
+  type: 'test'
+  ...
+# Subtest: manufacture CLI summary preserves exact semantic participant projection for hosts
+ok 33 - manufacture CLI summary preserves exact semantic participant projection for hosts
+  ---
+  duration_ms: 0.665457
+  type: 'test'
+  ...
+# Subtest: closure plan preserves exact semantic participant route projection for host receipts
+ok 34 - closure plan preserves exact semantic participant route projection for host receipts
+  ---
+  duration_ms: 1.77365
+  type: 'test'
+  ...
+# Subtest: runtime/source alignment qualifies exact Core bootstrap bytes and exposes the policy digest
+ok 35 - runtime/source alignment qualifies exact Core bootstrap bytes and exposes the policy digest
+  ---
+  duration_ms: 129.944675
+  type: 'test'
+  ...
+# Subtest: release-normalized package metadata may differ when exact Tooling source bytes match
+ok 36 - release-normalized package metadata may differ when exact Tooling source bytes match
+  ---
+  duration_ms: 108.007307
+  type: 'test'
+  ...
+# Subtest: same Core package name/version cannot hide stale runtime policy bytes
+ok 37 - same Core package name/version cannot hide stale runtime policy bytes
+  ---
+  duration_ms: 95.822556
+  type: 'test'
+  ...
+# Subtest: pointerless Workspace manufacture fails closed on stale Core runtime/source bytes
+ok 38 - pointerless Workspace manufacture fails closed on stale Core runtime/source bytes
+  ---
+  duration_ms: 252.057729
+  type: 'test'
+  ...
+# Subtest: bootstrap chooses explicit stable package floor
+ok 39 - bootstrap chooses explicit stable package floor
+  ---
+  duration_ms: 3.042602
+  type: 'test'
+  ...
+# Subtest: default patch needs no version edit or tag
+ok 40 - default patch needs no version edit or tag
+  ---
+  duration_ms: 2.176003
+  type: 'test'
+  ...
+# Subtest: features get minor
+ok 41 - features get minor
+  ---
+  duration_ms: 0.708447
+  type: 'test'
+  ...
+# Subtest: breaking marker before 1.0 gets minor, not an involuntary 1.0
+ok 42 - breaking marker before 1.0 gets minor, not an involuntary 1.0
+  ---
+  duration_ms: 0.474555
+  type: 'test'
+  ...
+# Subtest: explicit major opts in to 1.0
+ok 43 - explicit major opts in to 1.0
+  ---
+  duration_ms: 0.40771
+  type: 'test'
+  ...
+# Subtest: strongest batch signal wins
+ok 44 - strongest batch signal wins
+  ---
+  duration_ms: 0.734459
+  type: 'test'
+  ...
+# Subtest: surface removal is not downgraded by patch marker
+ok 45 - surface removal is not downgraded by patch marker
+  ---
+  duration_ms: 0.652488
+  type: 'test'
+  ...
+# Subtest: post-1.0 break yields major
+ok 46 - post-1.0 break yields major
+  ---
+  duration_ms: 0.254258
+  type: 'test'
+  ...
+# Subtest: retry of already released commit skips
+ok 47 - retry of already released commit skips
+  ---
+  duration_ms: 0.766177
+  type: 'test'
+  ...
+# Subtest: a prerelease of same commit does not suppress its stable promotion
+ok 48 - a prerelease of same commit does not suppress its stable promotion
+  ---
+  duration_ms: 1.057488
+  type: 'test'
+  ...
+# Subtest: only master can obtain permission
+ok 49 - only master can obtain permission
+  ---
+  duration_ms: 2.048463
+  type: 'test'
+  ...
+# Subtest: PR, fork, local invocation and disabled config cannot publish
+ok 50 - PR, fork, local invocation and disabled config cannot publish
+  ---
+  duration_ms: 0.241508
+  type: 'test'
+  ...
+# Subtest: registry auth/network/server failures never mean package absent
+ok 51 - registry auth/network/server failures never mean package absent
+  ---
+  duration_ms: 2.606313
+  type: 'test'
+  ...
+# Subtest: only actual 404 permits bootstrap
+ok 52 - only actual 404 permits bootstrap
+  ---
+  duration_ms: 1.464947
+  type: 'test'
+  ...
+# Subtest: registry 404 can settle to a visible package under an explicit bounded retry policy
+ok 53 - registry 404 can settle to a visible package under an explicit bounded retry policy
+  ---
+  duration_ms: 0.856202
+  type: 'test'
+  ...
+# Subtest: bounded registry retry still reports durable 404 as absence
+ok 54 - bounded registry retry still reports durable 404 as absence
+  ---
+  duration_ms: 0.54653
+  type: 'test'
+  ...
+# Subtest: authorization and server failures are never retried as propagation lag
+ok 55 - authorization and server failures are never retried as propagation lag
+  ---
+  duration_ms: 0.416778
+  type: 'test'
+  ...
+# Subtest: published archive state distinguishes exact idempotency, version collision and absence
+ok 56 - published archive state distinguishes exact idempotency, version collision and absence
+  ---
+  duration_ms: 0.234583
+  type: 'test'
+  ...
+# Subtest: Native-composed Handoff definitions qualify without App while remaining non-executable/non-recommended
+ok 57 - Native-composed Handoff definitions qualify without App while remaining non-executable/non-recommended
+  ---
+  duration_ms: 247.063853
+  type: 'test'
+  ...
+# Subtest: Native zero-input Handoff authoring transitions remain available regardless of Parent schema
+ok 58 - Native zero-input Handoff authoring transitions remain available regardless of Parent schema
+  ---
+  duration_ms: 56.273939
+  type: 'test'
+  ...
+# Subtest: external transitions remain separate and Native inclusion is explicit in the programmatic API
+ok 59 - external transitions remain separate and Native inclusion is explicit in the programmatic API
+  ---
+  duration_ms: 42.627894
+  type: 'test'
+  ...
+# Subtest: Native Handoff transition material is composed from selected schema content, not a generated Core-native copy
+ok 60 - Native Handoff transition material is composed from selected schema content, not a generated Core-native copy
+  ---
+  duration_ms: 0.845085
+  type: 'test'
+  ...
+# Subtest: embedded bootstrap carries selected Native content independently of App and does not recreate Core-native generated transition files
+ok 61 - embedded bootstrap carries selected Native content independently of App and does not recreate Core-native generated transition files
+  ---
+  duration_ms: 520.070748
+  type: 'test'
+  ...
+# Subtest: schema sync requires an explicit content Workspace and never defaults to Core/cwd ownership
+ok 62 - schema sync requires an explicit content Workspace and never defaults to Core/cwd ownership
+  ---
+  duration_ms: 35.071509
+  type: 'test'
+  ...
+# Subtest: schema sync/check materializes canonical schema authority into the selected .schemas content surface
+ok 63 - schema sync/check materializes canonical schema authority into the selected .schemas content surface
+  ---
+  duration_ms: 51.180952
+  type: 'test'
+  ...
+# Subtest: schema sync preserves collocated executable companions while updating their generated binding/runtime projections
+ok 64 - schema sync preserves collocated executable companions while updating their generated binding/runtime projections
+  ---
+  duration_ms: 36.435674
+  type: 'test'
+  ...
+# Subtest: published sync preserves exact immutable bindings for unchanged schema bytes and advances only changed schemas
+ok 65 - published sync preserves exact immutable bindings for unchanged schema bytes and advances only changed schemas
+  ---
+  duration_ms: 41.83087
+  type: 'test'
+  ...
+# Subtest: node portable input includePathPrefixes prunes traversal while preserving Workspace-relative .topics paths
+ok 66 - node portable input includePathPrefixes prunes traversal while preserving Workspace-relative .topics paths
+  ---
+  duration_ms: 21.015706
+  type: 'test'
+  ...
+1..66
+# tests 66
+# suites 0
+# pass 66
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 22541.003093
+

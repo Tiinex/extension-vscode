@@ -1,0 +1,263 @@
+TAP version 13
+# Subtest: Redaction resolves exactly as Reduction -> Root without lexical lookalikes
+ok 1 - Redaction resolves exactly as Reduction -> Root without lexical lookalikes
+  ---
+  duration_ms: 1.337411
+  type: 'test'
+  ...
+# Subtest: Redaction schema source qualifies while ordinary create remains undeclared
+ok 2 - Redaction schema source qualifies while ordinary create remains undeclared
+  ---
+  duration_ms: 10.041293
+  type: 'test'
+  ...
+# Subtest: Tooling-produced Redaction validates and legacy Allowed Shapes domains fail closed
+ok 3 - Tooling-produced Redaction validates and legacy Allowed Shapes domains fail closed
+  ---
+  duration_ms: 48.328769
+  type: 'test'
+  ...
+# Subtest: Redaction required fields fail closed
+ok 4 - Redaction required fields fail closed
+  ---
+  duration_ms: 38.949366
+  type: 'test'
+  ...
+# Subtest: Reduction creation exposes the qualified exact current schema permalink
+ok 5 - Reduction creation exposes the qualified exact current schema permalink
+  ---
+  duration_ms: 8.631647
+  type: 'test'
+  ...
+# Subtest: relative Reduction Parent references resolve from the artifact directory
+ok 6 - relative Reduction Parent references resolve from the artifact directory
+  ---
+  duration_ms: 1.242148
+  type: 'test'
+  ...
+# Subtest: commit-pinned permalink is immutable-address evidence but not byte qualification by itself
+ok 7 - commit-pinned permalink is immutable-address evidence but not byte qualification by itself
+  ---
+  duration_ms: 1.881244
+  type: 'test'
+  ...
+# Subtest: explicit immutable byte evidence qualifies only when the digest matches the supplied record
+ok 8 - explicit immutable byte evidence qualifies only when the digest matches the supplied record
+  ---
+  duration_ms: 0.497903
+  type: 'test'
+  ...
+# {
+#   "policy": "tiinex.master-npm-release.v1",
+#   "action": "publish",
+#   "name": "@tiinex/fixture",
+#   "version": "0.1.0",
+#   "previousVersion": null,
+#   "previousCommit": null,
+#   "sourceCommit": "31ac6ecda7d8799cccd8a838df5d84cb2ce1d57c",
+#   "decision": {
+#     "bump": "bootstrap",
+#     "rawSeverity": "bootstrap",
+#     "targetVersion": "0.1.0",
+#     "reasons": [
+#       "First stable version: explicit source package floor."
+#     ]
+#   },
+#   "file": ".release/tiinex-fixture-0.1.0.tgz",
+#   "integrity": "sha512-dqFkpCtdrPWF10NLrNqY7eH7OedmkDTyEeYGOE8Y5nMqXf/UjP2Jjk0x9tuapjxe1Pdy7+8rWGAto54Ejpbv1g==",
+#   "bytes": 424
+# }
+# {"policy":"tiinex.master-npm-release.v1","action":"skip","reason":"source-already-published","version":"0.1.0","sourceCommit":"31ac6ecda7d8799cccd8a838df5d84cb2ce1d57c"}
+# {
+#   "policy": "tiinex.master-npm-release.v1",
+#   "action": "publish",
+#   "name": "@tiinex/fixture",
+#   "version": "0.2.0",
+#   "previousVersion": "0.1.0",
+#   "previousCommit": "31ac6ecda7d8799cccd8a838df5d84cb2ce1d57c",
+#   "sourceCommit": "ac0546511316f7b9bcb98ed6f875b2fe85764fd1",
+#   "decision": {
+#     "bump": "minor",
+#     "rawSeverity": "minor",
+#     "targetVersion": "0.2.0",
+#     "reasons": [
+#       "feature commit marker detected"
+#     ],
+#     "explicit": false
+#   },
+#   "file": ".release/tiinex-fixture-0.2.0.tgz",
+#   "integrity": "sha512-V0EOHX4VKMtfYq+P4hUgykHgmJHY+CY/zka/ipwmC7lhQkahIk4ORwXLVSaf9uUrZJ2iz7nmyj0i5yQPzFe5rg==",
+#   "bytes": 433
+# }
+# Subtest: release prepares exact source, keeps canonical versions unchanged and detects archive tampering
+ok 9 - release prepares exact source, keeps canonical versions unchanged and detects archive tampering
+  ---
+  duration_ms: 1185.137261
+  type: 'test'
+  ...
+# Subtest: root create-artifact does not require a Parent and uses exact Core renderer when available
+ok 10 - root create-artifact does not require a Parent and uses exact Core renderer when available
+  ---
+  duration_ms: 120.97591
+  type: 'test'
+  ...
+# Subtest: composes compatible Workspace capabilities into one deterministic plan
+ok 11 - composes compatible Workspace capabilities into one deterministic plan
+  ---
+  duration_ms: 2.366019
+  type: 'test'
+  ...
+# Subtest: exact duplicate entries collapse but conflicting semantics fail closed
+ok 12 - exact duplicate entries collapse but conflicting semantics fail closed
+  ---
+  duration_ms: 0.501001
+  type: 'test'
+  ...
+# Subtest: repository and Workspace target kinds are not silently merged
+ok 13 - repository and Workspace target kinds are not silently merged
+  ---
+  duration_ms: 0.500101
+  type: 'test'
+  ...
+# Subtest: migration projection proposes explicit subject move beneath work without mutating source
+ok 14 - migration projection proposes explicit subject move beneath work without mutating source
+  ---
+  duration_ms: 0.853617
+  type: 'test'
+  ...
+# Subtest: migration projection blocks destination conflict instead of merging subject trees
+ok 15 - migration projection blocks destination conflict instead of merging subject trees
+  ---
+  duration_ms: 1.089253
+  type: 'test'
+  ...
+# Subtest: qualified workspace scaffold projects only required directory creation for an empty target
+ok 16 - qualified workspace scaffold projects only required directory creation for an empty target
+  ---
+  duration_ms: 9.940075
+  type: 'test'
+  ...
+# Subtest: scaffold planning preserves compatible existing directories and creates only missing roots
+ok 17 - scaffold planning preserves compatible existing directories and creates only missing roots
+  ---
+  duration_ms: 3.196429
+  type: 'test'
+  ...
+# Subtest: scaffold planning fails closed on target kind conflict
+ok 18 - scaffold planning fails closed on target kind conflict
+  ---
+  duration_ms: 3.196585
+  type: 'test'
+  ...
+# Subtest: scaffold planning requires explicit target binding
+ok 19 - scaffold planning requires explicit target binding
+  ---
+  duration_ms: 8.054619
+  type: 'test'
+  ...
+# Subtest: host-like dogfood can apply create-directory actions then replan to pure preserve/no-op
+ok 20 - host-like dogfood can apply create-directory actions then replan to pure preserve/no-op
+  ---
+  duration_ms: 18.7581
+  type: 'test'
+  ...
+# Subtest: relocates a subject subtree, rebases external relative Parent references and cascades Parent/self integrity
+ok 21 - relocates a subject subtree, rebases external relative Parent references and cascades Parent/self integrity
+  ---
+  duration_ms: 21.608321
+  type: 'test'
+  ...
+# Subtest: workspace-qualified references are retargeted only when their target Workspace path relocates
+ok 22 - workspace-qualified references are retargeted only when their target Workspace path relocates
+  ---
+  duration_ms: 1.374205
+  type: 'test'
+  ...
+# Subtest: unaffected local Parent chains do not require representable Parent-integrity entries
+ok 23 - unaffected local Parent chains do not require representable Parent-integrity entries
+  ---
+  duration_ms: 3.946789
+  type: 'test'
+  ...
+# Subtest: inline inheritance override compiler accepts multiple distinct declarations
+ok 24 - inline inheritance override compiler accepts multiple distinct declarations
+  ---
+  duration_ms: 1.844233
+  type: 'test'
+  ...
+# Subtest: exact inheritance category override deactivates constraints sourced from that category
+ok 25 - exact inheritance category override deactivates constraints sourced from that category
+  ---
+  duration_ms: 1.675673
+  type: 'test'
+  ...
+# Subtest: registered runtime projections use exact same-snapshot lineage without source-substitution contradictions
+ok 26 - registered runtime projections use exact same-snapshot lineage without source-substitution contradictions
+  ---
+  duration_ms: 600.489987
+  type: 'test'
+  ...
+# Subtest: current Party Role runtime qualifies the exact carried same-snapshot Parent instead of preferring its older browse+git recovery locator
+ok 27 - current Party Role runtime qualifies the exact carried same-snapshot Parent instead of preferring its older browse+git recovery locator
+  ---
+  duration_ms: 2.424623
+  type: 'test'
+  ...
+# Subtest: historical plain-id Loom Role does not silently upgrade into the current exact Role revision
+ok 28 - historical plain-id Loom Role does not silently upgrade into the current exact Role revision
+  ---
+  duration_ms: 8.484864
+  type: 'test'
+  ...
+# Subtest: organization and Evidence exact runtime validation authority qualify from the synchronized same-snapshot lineage
+ok 29 - organization and Evidence exact runtime validation authority qualify from the synchronized same-snapshot lineage
+  ---
+  duration_ms: 4.364993
+  type: 'test'
+  ...
+# Subtest: source-coherent compiled inheritance qualifies when the exact declared Parent source is supplied
+ok 30 - source-coherent compiled inheritance qualifies when the exact declared Parent source is supplied
+  ---
+  duration_ms: 0.286148
+  type: 'test'
+  ...
+# Subtest: source substitution remains rejected even when schema identity and path are unchanged
+ok 31 - source substitution remains rejected even when schema identity and path are unchanged
+  ---
+  duration_ms: 0.400365
+  type: 'test'
+  ...
+# Subtest: schema material equivalence is independent of repository commit when cryptographic material identity matches
+ok 32 - schema material equivalence is independent of repository commit when cryptographic material identity matches
+  ---
+  duration_ms: 0.954799
+  type: 'test'
+  ...
+# Subtest: schema material equivalence accepts one shared cryptographic identity but fails closed on contradictory shared evidence
+ok 33 - schema material equivalence accepts one shared cryptographic identity but fails closed on contradictory shared evidence
+  ---
+  duration_ms: 0.209349
+  type: 'test'
+  ...
+# Subtest: schema material equivalence fails closed without shared cryptographic evidence or across declared schema identities
+ok 34 - schema material equivalence fails closed without shared cryptographic evidence or across declared schema identities
+  ---
+  duration_ms: 0.185
+  type: 'test'
+  ...
+# Subtest: schema material equivalence normalizes binding checksum objects
+ok 35 - schema material equivalence normalizes binding checksum objects
+  ---
+  duration_ms: 0.134032
+  type: 'test'
+  ...
+1..35
+# tests 35
+# suites 0
+# pass 35
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 8566.575654
+

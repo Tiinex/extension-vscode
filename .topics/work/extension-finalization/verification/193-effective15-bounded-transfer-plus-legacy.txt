@@ -1,0 +1,82 @@
+TAP version 13
+# Subtest: Cross-Workspace source+PNG qualified projection and physical atomic Apply
+ok 1 - Cross-Workspace source+PNG qualified projection and physical atomic Apply
+  ---
+  duration_ms: 133.51571
+  type: 'test'
+  ...
+# Subtest: Cross-Workspace asset rollback restores every source and prevents dangling target output
+ok 2 - Cross-Workspace asset rollback restores every source and prevents dangling target output
+  ---
+  duration_ms: 51.295871
+  type: 'test'
+  ...
+# Subtest: Cross-Workspace asset bundle fails closed on incoming reader, Parent or executable source format
+ok 3 - Cross-Workspace asset bundle fails closed on incoming reader, Parent or executable source format
+  ---
+  duration_ms: 11.840319
+  type: 'test'
+  ...
+# Subtest: Crash during promotion recovers only journal-owned inode links
+ok 4 - Crash during promotion recovers only journal-owned inode links
+  ---
+  duration_ms: 166.703148
+  type: 'test'
+  ...
+# Subtest: standalone cross-root PLAN and APPLY physically move verified artifact and preserve unchanged anchor
+ok 5 - standalone cross-root PLAN and APPLY physically move verified artifact and preserve unchanged anchor
+  ---
+  duration_ms: 125.898084
+  type: 'test'
+  ...
+# Subtest: two-Workspace snapshot drift and incoming references fail closed without mutation
+ok 6 - two-Workspace snapshot drift and incoming references fail closed without mutation
+  ---
+  duration_ms: 38.065404
+  type: 'test'
+  ...
+# Subtest: asset selection, dynamic local links and unsupported source formats remain BLOCK
+ok 7 - asset selection, dynamic local links and unsupported source formats remain BLOCK
+  ---
+  duration_ms: 15.002239
+  type: 'test'
+  ...
+# Subtest: interrupted operation rolls back both root journals and restores source bytes
+ok 8 - interrupted operation rolls back both root journals and restores source bytes
+  ---
+  duration_ms: 66.851142
+  type: 'test'
+  ...
+# Subtest: Core CLI runs PLAN→APPLY independent of VS Code and blocks tampered destination
+ok 9 - Core CLI runs PLAN→APPLY independent of VS Code and blocks tampered destination
+  ---
+  duration_ms: 3003.005446
+  type: 'test'
+  ...
+# Subtest: forged inspection and recomputed unkeyed fingerprint cannot bypass incoming reader discovery
+ok 10 - forged inspection and recomputed unkeyed fingerprint cannot bypass incoming reader discovery
+  ---
+  duration_ms: 14.761186
+  type: 'test'
+  ...
+# Subtest: crash after destructive staging is recoverable by manual CLI across both roots
+ok 11 - crash after destructive staging is recoverable by manual CLI across both roots
+  ---
+  duration_ms: 1064.782269
+  type: 'test'
+  ...
+# Subtest: new target incoming reference during source staging aborts and restores original source
+ok 12 - new target incoming reference during source staging aborts and restores original source
+  ---
+  duration_ms: 45.290263
+  type: 'test'
+  ...
+1..12
+# tests 12
+# suites 0
+# pass 12
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5575.022642

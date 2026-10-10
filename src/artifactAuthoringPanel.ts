@@ -201,8 +201,8 @@ function html(input: ArtifactAuthoringPanelInput, nonce: string): string {
   const sourceScalars = sourceScalarPreview(input.sourceFormValues || {});
   const sourceTargets = model.sections.filter(section => section.kind === 'fields' || section.kind === 'group' || section.kind === 'body')
     .flatMap(section => section.fields.filter(field => !field.allowedValues.length).map(field => ({ section: section.key, field: field.key })));
-  const sourceContext = input.sourceContextLabel && sourceScalars.length ? `<details class="card" open><summary><strong>Unfinished source form — values preserved for explicit reuse</strong></summary>
-    <p class="help">These values are not automatically Transition roles, purposes or effects. Choose a destination and click Copy to field; only fields you edit are saved.</p>
+  const sourceContext = input.sourceContextLabel && sourceScalars.length ? `<details class="card" open><summary><strong>Unfinished source form — review-only context</strong></summary>
+    <p class="help">Source values are held only in this open form, not saved beside the Definition. They are not Transition roles, purposes or effects. Choose a destination explicitly; a saved Definition needs Core-qualified Generation Binding and Companion attachment to become a preset.</p>
     <label class="field"><span>Source value</span><select id="sourceValue">${sourceScalars.map((item,index)=>`<option value="${index}">${escapeHtml(item.label)} — ${escapeHtml(item.value.slice(0,80))}</option>`).join('')}</select></label>
     <label class="field"><span>Destination field (explicit choice)</span><select id="sourceTarget">${sourceTargets.map((item,index)=>`<option value="${index}">${escapeHtml(item.section)} → ${escapeHtml(item.field)}</option>`).join('')}</select></label>
     <button type="button" class="secondary" id="copySourceValue">Copy selected value to field</button>

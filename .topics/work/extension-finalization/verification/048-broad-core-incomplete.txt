@@ -1,0 +1,5 @@
+Broad Core run attempt, 86 .test.mjs files in 11 chunks: NO TERMINAL RESULT.
+The sandbox interrupted the parallel execution before any shard had a receipt. This attempt is NOT a pass and MUST NOT be used as regression qualification.
+Targeted fresh Core tests: 65 PASS/0 FAIL (including move/apply/rollback/asset/link/c14n-v2), then 18 PASS/0 FAIL after additional fail-closed placement/cross-Workspace guards.
+Last source state offline npm pack 999.0.0 (local placeholder) and clean offline tarball reinstall: ready. VS Code consumer host regression PASS against the installed tarball. No real installed Windows/VSIX qualification or npm publish attempted.
+Known incomplete product functionality: scoped selection with assets cannot yet apply as an atomic combined artifact+binary transaction; Prepend/Append parent policy and cross-Workspace Git recovery are blocked; host is still on legacy Move/Rebase UI. These are next implementation tasks, not Sigma-ready.

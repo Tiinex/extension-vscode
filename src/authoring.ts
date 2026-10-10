@@ -3,7 +3,8 @@ import os from 'node:os';
 import { access, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import * as vscode from 'vscode';
 import { preferredNodeExecutable } from './host/nodeExecutable';
-import { ArtifactMaterializationParentCandidate, ArtifactMaterializationSchemaCandidate, createArtifactDraft, inspectArtifactCreationContract, prepareBundledRuntime, projectArtifactMaterialization, projectArtifactSchemaGuide, projectArtifactFieldHelp, projectAuthoringParent, projectHandoffLeaves } from './tiinex/bootstrap';
+import { fetchPinnedGitHubSchema } from './host/git';
+import { ArtifactMaterializationParentCandidate, ArtifactMaterializationSchemaCandidate, createArtifactDraft, inspectArtifactCreationContract, prepareBundledRuntime, projectArtifactMaterialization, projectArtifactSchemaGuide, projectArtifactFieldHelp, projectAuthoringParent, projectHandoffLeaves, runTiinexJson } from './tiinex/bootstrap';
 import { ArtifactAuthoringModel, projectArtifactAuthoringModel } from './core/artifactAuthoringModel';
 import { requireArtifactCreationReady } from './core/artifactAuthoringQualification';
 import { presentSharedFindings } from './core/findingPresentation';
@@ -167,6 +168,53 @@ export async function qualifyArtifactDraftParent(extensionPath: string, parentAr
   }
 }
 
+/** Optional historical Parent recovery. The user explicitly approves one
+ * public, immutable GitHub read; only Core can accept its provider receipt and
+ * qualify the original Evidence. No JSON or other file is left in a Workspace. */
+export async function qualifyPinnedHistoricalEvidenceParent(extensionPath: string, parent: ArtifactDraftParent): Promise<Record<string, unknown>> {
+  if (parent.schemaId !== 'tiinex.evidence.v1' || !parent.root)
+    throw new Error('tiinex.historical-parent.evidence-only');
+  const full = safeTarget(parent.root, safeRelativePath(parent.path));
+  if (await readFile(full, 'utf8') !== parent.markdown)
+    throw new Error('tiinex.historical-parent.parent-changed');
+  const runtime = await prepareBundledRuntime(extensionPath, nodeExecutable());
+  let temporary = '';
+  try {
+    temporary = await mkdtemp(path.join(os.tmpdir(), 'tiinex-historical-parent-'));
+    const tool = { id: 'tiinex-vscode-public-github-schema-read', name: 'GitHub fetch file',
+      description: 'Read exact public GitHub repository file at immutable commit' };
+    const tools = [tool];
+    const request = path.join(temporary, 'request.json');
+    await writeFile(request, JSON.stringify({ markdown: parent.markdown, availableTools: tools }), 'utf8');
+    const proposed = await runTiinexJson<any>(runtime, ['inspect-historical-schema-source', '--request', request, '--compact']);
+    if (proposed.status !== 'unresolved' || proposed.source?.schemaId !== parent.schemaId ||
+        proposed.hostAction?.status !== 'ready' || proposed.hostAction.steps?.length !== 1 ||
+        proposed.hostAction.steps[0].tool?.id !== tool.id)
+      throw new Error(`tiinex.historical-parent.core-source-inspection-blocked:${proposed.status}`);
+    const file = await fetchPinnedGitHubSchema(proposed.source);
+    // Never use a valid schema response to authorize a Parent whose bytes
+    // changed while the host was waiting for HTTPS.
+    if (await readFile(full, 'utf8') !== parent.markdown) throw new Error('tiinex.historical-parent.parent-changed');
+    const source = proposed.source;
+    const step = proposed.hostAction.steps[0];
+    const hostReceipt = { schema: 'tiinex.portable.host-action-receipt.v1',
+      actionId: proposed.hostAction.actionId, action: proposed.hostAction.action,
+      steps: [{ stepId: step.stepId, toolId: tool.id, status: 'completed', normalized: { files: [{
+        path: source.path, content: file.content, sha: file.sha,
+        source: { repository: source.repository, ref: source.commit, commit: source.commit, path: source.path }
+      }] } }] };
+    await writeFile(request, JSON.stringify({ reference: parent.reference || parent.path,
+      records: [{ path: safeRelativePath(parent.path), markdown: parent.markdown }],
+      historicalSchemaSource: { availableTools: tools, hostPlan: proposed.hostAction, hostReceipt } }), 'utf8');
+    const result = await runTiinexJson<any>(runtime, ['qualify-historical-evidence-parent', '--request', request, '--compact']);
+    if (result.status !== 'ready' || result.parentRecord?.markdown !== parent.markdown)
+      throw new Error(`tiinex.historical-parent.core-rejected:${(result.findings || []).map((x: any) => x.code).join(',') || result.status}`);
+    if (await readFile(full, 'utf8') !== parent.markdown)
+      throw new Error('tiinex.historical-parent.parent-changed');
+    return result.parentRecord;
+  } finally { await runtime.dispose(); if (temporary) await rm(temporary, { recursive: true, force: true }); }
+}
+
 export async function prepareArtifactDraft(extensionPath: string, spec: ArtifactDraftSpec): Promise<PreparedArtifactDraft> {
   const root = required(spec.root, 'tiinex.authoring.repository-required');
   const title = required(spec.title, 'tiinex.authoring.title-required');
@@ -187,6 +235,8 @@ export async function prepareArtifactDraft(extensionPath: string, spec: Artifact
     let parentRecord: Record<string, unknown> | null = null;
     let parentReference = '';
     if (parentArtifact) {
+      if (parentArtifact.root && await readFile(safeTarget(parentArtifact.root, safeRelativePath(parentArtifact.path)), 'utf8') !== parentArtifact.markdown)
+        throw new Error('tiinex.authoring.parent-changed-reselect');
       parentReference = String(parentArtifact.reference || (parentArtifact.workspaceId && parentArtifact.workspaceId !== spec.workspaceId ? `${parentArtifact.workspaceId}::${safeRelativePath(parentArtifact.path)}` : safeRelativePath(parentArtifact.path)));
       if (parentArtifact.qualifiedRecord) parentRecord = parentArtifact.qualifiedRecord;
       else {
@@ -196,7 +246,11 @@ export async function prepareArtifactDraft(extensionPath: string, spec: Artifact
       }
     }
     const proposal = authoringProposal({ workspaceId: spec.workspaceId, schemaId, title: pathTitle, values: spec.values, authors: spec.authors || '', targetDirectory: spec.targetDirectory || '' }, parentReference, parentRecord);
-    const plan = await projectArtifactMaterialization(runtime, scratch, [proposal]);
+    // Allocate against the actual Workspace, exactly as the write-time check
+    // does. The Markdown-only scratch snapshot is ONLY for read-only draft
+    // rendering: excluding e.g. .txt receipts or assets there can change
+    // Core's directory-local ordinal allocation and cause false stale previews.
+    const plan = await projectArtifactMaterialization(runtime, root, [proposal]);
     const planned = plannedArtifact(plan, String(proposal.id));
     const transition = planned.parent ? 'continue-from-record' : 'create-artifact';
     const created = requireArtifactCreationReady(await createArtifactDraft(runtime, schemaId, scratch, planned.path, title, spec.values, planned.parent || parentRecord, transition, undefined, spec.authors || ''));
@@ -225,6 +279,8 @@ export async function writePreparedArtifactDraft(extensionPath: string, draft: P
   try {
     let parentRecord: Record<string, unknown> | null = null;
     if (draft.parentArtifact) {
+      if (draft.parentArtifact.root && await readFile(safeTarget(draft.parentArtifact.root, safeRelativePath(draft.parentArtifact.path)), 'utf8') !== draft.parentArtifact.markdown)
+        throw new Error('tiinex.authoring.parent-changed-reselect');
       if (draft.parentArtifact.qualifiedRecord) parentRecord = draft.parentArtifact.qualifiedRecord;
       else {
         const parentSourcePath = draft.parentArtifact.root

@@ -1,0 +1,287 @@
+TAP version 13
+# Subtest: fresh qualified Evidence may become Evidence Parent, no schema-type ban
+ok 1 - fresh qualified Evidence may become Evidence Parent, no schema-type ban
+  ---
+  duration_ms: 72.845476
+  type: 'test'
+  ...
+# Subtest: historical unqualified schema URL blocks a Parent with actionable cause, never silent promotion
+ok 2 - historical unqualified schema URL blocks a Parent with actionable cause, never silent promotion
+  ---
+  duration_ms: 1095.761922
+  type: 'test'
+  ...
+# Subtest: pre-launch Evidence keeps tiinex.evidence.v1 and binds exactly one native-owned repeated material section
+ok 3 - pre-launch Evidence keeps tiinex.evidence.v1 and binds exactly one native-owned repeated material section
+  ---
+  duration_ms: 56.404153
+  type: 'test'
+  ...
+# Subtest: Evidence v1 generates, seals, validates, and reads back two distinct source entries with individual metadata
+ok 4 - Evidence v1 generates, seals, validates, and reads back two distinct source entries with individual metadata
+  ---
+  duration_ms: 23.132924
+  type: 'test'
+  ...
+# Subtest: One material entry works; zero entries, duplicate names, missing source/description and unqualified metadata fail closed
+ok 5 - One material entry works; zero entries, duplicate names, missing source/description and unqualified metadata fail closed
+  ---
+  duration_ms: 13.777382
+  type: 'test'
+  ...
+# Subtest: Old scalar Material cannot masquerade as a structured repeated collection or be silently dropped
+ok 6 - Old scalar Material cannot masquerade as a structured repeated collection or be silently dropped
+  ---
+  duration_ms: 2.181935
+  type: 'test'
+  ...
+# Subtest: Native v1 revision is source-checksummed and explicitly unpublished rather than a fabricated GitHub snapshot
+ok 7 - Native v1 revision is source-checksummed and explicitly unpublished rather than a fabricated GitHub snapshot
+  ---
+  duration_ms: 7.137833
+  type: 'test'
+  ...
+# Subtest: Evidence field help is sourced from an exact qualified schema section
+ok 8 - Evidence field help is sourced from an exact qualified schema section
+  ---
+  duration_ms: 40.141592
+  type: 'test'
+  ...
+# Subtest: Ordinary Evidence group children inherit only their own exact schema provenance
+ok 9 - Ordinary Evidence group children inherit only their own exact schema provenance
+  ---
+  duration_ms: 22.305912
+  type: 'test'
+  ...
+# Subtest: Handoff schema fields preserve their separate binding and provenance
+ok 10 - Handoff schema fields preserve their separate binding and provenance
+  ---
+  duration_ms: 16.874273
+  type: 'test'
+  ...
+# Subtest: Unknown inputs never inherit unrelated help and missing schema is unavailable
+ok 11 - Unknown inputs never inherit unrelated help and missing schema is unavailable
+  ---
+  duration_ms: 20.190778
+  type: 'test'
+  ...
+# Subtest: Whole projection reports unresolved mappings instead of fabricating source authority
+ok 12 - Whole projection reports unresolved mappings instead of fabricating source authority
+  ---
+  duration_ms: 3.601692
+  type: 'test'
+  ...
+# Subtest: portable operation makes the same qualified field help available to host/LLM consumers
+ok 13 - portable operation makes the same qualified field help available to host/LLM consumers
+  ---
+  duration_ms: 3.328037
+  type: 'test'
+  ...
+# Subtest: unmapped Presentation Surface creation fields stay explicitly unresolved
+ok 14 - unmapped Presentation Surface creation fields stay explicitly unresolved
+  ---
+  duration_ms: 3.390357
+  type: 'test'
+  ...
+# Subtest: CLI form-field-help returns field/line provenance without external material input
+ok 15 - CLI form-field-help returns field/line provenance without external material input
+  ---
+  duration_ms: 2158.098844
+  type: 'test'
+  ...
+# Subtest: portable CLI unresolved field reports a structured finding, never a character-expanded string
+ok 16 - portable CLI unresolved field reports a structured finding, never a character-expanded string
+  ---
+  duration_ms: 2111.892368
+  type: 'test'
+  ...
+# Subtest: generic creation omits optional-only sections when no optional input is supplied
+ok 17 - generic creation omits optional-only sections when no optional input is supplied
+  ---
+  duration_ms: 95.999395
+  type: 'test'
+  ...
+# Subtest: generic creation renders and preserves supplied optional scalar and declaration sections
+ok 18 - generic creation renders and preserves supplied optional scalar and declaration sections
+  ---
+  duration_ms: 38.526047
+  type: 'test'
+  ...
+# Subtest: schema ids project to human labels without changing semantic ids
+ok 19 - schema ids project to human labels without changing semantic ids
+  ---
+  duration_ms: 1.946009
+  type: 'test'
+  ...
+# Subtest: commit provenance renders one path-sorted box-drawing tree with metadata only at leaves
+ok 20 - commit provenance renders one path-sorted box-drawing tree with metadata only at leaves
+  ---
+  duration_ms: 4.033732
+  type: 'test'
+  ...
+# Subtest: portable operation exposes host-neutral commit provenance projection
+ok 21 - portable operation exposes host-neutral commit provenance projection
+  ---
+  duration_ms: 3.062425
+  type: 'test'
+  ...
+# Subtest: Git adapter derives bytes from index, deleted bytes from HEAD, and ignores unstaged working-tree edits
+ok 22 - Git adapter derives bytes from index, deleted bytes from HEAD, and ignores unstaged working-tree edits
+  ---
+  duration_ms: 122.442962
+  type: 'test'
+  ...
+# Subtest: Git adapter renders rename provenance at destination leaf
+ok 23 - Git adapter renders rename provenance at destination leaf
+  ---
+  duration_ms: 85.418781
+  type: 'test'
+  ...
+# Subtest: cache pointer material prefers exact requirement identity over ambiguous shared relative reference text
+ok 24 - cache pointer material prefers exact requirement identity over ambiguous shared relative reference text
+  ---
+  duration_ms: 1.451826
+  type: 'test'
+  ...
+# Subtest: cache pointer reference fallback fails closed when relative reference text is ambiguous
+ok 25 - cache pointer reference fallback fails closed when relative reference text is ambiguous
+  ---
+  duration_ms: 0.364359
+  type: 'test'
+  ...
+# Subtest: single qualified parent Pointer derives ordinary -1 continuation without outgoing Parent-path inference
+ok 26 - single qualified parent Pointer derives ordinary -1 continuation without outgoing Parent-path inference
+  ---
+  duration_ms: 3.37899
+  type: 'test'
+  ...
+# Subtest: parallel qualified parent Pointers derive dense local ordinals in Pointer order from explicit parent-route selection
+ok 27 - parallel qualified parent Pointers derive dense local ordinals in Pointer order from explicit parent-route selection
+  ---
+  duration_ms: 3.405326
+  type: 'test'
+  ...
+# Subtest: Sigma two-Handoff shape stays qualified when selected incoming route is explicit even if outgoing semantic Parent paths do not match parent-carrier routes
+ok 28 - Sigma two-Handoff shape stays qualified when selected incoming route is explicit even if outgoing semantic Parent paths do not match parent-carrier routes
+  ---
+  duration_ms: 0.824055
+  type: 'test'
+  ...
+# Subtest: parallel topology without an already-selected parent route fails visible as selection-required
+ok 29 - parallel topology without an already-selected parent route fails visible as selection-required
+  ---
+  duration_ms: 0.643746
+  type: 'test'
+  ...
+# Subtest: supplied non-parent route fails visible as invalid-parent-route rather than matching outgoing paths
+ok 30 - supplied non-parent route fails visible as invalid-parent-route rather than matching outgoing paths
+  ---
+  duration_ms: 0.435281
+  type: 'test'
+  ...
+# Subtest: ambiguous parent route selector remains selection-required and never guesses from route order
+ok 31 - ambiguous parent route selector remains selection-required and never guesses from route order
+  ---
+  duration_ms: 1.853292
+  type: 'test'
+  ...
+# Subtest: explicit Major continuation is separate from ordinary route allocation and requires no sibling selection
+ok 32 - explicit Major continuation is separate from ordinary route allocation and requires no sibling selection
+  ---
+  duration_ms: 0.857582
+  type: 'test'
+  ...
+# Subtest: projection fails closed on unavailable parent topology and does not widen semantic authority
+ok 33 - projection fails closed on unavailable parent topology and does not widen semantic authority
+  ---
+  duration_ms: 0.410681
+  type: 'test'
+  ...
+# Subtest: Core owns transport-only collision naming without changing carrier lineage
+ok 34 - Core owns transport-only collision naming without changing carrier lineage
+  ---
+  duration_ms: 3.269162
+  type: 'test'
+  ...
+# Subtest: Core allocates first free collision filename from host-observed names
+ok 35 - Core allocates first free collision filename from host-observed names
+  ---
+  duration_ms: 0.591434
+  type: 'test'
+  ...
+# Subtest: transport filename continuation never reads or reproduces internal carrier lineage
+ok 36 - transport filename continuation never reads or reproduces internal carrier lineage
+  ---
+  duration_ms: 1.340543
+  type: 'test'
+  ...
+# Subtest: transport filename continuation advances only the numeric dimension and never inherits a parent route slug
+ok 37 - transport filename continuation advances only the numeric dimension and never inherits a parent route slug
+  ---
+  duration_ms: 0.532308
+  type: 'test'
+  ...
+# Subtest: transport Major progression uses only transport filenames and host-observed names
+ok 38 - transport Major progression uses only transport filenames and host-observed names
+  ---
+  duration_ms: 0.329226
+  type: 'test'
+  ...
+# Subtest: transport Major progression counts collision-suffixed observations as their existing Major
+ok 39 - transport Major progression counts collision-suffixed observations as their existing Major
+  ---
+  duration_ms: 0.229154
+  type: 'test'
+  ...
+# Subtest: Core selects one same-prefix Major frontier and exposes the next Major dimension
+ok 40 - Core selects one same-prefix Major frontier and exposes the next Major dimension
+  ---
+  duration_ms: 0.921078
+  type: 'test'
+  ...
+# Subtest: Core blocks automatic Major advancement across parallel same-Major frontiers
+ok 41 - Core blocks automatic Major advancement across parallel same-Major frontiers
+  ---
+  duration_ms: 0.300675
+  type: 'test'
+  ...
+# Subtest: Core accepts duplicate frontier observations only when exact stored bytes agree
+ok 42 - Core accepts duplicate frontier observations only when exact stored bytes agree
+  ---
+  duration_ms: 0.727406
+  type: 'test'
+  ...
+# Subtest: carrier Major allocation is monotonic and does not require a Parent
+ok 43 - carrier Major allocation is monotonic and does not require a Parent
+  ---
+  duration_ms: 4.503704
+  type: 'test'
+  ...
+# Subtest: collision-suffixed transport filenames still reserve their Major
+ok 44 - collision-suffixed transport filenames still reserve their Major
+  ---
+  duration_ms: 0.377153
+  type: 'test'
+  ...
+# Subtest: parentless Major lineage carries no Parent while preserving the selected Major
+ok 45 - parentless Major lineage carries no Parent while preserving the selected Major
+  ---
+  duration_ms: 0.464535
+  type: 'test'
+  ...
+# Subtest: carrier Major allocation rejects exhaustion and missing prefix
+ok 46 - carrier Major allocation rejects exhaustion and missing prefix
+  ---
+  duration_ms: 0.295511
+  type: 'test'
+  ...
+1..46
+# tests 46
+# suites 0
+# pass 46
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 13071.386809
+

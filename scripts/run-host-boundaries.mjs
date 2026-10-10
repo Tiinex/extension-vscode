@@ -7,7 +7,8 @@ const extensionRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)),
 const explicit = String(process.env.TIINEX_TEST_CORE_ROOT || '').trim();
 const installed = explicit || path.dirname(require.resolve('@tiinex/core/package.json'));
 const testFile = path.join(extensionRoot, 'test/lineageMaintenance.integration.cjs');
-const child = spawnSync(process.execPath, [testFile], {
+const testBootstrap = path.join(extensionRoot, 'test/portableRuntime.bootstrap.mjs');
+const child = spawnSync(process.execPath, ['--import', testBootstrap, testFile], {
   stdio: 'inherit', env: { ...process.env, TIINEX_TEST_CORE_ROOT: installed }
 });
 if (child.error) throw child.error;

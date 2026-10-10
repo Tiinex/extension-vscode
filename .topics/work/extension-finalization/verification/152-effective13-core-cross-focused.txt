@@ -1,0 +1,100 @@
+TAP version 13
+# Subtest: two physical Workspaces expose incoming target reader, outgoing preserved Parent, selected image and separate snapshots
+ok 1 - two physical Workspaces expose incoming target reader, outgoing preserved Parent, selected image and separate snapshots
+  ---
+  duration_ms: 43.857822
+  type: 'test'
+  ...
+# Subtest: even zero incoming/outgoing edges never authorizes cross-Workspace Apply
+ok 2 - even zero incoming/outgoing edges never authorizes cross-Workspace Apply
+  ---
+  duration_ms: 20.284235
+  type: 'test'
+  ...
+# Subtest: unqualified target anchor, same roots and symlinks block before any mutation
+ok 3 - unqualified target anchor, same roots and symlinks block before any mutation
+  ---
+  duration_ms: 16.292355
+  type: 'test'
+  ...
+# Subtest: actual portable CLI presents blocked inspection and read-only GitHub connector recovery, with unchanged files
+ok 4 - actual portable CLI presents blocked inspection and read-only GitHub connector recovery, with unchanged files
+  ---
+  duration_ms: 1369.604494
+  type: 'test'
+  ...
+# Subtest: without local Git, a discovered GitHub read connector yields a read-only action, NOT a qualified permalink
+ok 5 - without local Git, a discovered GitHub read connector yields a read-only action, NOT a qualified permalink
+  ---
+  duration_ms: 8.679635
+  type: 'test'
+  ...
+# Subtest: accepted commit/path/bytes-matched provider read qualifies one exact immutable permalink (still no Apply)
+ok 6 - accepted commit/path/bytes-matched provider read qualifies one exact immutable permalink (still no Apply)
+  ---
+  duration_ms: 5.418924
+  type: 'test'
+  ...
+# Subtest: wrong bytes, wrong commit, wrong path and mutable refs cannot become publication authority
+ok 7 - wrong bytes, wrong commit, wrong path and mutable refs cannot become publication authority
+  ---
+  duration_ms: 5.401776
+  type: 'test'
+  ...
+# Subtest: sandbox without a repository connector recommends alternates but keeps evidence unresolved
+ok 8 - sandbox without a repository connector recommends alternates but keeps evidence unresolved
+  ---
+  duration_ms: 0.695739
+  type: 'test'
+  ...
+# Subtest: Core-local workspace inspection builds one real mixed plan and Apply preserves bytes, references and self integrity
+ok 9 - Core-local workspace inspection builds one real mixed plan and Apply preserves bytes, references and self integrity
+  ---
+  duration_ms: 104.77269
+  type: 'test'
+  ...
+# Subtest: Unsupported Markdown and non-Tiinex JS incoming references fail CLOSED rather than claiming complete closure
+ok 10 - Unsupported Markdown and non-Tiinex JS incoming references fail CLOSED rather than claiming complete closure
+  ---
+  duration_ms: 32.098102
+  type: 'test'
+  ...
+# Subtest: Unquoted HTML and CSS URLs to a relocated asset block as unsupported reference owners
+ok 11 - Unquoted HTML and CSS URLs to a relocated asset block as unsupported reference owners
+  ---
+  duration_ms: 23.978302
+  type: 'test'
+  ...
+# Subtest: Workspace inventory snapshots reject new files and modified unrelated links before Apply
+ok 12 - Workspace inventory snapshots reject new files and modified unrelated links before Apply
+  ---
+  duration_ms: 23.665072
+  type: 'test'
+  ...
+# Subtest: No symlink or invalid text is silently skipped by complete reference inventory
+ok 13 - No symlink or invalid text is silently skipped by complete reference inventory
+  ---
+  duration_ms: 7.044392
+  type: 'test'
+  ...
+# Subtest: CLI inspect-scoped-move-workspace runs manually without VS Code and produces an Apply-compatible plan
+ok 14 - CLI inspect-scoped-move-workspace runs manually without VS Code and produces an Apply-compatible plan
+  ---
+  duration_ms: 2551.511627
+  type: 'test'
+  ...
+# Subtest: Cross-Workspace inspect offers GitHub connector read recovery without authorizing a move
+ok 15 - Cross-Workspace inspect offers GitHub connector read recovery without authorizing a move
+  ---
+  duration_ms: 11.477047
+  type: 'test'
+  ...
+1..15
+# tests 15
+# suites 0
+# pass 15
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3866.792637

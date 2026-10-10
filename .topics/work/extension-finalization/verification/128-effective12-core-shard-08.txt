@@ -1,0 +1,450 @@
+TAP version 13
+# Subtest: operator context exposes only root-owned top-level Workspace artifacts while preserving legitimate siblings
+ok 1 - operator context exposes only root-owned top-level Workspace artifacts while preserving legitimate siblings
+  ---
+  duration_ms: 196.193667
+  type: 'test'
+  ...
+# Subtest: operator context participant projection keeps only exact Role candidates with deterministic target dedupe
+ok 2 - operator context participant projection keeps only exact Role candidates with deterministic target dedupe
+  ---
+  duration_ms: 0.79429
+  type: 'test'
+  ...
+# Subtest: operator Party scope expands explicit same-Workspace Organization membership for recipient presentation only
+ok 3 - operator Party scope expands explicit same-Workspace Organization membership for recipient presentation only
+  ---
+  duration_ms: 3.08149
+  type: 'test'
+  ...
+# Subtest: operator Party Organization expansion fails closed when same-Workspace Organization label is ambiguous
+ok 4 - operator Party Organization expansion fails closed when same-Workspace Organization label is ambiguous
+  ---
+  duration_ms: 0.687092
+  type: 'test'
+  ...
+# Subtest: published Core package excludes repository-only cases and fixtures
+ok 5 - published Core package excludes repository-only cases and fixtures # SKIP npm_execpath is required to inspect the actual npm pack surface
+  ---
+  duration_ms: 1.51513
+  type: 'test'
+  ...
+# Subtest: portable operation projection keeps the exact active runtime entrypoint executable
+ok 6 - portable operation projection keeps the exact active runtime entrypoint executable
+  ---
+  duration_ms: 4.591502
+  type: 'test'
+  ...
+# Subtest: focused handoff help exposes pointerless Workspace parent-vs-new-root capability through the active runtime
+ok 7 - focused handoff help exposes pointerless Workspace parent-vs-new-root capability through the active runtime
+  ---
+  duration_ms: 1.093549
+  type: 'test'
+  ...
+# Subtest: pointerless Workspace manufacture fails closed until carrier continuity intent is explicit
+ok 8 - pointerless Workspace manufacture fails closed until carrier continuity intent is explicit
+  ---
+  duration_ms: 6.12538
+  type: 'test'
+  ...
+# Subtest: Transition discovery help makes workspace-contributed capability discoverable without claiming applicability
+ok 9 - Transition discovery help makes workspace-contributed capability discoverable without claiming applicability
+  ---
+  duration_ms: 2.996721
+  type: 'test'
+  ...
+# Subtest: schema capability description fails closed instead of throwing when no schema module is composed
+ok 10 - schema capability description fails closed instead of throwing when no schema module is composed
+  ---
+  duration_ms: 8.255603
+  type: 'test'
+  ...
+# Subtest: source CLI authoring without schema content fails closed with an explicit content-source requirement
+ok 11 - source CLI authoring without schema content fails closed with an explicit content-source requirement
+  ---
+  duration_ms: 778.493304
+  type: 'test'
+  ...
+# Subtest: explicit CLI content-source flags initialize source runtime composition before command execution
+ok 12 - explicit CLI content-source flags initialize source runtime composition before command execution
+  ---
+  duration_ms: 2761.520524
+  type: 'test'
+  ...
+# Subtest: portable Handoff plan treats ordinary-group values as structured authoring inputs rather than duplicate top-level fields
+ok 13 - portable Handoff plan treats ordinary-group values as structured authoring inputs rather than duplicate top-level fields
+  ---
+  duration_ms: 171.972716
+  type: 'test'
+  ...
+# Subtest: portable Handoff plan reports missing required fields inside ordinary groups with their owning input
+ok 14 - portable Handoff plan reports missing required fields inside ordinary groups with their owning input
+  ---
+  duration_ms: 63.221239
+  type: 'test'
+  ...
+# Subtest: portable Handoff plan reports missing fields inside repeatable declarations and honors literal none where qualified
+ok 15 - portable Handoff plan reports missing fields inside repeatable declarations and honors literal none where qualified
+  ---
+  duration_ms: 105.149288
+  type: 'test'
+  ...
+# Subtest: portable Evidence plan accepts one fully populated Core-qualified repeatable material section without a shadow Evidence Role
+ok 16 - portable Evidence plan accepts one fully populated Core-qualified repeatable material section without a shadow Evidence Role
+  ---
+  duration_ms: 63.015171
+  type: 'test'
+  ...
+# Subtest: portable Evidence plan reports a missing nested Evidence Role exactly at its owning group
+ok 17 - portable Evidence plan reports a missing nested Evidence Role exactly at its owning group
+  ---
+  duration_ms: 24.203196
+  type: 'test'
+  ...
+# Subtest: missing material is not promoted to a semantic root
+ok 18 - missing material is not promoted to a semantic root
+  ---
+  duration_ms: 3.805056
+  type: 'test'
+  ...
+# Subtest: duplicate identity never silently selects last writer or enters story data
+ok 19 - duplicate identity never silently selects last writer or enters story data
+  ---
+  duration_ms: 21.291099
+  type: 'test'
+  ...
+# Subtest: schema fallback follows declarations, reports cycles and never invents ancestry
+ok 20 - schema fallback follows declarations, reports cycles and never invents ancestry
+  ---
+  duration_ms: 2.32444
+  type: 'test'
+  ...
+# Subtest: dotted artifact stems do not change companion namespace
+ok 21 - dotted artifact stems do not change companion namespace
+  ---
+  duration_ms: 0.845335
+  type: 'test'
+  ...
+# Subtest: provider path traversal and unknown owner kinds fail closed
+ok 22 - provider path traversal and unknown owner kinds fail closed
+  ---
+  duration_ms: 0.743353
+  type: 'test'
+  ...
+# Subtest: keyed append is stable across registration order and overrides only matching keys
+ok 23 - keyed append is stable across registration order and overrides only matching keys
+  ---
+  duration_ms: 1.247037
+  type: 'test'
+  ...
+# Subtest: directory-local continuation allocation does not import Parent filename lineage across directories
+ok 24 - directory-local continuation allocation does not import Parent filename lineage across directories
+  ---
+  duration_ms: 1.348306
+  type: 'test'
+  ...
+# Subtest: directory-local allocation advances only from the target directory namespace
+ok 25 - directory-local allocation advances only from the target directory namespace
+  ---
+  duration_ms: 0.338014
+  type: 'test'
+  ...
+# Subtest: same-directory continuation retains local child progression
+ok 26 - same-directory continuation retains local child progression
+  ---
+  duration_ms: 0.794164
+  type: 'test'
+  ...
+# Subtest: standalone directory allocation is isolated from sibling directories
+ok 27 - standalone directory allocation is isolated from sibling directories
+  ---
+  duration_ms: 0.737003
+  type: 'test'
+  ...
+# Subtest: Workspace-qualified Parent references remain addresses, not local path allocation authority
+ok 28 - Workspace-qualified Parent references remain addresses, not local path allocation authority
+  ---
+  duration_ms: 0.379217
+  type: 'test'
+  ...
+# Subtest: explicit package-parent Workspace aliases supersede renamed predecessor ids without treating carrier lineage as source authority
+ok 29 - explicit package-parent Workspace aliases supersede renamed predecessor ids without treating carrier lineage as source authority
+  ---
+  duration_ms: 0.552615
+  type: 'test'
+  ...
+# Subtest: package-parent carrier lineage does not implicitly select parent Workspace source
+ok 30 - package-parent carrier lineage does not implicitly select parent Workspace source
+  ---
+  duration_ms: 2.0762
+  type: 'test'
+  ...
+# Subtest: package-parent Workspace reuse requires exact explicit ids or all
+ok 31 - package-parent Workspace reuse requires exact explicit ids or all
+  ---
+  duration_ms: 0.591107
+  type: 'test'
+  ...
+# Subtest: Required Context Workspace preflight names exact package-parent selections without auto-selecting them
+ok 32 - Required Context Workspace preflight names exact package-parent selections without auto-selecting them
+  ---
+  duration_ms: 3.32626
+  type: 'test'
+  ...
+# Subtest: invalid field-domain findings expose exact allowed values and contract path
+ok 33 - invalid field-domain findings expose exact allowed values and contract path
+  ---
+  duration_ms: 4.103222
+  type: 'test'
+  ...
+# Subtest: cross-Workspace Parent authoring error names the missing explicit Parent-byte action
+ok 34 - cross-Workspace Parent authoring error names the missing explicit Parent-byte action
+  ---
+  duration_ms: 20.250293
+  type: 'test'
+  ...
+# Subtest: cross-Workspace durable authoring requires a version-stable Parent permalink in addition to exact Parent bytes
+ok 35 - cross-Workspace durable authoring requires a version-stable Parent permalink in addition to exact Parent bytes
+  ---
+  duration_ms: 9.411601
+  type: 'test'
+  ...
+# Subtest: qualified package-parent Workspace providers supply exact requirement bytes without local-root provenance
+ok 36 - qualified package-parent Workspace providers supply exact requirement bytes without local-root provenance
+  ---
+  duration_ms: 0.765923
+  type: 'test'
+  ...
+# Subtest: selected route Parent continuity crosses into provider-only Workspaces as detached exact dependencies
+ok 37 - selected route Parent continuity crosses into provider-only Workspaces as detached exact dependencies
+  ---
+  duration_ms: 3.16304
+  type: 'test'
+  ...
+# Subtest: plain-ID local Evidence authority requires exact qualified Docs bytes and forbids published-locator substitution
+ok 38 - plain-ID local Evidence authority requires exact qualified Docs bytes and forbids published-locator substitution
+  ---
+  duration_ms: 7.286706
+  type: 'test'
+  ...
+# Subtest: accepted Axiom local authority remains a separate explicitly scoped mode of the same reference qualification
+ok 39 - accepted Axiom local authority remains a separate explicitly scoped mode of the same reference qualification
+  ---
+  duration_ms: 0.27707
+  type: 'test'
+  ...
+# Subtest: prepare-return fails closed until a separate exact-result return transition is qualified
+ok 40 - prepare-return fails closed until a separate exact-result return transition is qualified
+  ---
+  duration_ms: 14.718101
+  type: 'test'
+  ...
+# Subtest: qualify-return and prepare-return preserve an intentionally omitted optional Return To Reference
+ok 41 - qualify-return and prepare-return preserve an intentionally omitted optional Return To Reference
+  ---
+  duration_ms: 26.185304
+  type: 'test'
+  ...
+# Subtest: qualify-return rejects mismatched result bytes and prepare-return rejects a stale qualified result
+ok 42 - qualify-return rejects mismatched result bytes and prepare-return rejects a stale qualified result
+  ---
+  duration_ms: 5.560555
+  type: 'test'
+  ...
+# Subtest: prepare-return derives exact return endpoints and writes only an incomplete runtime scaffold
+ok 43 - prepare-return derives exact return endpoints and writes only an incomplete runtime scaffold
+  ---
+  duration_ms: 5.979704
+  type: 'test'
+  ...
+# Subtest: prepare-return rebases selected-Handoff workspace-relative endpoint Role references to the return authoring directory without changing semantic targets
+ok 44 - prepare-return rebases selected-Handoff workspace-relative endpoint Role references to the return authoring directory without changing semantic targets
+  ---
+  duration_ms: 8.059975
+  type: 'test'
+  ...
+# Subtest: common author refuses an unfilled prepare-return scaffold before schema or integrity work
+ok 45 - common author refuses an unfilled prepare-return scaffold before schema or integrity work
+  ---
+  duration_ms: 20.822885
+  type: 'test'
+  ...
+# Subtest: prepared return authority-lock fails closed when recipient edits mechanical return endpoints before preflight
+ok 46 - prepared return authority-lock fails closed when recipient edits mechanical return endpoints before preflight
+  ---
+  duration_ms: 9.619011
+  type: 'test'
+  ...
+# Subtest: all prepared-return mechanical endpoint coordinates are authority-locked independently
+    # Subtest: from
+    ok 1 - from
+      ---
+      duration_ms: 14.342481
+      type: 'test'
+      ...
+    # Subtest: fromReference
+    ok 2 - fromReference
+      ---
+      duration_ms: 11.460118
+      type: 'test'
+      ...
+    # Subtest: to
+    ok 3 - to
+      ---
+      duration_ms: 23.684574
+      type: 'test'
+      ...
+    # Subtest: toReference
+    ok 4 - toReference
+      ---
+      duration_ms: 5.10029
+      type: 'test'
+      ...
+    # Subtest: currentWorkControlReference
+    ok 5 - currentWorkControlReference
+      ---
+      duration_ms: 5.463231
+      type: 'test'
+      ...
+    # Subtest: returnTo
+    ok 6 - returnTo
+      ---
+      duration_ms: 3.886841
+      type: 'test'
+      ...
+    # Subtest: returnToReference
+    ok 7 - returnToReference
+      ---
+      duration_ms: 5.062243
+      type: 'test'
+      ...
+    # Subtest: returnedMaterialReference
+    ok 8 - returnedMaterialReference
+      ---
+      duration_ms: 5.897078
+      type: 'test'
+      ...
+    1..8
+ok 47 - all prepared-return mechanical endpoint coordinates are authority-locked independently
+  ---
+  duration_ms: 77.778765
+  type: 'test'
+  ...
+# Subtest: prepared return preflight rejects out-of-domain enum values without durable artifact or continuation mutation
+ok 48 - prepared return preflight rejects out-of-domain enum values without durable artifact or continuation mutation
+  ---
+  duration_ms: 987.05673
+  type: 'test'
+  ...
+# Subtest: filled prepare-return scaffold can be preflighted through exact author qualification without retaining candidate or mutating continuation state
+ok 49 - filled prepare-return scaffold can be preflighted through exact author qualification without retaining candidate or mutating continuation state
+  ---
+  duration_ms: 59.367511
+  type: 'test'
+  ...
+# Subtest: Redaction resolves exactly as Reduction -> Root without lexical lookalikes
+ok 50 - Redaction resolves exactly as Reduction -> Root without lexical lookalikes
+  ---
+  duration_ms: 1.345007
+  type: 'test'
+  ...
+# Subtest: Redaction schema source qualifies while ordinary create remains undeclared
+ok 51 - Redaction schema source qualifies while ordinary create remains undeclared
+  ---
+  duration_ms: 12.103211
+  type: 'test'
+  ...
+# Subtest: Tooling-produced Redaction validates and legacy Allowed Shapes domains fail closed
+ok 52 - Tooling-produced Redaction validates and legacy Allowed Shapes domains fail closed
+  ---
+  duration_ms: 51.365074
+  type: 'test'
+  ...
+# Subtest: Redaction required fields fail closed
+ok 53 - Redaction required fields fail closed
+  ---
+  duration_ms: 25.055157
+  type: 'test'
+  ...
+# Subtest: Reduction creation exposes the qualified exact current schema permalink
+ok 54 - Reduction creation exposes the qualified exact current schema permalink
+  ---
+  duration_ms: 2.961298
+  type: 'test'
+  ...
+# Subtest: relative Reduction Parent references resolve from the artifact directory
+ok 55 - relative Reduction Parent references resolve from the artifact directory
+  ---
+  duration_ms: 0.821182
+  type: 'test'
+  ...
+# Subtest: commit-pinned permalink is immutable-address evidence but not byte qualification by itself
+ok 56 - commit-pinned permalink is immutable-address evidence but not byte qualification by itself
+  ---
+  duration_ms: 0.477612
+  type: 'test'
+  ...
+# Subtest: explicit immutable byte evidence qualifies only when the digest matches the supplied record
+ok 57 - explicit immutable byte evidence qualifies only when the digest matches the supplied record
+  ---
+  duration_ms: 0.683219
+  type: 'test'
+  ...
+# {
+#   "policy": "tiinex.master-npm-release.v1",
+#   "action": "publish",
+#   "name": "@tiinex/fixture",
+#   "version": "0.1.0",
+#   "previousVersion": null,
+#   "previousCommit": null,
+#   "sourceCommit": "a7049cfe68b15e5cf5833310be224ef3ffa7221b",
+#   "decision": {
+#     "bump": "bootstrap",
+#     "rawSeverity": "bootstrap",
+#     "targetVersion": "0.1.0",
+#     "reasons": [
+#       "First stable version: explicit source package floor."
+#     ]
+#   },
+#   "file": ".release/tiinex-fixture-0.1.0.tgz",
+#   "integrity": "sha512-81cRRSTR1uB/sD9ACBi9fSiiyYL5jbXKWH1C8vSCXgLRfTaeHuvMvg2zSydNJ+JNnaAv+dAiZyr9uHoXl8gedg==",
+#   "bytes": 424
+# }
+# {"policy":"tiinex.master-npm-release.v1","action":"skip","reason":"source-already-published","version":"0.1.0","sourceCommit":"a7049cfe68b15e5cf5833310be224ef3ffa7221b"}
+# {
+#   "policy": "tiinex.master-npm-release.v1",
+#   "action": "publish",
+#   "name": "@tiinex/fixture",
+#   "version": "0.2.0",
+#   "previousVersion": "0.1.0",
+#   "previousCommit": "a7049cfe68b15e5cf5833310be224ef3ffa7221b",
+#   "sourceCommit": "096859a29b619e3b2c6d4a1fc135829a59167f4c",
+#   "decision": {
+#     "bump": "minor",
+#     "rawSeverity": "minor",
+#     "targetVersion": "0.2.0",
+#     "reasons": [
+#       "feature commit marker detected"
+#     ],
+#     "explicit": false
+#   },
+#   "file": ".release/tiinex-fixture-0.2.0.tgz",
+#   "integrity": "sha512-87bWRn61N/ic+PSPldVXRzaajcc8ssJ187KGIMFJqrvI+wy1bGiFJXzzhURHi+P4shouKLYkC8jr1jOJ1CReXA==",
+#   "bytes": 434
+# }
+# Subtest: release prepares exact source, keeps canonical versions unchanged and detects archive tampering
+ok 58 - release prepares exact source, keeps canonical versions unchanged and detects archive tampering
+  ---
+  duration_ms: 1320.933746
+  type: 'test'
+  ...
+1..58
+# tests 66
+# suites 0
+# pass 65
+# fail 0
+# cancelled 0
+# skipped 1
+# todo 0
+# duration_ms 14571.15064
+

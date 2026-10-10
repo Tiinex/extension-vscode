@@ -1,0 +1,1 @@
+PASS OFFLINE INSTALLED CORE: closed 3-artifact Parent graph + PNG, exact C14n and inherited Parent digest, physical two-root CLI Apply, replay BLOCK

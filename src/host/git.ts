@@ -808,3 +808,37 @@ function parseGitHubRemote(value: string): { owner: string; repo: string } | nul
     return null;
   }
 }
+
+/** Transport-only read for a Core-planned, exact, immutable GitHub schema
+ * source. Never accepts an arbitrary URL, follows redirects or writes files.
+ * Its blob digest is transport integrity, NOT historical semantic authority. */
+export async function fetchPinnedGitHubSchema(source: { repository: string; commit: string; path: string },
+  get: typeof fetch = fetch): Promise<{ content: string; sha: string }> {
+  const repo = String(source?.repository || '');
+  const commit = String(source?.commit || '').toLowerCase();
+  const file = String(source?.path || '');
+  if (!/^[\w.-]+\/[\w.-]+$/.test(repo) || !/^[a-f0-9]{40}$/.test(commit) ||
+      !/^\.topics\/\.schemas\/[\w./-]+\.schema\.md$/.test(file) ||
+      file.split('/').some(part => !part || part === '.' || part === '..'))
+    throw new Error('tiinex.historical-schema.pinned-github-coordinates-required');
+  const [owner, name] = repo.split('/');
+  const uri = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/contents/${file.split('/').map(encodeURIComponent).join('/')}?ref=${commit}`;
+  const response = await get(uri, { redirect: 'error', signal: AbortSignal.timeout(15000), headers: {
+    Accept: 'application/vnd.github+json', 'User-Agent': 'tiinex-vscode-historical-schema-read',
+    'X-GitHub-Api-Version': '2022-11-28'
+  }});
+  if (!response.ok) throw new Error(`tiinex.historical-schema.read-unavailable:${response.status}`);
+  const body = await response.json() as { type?: string; path?: string; content?: string; encoding?: string; sha?: string };
+  const base64 = String(body?.content || '').replace(/\s/g, '');
+  if (body?.type !== 'file' || body.path !== file || body.encoding !== 'base64' ||
+      !base64 || base64.length > 350000 || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(base64))
+    throw new Error('tiinex.historical-schema.content-unqualified');
+  const bytes = Buffer.from(base64, 'base64');
+  if (bytes.length > 262144 || bytes.toString('base64') !== base64)
+    throw new Error('tiinex.historical-schema.bytes-unqualified');
+  const content = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  const { createHash } = await import('node:crypto');
+  const sha = createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
+  if (sha !== String(body.sha || '').toLowerCase()) throw new Error('tiinex.historical-schema.git-blob-mismatch');
+  return { content, sha };
+}

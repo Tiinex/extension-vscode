@@ -1,0 +1,17 @@
+
+> tiinex-vscode@0.1.7 test:authoring-boundaries
+> node test/authoringBoundaries.regression.cjs && node test/webviewSourceContext.regression.cjs && node test/nativeAgentDiscovery.regression.cjs && node test/nativeAgentRoleSync.regression.cjs && node test/skillPackaging.regression.mjs && node scripts/run-host-boundaries.mjs && node test/vsixReleaseBoundary.regression.mjs
+
+PASS attach per-entry preservation, conservative kind suggestions, explicit source-to-Transition mapping, Core-owned ordinary asset route
+PASS generated Transition webview parses and retains escaped unfinished source values for explicit mapping without creating Evidence
+PASS real VS Code tool source transpiled; Core-only, deny defaults, declared tool/skill and disposal
+PASS VS Code Core plan→preview→explicit approve→apply/noop, decline nonmutating, untrusted/outside denied
+PASS real VSIX pack-list includes all declared skill files and blocks unsafe declarations, duplicate trees and symlinks
+PASS ordinary asset: cancel no mutation, Preview+Apply, exact relocated path/bytes, lock cleanup
+PASS artifact: Explorer Preview+Apply using real Core plan, self-seal, exact local file move
+PASS negative: unqualified Workspace refused
+PASS Attach to Form: Yes records pending reference and per-source hints; source remains byte-exact and unmoved
+PASS Explorer ordinary PNG: Core Preview/Cancel and Apply preserve bytes and change references safely
+PASS artifact Prepend: actual Core parent chain mutation and coordinate rebase
+PASS Normalize Directory: exact Core namespace compaction
+PASS Marketplace VSIX release guard rejects local/placeholder/mismatched Core and preserves development-smoke distinction

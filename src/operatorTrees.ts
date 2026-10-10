@@ -12,7 +12,7 @@ import { qualifiedRoutes, QualifiedRouteReceipt, receivedHandoffContext, receive
 import { mergeTransportRouteSelection, selectedTransportRouteIds, StoredTransportQueueItem, transportPrepared, transportPreparedKey, TransportPreparedRecord } from './core/transportQueue';
 import { loadPartyAuthoringReferenceChoicesForSources, loadHandoffRouteChoicesForSource, loadLocalWorkspaceChoices, loadIncomingLocalWorkspaceChoices, loadQualifiedLocalWorkspaceChoices, clearPackageBuilderDiscoveryCache, buildHandoffPackageFromForm, announceBuiltCarrier, routeChoiceKeyForHandoff, IncomingPackageWorkspaceSource, PackageWorkspaceChoice, PackageWorkspaceSourceOverride, PackageRouteRouting, PackageParticipantProjection, PackageParticipantRole, projectHandoffPackageParticipants, qualifyLocalWorkspaceChoice } from './packageBuilder';
 import { applyExactHandoffEndpointSelection, applyHandoffEndpointAuthoringSelection } from './core/handoffEndpointSelection';
-import { ArtifactAuthoringCatalog, ArtifactDraftParent, clearArtifactAuthoringCaches, loadArtifactAuthoringCatalog, invalidateArtifactAuthoringCatalog, loadArtifactAuthoringModel, prepareArtifactDraft, PreparedArtifactDraft, qualifyArtifactDraftParent, qualifyExistingHandoff, writePreparedArtifactDraft } from './authoring';
+import { ArtifactAuthoringCatalog, ArtifactDraftParent, clearArtifactAuthoringCaches, loadArtifactAuthoringCatalog, invalidateArtifactAuthoringCatalog, loadArtifactAuthoringModel, prepareArtifactDraft, PreparedArtifactDraft, qualifyArtifactDraftParent, qualifyPinnedHistoricalEvidenceParent, qualifyExistingHandoff, writePreparedArtifactDraft } from './authoring';
 import { initializeWorkspaceDirectory } from './workspaceInitialization';
 
 import { compareIncomingWorkspaceToLocal, groundPackageForReview, GroundingResult, orientPackage, prepareBundledRuntime, prepareHostCoreRuntime, preparePackageRuntimeWithRecovery, projectHandoffCarrierMajorFrontier, projectHandoffCarrierMajorAllocation, projectHandoffCarrierTransportName, manufactureHandoffPackage, projectPackageTransport, projectTransportCompletion, TransportCompletionReceipt, projectWorkspaceCarrierEntry, projectTransitionNeighborhood, selectedBootstrapContentRoots } from './tiinex/bootstrap';
@@ -23,7 +23,7 @@ import { incomingReviewPresentation, incomingReviewReady, IncomingReviewDecision
 import { incomingSourceStatus, incomingSourceUnavailableMessage } from './core/incomingSource';
 import { waitForStableFile } from './core/stableFile';
 import { artifactAuthoringCandidateCapability, partyReferenceAuthoringFillValue, partyReferenceCandidateSatisfiesAffordance } from './core/artifactAuthoringCandidateSource';
-import { dedupeTransitionPresetCandidates, qualifiedTransitionPresetCandidates } from './core/artifactAuthoringPresets';
+import { dedupeTransitionPresetCandidates, projectTransitionAuthoringPresets } from './core/artifactAuthoringPresets';
 import { payloadCheckoutEligibility, qualifiedGitHubBlobReference } from './host/git';
 import { revealFileInNativeFolder } from './host/reveal';
 import { existingCarrierFilenames } from './host/carrierPublish';
@@ -34,7 +34,7 @@ import { sameRepositoryRoot } from './core/repositoryPath';
 import { localArtifactReference } from './core/artifactReferencePicker';
 import { attachFileToOpenForm } from './vscode/attachFileToForm';
 import { moveArtifactFromExplorer } from './vscode/lineageMaintenance';
-import { compatibleTransitionSeed } from './core/transitionSourceSeed';
+import { compatibleTransitionSeed, manualOnlyTransitionSeed } from './core/transitionSourceSeed';
 import { applyDeferredArtifactAndAssets } from './vscode/lineageMaintenance';
 import { prepareDeferredFormTransaction } from './vscode/deferredFormTransaction';
 import type { ArtifactAuthoringModel } from './core/artifactAuthoringModel';
@@ -755,20 +755,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
   private transitionAuthoringPresentation(
     transitionDefinitions: Array<{ representationKey?: string; canonicalIdentifier: string; version?: string; label: string; purpose?: string; sourcePath?: string; identityQualification?: string; authoringProfile?: { state?: string; defaults?: Record<string, unknown>; boundary?: { explicitSelectionRequired?: boolean; recommendation?: string; executionAuthorized?: boolean } } }>
   ): { templates: any[]; selectedTemplateId: string; templateLabel: string } {
-    const transitionTemplates = qualifiedTransitionPresetCandidates(transitionDefinitions).map((candidate) => ({
-      id: `transition:${candidate.canonicalIdentifier}:${candidate.version || ''}`,
-      label: candidate.label || candidate.canonicalIdentifier,
-      description: candidate.purpose || 'Core-qualified Transition preset.',
-      defaults: candidate.authoringProfile?.defaults || {}
-    }));
-    return {
-      templates: [
-        { id: 'manual', label: 'Manual / custom', description: 'Do not apply Transition defaults. Fill the Core-required creation contract directly.', defaults: {} },
-        ...transitionTemplates
-      ],
-      selectedTemplateId: 'manual',
-      templateLabel: 'Preset / intent'
-    };
+    return projectTransitionAuthoringPresets(transitionDefinitions);
   }
 
   async beginArtifactAuthoring(resource?: vscode.Uri, preselectedSchemaId = ''): Promise<void> {
@@ -4193,6 +4180,31 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
         return parentArtifact;
       } catch (error) {
         const detail = shortMessage(error);
+        // The only fallback is an explicit operator-approved, immutable public
+        // GitHub read for a pinned historical Evidence Current Schema. Core
+        // still decides whether the exact source grants Parent authority.
+        if (parentArtifact.schemaId === 'tiinex.evidence.v1' &&
+            /- Current Schema:\s*\[tiinex\.evidence\.v1\]\(https:\/\/github\.com\/[^\s)]+\)/.test(parentArtifact.markdown)) {
+          const choice = await vscode.window.showWarningMessage(
+            'Historical Evidence Parent requires an exact public GitHub schema read. Let Core verify it? No files will be changed.',
+            { modal: true, detail: 'Read-only GitHub HTTPS request at the pinned commit. Different historical schema bytes, missing proof or failed Core audit remain BLOCKED.' },
+            'Verify Pinned Schema', 'Choose Another Parent'
+          );
+          if (choice === 'Verify Pinned Schema') {
+            try {
+              parentArtifact.qualifiedRecord = await vscode.window.withProgress(
+                { location: vscode.ProgressLocation.Notification, title: 'Tiinex verifying pinned historical Evidence', cancellable: false },
+                () => qualifyPinnedHistoricalEvidenceParent(this.extensionPath, parentArtifact)
+              );
+              return parentArtifact;
+            } catch (historicalError) {
+              await vscode.window.showWarningMessage(`Historical Parent remains BLOCKED: ${shortMessage(historicalError)}`);
+              continue;
+            }
+          }
+          if (choice === 'Choose Another Parent') continue;
+          return undefined;
+        }
         const action = await vscode.window.showWarningMessage(
           `Selected Parent is not qualified for native continuation. Choose another Parent.`,
           'Choose Another Parent',
@@ -4317,6 +4329,8 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
           label: String(candidate.humanLabel || candidate.canonicalIdentifier || candidate.path || 'Transition'),
           purpose: String(candidate.purpose || ''),
           sourcePath: String(candidate.source?.locator?.localPath || candidate.path || ''),
+          semanticPath: String(candidate.path || ''),
+          representationSha256: String(candidate.representationSha256 || ''),
           identityQualification: String(candidate.identityQualification || ''),
           authoringProfile: candidate.authoringProfile ? {
             state: String(candidate.authoringProfile.state || ''),
@@ -4338,7 +4352,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
     workspace: OutgoingWorkspace,
     schemaId: string,
     parentArtifact: ArtifactDraftParent | null,
-    options: { attachAvailable: boolean; attachDefault: boolean; targetDirectory?: string; seedValues?: Record<string, unknown>; sourceContextLabel?: string; sourceFormValues?: Record<string, unknown> }
+    options: { attachAvailable: boolean; attachDefault: boolean; targetDirectory?: string; seedValues?: Record<string, unknown>; sourceContextLabel?: string; sourceFormValues?: Record<string, unknown>; sourceFormSchemaId?: string }
   ): Promise<void> {
     try {
       const root = await this.ensureOutgoingAuthoringRoot(workspace);
@@ -4387,7 +4401,9 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
         initialValues: options.seedValues || {},
         sourceContextLabel: options.sourceContextLabel || '',
         sourceFormValues: options.sourceFormValues || {},
-        enableSaveAsTransition: schemaId !== 'tiinex.transition.definition.v1' && schemaId !== 'tiinex.schema.transition.companion.v1',
+        // Temporarily hide Save as Transition until canonical Generation authoring is ready.
+        // Keep the underlying Core contract and panel handler unchanged.
+        enableSaveAsTransition: false,
         templates: initialPresentation.templates,
         selectedTemplateId: initialPresentation.selectedTemplateId,
         templateLabel: initialPresentation.templateLabel,
@@ -4433,7 +4449,10 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
           // Transition Definition has independent identity and validation.
           const transitionModel = await loadArtifactAuthoringModel(this.extensionPath, 'tiinex.transition.definition.v1', 'create-artifact');
           if (transitionModel.status !== 'ready') throw new Error('tiinex.authoring.transition-creation-not-qualified');
-          const seed = compatibleTransitionSeed(submission.values || {}, transitionModel);
+          // Never promote a source artifact's same-named fields into Transition
+          // semantics by coincidence. Only explicit source→field mapping in the
+          // second form may turn source values into Definition content.
+          const seed = manualOnlyTransitionSeed(submission.title || schemaId, transitionModel);
           // Source values not assignable by exact schema identity remain visible
           // as read-only context in the second form. The user explicitly chooses
           // any semantic mapping; a claim cannot silently become a Role/Purpose.
@@ -4443,7 +4462,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
           await this.showArtifactAuthoring(workspace, 'tiinex.transition.definition.v1', null, {
             attachAvailable: false, attachDefault: false, targetDirectory: destination,
             seedValues: seed, sourceContextLabel: submission.title || schemaId,
-            sourceFormValues: submission.values || {}
+            sourceFormValues: submission.values || {}, sourceFormSchemaId: schemaId
           });
         },
         preview: async (submission) => {
@@ -4469,6 +4488,24 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
             await panel.webview.postMessage({ type: 'authoring-deferred-committed', replacements: deferred.replacements, message: 'Artifact and attached files committed together.' });
           }
           void vscode.window.showInformationMessage(`Created ${created.draft.path}`);
+          if (schemaId === 'tiinex.transition.definition.v1' && options.sourceFormSchemaId) {
+            // Check the actual Core-owned semantic neighborhood after the file
+            // exists. Creation is NOT attachment, Generation Binding, or a grant
+            // to invoke this Definition. Never persist a host-side receipt.
+            void this.schemaTransitionNeighborhood(options.sourceFormSchemaId, '',
+              this.authoringDiscoverySources(liveWorkspace).map((item) => item.root))
+              .then((definitions) => {
+                const actualPath = path.resolve(root, created.draft.path);
+                const saved = definitions.find((item) => item.sourcePath &&
+                  path.resolve(root, item.sourcePath) === actualPath);
+                if (saved?.authoringProfile?.state === 'qualified') {
+                  return vscode.window.showInformationMessage('Transition Definition created and Core-qualified for authoring. Reopen the source form to select its preset explicitly.');
+                }
+                return vscode.window.showInformationMessage(
+                  'Transition Definition created, but not yet a qualified preset. Core requires a matching Output Role, Generation Binding and explicit Schema Transition Companion attachment. No source-form snapshot was saved.');
+              }).catch(() => vscode.window.showWarningMessage(
+                'Transition Definition created; Core preset qualification could not be checked. Reopen the source form after verifying its semantic attachments.'));
+          }
           if (created.followUpError) void vscode.window.showWarningMessage(`Artifact was created, but post-create UI/Outgoing follow-up was incomplete: ${created.followUpError}`);
         }
       });

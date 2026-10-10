@@ -1,0 +1,13 @@
+Changed Core files this checkpoint:
+- src/tooling/portable/lineage/lineage.mixed-assets.js (NEW) — qualified exact-dimension source asset inventory, target coordinate projection, strong source digests, same-source-directory constraint and collision findings
+- src/tooling/portable/lineage/lineage.maintenance.projection.js — scoped Same+Keep Parent selected asset relocations are passed through same Core scaffold reference/Parent integrity projector; one mixed plan with binary SHA-256 and exact fingerprints, no silent omission
+- src/tooling/portable/adapters/node/lineage.maintenance.apply.js — combined binary staging, SHA verification, symlink/path/collision safety, durable journal, rollback and post-verification; retains existing pure artifact and separate asset transaction semantics
+- src/tooling/portable/adapters/cli/cli.command-input.js — fixed standalone `project-lineage-maintenance --request <JSON>`; previously tried loading an unspecified material root and threw portable.cli.input.required
+- src/tooling/portable/adapters/cli/cli.help.js; README.md — document standalone CLI and exact gate limitations
+- test/lineage-mixed-assets.integration.test.mjs (NEW) — combined binary/artefact positive, selected leaves, SHA-drift, collision and rollback
+- test/lineage-mixed-cli.test.mjs (NEW) — actual Node CLI program with filesystem Apply and blocked replay
+- test/lineage-move-selection.test.mjs — update earlier negative expectation to new complete reference gate
+
+Existing VS Code source unchanged except authored checkpoint/Handoff and proof receipts. Total test qualification: 85 targeted Core PASS/0 FAIL; installed-tarball VS Code authoring and Transition regression PASS. No full Core suite terminal receipt this turn.
+
+Outstanding: full external reference closure and prospective Git permalink exact evidence, five-scope host UI, qualified new-Parent Prepend/Append graph transforms, historical Evidence schema repairs and human Repeat/Transition UX. Do not transfer to Sigma until these are closed or explicitly bounded by Product owner.

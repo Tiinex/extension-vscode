@@ -539,7 +539,7 @@ await test('Party-reference authoring assist preserves Core-known kind and Core-
   ])), true);
 });
 
-await test('Transition authoring presets dedupe equivalent representations by canonical identity and stay explicit', async () => {
+await test('Transition presets preserve independent Core representations, block false execution and keep exact origin identity', async () => {
   const candidate = (representationKey, canonicalIdentifier, label, defaults = { Purpose: label }) => ({
     representationKey, canonicalIdentifier, version: '1', label, purpose: `${label} purpose`,
     authoringProfile: {
@@ -548,16 +548,27 @@ await test('Transition authoring presets dedupe equivalent representations by ca
     }
   });
   const input = [
-    candidate('composed-native:a', 'tiinex.handoff.perform-work.v1', 'Perform bounded work'),
-    candidate('explicit:a', 'tiinex.handoff.perform-work.v1', 'Perform bounded work'),
+    candidate('composed-native:a', 'tiinex.handoff.perform-work.v1', 'Perform bounded work', { Purpose: 'native source' }),
+    candidate('explicit:a', 'tiinex.handoff.perform-work.v1', 'Perform bounded work', { Purpose: 'explicit different source' }),
     candidate('explicit:b', 'tiinex.handoff.discuss-review.v1', 'Discuss / review'),
     candidate('composed-native:b', 'tiinex.handoff.discuss-review.v1', 'Discuss / review'),
-    { ...candidate('explicit:blocked', 'tiinex.handoff.blocked.v1', 'Blocked'), authoringProfile: { state: 'qualified', defaults: { Purpose: 'Blocked' }, boundary: { explicitSelectionRequired: true, recommendation: 'not-projected', executionAuthorized: true } } }
+    { ...candidate('explicit:blocked', 'tiinex.handoff.blocked.v1', 'Blocked'), authoringProfile: { state: 'qualified', defaults: { Purpose: 'Blocked' }, boundary: { explicitSelectionRequired: true, recommendation: 'not-projected', executionAuthorized: true } } },
+    candidate('explicit:a', 'tiinex.handoff.perform-work.v1', 'Duplicate of exact source')
   ];
   const deduped = dedupeTransitionPresetCandidates(input);
-  assert.equal(deduped.length, 3);
-  assert.equal(deduped.find((item) => item.canonicalIdentifier === 'tiinex.handoff.perform-work.v1')?.representationKey, 'explicit:a');
-  assert.deepEqual(qualifiedTransitionPresetCandidates(input).map((item) => item.label), ['Discuss / review', 'Perform bounded work']);
+  assert.equal(deduped.length, 5, 'Core-provided independent representations may share identifier/version');
+  const qualified = qualifiedTransitionPresetCandidates(input);
+  assert.equal(qualified.length, 4, 'Only explicit non-executable Core-qualified candidate representations');
+  assert.deepEqual(qualified.filter((x) => x.canonicalIdentifier === 'tiinex.handoff.perform-work.v1')
+    .map((x) => x.authoringProfile.defaults.Purpose).sort(), ['explicit different source', 'native source']);
+  // Filter BEFORE deduplication: a blocked representation must never hide a
+  // separate qualified one that shares the same public canonical identifier.
+  const withBlockedCollision = [
+    { ...candidate('explicit:x', 'tiinex.shared.v1', 'Blocked version'), authoringProfile: { state:'blocked', defaults:{Purpose:'no'}, boundary:{explicitSelectionRequired:true,recommendation:'not-projected',executionAuthorized:false} } },
+    candidate('explicit:y','tiinex.shared.v1','Usable version')
+  ];
+  assert.equal(qualifiedTransitionPresetCandidates(withBlockedCollision).length,1);
+  assert.equal(qualifiedTransitionPresetCandidates(withBlockedCollision)[0].representationKey,'explicit:y');
 });
 
 await test('Role and Identity picker presentation groups by the same qualified Workspace title and keeps labels/path concise', async () => {

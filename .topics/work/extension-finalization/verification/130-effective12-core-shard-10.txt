@@ -1,0 +1,641 @@
+TAP version 13
+# Subtest: explicit selected-Handoff non-Task controls suppress nearest Task promotion
+ok 1 - explicit selected-Handoff non-Task controls suppress nearest Task promotion
+  ---
+  duration_ms: 2.40772
+  type: 'test'
+  ...
+# Subtest: explicit selected-Handoff Task control selects that Task instead of a nearer unrelated Task
+ok 2 - explicit selected-Handoff Task control selects that Task instead of a nearer unrelated Task
+  ---
+  duration_ms: 0.383996
+  type: 'test'
+  ...
+# Subtest: unresolved explicit selected-Handoff control fails closed and does not fall back to nearest Task
+ok 3 - unresolved explicit selected-Handoff control fails closed and does not fall back to nearest Task
+  ---
+  duration_ms: 0.25385
+  type: 'test'
+  ...
+# Subtest: nearest Task compatibility fallback remains only when selected Handoff declares no controlling artifact
+ok 4 - nearest Task compatibility fallback remains only when selected Handoff declares no controlling artifact
+  ---
+  duration_ms: 0.154858
+  type: 'test'
+  ...
+# Subtest: host-neutral source eligibility excludes Python cache bytes without treating ordinary Python or operator-authored scripts as disposable
+ok 5 - host-neutral source eligibility excludes Python cache bytes without treating ordinary Python or operator-authored scripts as disposable
+  ---
+  duration_ms: 7.422273
+  type: 'test'
+  ...
+# Subtest: pure two-way comparison has deterministic exact fast path, add/remove/change deltas, and Workspace asymmetry
+ok 6 - pure two-way comparison has deterministic exact fast path, add/remove/change deltas, and Workspace asymmetry
+  ---
+  duration_ms: 4.975102
+  type: 'test'
+  ...
+# Subtest: three-way reconciliation classifies incoming-only, current-only, same-result concurrent, and conflict candidates without merging
+ok 7 - three-way reconciliation classifies incoming-only, current-only, same-result concurrent, and conflict candidates without merging
+  ---
+  duration_ms: 2.07024
+  type: 'test'
+  ...
+# Subtest: normalized comparison rejects absolute/traversal paths and compact summary bounds path projection
+ok 8 - normalized comparison rejects absolute/traversal paths and compact summary bounds path projection
+  ---
+  duration_ms: 2.772539
+  type: 'test'
+  ...
+# Subtest: local inputs reuse manufacture enumeration exclusions and do not compare local state, dependencies, publish output, or symlink targets
+ok 9 - local inputs reuse manufacture enumeration exclusions and do not compare local state, dependencies, publish output, or symlink targets
+  ---
+  duration_ms: 143.084885
+  type: 'test'
+  ...
+# Subtest: three-way Node adapter accepts the actual child-return shape with explicit base/incoming/current kinds
+ok 10 - three-way Node adapter accepts the actual child-return shape with explicit base/incoming/current kinds
+  ---
+  duration_ms: 72.472507
+  type: 'test'
+  ...
+# Subtest: manufacture reconciliation proof classifies exact/non-overlap/concurrent/deletion/conflict paths and requires explicit risky dispositions
+ok 11 - manufacture reconciliation proof classifies exact/non-overlap/concurrent/deletion/conflict paths and requires explicit risky dispositions
+  ---
+  duration_ms: 27.639828
+  type: 'test'
+  ...
+# Subtest: reconciliation proof catches the complete-return overlay failure by requiring current-only source preservation
+ok 12 - reconciliation proof catches the complete-return overlay failure by requiring current-only source preservation
+  ---
+  duration_ms: 261.167145
+  type: 'test'
+  ...
+# Subtest: manufacture proof fails closed when required proof is missing or candidate adds ungrounded source
+ok 13 - manufacture proof fails closed when required proof is missing or candidate adds ungrounded source
+  ---
+  duration_ms: 2.606787
+  type: 'test'
+  ...
+# Subtest: handoff manufacture preflight consumes the full reconciliation receipt and rejects source drift before carriage
+ok 14 - handoff manufacture preflight consumes the full reconciliation receipt and rejects source drift before carriage
+  ---
+  duration_ms: 657.553684
+  type: 'test'
+  ...
+# Subtest: artifact-derived participant authority binds closed current-work declarations to exact qualified Role material
+ok 15 - artifact-derived participant authority binds closed current-work declarations to exact qualified Role material
+  ---
+  duration_ms: 20.582603
+  type: 'test'
+  ...
+# Subtest: artifact-derived participant authority fails closed for carriage-only, endpoint-only, missing material, duplicate declarations, and near-match prose
+ok 16 - artifact-derived participant authority fails closed for carriage-only, endpoint-only, missing material, duplicate declarations, and near-match prose
+  ---
+  duration_ms: 2.428049
+  type: 'test'
+  ...
+# Subtest: package-carried Role grounding never becomes semantic participation
+ok 17 - package-carried Role grounding never becomes semantic participation
+  ---
+  duration_ms: 0.623039
+  type: 'test'
+  ...
+# Subtest: only explicit semantic participant declarations establish the bounded participant map
+ok 18 - only explicit semantic participant declarations establish the bounded participant map
+  ---
+  duration_ms: 0.701172
+  type: 'test'
+  ...
+# Subtest: qualified participant Role assignment authorization and current session holder binding remain independent claims
+ok 19 - qualified participant Role assignment authorization and current session holder binding remain independent claims
+  ---
+  duration_ms: 1.537675
+  type: 'test'
+  ...
+# Subtest: qualified Role holder binding without participant authority does not create a semantic participant
+ok 20 - qualified Role holder binding without participant authority does not create a semantic participant
+  ---
+  duration_ms: 0.228238
+  type: 'test'
+  ...
+# Subtest: speaker labels and contribution speaker state remain outside semantic participant authority
+ok 21 - speaker labels and contribution speaker state remain outside semantic participant authority
+  ---
+  duration_ms: 0.512412
+  type: 'test'
+  ...
+# Subtest: multiple bounded semantic participants preserve deterministic declaration authority without order-derived holder state
+ok 22 - multiple bounded semantic participants preserve deterministic declaration authority without order-derived holder state
+  ---
+  duration_ms: 1.376465
+  type: 'test'
+  ...
+# Subtest: source projection preserves complete, bounded, cache, explicit requirement, and unavailable authority states
+ok 23 - source projection preserves complete, bounded, cache, explicit requirement, and unavailable authority states
+  ---
+  duration_ms: 1.916028
+  type: 'test'
+  ...
+# Subtest: orchestration diagnostic keeps grounded-to-act bounded when participant/source landscape is not established
+ok 24 - orchestration diagnostic keeps grounded-to-act bounded when participant/source landscape is not established
+  ---
+  duration_ms: 0.99864
+  type: 'test'
+  ...
+# Subtest: orchestration blocks only when forward-selected guidance authority exists but is incomplete
+ok 25 - orchestration blocks only when forward-selected guidance authority exists but is incomplete
+  ---
+  duration_ms: 1.886714
+  type: 'test'
+  ...
+# Subtest: cache-carried authoritative context remains qualified when its whole Workspace is absent
+ok 26 - cache-carried authoritative context remains qualified when its whole Workspace is absent
+  ---
+  duration_ms: 0.324029
+  type: 'test'
+  ...
+# Subtest: rich lineage inventory cannot substitute for missing participant or source authority
+ok 27 - rich lineage inventory cannot substitute for missing participant or source authority
+  ---
+  duration_ms: 0.308564
+  type: 'test'
+  ...
+# Subtest: guidance authority projects only forward-selected Relation/Decision/material authority and keeps state dimensions separate
+ok 28 - guidance authority projects only forward-selected Relation/Decision/material authority and keeps state dimensions separate
+  ---
+  duration_ms: 9.578821
+  type: 'test'
+  ...
+# Subtest: standalone multi-target Relation binds exact selected guidance set to current work without Parent authority
+ok 29 - standalone multi-target Relation binds exact selected guidance set to current work without Parent authority
+  ---
+  duration_ms: 1.367315
+  type: 'test'
+  ...
+# Subtest: forward-selected guidance authority resolves exact GitHub permalink to selected cache-backed record without workspace pseudo-reference
+ok 30 - forward-selected guidance authority resolves exact GitHub permalink to selected cache-backed record without workspace pseudo-reference
+  ---
+  duration_ms: 1.660394
+  type: 'test'
+  ...
+# Subtest: forward-selected guidance authority hydrates exact cache Required Context bodies into runtime records without serializing new package artifacts
+ok 31 - forward-selected guidance authority hydrates exact cache Required Context bodies into runtime records without serializing new package artifacts
+  ---
+  duration_ms: 5.115317
+  type: 'test'
+  ...
+# Subtest: selected process or policy material stays readable while applicability remains unresolved without a binding
+ok 32 - selected process or policy material stays readable while applicability remains unresolved without a binding
+  ---
+  duration_ms: 1.419383
+  type: 'test'
+  ...
+# Subtest: guidance authority does not reverse-scan relation inventory or infer applicability from unrelated carried material
+ok 33 - guidance authority does not reverse-scan relation inventory or infer applicability from unrelated carried material
+  ---
+  duration_ms: 0.28773
+  type: 'test'
+  ...
+# Subtest: selected guidance relation fails closed when its exact parent authority is not qualified
+ok 34 - selected guidance relation fails closed when its exact parent authority is not qualified
+  ---
+  duration_ms: 0.387281
+  type: 'test'
+  ...
+# Subtest: process applicability stays unresolved without upstream-qualified explicit semantic authority
+ok 35 - process applicability stays unresolved without upstream-qualified explicit semantic authority
+  ---
+  duration_ms: 0.602014
+  type: 'test'
+  ...
+# Subtest: process applicability accepts exact qualified forward-selected guidance Relation binding without inferring from carriage
+ok 36 - process applicability accepts exact qualified forward-selected guidance Relation binding without inferring from carriage
+  ---
+  duration_ms: 18.327941
+  type: 'test'
+  ...
+# Subtest: ground authority explains exact selected route and Handoff transfers without widening authority
+ok 37 - ground authority explains exact selected route and Handoff transfers without widening authority
+  ---
+  duration_ms: 0.710277
+  type: 'test'
+  ...
+# Subtest: authority projection stays qualified when only non-authority cold-start diagnostics are degraded
+ok 38 - authority projection stays qualified when only non-authority cold-start diagnostics are degraded
+  ---
+  duration_ms: 0.219074
+  type: 'test'
+  ...
+# Subtest: common ground projection separates epistemic basis, semantic participants, and recipient body-reading from internal capsule detail
+ok 39 - common ground projection separates epistemic basis, semantic participants, and recipient body-reading from internal capsule detail
+  ---
+  duration_ms: 5.143708
+  type: 'test'
+  ...
+# Subtest: blocked orientation never emits executable ground nextAction even when a route pointer is structurally present
+ok 40 - blocked orientation never emits executable ground nextAction even when a route pointer is structurally present
+  ---
+  duration_ms: 0.572098
+  type: 'test'
+  ...
+# Subtest: common orient projection exposes exact carrier prefix with numeric lineage
+ok 41 - common orient projection exposes exact carrier prefix with numeric lineage
+  ---
+  duration_ms: 0.172203
+  type: 'test'
+  ...
+# Subtest: pointerless Workspace orientation projects executable carrier capabilities without inferring parent from source material
+ok 42 - pointerless Workspace orientation projects executable carrier capabilities without inferring parent from source material
+  ---
+  duration_ms: 0.706798
+  type: 'test'
+  ...
+# Subtest: qualified bounded Workspace carriage can become grounded-to-act without becoming complete or whole-program authority
+ok 43 - qualified bounded Workspace carriage can become grounded-to-act without becoming complete or whole-program authority
+  ---
+  duration_ms: 1021.00014
+  type: 'test'
+  ...
+# Subtest: matching holder assertion stays discussion-only when exact Role assignment authorization is unresolved
+ok 44 - matching holder assertion stays discussion-only when exact Role assignment authorization is unresolved
+  ---
+  duration_ms: 49.025288
+  type: 'test'
+  ...
+# Subtest: authorized Role assignment without a qualified binding source still requires holder binding evidence
+ok 45 - authorized Role assignment without a qualified binding source still requires holder binding evidence
+  ---
+  duration_ms: 29.578006
+  type: 'test'
+  ...
+# Subtest: holder Role mismatch remains blocking even when Role material authorizes the assignment mode
+ok 46 - holder Role mismatch remains blocking even when Role material authorizes the assignment mode
+  ---
+  duration_ms: 22.625334
+  type: 'test'
+  ...
+# Subtest: holder-binding authorization consumes structured canonical modes while Holder State remains diagnostic-only
+ok 47 - holder-binding authorization consumes structured canonical modes while Holder State remains diagnostic-only
+  ---
+  duration_ms: 0.864571
+  type: 'test'
+  ...
+# Subtest: historical pre-cutover Role artifacts no longer authorize current holder binding without canonical Assignment Modes
+ok 48 - historical pre-cutover Role artifacts no longer authorize current holder binding without canonical Assignment Modes
+  ---
+  duration_ms: 0.786709
+  type: 'test'
+  ...
+# Subtest: static canonical Role fixtures authorize only through canonical Assignment Modes projections
+ok 49 - static canonical Role fixtures authorize only through canonical Assignment Modes projections
+  ---
+  duration_ms: 1.43397
+  type: 'test'
+  ...
+# Subtest: canonical holder authorization fails closed for missing modes and unqualified current Role material
+ok 50 - canonical holder authorization fails closed for missing modes and unqualified current Role material
+  ---
+  duration_ms: 0.390644
+  type: 'test'
+  ...
+# Subtest: unknown Holder State prose never self-authorizes without direct structured modes
+ok 51 - unknown Holder State prose never self-authorizes without direct structured modes
+  ---
+  duration_ms: 0.255105
+  type: 'test'
+  ...
+# Subtest: token substring punctuation and fuzzy Holder State variants cannot authorize a Role without direct modes
+ok 52 - token substring punctuation and fuzzy Holder State variants cannot authorize a Role without direct modes
+  ---
+  duration_ms: 0.318827
+  type: 'test'
+  ...
+# Subtest: bounded Workspace carriage stays blocked when its representation is not independently qualified
+ok 53 - bounded Workspace carriage stays blocked when its representation is not independently qualified
+  ---
+  duration_ms: 23.891066
+  type: 'test'
+  ...
+# Subtest: bounded Workspace carriage cannot bypass an unqualified exact Required Context item
+ok 54 - bounded Workspace carriage cannot bypass an unqualified exact Required Context item
+  ---
+  duration_ms: 26.347413
+  type: 'test'
+  ...
+# Subtest: holder binding projection distinguishes explicit session input from semantic holder-assignment authority
+ok 55 - holder binding projection distinguishes explicit session input from semantic holder-assignment authority
+  ---
+  duration_ms: 0.508266
+  type: 'test'
+  ...
+# Subtest: writable complete Business Workspace and executable Task do not establish implementation-source creation authority
+ok 56 - writable complete Business Workspace and executable Task do not establish implementation-source creation authority
+  ---
+  duration_ms: 0.851352
+  type: 'test'
+  ...
+# Subtest: implementation-source authority accepts only an exact upstream-qualified projection and passes it through without interpretation
+ok 57 - implementation-source authority accepts only an exact upstream-qualified projection and passes it through without interpretation
+  ---
+  duration_ms: 0.436639
+  type: 'test'
+  ...
+# Subtest: cached Role presence alone never enables qualified delegation authoring
+ok 58 - cached Role presence alone never enables qualified delegation authoring
+  ---
+  duration_ms: 0.387747
+  type: 'test'
+  ...
+# Subtest: explicit forward-selected delegate authority plus qualified process target source and return inputs exposes the normal Tooling delegation path
+ok 59 - explicit forward-selected delegate authority plus qualified process target source and return inputs exposes the normal Tooling delegation path
+  ---
+  duration_ms: 1.33706
+  type: 'test'
+  ...
+# Subtest: delegation readiness fails closed on an individually missing authority slot instead of suggesting discovery or plain chat
+ok 60 - delegation readiness fails closed on an individually missing authority slot instead of suggesting discovery or plain chat
+  ---
+  duration_ms: 1.083657
+  type: 'test'
+  ...
+# Subtest: delegation readiness requires substantive process and source projections, not empty qualified markers
+ok 61 - delegation readiness requires substantive process and source projections, not empty qualified markers
+  ---
+  duration_ms: 0.534486
+  type: 'test'
+  ...
+# Subtest: current-work selector keeps inbound recipient distinct from downstream delegate
+ok 62 - current-work selector keeps inbound recipient distinct from downstream delegate
+  ---
+  duration_ms: 10.620815
+  type: 'test'
+  ...
+# Subtest: current-work delegate selector can qualify its exact selected Role from qualified Required Context without selection by carriage
+ok 63 - current-work delegate selector can qualify its exact selected Role from qualified Required Context without selection by carriage
+  ---
+  duration_ms: 1.330578
+  type: 'test'
+  ...
+# Subtest: Required Context Role material never selects a delegate and exact selected-role qualification fails closed on missing, near-match, ambiguous, or unrelated material
+ok 64 - Required Context Role material never selects a delegate and exact selected-role qualification fails closed on missing, near-match, ambiguous, or unrelated material
+  ---
+  duration_ms: 8.177236
+  type: 'test'
+  ...
+# Subtest: artifact delegation closure fails closed when any required forward authority link is removed
+ok 65 - artifact delegation closure fails closed when any required forward authority link is removed
+  ---
+  duration_ms: 2.524398
+  type: 'test'
+  ...
+# Subtest: common handoff projection emits exact adjacent routing text for the canonical return carrier
+ok 66 - common handoff projection emits exact adjacent routing text for the canonical return carrier
+  ---
+  duration_ms: 5.153873
+  type: 'test'
+  ...
+# Subtest: common handoff projection blocks human delivery when physical roundtrip is not qualified
+ok 67 - common handoff projection blocks human delivery when physical roundtrip is not qualified
+  ---
+  duration_ms: 0.339572
+  type: 'test'
+  ...
+# Subtest: ground CLI preserves an explicit canonical holder assignment mode without recipient-class inference
+ok 68 - ground CLI preserves an explicit canonical holder assignment mode without recipient-class inference
+  ---
+  duration_ms: 56.833725
+  type: 'test'
+  ...
+# Subtest: Transition Definition and Companion expose exact Core-owned creation without granting host execution authority
+ok 69 - Transition Definition and Companion expose exact Core-owned creation without granting host execution authority
+  ---
+  duration_ms: 102.97947
+  type: 'test'
+  ...
+# Subtest: workspace Transition Definition catalog discovers explicit supplied representations outside .transitions without granting attachment
+ok 70 - workspace Transition Definition catalog discovers explicit supplied representations outside .transitions without granting attachment
+  ---
+  duration_ms: 40.945083
+  type: 'test'
+  ...
+# Subtest: transition catalog preserves invalid workspace definitions without projecting them as read-qualified candidates
+ok 71 - transition catalog preserves invalid workspace definitions without projecting them as read-qualified candidates
+  ---
+  duration_ms: 9.663638
+  type: 'test'
+  ...
+# Subtest: portable operation catalog exposes host-neutral Transition discovery
+ok 72 - portable operation catalog exposes host-neutral Transition discovery
+  ---
+  duration_ms: 4.717167
+  type: 'test'
+  ...
+# Subtest: canonical identifier and version do not collapse independent Transition representations
+ok 73 - canonical identifier and version do not collapse independent Transition representations
+  ---
+  duration_ms: 12.839563
+  type: 'test'
+  ...
+# Subtest: Transition neighborhood requires explicit Semantic Package plus Schema Transition Companion attachment
+ok 74 - Transition neighborhood requires explicit Semantic Package plus Schema Transition Companion attachment
+  ---
+  duration_ms: 34.238286
+  type: 'test'
+  ...
+# Subtest: Transition neighborhood does not infer attachment from registry presence
+ok 75 - Transition neighborhood does not infer attachment from registry presence
+  ---
+  duration_ms: 13.256575
+  type: 'test'
+  ...
+# Subtest: Transition neighborhood can filter attached candidates by current input schema without claiming applicability
+ok 76 - Transition neighborhood can filter attached candidates by current input schema without claiming applicability
+  ---
+  duration_ms: 29.599723
+  type: 'test'
+  ...
+# Subtest: portable operation catalog exposes schema-local Transition neighborhood without upgrading attachment to execution
+ok 77 - portable operation catalog exposes schema-local Transition neighborhood without upgrading attachment to execution
+  ---
+  duration_ms: 10.665644
+  type: 'test'
+  ...
+# Subtest: Transition neighborhood can project qualified explicit generation defaults without implying applicability or execution
+ok 78 - Transition neighborhood can project qualified explicit generation defaults without implying applicability or execution
+  ---
+  duration_ms: 35.687403
+  type: 'test'
+  ...
+# Subtest: semantic package local Transition discovery follows qualified artifact type independent of directory
+ok 79 - semantic package local Transition discovery follows qualified artifact type independent of directory
+  ---
+  duration_ms: 11.072813
+  type: 'test'
+  ...
+# Subtest: package-local discovery never borrows Transition artifacts from unselected nested package
+ok 80 - package-local discovery never borrows Transition artifacts from unselected nested package
+  ---
+  duration_ms: 2.622785
+  type: 'test'
+  ...
+# Subtest: explicit companion attachment and generation profile survive non-dot Transition location, without implicit applicability
+ok 81 - explicit companion attachment and generation profile survive non-dot Transition location, without implicit applicability
+  ---
+  duration_ms: 57.338731
+  type: 'test'
+  ...
+# Subtest: real Core Transition Definition and Companion authoring contracts are ready
+ok 82 - real Core Transition Definition and Companion authoring contracts are ready
+  ---
+  duration_ms: 108.165015
+  type: 'test'
+  ...
+# Subtest: minimal legitimate zero-role Transition Definition materializes as exact schema-valid sealed artifact
+ok 83 - minimal legitimate zero-role Transition Definition materializes as exact schema-valid sealed artifact
+  ---
+  duration_ms: 49.875783
+  type: 'test'
+  ...
+# Subtest: unresolved complex Transition stays sealed and readable but fails closed at exact creation qualification
+ok 84 - unresolved complex Transition stays sealed and readable but fails closed at exact creation qualification
+  ---
+  duration_ms: 13.414797
+  type: 'test'
+  ...
+# Subtest: multiple independent real Input Role entries round-trip as named rows
+ok 85 - multiple independent real Input Role entries round-trip as named rows
+  ---
+  duration_ms: 14.508227
+  type: 'test'
+  ...
+# Subtest: fail closed on missing, duplicated, invented or flattened structured transition inputs
+ok 86 - fail closed on missing, duplicated, invented or flattened structured transition inputs
+  ---
+  duration_ms: 3.276051
+  type: 'test'
+  ...
+# Subtest: Schema Transition Companion empty set and exact attachment create through Core
+ok 87 - Schema Transition Companion empty set and exact attachment create through Core
+  ---
+  duration_ms: 12.524778
+  type: 'test'
+  ...
+# Subtest: multi-route carrier never silently chooses one recipient
+ok 88 - multi-route carrier never silently chooses one recipient
+  ---
+  duration_ms: 5.049363
+  type: 'test'
+  ...
+# Subtest: exact route produces byte-identical canonical transport text and unmodified filename
+ok 89 - exact route produces byte-identical canonical transport text and unmodified filename
+  ---
+  duration_ms: 0.950393
+  type: 'test'
+  ...
+# Subtest: pointerless Workspace has Start but never a fabricated recipient or Continue From
+ok 90 - pointerless Workspace has Start but never a fabricated recipient or Continue From
+  ---
+  duration_ms: 0.421444
+  type: 'test'
+  ...
+# Subtest: qualified purpose Entry can augment exact shell without new authority
+ok 91 - qualified purpose Entry can augment exact shell without new authority
+  ---
+  duration_ms: 115.719935
+  type: 'test'
+  ...
+# Subtest: unsupported Target, missing purpose, forged carrier name, invalid carrier are fail-closed
+ok 92 - unsupported Target, missing purpose, forged carrier name, invalid carrier are fail-closed
+  ---
+  duration_ms: 94.281316
+  type: 'test'
+  ...
+# Subtest: current qualified VS Code Target Entry projects exact source and bounded host steps only on explicit selection
+ok 93 - current qualified VS Code Target Entry projects exact source and bounded host steps only on explicit selection
+  ---
+  duration_ms: 154.255097
+  type: 'test'
+  ...
+# Subtest: typed artifact candidates are found across .topics, never by dot folder convention or whole-workspace search
+ok 94 - typed artifact candidates are found across .topics, never by dot folder convention or whole-workspace search
+  ---
+  duration_ms: 112.27564
+  type: 'test'
+  ...
+# Subtest: Workspace scanner fails closed on symlink escape and explicit resource limits
+ok 95 - Workspace scanner fails closed on symlink escape and explicit resource limits
+  ---
+  duration_ms: 11.414632
+  type: 'test'
+  ...
+# Subtest: untyped prose remains unqualified and nested .workspaces never auto-selects primary authority
+ok 96 - untyped prose remains unqualified and nested .workspaces never auto-selects primary authority
+  ---
+  duration_ms: 5.355754
+  type: 'test'
+  ...
+# Subtest: Node adapter projects typed Transition catalog without implying applicable preset
+ok 97 - Node adapter projects typed Transition catalog without implying applicable preset
+  ---
+  duration_ms: 10.016078
+  type: 'test'
+  ...
+# Subtest: Guided Entry mode catalog uses reusable content sources and remains transport-only
+ok 98 - Guided Entry mode catalog uses reusable content sources and remains transport-only
+  ---
+  duration_ms: 134.132747
+  type: 'test'
+  ...
+# Subtest: Guided Entry catalog separates WHAT purpose Entries from WHERE Target Entries and composes a selected target
+ok 99 - Guided Entry catalog separates WHAT purpose Entries from WHERE Target Entries and composes a selected target
+  ---
+  duration_ms: 199.062618
+  type: 'test'
+  ...
+# Subtest: Core renders Session Entry grounding obligations without VS Code semantics
+ok 100 - Core renders Session Entry grounding obligations without VS Code semantics
+  ---
+  duration_ms: 165.356943
+  type: 'test'
+  ...
+# Subtest: EXPLORE requires current cross-Workspace grounding before participant-facing directions
+ok 101 - EXPLORE requires current cross-Workspace grounding before participant-facing directions
+  ---
+  duration_ms: 87.637857
+  type: 'test'
+  ...
+# Subtest: Guided Entry renders canonical cold-start shell plus RESUME intent and session context
+ok 102 - Guided Entry renders canonical cold-start shell plus RESUME intent and session context
+  ---
+  duration_ms: 90.795407
+  type: 'test'
+  ...
+# Subtest: Guided Entry rejects duplicate Primary Role participant and missing CUSTOM instruction
+ok 103 - Guided Entry rejects duplicate Primary Role participant and missing CUSTOM instruction
+  ---
+  duration_ms: 170.590273
+  type: 'test'
+  ...
+# Subtest: Guided Entry uses a commit-pinned external Role reference only when the Role is not carried
+ok 104 - Guided Entry uses a commit-pinned external Role reference only when the Role is not carried
+  ---
+  duration_ms: 170.307883
+  type: 'test'
+  ...
+# Subtest: Guided Entry deduplicates Roles by exact identity rather than human label alone
+ok 105 - Guided Entry deduplicates Roles by exact identity rather than human label alone
+  ---
+  duration_ms: 83.790629
+  type: 'test'
+  ...
+1..105
+# tests 105
+# suites 0
+# pass 105
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 10121.149211
+

@@ -1,0 +1,1 @@
+PACKED @tiinex/core CLI: unresolved without accepted exact pinned read receipt, resolved when exact normalized synthetic host receipt was supplied. Test-only fixture; not a real provider attestation. Cross Workspace Apply remains false.

@@ -1,0 +1,52 @@
+TAP version 13
+# Subtest: Core qualifies three-layer semantic Parent tree and PNG without any external Parent or reader
+ok 1 - Core qualifies three-layer semantic Parent tree and PNG without any external Parent or reader
+  ---
+  duration_ms: 160.874186
+  type: 'test'
+  ...
+# Subtest: closed graph incoming reference in target Workspace causes BLOCK without mutation
+ok 2 - closed graph incoming reference in target Workspace causes BLOCK without mutation
+  ---
+  duration_ms: 22.7439
+  type: 'test'
+  ...
+# Subtest: SIGKILL-equivalent injected fault after partial multi-file output promotion restores entire original graph
+ok 3 - SIGKILL-equivalent injected fault after partial multi-file output promotion restores entire original graph
+  ---
+  duration_ms: 83.919374
+  type: 'test'
+  ...
+# Subtest: Core standalone CLI PLAN→APPLY and replay BLOCK for moved full semantic subtree
+ok 4 - Core standalone CLI PLAN→APPLY and replay BLOCK for moved full semantic subtree
+  ---
+  duration_ms: 3106.928213
+  type: 'test'
+  ...
+# Subtest: changed child Parent integrity, declared Schema/Created At and wrong percent-encoding BLOCK the complete graph
+ok 5 - changed child Parent integrity, declared Schema/Created At and wrong percent-encoding BLOCK the complete graph
+  ---
+  duration_ms: 479.176249
+  type: 'test'
+  ...
+# Subtest: preview snapshot drift, target collisions and external dynamic files all prevent graph mutation
+ok 6 - preview snapshot drift, target collisions and external dynamic files all prevent graph mutation
+  ---
+  duration_ms: 37.752488
+  type: 'test'
+  ...
+# Subtest: SIGKILL after closed graph outputs promotion is recoverable through direct Core CLI
+ok 7 - SIGKILL after closed graph outputs promotion is recoverable through direct Core CLI
+  ---
+  duration_ms: 2130.175346
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 6968.045044

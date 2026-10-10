@@ -17,6 +17,19 @@ assert.equal(suggestedMaterialKind('notes.TXT'),'text document');
 assert.equal(suggestedMaterialKind('file.bin'),'','unqualified binary name must not claim kind');
 assert.equal(suggestedMaterialEntryName('Äntligen Bild 1.PNG'),'antligen-bild-1');
 const {compatibleTransitionSeed,sourceScalarPreview}=loadHelper('transitionSourceSeed.ts');
+const {projectTransitionAuthoringPresets,qualifiedTransitionPresetCandidates}=loadHelper('artifactAuthoringPresets.ts');
+const qualifiedPreset=(representationKey, purpose)=>({representationKey,canonicalIdentifier:'tiinex.same-name.v1',version:'1.0.0',label:'Same label',purpose,
+ authoringProfile:{state:'qualified',defaults:{Purpose:purpose},boundary:{explicitSelectionRequired:true,recommendation:'not-projected',executionAuthorized:false}}});
+const unrelated=[qualifiedPreset('workspace-a','Source A'),qualifiedPreset('workspace-b','Source B')];
+assert.equal(qualifiedTransitionPresetCandidates(unrelated).length,2,'do not collapse independent Core representations by Canonical Identifier');
+const projection=projectTransitionAuthoringPresets(unrelated);
+assert.equal(projection.selectedTemplateId,'manual','never auto-execute a preset');
+assert.equal(projection.templates.length,3);
+assert.equal(new Set(projection.templates.map(x=>x.id)).size,3,'each Core representation must have an independent UI selection id');
+assert.deepEqual(projection.templates.slice(1).map(x=>x.defaults.Purpose),['Source A','Source B'],'do not swap source-specific generation defaults');
+assert.notEqual(projection.templates[1].label,projection.templates[2].label,'same public name must be disambiguated');
+assert.deepEqual(projectTransitionAuthoringPresets([{...qualifiedPreset('workspace-x','Invalid'),authoringProfile:{state:'blocked',defaults:{Purpose:'Invalid'},boundary:{explicitSelectionRequired:true,recommendation:'not-projected',executionAuthorized:false}}}]).templates.map(x=>x.id),['manual'],'blocked Core definitions cannot become prefills');
+
 const input={Purpose:'exact-matching top level','Supported Claim Or Question':{'Supported Claim Or Question':'Original claim','Evidence Role':'illustrates'},
  'Evidence Material':[{name:'screenshot-1',fields:{Material:'[a.png](a.png)','Material Kind':'PNG image',Description:'Observed UI'}}],
  'Purpose And Scope':{Purpose:'Preserved Purpose', 'Semantic Boundary':'Bounded work',Unknown:'must not copy'},
@@ -80,3 +93,35 @@ const manifest=require(path.join(root,'package.json'));
 const menu=manifest.contributes.menus['tiinex.explorer.actions'].find(x=>x.command==='tiinex.artifact.moveRebase');
 assert.equal(menu.when,'!explorerResourceIsFolder','ordinary files must expose same Core-backed Explorer command');
 console.log('PASS attach per-entry preservation, conservative kind suggestions, explicit source-to-Transition mapping, Core-owned ordinary asset route');
+
+// Read-only GitHub transport is deliberately separate from Core historical
+// semantic authorization. The endpoint is generated from Core's fixed coords;
+// no supplied URLs, no redirects and no extra persisted Workspace bytes.
+(async()=>{
+ const gitSource=fs.readFileSync(path.join(root,'src/host/git.ts'),'utf8');
+ const transpiled=ts.transpileModule(gitSource,{fileName:'git.ts',compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}});
+ const hosted={exports:{}};
+ new Function('require','exports','module',transpiled.outputText)((id)=>id.startsWith('.')?{}:require(id),hosted.exports,hosted);
+ const {fetchPinnedGitHubSchema}=hosted.exports;
+ const {createHash}=require('node:crypto');
+ const bytes=Buffer.from('historical schema content\n','utf8');
+ const sha=createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
+ const source={repository:'Tiinex/docs',commit:'a'.repeat(40),path:'.topics/.schemas/core/evidence/tiinex.evidence.v1.schema.md'};
+ const captured=[];
+ const handler=async (url,opts)=>{captured.push({url,opts});return {ok:true,status:200,json:async()=>({type:'file',path:source.path,encoding:'base64',sha,content:bytes.toString('base64')})};};
+ const got=await fetchPinnedGitHubSchema(source,handler);
+ assert.deepEqual(got,{content:bytes.toString('utf8'),sha});
+ assert.equal(captured.length,1);assert.equal(captured[0].opts.redirect,'error');
+ assert.match(captured[0].url,/^https:\/\/api\.github\.com\/repos\/Tiinex\/docs\/contents\/\.topics\/\.schemas\/core\/evidence\//);
+ assert.ok(captured[0].url.endsWith('?ref='+'a'.repeat(40)));
+ await assert.rejects(fetchPinnedGitHubSchema({...source,path:'../../something'},handler),/pinned-github-coordinates-required/);
+ await assert.rejects(fetchPinnedGitHubSchema(source,async()=>({ok:false,status:404})),/read-unavailable:404/);
+ await assert.rejects(fetchPinnedGitHubSchema(source,async()=>({ok:true,json:async()=>({type:'file',path:source.path,encoding:'base64',sha:'f'.repeat(40),content:bytes.toString('base64')})})),/git-blob-mismatch/);
+ const picker=fs.readFileSync(path.join(root,'src/operatorTrees.ts'),'utf8');
+ const authoring=fs.readFileSync(path.join(root,'src/authoring.ts'),'utf8');
+ assert.match(picker,/Verify Pinned Schema/);
+ assert.match(picker,/qualifyPinnedHistoricalEvidenceParent\(this\.extensionPath, parentArtifact\)/);
+ assert.match(authoring,/qualify-historical-evidence-parent/);
+ assert.match(authoring,/tiinex\.authoring\.parent-changed-reselect/);
+ console.log('PASS pinned read-only GitHub transport, exact blob SHA, Core receipt handoff and stale-Parent guards');
+})().catch(error=>{console.error(error);process.exitCode=1;});

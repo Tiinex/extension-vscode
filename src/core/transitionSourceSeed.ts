@@ -41,3 +41,31 @@ export function sourceScalarPreview(values: Record<string, unknown>): { label: s
   walk(values, '', 0);
   return result;
 }
+
+/** Conservative authoring draft, NOT a reusable preset. The operator must
+ * explicitly supply the Transition semantics and qualify its Generation Binding
+ * and Companion before a future form may offer it as a preset. Source form
+ * values are displayed for explicit mapping only, never persisted separately. */
+export function manualOnlyTransitionSeed(sourceTitle: string, model: ArtifactAuthoringModel): Record<string, unknown> {
+  const label = String(sourceTitle || 'Source form').trim().replace(/[\r\n\t]+/g,' ').slice(0,100) || 'Source form';
+  const slug = label.normalize('NFKD').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,56) || 'source-form';
+  const values: Record<string,unknown> = {
+    Name: `Define transition for ${label}`,
+    Version: '1.0.0',
+    'Canonical Identifier': `tiinex.local.transition-${slug}.v1`,
+    'Semantic Boundary': 'Draft definition only. The operator must explicitly specify Purpose, roles, and any applicable Generation Binding and Companion.',
+    'Input Roles': 'none',
+    'Output Roles': 'none',
+    'Lifecycle And Continuity Effects': { 'Lifecycle Effects': 'none', 'Parent Effects': 'none' },
+    'Relation Effects': 'none',
+    'Applicability Meaning': 'Not qualified as an authoring preset until the intended output, generation authority and attachment are proven.',
+    'Placement Intent': {'Destination Bindings':'none','Output Placements':'none'},
+    'Interpretation Limits': {
+      'Does Not Prove': 'Source-form values are not verified by this draft; it also does not prove a qualified generation binding or schema-companion attachment.',
+      'Must Not Be Inferred': 'No role, parent change, side effect, automatic execution or cross-Workspace authority is granted.'
+    }
+  };
+  // Only send fields/sections actually represented by this Core-projected
+  // definition model. Never inject a hidden field into host authoring values.
+  return compatibleTransitionSeed(values,model);
+}

@@ -1,0 +1,376 @@
+TAP version 13
+# Subtest: binary relocation applies through existing durable journal, preserves bytes, and cleans lock
+ok 1 - binary relocation applies through existing durable journal, preserves bytes, and cleans lock
+  ---
+  duration_ms: 131.328118
+  type: 'test'
+  ...
+# Subtest: source drift, target collision and tampered plan block with unchanged input bytes
+ok 2 - source drift, target collision and tampered plan block with unchanged input bytes
+  ---
+  duration_ms: 36.854525
+  type: 'test'
+  ...
+# Subtest: post-source-stage injected failure rolls back original binary exactly and cleans transaction
+ok 3 - post-source-stage injected failure rolls back original binary exactly and cleans transaction
+  ---
+  duration_ms: 54.643216
+  type: 'test'
+  ...
+# Subtest: source symlink and symlinked destination folder are never followed
+ok 4 - source symlink and symlinked destination folder are never followed
+  ---
+  duration_ms: 48.539449
+  type: 'test'
+  ...
+# Subtest: asset data changed during transaction staging fails before source mutation
+ok 5 - asset data changed during transaction staging fails before source mutation
+  ---
+  duration_ms: 38.030648
+  type: 'test'
+  ...
+# Subtest: Append + Keep Parent preserves semantic parents but assigns an available child coordinate with no sibling renumber
+ok 6 - Append + Keep Parent preserves semantic parents but assigns an available child coordinate with no sibling renumber
+  ---
+  duration_ms: 46.332444
+  type: 'test'
+  ...
+# Subtest: Prepend + Keep Parent moves target beneath last selected leaf numerically while retaining original semantically qualified Parent
+ok 7 - Prepend + Keep Parent moves target beneath last selected leaf numerically while retaining original semantically qualified Parent
+  ---
+  duration_ms: 16.487655
+  type: 'test'
+  ...
+# Subtest: Keep Parent rewrites references from unchanged external-directory Tiinex artifacts when the anchored target moves
+ok 8 - Keep Parent rewrites references from unchanged external-directory Tiinex artifacts when the anchored target moves
+  ---
+  duration_ms: 13.521115
+  type: 'test'
+  ...
+# Subtest: Prepend refuses a numerically ambiguous target namespace despite different filenames
+ok 9 - Prepend refuses a numerically ambiguous target namespace despite different filenames
+  ---
+  duration_ms: 8.542451
+  type: 'test'
+  ...
+# Subtest: Partial reference coverage fails closed before Keep Parent moves
+ok 10 - Partial reference coverage fails closed before Keep Parent moves
+  ---
+  duration_ms: 2.916527
+  type: 'test'
+  ...
+# Subtest: Keep Parent blocks ancestor/descendant overlap, and is not coerced into New Parent
+ok 11 - Keep Parent blocks ancestor/descendant overlap, and is not coerced into New Parent
+  ---
+  duration_ms: 3.90331
+  type: 'test'
+  ...
+# Subtest: Append + Keep Parent moves an exact-dimension PNG in the same atomic journal and rewrites its owner link
+ok 12 - Append + Keep Parent moves an exact-dimension PNG in the same atomic journal and rewrites its owner link
+  ---
+  duration_ms: 4265.956937
+  type: 'test'
+  ...
+# Subtest: Manually operate real standalone Core CLI plan/apply for Keep Parent; stale/replayed plans block
+ok 13 - Manually operate real standalone Core CLI plan/apply for Keep Parent; stale/replayed plans block
+  ---
+  duration_ms: 12025.059801
+  type: 'test'
+  ...
+# Subtest: local apply writes exact projected Move bytes and removes old paths
+ok 14 - local apply writes exact projected Move bytes and removes old paths
+  ---
+  duration_ms: 82.675751
+  type: 'test'
+  ...
+# Subtest: local apply fails closed on input drift without mutating paths
+ok 15 - local apply fails closed on input drift without mutating paths
+  ---
+  duration_ms: 11.977415
+  type: 'test'
+  ...
+# Subtest: local apply blocks an unplanned target collision
+ok 16 - local apply blocks an unplanned target collision
+  ---
+  duration_ms: 12.402051
+  type: 'test'
+  ...
+# Subtest: local apply rejects a tampered projected plan fingerprint before filesystem mutation
+ok 17 - local apply rejects a tampered projected plan fingerprint before filesystem mutation
+  ---
+  duration_ms: 4.532364
+  type: 'test'
+  ...
+# Subtest: Move relocates a whole coordinate lineage into an empty directory and preserves semantic Parent
+ok 18 - Move relocates a whole coordinate lineage into an empty directory and preserves semantic Parent
+  ---
+  duration_ms: 25.465696
+  type: 'test'
+  ...
+# Subtest: Move middle segment compacts source coordinate tree without manufacturing semantic Parent ancestry
+ok 19 - Move middle segment compacts source coordinate tree without manufacturing semantic Parent ancestry
+  ---
+  duration_ms: 18.795997
+  type: 'test'
+  ...
+# Subtest: Move into a non-empty target namespace deterministically compacts target roots before moved roots
+ok 20 - Move into a non-empty target namespace deterministically compacts target roots before moved roots
+  ---
+  duration_ms: 2.135091
+  type: 'test'
+  ...
+# Subtest: Prepend before a semantic root rewires only the insertion chain and shifts local coordinates deeper
+ok 21 - Prepend before a semantic root rewires only the insertion chain and shifts local coordinates deeper
+  ---
+  duration_ms: 9.67803
+  type: 'test'
+  ...
+# Subtest: Prepend supports an ordered multi-artifact chain on an existing Parent edge
+ok 22 - Prepend supports an ordered multi-artifact chain on an existing Parent edge
+  ---
+  duration_ms: 7.523887
+  type: 'test'
+  ...
+# Subtest: Directory namespace qualification reports drift and projects the normalize-directory recovery without changing semantic Parent
+ok 23 - Directory namespace qualification reports drift and projects the normalize-directory recovery without changing semantic Parent
+  ---
+  duration_ms: 6.137433
+  type: 'test'
+  ...
+# Subtest: Normalize Directory is an explicit no-op for an already compact namespace
+ok 24 - Normalize Directory is an explicit no-op for an already compact namespace
+  ---
+  duration_ms: 1.733564
+  type: 'test'
+  ...
+# Subtest: Unrelated unqualified Tiinex material does not block a directory-local normalization plan
+ok 25 - Unrelated unqualified Tiinex material does not block a directory-local normalization plan
+  ---
+  duration_ms: 1.445691
+  type: 'test'
+  ...
+# Subtest: Affected unqualified Tiinex material blocks lineage maintenance fail-closed
+ok 26 - Affected unqualified Tiinex material blocks lineage maintenance fail-closed
+  ---
+  duration_ms: 1.452908
+  type: 'test'
+  ...
+# Subtest: Workspace namespace qualification discovers compact and drifted numeric directories while excluding mixed Tiinex surfaces
+ok 27 - Workspace namespace qualification discovers compact and drifted numeric directories while excluding mixed Tiinex surfaces
+  ---
+  duration_ms: 1.993922
+  type: 'test'
+  ...
+# Subtest: Workspace namespace qualification reports an unqualified numeric namespace as blocked without rewriting it
+ok 28 - Workspace namespace qualification reports an unqualified numeric namespace as blocked without rewriting it
+  ---
+  duration_ms: 0.834769
+  type: 'test'
+  ...
+# Subtest: Workspace namespace qualification inventories non-numeric Tiinex directory surfaces without recommending Normalize
+ok 29 - Workspace namespace qualification inventories non-numeric Tiinex directory surfaces without recommending Normalize
+  ---
+  duration_ms: 0.85909
+  type: 'test'
+  ...
+# Subtest: Bounded Workspace Representation keeps lineage qualification scope-limited and suppresses Normalize recommendations
+ok 30 - Bounded Workspace Representation keeps lineage qualification scope-limited and suppresses Normalize recommendations
+  ---
+  duration_ms: 0.891265
+  type: 'test'
+  ...
+# Subtest: Lineage maintenance blocks mutation-ready projection unless Workspace Representation is explicitly complete
+ok 31 - Lineage maintenance blocks mutation-ready projection unless Workspace Representation is explicitly complete
+  ---
+  duration_ms: 0.419282
+  type: 'test'
+  ...
+# Subtest: Unsupported arbitrary lineage reorder remains fail-closed and non-executable
+ok 32 - Unsupported arbitrary lineage reorder remains fail-closed and non-executable
+  ---
+  duration_ms: 2.09907
+  type: 'test'
+  ...
+# Subtest: CLI workspace lineage qualification discovers namespace drift without caller-supplied directory enumeration
+ok 33 - CLI workspace lineage qualification discovers namespace drift without caller-supplied directory enumeration
+  ---
+  duration_ms: 25.263445
+  type: 'test'
+  ...
+# Subtest: CLI lineage qualification binds loaded Workspace files to the explicit workspace id
+ok 34 - CLI lineage qualification binds loaded Workspace files to the explicit workspace id
+  ---
+  duration_ms: 11.444541
+  type: 'test'
+  ...
+# Subtest: CLI lineage maintenance projection uses the same loaded Workspace file binding
+ok 35 - CLI lineage maintenance projection uses the same loaded Workspace file binding
+  ---
+  duration_ms: 8.083189
+  type: 'test'
+  ...
+# Subtest: cooperative Workspace lock blocks a second lineage-maintenance apply
+ok 36 - cooperative Workspace lock blocks a second lineage-maintenance apply
+  ---
+  duration_ms: 39.804283
+  type: 'test'
+  ...
+# Subtest: explicit recovery rolls back a process death after atomic source backup
+ok 37 - explicit recovery rolls back a process death after atomic source backup
+  ---
+  duration_ms: 161.236249
+  type: 'test'
+  ...
+# Subtest: recovery finalizes a durably committed transaction after process death without rolling it back
+ok 38 - recovery finalizes a durably committed transaction after process death without rolling it back
+  ---
+  duration_ms: 160.024944
+  type: 'test'
+  ...
+# Subtest: recovery fails closed and preserves unexpected concurrent target bytes
+ok 39 - recovery fails closed and preserves unexpected concurrent target bytes
+  ---
+  duration_ms: 188.304766
+  type: 'test'
+  ...
+# Subtest: recovery removes a dead orphan lock created before a transaction journal existed
+ok 40 - recovery removes a dead orphan lock created before a transaction journal existed
+  ---
+  duration_ms: 10.144332
+  type: 'test'
+  ...
+# Subtest: recovery does not clear a lock owned by an unverifiable foreign host
+ok 41 - recovery does not clear a lock owned by an unverifiable foreign host
+  ---
+  duration_ms: 7.672752
+  type: 'test'
+  ...
+# Subtest: CLI recover-lineage-maintenance exposes explicit local crash recovery
+ok 42 - CLI recover-lineage-maintenance exposes explicit local crash recovery
+  ---
+  duration_ms: 8.881398
+  type: 'test'
+  ...
+# Subtest: successful apply removes transaction journal and Workspace lock
+ok 43 - successful apply removes transaction journal and Workspace lock
+  ---
+  duration_ms: 90.494484
+  type: 'test'
+  ...
+# Subtest: Core moves a qualified artifact + PNG in one atomic transaction, preserving Child/Parent identity
+ok 44 - Core moves a qualified artifact + PNG in one atomic transaction, preserving Child/Parent identity
+  ---
+  duration_ms: 138.995666
+  type: 'test'
+  ...
+# Subtest: Self + Leaves carries both artifact levels and exact dimension-owned assets, not sibling files
+ok 45 - Self + Leaves carries both artifact levels and exact dimension-owned assets, not sibling files
+  ---
+  duration_ms: 107.825834
+  type: 'test'
+  ...
+# Subtest: Combined plan fails closed on bad source, missing coverage, unowned binary, unsafe Parent change
+ok 46 - Combined plan fails closed on bad source, missing coverage, unowned binary, unsafe Parent change
+  ---
+  duration_ms: 10.650507
+  type: 'test'
+  ...
+# Subtest: Atomic rollback restores binary and artifact when failure injected after source staging
+ok 47 - Atomic rollback restores binary and artifact when failure injected after source staging
+  ---
+  duration_ms: 60.096206
+  type: 'test'
+  ...
+# Subtest: actual Core CLI project --request and apply --plan move asset+artifact, keep qualified Parent and block replay
+ok 48 - actual Core CLI project --request and apply --plan move asset+artifact, keep qualified Parent and block replay
+  ---
+  duration_ms: 6293.732463
+  type: 'test'
+  ...
+# Subtest: five directory-only scopes use real Parent graph, never numeric lookalike children
+ok 49 - five directory-only scopes use real Parent graph, never numeric lookalike children
+  ---
+  duration_ms: 25.367811
+  type: 'test'
+  ...
+# Subtest: ordinary non-Tiinex asset may select only Alone, without extra prompt
+ok 50 - ordinary non-Tiinex asset may select only Alone, without extra prompt
+  ---
+  duration_ms: 13.368706
+  type: 'test'
+  ...
+# Subtest: missing selection, unknown coverage and parent cycles fail closed
+ok 51 - missing selection, unknown coverage and parent cycles fail closed
+  ---
+  duration_ms: 4.872674
+  type: 'test'
+  ...
+# Subtest: scoped move preserving Parent rebases the exact reference and digest
+ok 52 - scoped move preserving Parent rebases the exact reference and digest
+  ---
+  duration_ms: 29.515995
+  type: 'test'
+  ...
+# Subtest: scoped move blocks incomplete asset transactions instead of silently omitting a selected PNG
+ok 53 - scoped move blocks incomplete asset transactions instead of silently omitting a selected PNG
+  ---
+  duration_ms: 4.368173
+  type: 'test'
+  ...
+# Subtest: scoped move refuses to break out of complete Parent material and integrity
+ok 54 - scoped move refuses to break out of complete Parent material and integrity
+  ---
+  duration_ms: 4.172691
+  type: 'test'
+  ...
+# Subtest: new placement requires a qualified anchor and Same cannot silently become New Parent
+ok 55 - new placement requires a qualified anchor and Same cannot silently become New Parent
+  ---
+  duration_ms: 10.007729
+  type: 'test'
+  ...
+# Subtest: Unanchored insertion cannot silently renumber target or unrelated siblings
+ok 56 - Unanchored insertion cannot silently renumber target or unrelated siblings
+  ---
+  duration_ms: 20.71858
+  type: 'test'
+  ...
+# Subtest: Scoped Append and Prepend + New Parent apply exactly anchored dimensions, assets, and Parent integrity
+ok 57 - Scoped Append and Prepend + New Parent apply exactly anchored dimensions, assets, and Parent integrity
+  ---
+  duration_ms: 278.83541
+  type: 'test'
+  ...
+# Subtest: Scoped Prepend never invents a root Parent
+ok 58 - Scoped Prepend never invents a root Parent
+  ---
+  duration_ms: 8.600426
+  type: 'test'
+  ...
+# Subtest: Core applies approved Same + Keep-Parent with references intact; drift blocks before mutation
+ok 59 - Core applies approved Same + Keep-Parent with references intact; drift blocks before mutation
+  ---
+  duration_ms: 54.24555
+  type: 'test'
+  ...
+# Subtest: scope and cross-workspace requests fail closed without complete asset/Git continuity evidence
+ok 60 - scope and cross-workspace requests fail closed without complete asset/Git continuity evidence
+  ---
+  duration_ms: 5.104409
+  type: 'test'
+  ...
+# Subtest: manual CLI offline-compatible Append/Prepend + New Parent executes qualified disk mutation; Apply is replay-safe
+ok 61 - manual CLI offline-compatible Append/Prepend + New Parent executes qualified disk mutation; Apply is replay-safe
+  ---
+  duration_ms: 10447.623957
+  type: 'test'
+  ...
+1..61
+# tests 61
+# suites 0
+# pass 61
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 18583.141346

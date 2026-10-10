@@ -16,7 +16,7 @@ assert.ok(start > 0 && end > start, 'Move/Rebase operation picker must exist');
 const picker = source.slice(start, end);
 assert.doesNotMatch(picker, /\bkind:\s*'(?:move|prepend|normalize-directory)'/, 'domain discriminator must not conflict with VS Code QuickPickItem.kind');
 assert.match(source.slice(end, end + 1300), /selectedMode\.operation\s*===\s*'move'/);
-assert.match(source.slice(end, end + 1800), /selectedMode\.operation\s*===\s*'prepend'/);
+assert.match(source.slice(end), /selectedMode\.operation\s*===\s*'prepend'/);
 
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'tiinex-vscode-quickpick-typing-'));
 try {
@@ -33,7 +33,7 @@ namespace vscode {
 async function testPicker() {
 ${picker}
   if (selectedMode) {
-    const operation: 'move' | 'prepend' | 'normalize-directory' = selectedMode.operation;
+    const operation: 'move' | 'prepend' | 'normalize-directory' | 'scoped' = selectedMode.operation;
     const label: string = selectedMode.label;
     void operation; void label;
   }

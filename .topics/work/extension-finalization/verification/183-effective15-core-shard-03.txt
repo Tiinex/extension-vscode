@@ -1,0 +1,257 @@
+TAP version 13
+# Subtest: Core src contains mechanics rather than maintained first-party Tiinex artifacts
+ok 1 - Core src contains mechanics rather than maintained first-party Tiinex artifacts
+  ---
+  duration_ms: 48.559592
+  type: 'test'
+  ...
+# Subtest: Core src/schemas contains generic mechanics rather than first-party schema-family files
+ok 2 - Core src/schemas contains generic mechanics rather than first-party schema-family files
+  ---
+  duration_ms: 1.315744
+  type: 'test'
+  ...
+# Subtest: Core product mechanics do not hardcode replaceable first-party content packages or local recovery paths
+ok 3 - Core product mechanics do not hardcode replaceable first-party content packages or local recovery paths
+  ---
+  duration_ms: 480.00739
+  type: 'test'
+  ...
+# Subtest: registered content surfaces are recursive and unknown dot directories are semantically inert
+ok 4 - registered content surfaces are recursive and unknown dot directories are semantically inert
+  ---
+  duration_ms: 697.908611
+  type: 'test'
+  ...
+# Subtest: installed Tiinex content sources follow declared dependencies of discovered content packages
+ok 5 - installed Tiinex content sources follow declared dependencies of discovered content packages
+  ---
+  duration_ms: 574.895744
+  type: 'test'
+  ...
+# Subtest: installed content discovery traverses non-content aggregation packages to reusable dependency sources
+ok 6 - installed content discovery traverses non-content aggregation packages to reusable dependency sources
+  ---
+  duration_ms: 13.033869
+  type: 'test'
+  ...
+# Subtest: carried Workspaces are not implicitly active content sources unless their package declares tiinex.contentSource
+ok 7 - carried Workspaces are not implicitly active content sources unless their package declares tiinex.contentSource
+  ---
+  duration_ms: 1041.262708
+  type: 'test'
+  ...
+# Subtest: workspace-qualified Handoff material resolves from reusable content sources with bounded Parent closure
+ok 8 - workspace-qualified Handoff material resolves from reusable content sources with bounded Parent closure
+  ---
+  duration_ms: 12.678078
+  type: 'test'
+  ...
+# Subtest: Core mechanics remain importable and explicit runtime initialization fails closed when no content source is selected
+ok 9 - Core mechanics remain importable and explicit runtime initialization fails closed when no content source is selected
+  ---
+  duration_ms: 76.281549
+  type: 'test'
+  ...
+# Subtest: Native can be selected normally and replaced by a differently named package carrying the same registered surfaces
+ok 10 - Native can be selected normally and replaced by a differently named package carrying the same registered surfaces
+  ---
+  duration_ms: 3770.238868
+  type: 'test'
+  ...
+# Subtest: clean canonical schema source is locally qualified without instance-style schema-authority warnings
+ok 11 - clean canonical schema source is locally qualified without instance-style schema-authority warnings
+  ---
+  duration_ms: 73.160085
+  type: 'test'
+  ...
+# Subtest: schema source self mismatch exposes deterministic schema integrity repair
+ok 12 - schema source self mismatch exposes deterministic schema integrity repair
+  ---
+  duration_ms: 51.027497
+  type: 'test'
+  ...
+# Subtest: local schema Parent digest mismatch is repaired together with the child self seal
+ok 13 - local schema Parent digest mismatch is repaired together with the child self seal
+  ---
+  duration_ms: 98.182775
+  type: 'test'
+  ...
+# Subtest: missing local schema Parent digest is repairable rather than a silent no-op
+ok 14 - missing local schema Parent digest is repairable rather than a silent no-op
+  ---
+  duration_ms: 70.475808
+  type: 'test'
+  ...
+# Subtest: externally pinned schema Parent integrity is preserved while self integrity remains repairable
+ok 15 - externally pinned schema Parent integrity is preserved while self integrity remains repairable
+  ---
+  duration_ms: 79.250719
+  type: 'test'
+  ...
+# Subtest: Tiinex Markdown ingress is declared only by the first-line Continuity Context envelope marker
+ok 16 - Tiinex Markdown ingress is declared only by the first-line Continuity Context envelope marker
+  ---
+  duration_ms: 1.780161
+  type: 'test'
+  ...
+# Subtest: editor assistance ignores ordinary Markdown before audit, lineage and schema validation
+ok 17 - editor assistance ignores ordinary Markdown before audit, lineage and schema validation
+  ---
+  duration_ms: 2.338607
+  type: 'test'
+  ...
+# Subtest: editor assistance still validates malformed Markdown that explicitly declares the Tiinex envelope marker
+ok 18 - editor assistance still validates malformed Markdown that explicitly declares the Tiinex envelope marker
+  ---
+  duration_ms: 18.268905
+  type: 'test'
+  ...
+# Subtest: staged validation ignores ordinary Markdown but includes malformed first-line Tiinex artifacts
+ok 19 - staged validation ignores ordinary Markdown but includes malformed first-line Tiinex artifacts
+  ---
+  duration_ms: 7.167135
+  type: 'test'
+  ...
+# Subtest: explicit route endpoint Role bindings close exact material when Handoff creation omitted optional endpoint References
+ok 20 - explicit route endpoint Role bindings close exact material when Handoff creation omitted optional endpoint References
+  ---
+  duration_ms: 25.045666
+  type: 'test'
+  ...
+# Subtest: explicit endpoint Role binding fails closed when its label contradicts the Handoff endpoint
+ok 21 - explicit endpoint Role binding fails closed when its label contradicts the Handoff endpoint
+  ---
+  duration_ms: 2.353251
+  type: 'test'
+  ...
+# Subtest: explicit endpoint Role binding fails closed when exact carried material has a different Role label
+ok 22 - explicit endpoint Role binding fails closed when exact carried material has a different Role label
+  ---
+  duration_ms: 3.852553
+  type: 'test'
+  ...
+# Subtest: projects exact Role authoringLabel separately from presentation label for the eight carried-role shapes
+ok 23 - projects exact Role authoringLabel separately from presentation label for the eight carried-role shapes
+  ---
+  duration_ms: 135.198838
+  type: 'test'
+  ...
+# Subtest: Role endpoint projection exposes only current Role lineage leaves for session selection
+ok 24 - Role endpoint projection exposes only current Role lineage leaves for session selection
+  ---
+  duration_ms: 45.493388
+  type: 'test'
+  ...
+# Subtest: endpoint source eligibility is bounded by the explicitly selected qualified Workspace material root
+ok 25 - endpoint source eligibility is bounded by the explicitly selected qualified Workspace material root
+  ---
+  duration_ms: 56.948926
+  type: 'test'
+  ...
+# Subtest: an explicit endpoint Reference remains required transport closure and fails closed when exact material is absent
+ok 26 - an explicit endpoint Reference remains required transport closure and fails closed when exact material is absent
+  ---
+  duration_ms: 3.509492
+  type: 'test'
+  ...
+# Subtest: Role and Party endpoint discovery excludes schema-definition material without disabling schema discovery elsewhere
+ok 27 - Role and Party endpoint discovery excludes schema-definition material without disabling schema discovery elsewhere
+  ---
+  duration_ms: 14.618219
+  type: 'test'
+  ...
+# Subtest: content-source Entry artifacts are qualified through the generic Entry contract
+ok 28 - content-source Entry artifacts are qualified through the generic Entry contract
+  ---
+  duration_ms: 105.918512
+  type: 'test'
+  ...
+# Subtest: Target Entry descendants are discovered as WHERE entries with qualified target metadata
+ok 29 - Target Entry descendants are discovered as WHERE entries with qualified target metadata
+  ---
+  duration_ms: 96.989532
+  type: 'test'
+  ...
+# Subtest: schema-valid Entry artifacts outside declared Entry surfaces do not shadow reusable content-source Entries
+ok 30 - schema-valid Entry artifacts outside declared Entry surfaces do not shadow reusable content-source Entries
+  ---
+  duration_ms: 56.569701
+  type: 'test'
+  ...
+# Subtest: carried Entry artifacts win exact-byte duplicates from reusable content sources and .schemas never leaks as an Entry instance
+ok 31 - carried Entry artifacts win exact-byte duplicates from reusable content sources and .schemas never leaks as an Entry instance
+  ---
+  duration_ms: 78.838431
+  type: 'test'
+  ...
+# Subtest: Entry schema and reusable Entry fixtures carry valid self integrity
+ok 32 - Entry schema and reusable Entry fixtures carry valid self integrity
+  ---
+  duration_ms: 25.21481
+  type: 'test'
+  ...
+# Subtest: carried Entry discovery projects only current semantic lineage leaves
+ok 33 - carried Entry discovery projects only current semantic lineage leaves
+  ---
+  duration_ms: 75.217463
+  type: 'test'
+  ...
+# Subtest: Session Entry grounding material is projected as required grounding obligations
+ok 34 - Session Entry grounding material is projected as required grounding obligations
+  ---
+  duration_ms: 63.465031
+  type: 'test'
+  ...
+# Subtest: carried Entry descendant schemas participate in discovery without leaking schema artifacts as Entries
+ok 35 - carried Entry descendant schemas participate in discovery without leaking schema artifacts as Entries
+  ---
+  duration_ms: 60.19779
+  type: 'test'
+  ...
+# Subtest: Evidence continuation is a qualified Core capability when a real Parent is selected in New Artifact
+ok 36 - Evidence continuation is a qualified Core capability when a real Parent is selected in New Artifact
+  ---
+  duration_ms: 42.990141
+  type: 'test'
+  ...
+# Subtest: Evidence is Core-creation-qualified and exposes explicit source-owned reference affordances
+ok 37 - Evidence is Core-creation-qualified and exposes explicit source-owned reference affordances
+  ---
+  duration_ms: 1676.251898
+  type: 'test'
+  ...
+# Subtest: Evidence creation renders exact structured claim plus relative Markdown asset references and passes validation
+ok 38 - Evidence creation renders exact structured claim plus relative Markdown asset references and passes validation
+  ---
+  duration_ms: 16.366345
+  type: 'test'
+  ...
+# Subtest: schema group/shadow conflict remains fail closed at renderer boundary
+ok 39 - schema group/shadow conflict remains fail closed at renderer boundary
+  ---
+  duration_ms: 2.420121
+  type: 'test'
+  ...
+# Subtest: Evidence local references resolve relative to authored Evidence path, not workspace root
+ok 40 - Evidence local references resolve relative to authored Evidence path, not workspace root
+  ---
+  duration_ms: 88.356586
+  type: 'test'
+  ...
+# Subtest: Common CLI Evidence preflight does not silently qualify a broken local Claim Reference
+ok 41 - Common CLI Evidence preflight does not silently qualify a broken local Claim Reference
+  ---
+  duration_ms: 138.685657
+  type: 'test'
+  ...
+1..41
+# tests 41
+# suites 0
+# pass 41
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 15607.93793
+

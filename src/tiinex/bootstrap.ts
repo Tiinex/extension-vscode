@@ -744,6 +744,7 @@ export async function projectStagedValidation(runtime: PackageRuntime, root: str
 
 export interface TransitionCatalogDefinition {
   representationKey?: string;
+  representationSha256?: string;
   path: string;
   humanLabel?: string;
   canonicalIdentifier: string;

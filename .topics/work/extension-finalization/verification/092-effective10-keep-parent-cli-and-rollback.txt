@@ -1,0 +1,58 @@
+TAP version 13
+# Subtest: Append + Keep Parent preserves semantic parents but assigns an available child coordinate with no sibling renumber
+ok 1 - Append + Keep Parent preserves semantic parents but assigns an available child coordinate with no sibling renumber
+  ---
+  duration_ms: 78.383154
+  type: 'test'
+  ...
+# Subtest: Prepend + Keep Parent moves target beneath last selected leaf numerically while retaining original semantically qualified Parent
+ok 2 - Prepend + Keep Parent moves target beneath last selected leaf numerically while retaining original semantically qualified Parent
+  ---
+  duration_ms: 23.05107
+  type: 'test'
+  ...
+# Subtest: Keep Parent rewrites references from unchanged external-directory Tiinex artifacts when the anchored target moves
+ok 3 - Keep Parent rewrites references from unchanged external-directory Tiinex artifacts when the anchored target moves
+  ---
+  duration_ms: 15.239049
+  type: 'test'
+  ...
+# Subtest: Prepend refuses a numerically ambiguous target namespace despite different filenames
+ok 4 - Prepend refuses a numerically ambiguous target namespace despite different filenames
+  ---
+  duration_ms: 2.260181
+  type: 'test'
+  ...
+# Subtest: Partial reference coverage fails closed before Keep Parent moves
+ok 5 - Partial reference coverage fails closed before Keep Parent moves
+  ---
+  duration_ms: 7.552117
+  type: 'test'
+  ...
+# Subtest: Keep Parent blocks ancestor/descendant overlap, and is not coerced into New Parent
+ok 6 - Keep Parent blocks ancestor/descendant overlap, and is not coerced into New Parent
+  ---
+  duration_ms: 3.333911
+  type: 'test'
+  ...
+# Subtest: Append + Keep Parent moves an exact-dimension PNG in the same atomic journal and rewrites its owner link
+ok 7 - Append + Keep Parent moves an exact-dimension PNG in the same atomic journal and rewrites its owner link
+  ---
+  duration_ms: 3231.049919
+  type: 'test'
+  ...
+# Subtest: Manually operate real standalone Core CLI plan/apply for Keep Parent; stale/replayed plans block
+ok 8 - Manually operate real standalone Core CLI plan/apply for Keep Parent; stale/replayed plans block
+  ---
+  duration_ms: 8697.739887
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 15139.22258

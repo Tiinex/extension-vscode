@@ -1,0 +1,58 @@
+TAP version 13
+# Subtest: Cross-Workspace source+PNG qualified projection and physical atomic Apply
+ok 1 - Cross-Workspace source+PNG qualified projection and physical atomic Apply
+  ---
+  duration_ms: 84.27088
+  type: 'test'
+  ...
+# Subtest: Cross-Workspace asset rollback restores every source and prevents dangling target output
+ok 2 - Cross-Workspace asset rollback restores every source and prevents dangling target output
+  ---
+  duration_ms: 34.245268
+  type: 'test'
+  ...
+# Subtest: Cross-Workspace asset bundle fails closed on incoming reader, Parent or executable source format
+ok 3 - Cross-Workspace asset bundle fails closed on incoming reader, Parent or executable source format
+  ---
+  duration_ms: 10.171464
+  type: 'test'
+  ...
+# Subtest: Crash during promotion recovers only journal-owned inode links
+ok 4 - Crash during promotion recovers only journal-owned inode links
+  ---
+  duration_ms: 148.846599
+  type: 'test'
+  ...
+# Subtest: Independent CLI: inspect → Apply → exact-byte verification → replay BLOCK
+ok 5 - Independent CLI: inspect → Apply → exact-byte verification → replay BLOCK
+  ---
+  duration_ms: 3405.186649
+  type: 'test'
+  ...
+# Subtest: Crash between two output promotions: inode-owned rollback restores both sources
+ok 6 - Crash between two output promotions: inode-owned rollback restores both sources
+  ---
+  duration_ms: 147.472916
+  type: 'test'
+  ...
+# Subtest: Explicit additional Workspace cannot be silently ignored or certified as reference-free
+ok 7 - Explicit additional Workspace cannot be silently ignored or certified as reference-free
+  ---
+  duration_ms: 12.331875
+  type: 'test'
+  ...
+# Subtest: Independent manual CLI recovery restores two-root asset bundle after SIGKILL
+ok 8 - Independent manual CLI recovery restores two-root asset bundle after SIGKILL
+  ---
+  duration_ms: 1264.013053
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 6072.150999

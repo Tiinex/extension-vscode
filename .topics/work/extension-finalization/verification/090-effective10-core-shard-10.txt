@@ -1,0 +1,287 @@
+TAP version 13
+# Subtest: Transition Definition and Companion expose exact Core-owned creation without granting host execution authority
+ok 1 - Transition Definition and Companion expose exact Core-owned creation without granting host execution authority
+  ---
+  duration_ms: 146.792501
+  type: 'test'
+  ...
+# Subtest: workspace Transition Definition catalog discovers explicit supplied representations outside .transitions without granting attachment
+ok 2 - workspace Transition Definition catalog discovers explicit supplied representations outside .transitions without granting attachment
+  ---
+  duration_ms: 142.437898
+  type: 'test'
+  ...
+# Subtest: transition catalog preserves invalid workspace definitions without projecting them as read-qualified candidates
+ok 3 - transition catalog preserves invalid workspace definitions without projecting them as read-qualified candidates
+  ---
+  duration_ms: 13.337219
+  type: 'test'
+  ...
+# Subtest: portable operation catalog exposes host-neutral Transition discovery
+ok 4 - portable operation catalog exposes host-neutral Transition discovery
+  ---
+  duration_ms: 3.973329
+  type: 'test'
+  ...
+# Subtest: canonical identifier and version do not collapse independent Transition representations
+ok 5 - canonical identifier and version do not collapse independent Transition representations
+  ---
+  duration_ms: 25.359287
+  type: 'test'
+  ...
+# Subtest: Transition neighborhood requires explicit Semantic Package plus Schema Transition Companion attachment
+ok 6 - Transition neighborhood requires explicit Semantic Package plus Schema Transition Companion attachment
+  ---
+  duration_ms: 114.925569
+  type: 'test'
+  ...
+# Subtest: Transition neighborhood does not infer attachment from registry presence
+ok 7 - Transition neighborhood does not infer attachment from registry presence
+  ---
+  duration_ms: 17.632251
+  type: 'test'
+  ...
+# Subtest: Transition neighborhood can filter attached candidates by current input schema without claiming applicability
+ok 8 - Transition neighborhood can filter attached candidates by current input schema without claiming applicability
+  ---
+  duration_ms: 64.010235
+  type: 'test'
+  ...
+# Subtest: portable operation catalog exposes schema-local Transition neighborhood without upgrading attachment to execution
+ok 9 - portable operation catalog exposes schema-local Transition neighborhood without upgrading attachment to execution
+  ---
+  duration_ms: 16.529364
+  type: 'test'
+  ...
+# Subtest: Transition neighborhood can project qualified explicit generation defaults without implying applicability or execution
+ok 10 - Transition neighborhood can project qualified explicit generation defaults without implying applicability or execution
+  ---
+  duration_ms: 51.320439
+  type: 'test'
+  ...
+# Subtest: semantic package local Transition discovery follows qualified artifact type independent of directory
+ok 11 - semantic package local Transition discovery follows qualified artifact type independent of directory
+  ---
+  duration_ms: 13.756247
+  type: 'test'
+  ...
+# Subtest: package-local discovery never borrows Transition artifacts from unselected nested package
+ok 12 - package-local discovery never borrows Transition artifacts from unselected nested package
+  ---
+  duration_ms: 4.841856
+  type: 'test'
+  ...
+# Subtest: explicit companion attachment and generation profile survive non-dot Transition location, without implicit applicability
+ok 13 - explicit companion attachment and generation profile survive non-dot Transition location, without implicit applicability
+  ---
+  duration_ms: 146.680382
+  type: 'test'
+  ...
+# Subtest: real Core Transition Definition and Companion authoring contracts are ready
+ok 14 - real Core Transition Definition and Companion authoring contracts are ready
+  ---
+  duration_ms: 87.766958
+  type: 'test'
+  ...
+# Subtest: minimal legitimate zero-role Transition Definition materializes as exact schema-valid sealed artifact
+ok 15 - minimal legitimate zero-role Transition Definition materializes as exact schema-valid sealed artifact
+  ---
+  duration_ms: 68.881789
+  type: 'test'
+  ...
+# Subtest: unresolved complex Transition stays sealed and readable but fails closed at exact creation qualification
+ok 16 - unresolved complex Transition stays sealed and readable but fails closed at exact creation qualification
+  ---
+  duration_ms: 15.870551
+  type: 'test'
+  ...
+# Subtest: multiple independent real Input Role entries round-trip as named rows
+ok 17 - multiple independent real Input Role entries round-trip as named rows
+  ---
+  duration_ms: 11.751449
+  type: 'test'
+  ...
+# Subtest: fail closed on missing, duplicated, invented or flattened structured transition inputs
+ok 18 - fail closed on missing, duplicated, invented or flattened structured transition inputs
+  ---
+  duration_ms: 2.266835
+  type: 'test'
+  ...
+# Subtest: Schema Transition Companion empty set and exact attachment create through Core
+ok 19 - Schema Transition Companion empty set and exact attachment create through Core
+  ---
+  duration_ms: 8.303477
+  type: 'test'
+  ...
+# Subtest: multi-route carrier never silently chooses one recipient
+ok 20 - multi-route carrier never silently chooses one recipient
+  ---
+  duration_ms: 2.595676
+  type: 'test'
+  ...
+# Subtest: exact route produces byte-identical canonical transport text and unmodified filename
+ok 21 - exact route produces byte-identical canonical transport text and unmodified filename
+  ---
+  duration_ms: 0.832956
+  type: 'test'
+  ...
+# Subtest: pointerless Workspace has Start but never a fabricated recipient or Continue From
+ok 22 - pointerless Workspace has Start but never a fabricated recipient or Continue From
+  ---
+  duration_ms: 0.455053
+  type: 'test'
+  ...
+# Subtest: qualified purpose Entry can augment exact shell without new authority
+ok 23 - qualified purpose Entry can augment exact shell without new authority
+  ---
+  duration_ms: 145.063811
+  type: 'test'
+  ...
+# Subtest: unsupported Target, missing purpose, forged carrier name, invalid carrier are fail-closed
+ok 24 - unsupported Target, missing purpose, forged carrier name, invalid carrier are fail-closed
+  ---
+  duration_ms: 100.562047
+  type: 'test'
+  ...
+# Subtest: current qualified VS Code Target Entry projects exact source and bounded host steps only on explicit selection
+ok 25 - current qualified VS Code Target Entry projects exact source and bounded host steps only on explicit selection
+  ---
+  duration_ms: 162.082531
+  type: 'test'
+  ...
+# Subtest: typed artifact candidates are found across .topics, never by dot folder convention or whole-workspace search
+ok 26 - typed artifact candidates are found across .topics, never by dot folder convention or whole-workspace search
+  ---
+  duration_ms: 309.915078
+  type: 'test'
+  ...
+# Subtest: Workspace scanner fails closed on symlink escape and explicit resource limits
+ok 27 - Workspace scanner fails closed on symlink escape and explicit resource limits
+  ---
+  duration_ms: 9.866073
+  type: 'test'
+  ...
+# Subtest: untyped prose remains unqualified and nested .workspaces never auto-selects primary authority
+ok 28 - untyped prose remains unqualified and nested .workspaces never auto-selects primary authority
+  ---
+  duration_ms: 5.639156
+  type: 'test'
+  ...
+# Subtest: Node adapter projects typed Transition catalog without implying applicable preset
+ok 29 - Node adapter projects typed Transition catalog without implying applicable preset
+  ---
+  duration_ms: 31.389422
+  type: 'test'
+  ...
+# Subtest: Guided Entry mode catalog uses reusable content sources and remains transport-only
+ok 30 - Guided Entry mode catalog uses reusable content sources and remains transport-only
+  ---
+  duration_ms: 413.025692
+  type: 'test'
+  ...
+# Subtest: Guided Entry catalog separates WHAT purpose Entries from WHERE Target Entries and composes a selected target
+ok 31 - Guided Entry catalog separates WHAT purpose Entries from WHERE Target Entries and composes a selected target
+  ---
+  duration_ms: 384.837115
+  type: 'test'
+  ...
+# Subtest: Core renders Session Entry grounding obligations without VS Code semantics
+ok 32 - Core renders Session Entry grounding obligations without VS Code semantics
+  ---
+  duration_ms: 284.768854
+  type: 'test'
+  ...
+# Subtest: EXPLORE requires current cross-Workspace grounding before participant-facing directions
+ok 33 - EXPLORE requires current cross-Workspace grounding before participant-facing directions
+  ---
+  duration_ms: 123.246484
+  type: 'test'
+  ...
+# Subtest: Guided Entry renders canonical cold-start shell plus RESUME intent and session context
+ok 34 - Guided Entry renders canonical cold-start shell plus RESUME intent and session context
+  ---
+  duration_ms: 175.951889
+  type: 'test'
+  ...
+# Subtest: Guided Entry rejects duplicate Primary Role participant and missing CUSTOM instruction
+ok 35 - Guided Entry rejects duplicate Primary Role participant and missing CUSTOM instruction
+  ---
+  duration_ms: 391.811455
+  type: 'test'
+  ...
+# Subtest: Guided Entry uses a commit-pinned external Role reference only when the Role is not carried
+ok 36 - Guided Entry uses a commit-pinned external Role reference only when the Role is not carried
+  ---
+  duration_ms: 625.207058
+  type: 'test'
+  ...
+# Subtest: Guided Entry deduplicates Roles by exact identity rather than human label alone
+ok 37 - Guided Entry deduplicates Roles by exact identity rather than human label alone
+  ---
+  duration_ms: 148.003018
+  type: 'test'
+  ...
+# Subtest: Workspace initialization requests host schema resolution before writing semantics
+ok 38 - Workspace initialization requests host schema resolution before writing semantics
+  ---
+  duration_ms: 1.82732
+  type: 'test'
+  ...
+# Subtest: Workspace initialization preserves a resolvable schema permalink and seals exact bytes
+ok 39 - Workspace initialization preserves a resolvable schema permalink and seals exact bytes
+  ---
+  duration_ms: 20.565014
+  type: 'test'
+  ...
+# Subtest: Workspace exact bytes remain qualified through source-to-local-to-Pack handoff, while the first host-side byte drift fails self-integrity
+ok 40 - Workspace exact bytes remain qualified through source-to-local-to-Pack handoff, while the first host-side byte drift fails self-integrity
+  ---
+  duration_ms: 1201.224536
+  type: 'test'
+  ...
+# Subtest: init-workspace turns an ordinary non-Git directory into a discoverable local-directory Workspace
+ok 41 - init-workspace turns an ordinary non-Git directory into a discoverable local-directory Workspace
+  ---
+  duration_ms: 176.838582
+  type: 'test'
+  ...
+# Subtest: Git checkout without origin remains local-directory while an origin is optional enrichment
+ok 42 - Git checkout without origin remains local-directory while an origin is optional enrichment
+  ---
+  duration_ms: 303.69604
+  type: 'test'
+  ...
+# Subtest: shared Workspace enumeration applies .gitignore in a non-Git directory without hard-coded ZIP behavior
+ok 43 - shared Workspace enumeration applies .gitignore in a non-Git directory without hard-coded ZIP behavior
+  ---
+  duration_ms: 107.568261
+  type: 'test'
+  ...
+# Subtest: shared Workspace enumeration preserves tracked files even when .gitignore matches them
+ok 44 - shared Workspace enumeration preserves tracked files even when .gitignore matches them
+  ---
+  duration_ms: 159.704901
+  type: 'test'
+  ...
+# Subtest: Workspace package-source discovery excludes schema-definition material while leaving dedicated schema discovery untouched
+ok 45 - Workspace package-source discovery excludes schema-definition material while leaving dedicated schema discovery untouched
+  ---
+  duration_ms: 41.597162
+  type: 'test'
+  ...
+# Subtest: Guided Entry session Role projection exposes current leaves and never leaks .schemas Role material
+ok 46 - Guided Entry session Role projection exposes current leaves and never leaks .schemas Role material
+  ---
+  duration_ms: 34.00064
+  type: 'test'
+  ...
+1..46
+# tests 46
+# suites 0
+# pass 46
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 16308.800266
+

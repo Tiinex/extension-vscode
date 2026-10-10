@@ -8,7 +8,7 @@
   - Origin:
     - [relative](001-1-3-sigma-carrier-slug-and-handoff-authoring-polish-rerun.trace.md)
 - Current
-  - Current Schema: [tiinex.evidence.v1](https://github.com/Tiinex/docs/blob/302506f90537dc23d6f88ad0bd0bb9c97c6cf9f6/.topics/.schemas/core/evidence/tiinex.evidence.v1.schema.md)
+  - Current Schema: [tiinex.evidence.v1](https://github.com/Tiinex/docs/blob/9ef3c2caed38152b1948c93cb45c985786660d91/.topics/.schemas/core/evidence/tiinex.evidence.v1.schema.md)
   - Created At: 2026-10-09 17:52:08
   - Authors: Sigma
   - Summary: Evidence Draft
@@ -63,4 +63,4 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: 9S3H4zAIO5YbFJhE97rMvXVdTf2zFyvkwQ59dWDP65s
+  - Value: D7EIxq9l3ykrZzS8w6Fa5_JONs7zpr1B9UNolbzSlwU
