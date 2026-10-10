@@ -2,8 +2,14 @@
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict'),ts=require('typescript');
 const root=path.resolve(__dirname,'..'),file=path.join(root,'src/core/deferredFormAttachment.ts');
 const code=ts.transpileModule(fs.readFileSync(file,'utf8'),{fileName:file,compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,esModuleInterop:true}}).outputText;
+// Run the source-level contract without depending on a previously built dist/.
+// This tests exactly the module the host compiles, even in a dependency-light sandbox.
+const pickerFile=path.join(root,'src/core/artifactReferencePicker.ts');
+const pickerCode=ts.transpileModule(fs.readFileSync(pickerFile,'utf8'),{fileName:pickerFile,compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,esModuleInterop:true}}).outputText;
+const pickerModule={exports:{}};
+new Function('require','module','exports',pickerCode)(require,pickerModule,pickerModule.exports);
 const module1={exports:{}};
-new Function('require','module','exports',code)(id=>id==='./artifactReferencePicker'?require(path.join(root,'dist/core/artifactReferencePicker.js')):require(id),module1,module1.exports);
+new Function('require','module','exports',code)(id=>id==='./artifactReferencePicker'?pickerModule.exports:require(id),module1,module1.exports);
 const {resolveDeferredFormReferences,activeDeferredFormAttachments,plannedArtifactLineage}=module1.exports;
 const from='/repo/.topics/assets/a.png',from2='/repo/.topics/assets/b.png',target='.topics/work/evidence/001-1-test.trace.md';
 const ref='[a.png](../../assets/a.png)',ref2='[b.png](../../assets/b.png)';

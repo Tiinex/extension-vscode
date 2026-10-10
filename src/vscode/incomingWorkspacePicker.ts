@@ -23,8 +23,10 @@ export function pickIncomingWorkspaces(
   picker.placeholder = 'Checking exact Workspace matches… Select now, or wait for recommended defaults.';
   const items = choices.map((item): Item => ({ ...item }));
   picker.items = items;
+  // While Core computes exact matches, never imply that every Workspace differs.
+  // Explicit user choices remain possible; late defaults must not erase them.
   let internalSelection = true;
-  picker.selectedItems = items;
+  picker.selectedItems = [];
   internalSelection = false;
   let userEdited = false;
   let settled = false;

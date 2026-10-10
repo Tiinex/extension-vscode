@@ -270,19 +270,25 @@ export async function loadIncomingLocalWorkspaceChoices(extensionPath: string): 
     // Root qualification is independent, and every projection runs in its own
     // Core subprocess. Keep concurrency bounded and order stable; never merge
     // different roots into a single operator context or guess their identities.
+    const coreTimesMs: number[] = [];
     const rootChoices = await orderedBoundedMap(roots, 3, async (root) => {
-      // A blocked root is not a qualified local match; a runtime/process error
-      // is distinct and must still propagate rather than be hidden as no match.
-      const projected: WorkspacePackageSourcesResult = await projectWorkspacePackageSources(runtime, [root]);
-      if (projected.status !== 'ready' || (projected.findings || []).some((f) => f.severity === 'error')) return [];
-      // The operation is Core-scoped to [root]. A candidate's rootPath is a
-      // Workspace-relative snapshot entrypoint (usually '.') and cannot
-      // identify an absolute VS Code host root. Never compare it with root.
-      return qualifiedIncomingRootChoices(root, projected.candidates || []);
+      const rootStarted = Date.now();
+      try {
+        // A blocked root is not a qualified local match; a runtime/process error
+        // is distinct and must still propagate rather than be hidden as no match.
+        const projected: WorkspacePackageSourcesResult = await projectWorkspacePackageSources(runtime, [root]);
+        if (projected.status !== 'ready' || (projected.findings || []).some((f) => f.severity === 'error')) return [];
+        // The operation is Core-scoped to [root]. A candidate's rootPath is a
+        // Workspace-relative snapshot entrypoint (usually '.') and cannot
+        // identify an absolute VS Code host root. Never compare it with root.
+        return qualifiedIncomingRootChoices(root, projected.candidates || []);
+      } finally { coreTimesMs.push(Date.now() - rootStarted); }
     });
     const choices = rootChoices.flat();
     exactIncomingWorkspaceMap(choices); // fail closed on duplicate qualified identities
-    console.info(`Tiinex Workspace source discovery: ${roots.length} roots, ${choices.length} qualified Workspaces in ${Date.now() - started} ms (runtime preparation ${runtimeReadyMs} ms)`);
+    const sortedMs = [...coreTimesMs].sort((a, b) => a - b);
+    const p95 = sortedMs.length ? sortedMs[Math.ceil(sortedMs.length * 0.95) - 1] : 0;
+    console.info(`Tiinex Workspace source discovery: ${roots.length} roots, ${choices.length} qualified Workspaces in ${Date.now() - started} ms (runtime preparation ${runtimeReadyMs} ms; Core subprocess concurrency 3, per-root min ${sortedMs[0] || 0} ms, p95 ${p95} ms, max ${sortedMs[sortedMs.length - 1] || 0} ms)`);
     return choices;
   } finally { await runtime.dispose(); }
 }

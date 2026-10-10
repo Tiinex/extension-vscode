@@ -44,9 +44,15 @@ async function qualifiedOperatorPartySurface(extensionPath: string, choices: Pac
   // Independent Core projections must NOT be merged into one operator context.
   // Three concurrent projections reduce host picker latency without starting
   // one expensive qualification process per open Workspace simultaneously.
-  const surfaces = await orderedBoundedMap(choices, 3, (choice) =>
-    loadOperatorPartySurfaceForSources(extensionPath, [{ workspaceId: choice.workspaceId, root: choice.root }]));
-  console.info(`Tiinex Operator Party qualification: ${choices.length} independent Workspace roots in ${Date.now() - started} ms`);
+  const durations: number[] = [];
+  const surfaces = await orderedBoundedMap(choices, 3, async (choice) => {
+    const rootStarted = Date.now();
+    try { return await loadOperatorPartySurfaceForSources(extensionPath, [{ workspaceId: choice.workspaceId, root: choice.root }]); }
+    finally { durations.push(Date.now() - rootStarted); }
+  });
+  const sorted = durations.sort((a, b) => a - b);
+  const p95 = sorted.length ? sorted[Math.ceil(sorted.length * 0.95) - 1] : 0;
+  console.info(`Tiinex Operator Party qualification: ${choices.length} independent Workspace roots in ${Date.now() - started} ms (Core concurrency 3; per-root p95 ${p95} ms, max ${sorted[sorted.length - 1] || 0} ms)`);
   return {
     candidates: surfaces.flatMap((surface) => surface.candidates),
     scopes: surfaces.flatMap((surface) => surface.scopes)
@@ -95,9 +101,20 @@ export async function pickOperatorParty(extensionPath: string, qualifiedChoices?
   // Share the host's prefetched/in-flight, Core-qualified Workspace set.
   // Opening a picker must not launch another full root discovery when Incoming
   // or New Artifact has already qualified those same sources.
-  const choices = await (qualifiedChoices ? qualifiedChoices() : loadQualifiedLocalWorkspaceChoices(extensionPath));
-  console.info(`Tiinex Operator Party discovery: ${choices.length} qualified Workspace roots in ${Date.now() - started} ms`);
-  const surface = await qualifiedOperatorPartySurface(extensionPath, choices);
+  // Display feedback immediately, before the first possibly slow Core subprocess.
+  // This only reports progress; no stale or unqualified candidates are displayed.
+  const { choices, surface } = await vscode.window.withProgress(
+    { location: vscode.ProgressLocation.Notification, title: 'Tiinex · Finding qualified Roles and Parties', cancellable: false },
+    async (progress) => {
+      progress.report({ message: 'Discovering local Workspace sources…' });
+      const choices = await (qualifiedChoices ? qualifiedChoices() : loadQualifiedLocalWorkspaceChoices(extensionPath));
+      const workspaceElapsed = Date.now() - started;
+      progress.report({ message: `Qualifying Roles and Parties across ${choices.length} Workspaces…` });
+      const surface = await qualifiedOperatorPartySurface(extensionPath, choices);
+      console.info(`Tiinex Operator Party discovery: ${choices.length} qualified Workspace roots in ${workspaceElapsed} ms; Core Role qualification ${Date.now() - started - workspaceElapsed} ms; total ${Date.now() - started} ms`);
+      return { choices, surface };
+    }
+  );
   const current = operatorPartySetting();
   type Item = vscode.QuickPickItem & { action: 'none' | 'manual' | 'candidate' | 'separator'; candidate?: HandoffEndpointAuthoringCandidate };
   const items: Item[] = [

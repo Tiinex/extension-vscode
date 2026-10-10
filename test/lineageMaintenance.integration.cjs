@@ -8,6 +8,8 @@ const { pathToFileURL } = require('node:url');
 const ts = require('typescript');
 const repo = path.resolve(__dirname, '..');
 const coreRoot = process.env.TIINEX_TEST_CORE_ROOT || path.resolve(repo, '../core');
+const nativeRoot = process.env.TIINEX_TEST_NATIVE_ROOT || path.resolve(repo, '../native');
+const docsRoot = process.env.TIINEX_TEST_DOCS_ROOT || path.resolve(repo, '../docs');
 const events = [];
 const answers = { input: '001-1-1', consent: 'Apply reviewed plan', choice: [], moveYes: false, operation: 'move', scope:'alone', placement:'append',policy:'new' };
 const vscode = {
@@ -231,6 +233,12 @@ async function main(){
     console.log('PASS cross-Workspace: bounded artifact + PNG qualified atomic Apply');
     // Closed semantic Parent→Child→GrandChild tree with one child-owned PNG:
     // host chooses UI scope, Core owns every Parent integrity rewrite.
+    // Source-created Parent graphs require the same qualified Native/Docs schema
+    // registry as the installed portable Core. Without runtime initialization
+    // Core correctly blocks unregistered schema creation (not a Move/Rebase bug).
+    const {initializePortableNodeRuntime}=await import(pathToFileURL(path.join(coreRoot,'src/tooling/portable/adapters/node/portableRuntime.initialize.js')).href);
+    const coreRuntime=await initializePortableNodeRuntime({runtimeRoot:coreRoot,contentRoots:[nativeRoot,docsRoot],discoverBundled:false,discoverInstalled:false});
+    assert.equal(coreRuntime.status,'ready',JSON.stringify(coreRuntime.findings||[]));
     const {buildArtifactCreationContract}=await import(pathToFileURL(path.join(coreRoot,'src/schemas/creation.contracts.js')).href);
     const {renderArtifactCreationDraftMarkdown}=await import(pathToFileURL(path.join(coreRoot,'src/schemas/creation.renderer.js')).href);
     const {projectPortableAuthoringParent}=await import(pathToFileURL(path.join(coreRoot,'src/tooling/portable/editor/authoring.parent.js')).href);

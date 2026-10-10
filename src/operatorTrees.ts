@@ -539,6 +539,10 @@ export class TiinexOperatorTrees implements vscode.Disposable {
   private readonly incomingReviewScheduler = new IncomingReviewScheduler();
   private readonly incomingReviewGeneration = new Map<string, number>();
   private readonly incomingWorkspacePickBusy = new Set<string>();
+  /** One in-flight New Artifact interaction per host. Repeated clicks do not start new Core discovery. */
+  private artifactAuthoringOpening = false;
+  /** One interactive Role selection per host; repeated clicks must not spawn Core work. */
+  private operatorPartyOpening = false;
   private readonly incomingReviewActions = new Set<string>();
   /** Presentation retry only; never qualified carrier truth or a review decision. */
   private readonly incomingPreviewRetryPaths = new Set<string>();
@@ -759,10 +763,25 @@ export class TiinexOperatorTrees implements vscode.Disposable {
   }
 
   async beginArtifactAuthoring(resource?: vscode.Uri, preselectedSchemaId = ''): Promise<void> {
+    if (this.artifactAuthoringOpening) return;
+    this.artifactAuthoringOpening = true;
+    try { await this.beginArtifactAuthoringInternal(resource, preselectedSchemaId); }
+    finally { this.artifactAuthoringOpening = false; }
+  }
+
+  private async beginArtifactAuthoringInternal(resource?: vscode.Uri, preselectedSchemaId = ''): Promise<void> {
+    const started = Date.now();
     try {
-      const choice = resource
-        ? await this.localWorkspaceForResource(resource)
-        : await this.pickLocalAuthoringWorkspace();
+      // Immediately show a host-owned progress signal. Core remains responsible for
+      // Workspace and schema qualification; this only prevents a silent initial wait.
+      const choice = await vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Notification, title: 'Tiinex · Preparing New Artifact', cancellable: false },
+        async (progress) => {
+          progress.report({ message: 'Qualifying local Workspace choices…' });
+          return resource ? this.localWorkspaceForResource(resource) : this.pickLocalAuthoringWorkspace();
+        }
+      );
+      console.info(`Tiinex New Artifact: Workspace choice ${Date.now() - started} ms`);
       if (!choice) return;
       const workspace = this.localOutgoingWorkspaceForChoice(choice) || this.workspaceFromLocalChoice(choice);
       const root = await this.ensureOutgoingAuthoringRoot(workspace);
@@ -771,7 +790,15 @@ export class TiinexOperatorTrees implements vscode.Disposable {
         ? loadArtifactAuthoringModel(this.extensionPath, preselectedSchemaId, likelyContinuation ? 'continue-from-record' : 'create-artifact').catch(() => undefined)
         : Promise.resolve(undefined);
       const targetDirectoryPromise = this.targetDirectoryForResource(root, resource);
-      const catalog = await loadArtifactAuthoringCatalog(this.extensionPath, root);
+      const catalogStarted = Date.now();
+      const catalog = await vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Notification, title: 'Tiinex · Preparing New Artifact', cancellable: false },
+        async (progress) => {
+          progress.report({ message: 'Projecting Core-qualified schemas and Parents…' });
+          return loadArtifactAuthoringCatalog(this.extensionPath, root);
+        }
+      );
+      console.info(`Tiinex New Artifact: Core catalog ${Date.now() - catalogStarted} ms; elapsed ${Date.now() - started} ms`);
       let parentArtifact: ArtifactDraftParent | null | undefined;
       let schema = await this.pickArtifactSchema(catalog, preselectedSchemaId);
       if (!schema && preselectedSchemaId) {
@@ -801,6 +828,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
         attachAvailable: schema.schemaId === 'tiinex.handoff.v1' && Boolean(this.localOutgoingWorkspaceForChoice(choice)),
         attachDefault: false
       });
+      console.info(`Tiinex New Artifact: panel ready after ${Date.now() - started} ms`);
     } catch (error) {
       const detail = shortMessage(error);
       if (detail.includes('tiinex.authoring.selected-parent-unqualified:')) {
@@ -808,7 +836,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
           'The selected file is not currently a Core-qualified Parent. Nothing was created. Choose a qualified Parent through the directory authoring flow, or repair the selected artifact first.',
           'Choose qualified Parent', 'Show Problems'
         );
-        if (choice === 'Choose qualified Parent' && resource?.scheme === 'file') await this.beginArtifactAuthoring(vscode.Uri.file(path.dirname(resource.fsPath)), preselectedSchemaId);
+        if (choice === 'Choose qualified Parent' && resource?.scheme === 'file') await this.beginArtifactAuthoringInternal(vscode.Uri.file(path.dirname(resource.fsPath)), preselectedSchemaId);
         else if (choice === 'Show Problems') await vscode.commands.executeCommand('workbench.actions.view.problems');
         return;
       }
@@ -1653,7 +1681,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       });
       if (!primarySelection) return null;
       const primary = primarySelection.candidate || null;
-      const operatorParty = await resolveOperatorParty(this.extensionPath);
+      const operatorParty = await resolveOperatorParty(this.extensionPath, undefined, () => this.localWorkspaceChoices());
       const selectedParticipants: Array<{ label: string; reference: string; workspaceId: string; path: string }> = [];
       const excluded = new Set([roleCandidateKey(primary)].filter(Boolean));
       for (;;) {
@@ -3863,7 +3891,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
         pathTitle = `${from} to ${to}`;
       }
     }
-    const operatorParty = await resolveOperatorParty(this.extensionPath);
+    const operatorParty = await resolveOperatorParty(this.extensionPath, undefined, () => this.localWorkspaceChoices());
     const authors = ['resolved', 'unknown'].includes(operatorParty.state) ? operatorParty.displayName : '';
     return prepareArtifactDraft(this.extensionPath, {
       root,
@@ -4304,6 +4332,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
   }
 
   private async schemaTransitionNeighborhood(schemaId: string, inputSchemaId = '', sourceRoots: string[] = []): Promise<Array<{ representationKey?: string; canonicalIdentifier: string; version?: string; label: string; purpose?: string; sourcePath?: string; identityQualification?: string; authoringProfile?: { state?: string; reason?: string; generationQualification?: string; defaults?: Record<string, unknown>; boundary?: { explicitSelectionRequired?: boolean; recommendation?: string; ordering?: string; transitionApplicability?: string; executionAuthorized?: boolean; defaultsAreAuthoringGuidance?: boolean } } }>> {
+    const discoveryStarted = Date.now();
     try {
       const roots = [...new Set(sourceRoots.map((root) => String(root || '').trim()).filter(Boolean))];
       const semanticRoots = await this.semanticTopicsRoots(roots);
@@ -4320,8 +4349,10 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       // Only `semanticRoots` are passed as explicit Transition material; VS Code
       // does not discover or interpret Transition definitions itself.
       const runtime = await prepareHostCoreRuntime(this.extensionPath, hostCompositionRoots, nodeExecutable());
+      const runtimeReadyMs = Date.now() - discoveryStarted;
       try {
         const neighborhood = await projectTransitionNeighborhood(runtime, semanticRoots, schemaId, inputSchemaId);
+        console.info(`Tiinex Transition discovery: ${semanticRoots.length} semantic roots, ${neighborhood.candidates?.length || 0} Core candidates, ${Date.now() - discoveryStarted} ms total (runtime preparation ${runtimeReadyMs} ms; Core projection ${Date.now() - discoveryStarted - runtimeReadyMs} ms)`);
         return dedupeTransitionPresetCandidates((neighborhood.candidates || []).map((candidate) => ({
           representationKey: String(candidate.representationKey || ''),
           canonicalIdentifier: String(candidate.canonicalIdentifier || ''),
@@ -5069,11 +5100,15 @@ The Handoff can remain schema-valid, but Core can materialize semantic endpoint 
   }
 
   private async pickOperatorParty(): Promise<void> {
-    const selected = await pickOperatorParty(this.extensionPath, () => this.localWorkspaceChoices());
-    if (!selected) return;
-    const label = selected.state === 'none' ? 'None' : selected.state === 'unresolved' ? 'Unresolved' : `${selected.displayName} · ${selected.kind}`;
-    await vscode.window.showInformationMessage(`Tiinex Operator Party: ${label}`);
-    await this.updateUiContexts();
+    if (this.operatorPartyOpening) return;
+    this.operatorPartyOpening = true;
+    try {
+      const selected = await pickOperatorParty(this.extensionPath, () => this.localWorkspaceChoices());
+      if (!selected) return;
+      const label = selected.state === 'none' ? 'None' : selected.state === 'unresolved' ? 'Unresolved' : `${selected.displayName} · ${selected.kind}`;
+      await vscode.window.showInformationMessage(`Tiinex Operator Party: ${label}`);
+      await this.updateUiContexts();
+    } finally { this.operatorPartyOpening = false; }
   }
 
   private shouldAutoClearDiscovery(): boolean {
