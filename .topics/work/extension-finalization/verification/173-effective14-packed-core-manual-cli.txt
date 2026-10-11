@@ -1,2 +1,0 @@
-PASS offline-installed Core: two-Workspace CLI PLAN → APPLY → exact bytes/C14n → stale replay BLOCK
-Target .topics/anchor/003-source.trace.md SHA256 af2039ae5d7d441ff618dc5b480fe3a73c7ccd925441f82d0831ef0d3df777e3

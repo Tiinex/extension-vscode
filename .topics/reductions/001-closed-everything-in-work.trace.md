@@ -1,0 +1,320 @@
+# Continuity Context
+
+- Envelope Schema: [tiinex.root.v1](https://github.com/Tiinex/docs/blob/302506f90537dc23d6f88ad0bd0bb9c97c6cf9f6/.topics/.schemas/tiinex.root.v1.schema.md)
+- Current
+  - Current Schema: [tiinex.reduction.v1](https://github.com/Tiinex/docs/blob/302506f90537dc23d6f88ad0bd0bb9c97c6cf9f6/.topics/.schemas/reduction/tiinex.reduction.v1.schema.md)
+  - Created At: 2026-10-11 17:34:16
+  - Authors: Sigma
+  - Summary: To avoid making a spagetti all of the artefacts are being reduced
+  - Status: draft/local
+
+---
+
+# To avoid making a spagetti all of the artefacts are being reduced
+
+## Source Context
+
+- vscode
+  - [002-2-1-1-1-1-anchor-to-sigma-final-vs-code-mvp-acceptance-candidate.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/handoffs/002-2-1-1-1-1-anchor-to-sigma-final-vs-code-mvp-acceptance-candidate.trace.md)
+    - sha256-base64url-c14n-v2: `GpVEe7l_yBJj2LRfjznQQqz9Gv6Zd_ykb0xZpIZ0nHg`
+  - [002-2-1-1-1-2-1-anchor-to-sigma-major-transport-retest.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/handoffs/002-2-1-1-1-2-1-anchor-to-sigma-major-transport-retest.trace.md)
+    - sha256-base64url-c14n-v2: `QEDcBtduo4XybOK_ygwcYxlVYHJkc--pxSJUxn9B2Ls`
+  - [002-2-1-1-1-2-2-anchor-to-anchor-last-mile-release-checkpoint.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/handoffs/002-2-1-1-1-2-2-anchor-to-anchor-last-mile-release-checkpoint.trace.md)
+    - sha256-base64url-c14n-v2: `7RQzlAR09bYICnG8LDqBoqwU7JI-qXk2zci76EhPfhg`
+  - [002-2-1-1-1-2-3-1-anchor-to-anchor-return.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/handoffs/002-2-1-1-1-2-3-1-anchor-to-anchor-return.trace.md)
+    - sha256-base64url-c14n-v2: `ms6CnQU2v4aLOZS2Fw83Hmt2sTAx3tqRmYOt3i6Lxak`
+  - [010-vscode-fresh-start-reduction.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/reductions/workspace/010-vscode-fresh-start-reduction.trace.md)
+    - sha256-base64url-c14n-v2: `j1f9ZrPvG7E2JjgrQVo4STXz556XSb1aY-uMsGJ_60o`
+  - [001-schema-guided-authoring-evidence.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/authoring-experience/001-schema-guided-authoring-evidence.trace.md)
+    - sha256-base64url-c14n-v2: `vGh1YE6uqnt9NFUkBdMakGR6GGDcqKrBiKFbI_Lhx_Y`
+  - [003-1-anchor-branch-continuation-for-evidence-acceptance-and-grounded.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/authoring-experience/003-1-anchor-branch-continuation-for-evidence-acceptance-and-grounded.trace.md)
+    - sha256-base64url-c14n-v2: `0pLYhY1JdTLO_r4-g5ddTp7QBUZqlToPxd_tpMq45x4`
+  - [003-2-1-verify-schema-driven-transition-authoring-in-windows-sigma.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/authoring-experience/003-2-1-verify-schema-driven-transition-authoring-in-windows-sigma.trace.md)
+    - sha256-base64url-c14n-v2: `lrf04X7oorUUkmKbEQDAdOyBwfIB6eHgMj0QHlKqBuI`
+  - [004-1-attach-to-form-and-core-guided-presentation-candidate.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/authoring-experience/004-1-attach-to-form-and-core-guided-presentation-candidate.trace.md)
+    - sha256-base64url-c14n-v2: `A0J9j0MtCLUNkAru0ZG5n3pZVeWHpe7_vKlnhjfxlDQ`
+  - [004-2-vs-code-source-grounded-field-help-acceptance-candidate.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/authoring-experience/004-2-vs-code-source-grounded-field-help-acceptance-candidate.trace.md)
+    - sha256-base64url-c14n-v2: `3U51s92oKvfcN-ibcBqTJ6hbPgrDg8gWeFtsjyiLv74`
+  - [004-3-generic-repeatability-projection-readiness-without-evidence-auth.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/authoring-experience/004-3-generic-repeatability-projection-readiness-without-evidence-auth.trace.md)
+    - sha256-base64url-c14n-v2: `uzgCek58iIAk8wH_Hfe10NKNv9k7FPeD_ZbPVli9d1I`
+  - [004-4-evidence-v1-browser-authoring-busy-state-and-two-material-roundt.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/authoring-experience/004-4-evidence-v1-browser-authoring-busy-state-and-two-material-roundt.trace.md)
+    - sha256-base64url-c14n-v2: `PrPXoVVn2sucCyyud8FfGuXC01Cg8zoZ_AHbZ4xQeH8`
+  - [005-vs-code-evidence-v1-real-repeated-material-form-and-local-schema.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/authoring-experience/005-vs-code-evidence-v1-real-repeated-material-form-and-local-schema.trace.md)
+    - sha256-base64url-c14n-v2: `IsblUk778464TiQxAOZgEdSFF15_usGW1gz51JZ-SPY`
+  - [006-vs-code-evidence-v1-attach-to-form-per-material-preservation-reg.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/authoring-experience/006-vs-code-evidence-v1-attach-to-form-per-material-preservation-reg.trace.md)
+    - sha256-base64url-c14n-v2: `184h1Pz55yzCbGxkuvtb-pn_PT738CO7JfUG6HF2U44`
+  - [007-vs-code-evidence-v1-repeatable-material-initial-value-restoratio.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/authoring-experience/007-vs-code-evidence-v1-repeatable-material-initial-value-restoratio.trace.md)
+    - sha256-base64url-c14n-v2: `AOmIx-qsmQEuWWVNdBjKrq7itsCmL1UKxNy2rgxXnR4`
+  - [001-1-anchor-to-anchor-vscode-extension-recovery-handoff.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/extension-finalization/001-1-anchor-to-anchor-vscode-extension-recovery-handoff.trace.md)
+    - sha256-base64url-c14n-v2: `kwLe2cKhSCzqL74Z_p9b-mlOQIptGlbR0Zu1JUPzjqs`
+  - [001-10-anchor-to-anchor-mixed-asset-cli-checkpoint.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/extension-finalization/001-10-anchor-to-anchor-mixed-asset-cli-checkpoint.trace.md)
+    - sha256-base64url-c14n-v2: `9LVSGZ9HvHiqOzC4K1It4p_hCsIeTbFkVpWcamuFoBM`
+  - [001-11-anchor-to-anchor-scoped-insertion-abi-checkpoint.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/extension-finalization/001-11-anchor-to-anchor-scoped-insertion-abi-checkpoint.trace.md)
+    - sha256-base64url-c14n-v2: `_Xe2rBTXfG17dF0quz_Uc_5YVWrr1xkwErSqr28wFu4`
+  - [001-12-anchor-to-anchor-keep-parent-continuity-checkpoint.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/extension-finalization/001-12-anchor-to-anchor-keep-parent-continuity-checkpoint.trace.md)
+    - sha256-base64url-c14n-v2: `tdn9Ui2MEmQh84mn0HL8oJmToDD9tfXTHOF3w3b2-FE`
+  - [001-13-anchor-to-anchor-core-reference-closure-checkpoint.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/extension-finalization/001-13-anchor-to-anchor-core-reference-closure-checkpoint.trace.md)
+    - sha256-base64url-c14n-v2: `eKYJgIyLQrEGyVl09qynGxfS5cPqwfS37huIzxARXkY`
+  - [001-14-anchor-to-anchor-cross-workspace-git-publication-evidence.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/extension-finalization/001-14-anchor-to-anchor-cross-workspace-git-publication-evidence.trace.md)
+    - sha256-base64url-c14n-v2: `aW_o7F19YBb93sdir97Jmh_zOi0K-6fPxZAQdc-5ACA`
+  - [001-15-anchor-to-anchor-cross-workspace-two-root-snapshot.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/extension-finalization/001-15-anchor-to-anchor-cross-workspace-two-root-snapshot.trace.md)
+    - sha256-base64url-c14n-v2: `KbRSCVMskN_Ws0S3IN6XHjoSik4blIqq9Lu8hRVh8RU`
+  - [001-16-anchor-to-anchor-two-root-standalone-transfer.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/extension-finalization/001-16-anchor-to-anchor-two-root-standalone-transfer.trace.md)
+    - sha256-base64url-c14n-v2: `BQM0a7gRYIawAqNhZ5mbLko4S-gtpPljfnZiO24d13w`
+  - [001-17-anchor-to-anchor-cross-workspace-asset-bundle.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/extension-finalization/001-17-anchor-to-anchor-cross-workspace-asset-bundle.trace.md)
+    - sha256-base64url-c14n-v2: `BJUkSbaJ5-mPhzRMdoQpMmEEq-G44ULgFdqbykuAsLQ`
+  - [001-18-anchor-to-anchor-merged-evidence-closed-graph-checkpoint.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/extension-finalization/001-18-anchor-to-anchor-merged-evidence-closed-graph-checkpoint.trace.md)
+    - sha256-base64url-c14n-v2: `PbVcmAb6CbrTHhzSEhFf_FgjeC_lvYUiVA0CunN_-iQ`
+  - [001-19-1-anchor-to-anchor-clean-transition-definition-authoring.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/extension-finalization/001-19-1-anchor-to-anchor-clean-transition-definition-authoring.trace.md)
+    - sha256-base64url-c14n-v2: `NdExbmBYGNXC9kNsoRVWou_Asvn5eBXgyXGZHjTVlpY`
+  - [001-19-10-anchor-to-sigma-preview-create-allocator-consistency.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/extension-finalization/001-19-10-anchor-to-sigma-preview-create-allocator-consistency.trace.md)
+    - sha256-base64url-c14n-v2: `b8ASJzuDwDws2Z6e8c58_fY7jIGI0J4PoJQRHG0p1GI`
+  - [001-19-2-anchor-to-anchor-qualified-transition-preset-selection.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/extension-finalization/001-19-2-anchor-to-anchor-qualified-transition-preset-selection.trace.md)
+    - sha256-base64url-c14n-v2: `_RvOTrsTRvVqFZBA1e740rpPo8vBMiXJl_wXMFlcpT0`
+  - [001-19-3-anchor-to-anchor-custom-evidence-generation-qualification.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/extension-finalization/001-19-3-anchor-to-anchor-custom-evidence-generation-qualification.trace.md)
+    - sha256-base64url-c14n-v2: `RIk6KEcg3BnhYrPNtRBvepWT0n-tNfcRaevfK_xYaDo`
+  - [001-19-4-anchor-to-anchor-save-as-transition-ui-paused.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/extension-finalization/001-19-4-anchor-to-anchor-save-as-transition-ui-paused.trace.md)
+    - sha256-base64url-c14n-v2: `DpQ5AygEHs4TgQRKsPBgt_mCOUozWKHP45MmKtc3v24`
+  - [001-19-5-anchor-to-anchor-evidence-presets-native-discovery.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/extension-finalization/001-19-5-anchor-to-anchor-evidence-presets-native-discovery.trace.md)
+    - sha256-base64url-c14n-v2: `lg_3GZtGokQJeoiY8gSLiqZ25icRiWXRq7K84wM07I8`
+  - [001-19-6-anchor-to-anchor-historical-evidence-host-qualification.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/extension-finalization/001-19-6-anchor-to-anchor-historical-evidence-host-qualification.trace.md)
+    - sha256-base64url-c14n-v2: `TqDN6N08DYXUn-FGA9vp-oIjwjOYjaysvsxOwwZP7L8`
+  - [001-19-7-anchor-to-anchor-cross-workspace-reader-census.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/extension-finalization/001-19-7-anchor-to-anchor-cross-workspace-reader-census.trace.md)
+    - sha256-base64url-c14n-v2: `kDQo_XCMnteJJLC3Lh-gKt-8nZsRNXyYSWH-L9OYJQU`
+  - [001-19-8-1-anchor-to-sigma-scoped-windows-gate.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/extension-finalization/001-19-8-1-anchor-to-sigma-scoped-windows-gate.trace.md)
+    - sha256-base64url-c14n-v2: `weE2gH1lq0VGot62L2e0Er4y9sWmRnCM4nRQeQo_JAQ`
+  - [001-19-9-1-anchor-to-sigma-evidence-publication-retest.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/extension-finalization/001-19-9-1-anchor-to-sigma-evidence-publication-retest.trace.md)
+    - sha256-base64url-c14n-v2: `tacBF1uMITsp4SShdl5KY1o9jniWO00uXOnJ02abuWs`
+  - [001-19-anchor-to-anchor-cross-workspace-reference-closure-hardening.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/extension-finalization/001-19-anchor-to-anchor-cross-workspace-reference-closure-hardening.trace.md)
+    - sha256-base64url-c14n-v2: `c6IFw0Fe3AJE6YC1IQ24VqRsh0nhHQqd9dbHKEyg7MI`
+  - [001-2-anchor-to-anchor-p0-source-repair-handoff.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/extension-finalization/001-2-anchor-to-anchor-p0-source-repair-handoff.trace.md)
+    - sha256-base64url-c14n-v2: `Ow6JL3A10ANA97RLLQiw3KTJlGXcrYnpn2qsEb2TNuQ`
+  - [001-3-anchor-to-anchor-native-agent-transition-checkpoint.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/extension-finalization/001-3-anchor-to-anchor-native-agent-transition-checkpoint.trace.md)
+    - sha256-base64url-c14n-v2: `b0PW70jv7E9uxbdvCo0G_iiSBK6w1apMJ1zDl84U-5U`
+  - [001-4-anchor-to-anchor-role-agent-sync-checkpoint.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/extension-finalization/001-4-anchor-to-anchor-role-agent-sync-checkpoint.trace.md)
+    - sha256-base64url-c14n-v2: `d9gZboaSrcYXNfytZ-enWa3R_1qeumysXYyXFvp_6Ws`
+  - [001-5-anchor-to-anchor-vsix-skill-packaging-recovery-handoff.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/extension-finalization/001-5-anchor-to-anchor-vsix-skill-packaging-recovery-handoff.trace.md)
+    - sha256-base64url-c14n-v2: `XOhM2cRAhYxFy51jwF7cTdPIAeRfTwRM1jqaa9oBgCY`
+  - [001-6-anchor-to-anchor-release-gate-abi-recovery.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/extension-finalization/001-6-anchor-to-anchor-release-gate-abi-recovery.trace.md)
+    - sha256-base64url-c14n-v2: `rMbsFJmUdeGWnL2AveReQiMPSy90-O5052FMnaPuFwE`
+  - [001-7-1-anchor-to-sigma-vscode-final-acceptance-handoff.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/extension-finalization/001-7-1-anchor-to-sigma-vscode-final-acceptance-handoff.trace.md)
+    - sha256-base64url-c14n-v2: `Mgo4fx8EWEhPdLtCibpEIn1nUBhiuDhVhclrkgU4Wkk`
+  - [001-8-anchor-to-anchor-post-sigma-gate-recovery.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/extension-finalization/001-8-anchor-to-anchor-post-sigma-gate-recovery.trace.md)
+    - sha256-base64url-c14n-v2: `62vBJYSIsJMiRFwIpg6rhOcpiUg8W7ctZsZszhlbkiw`
+  - [001-9-anchor-to-anchor-move-continuity-phase1.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/extension-finalization/001-9-anchor-to-anchor-move-continuity-phase1.trace.md)
+    - sha256-base64url-c14n-v2: `XybknSRCrr8o3QeeJ0XCjoq6he1RUqE82d-qRm8mSiA`
+  - [001-1-vs-code-guided-entry-what-where-verification-evidence.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/guided-entry-what-where/001-1-vs-code-guided-entry-what-where-verification-evidence.trace.md)
+    - sha256-base64url-c14n-v2: `wl891nGHR7WLG0De6D3C0ZDwlL2SyvduDc_W1apZuDA`
+  - [001-1-vs-code-handoff-form-end-to-end-wip-checkpoint-evidence.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/handoff-form-e2e/001-1-vs-code-handoff-form-end-to-end-wip-checkpoint-evidence.trace.md)
+    - sha256-base64url-c14n-v2: `THVKqZWlB6PMQAUfvDszD-f5BS6Qn01ZHRVW8jOIQmA`
+  - [001-2-vs-code-handoff-form-technical-verification-checkpoint-evidence.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/handoff-form-e2e/001-2-vs-code-handoff-form-technical-verification-checkpoint-evidence.trace.md)
+    - sha256-base64url-c14n-v2: `iK34Nfvar7eQIe07K8ltJ8rBhXatxSNdwDaKFZGmwkc`
+  - [001-3-1-1-sigma-handoff-form-rework-and-technical-verification-evidence.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/handoff-form-e2e/001-3-1-1-sigma-handoff-form-rework-and-technical-verification-evidence.trace.md)
+    - sha256-base64url-c14n-v2: `2HqadquIaijdvL3H4lMbh_9ixQM2MIVRrR6IZuPX-Wk`
+  - [001-3-10-sigma-handoff-form-current-role-transition-and-incoming-lifecycl.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/handoff-form-e2e/001-3-10-sigma-handoff-form-current-role-transition-and-incoming-lifecycl.trace.md)
+    - sha256-base64url-c14n-v2: `cZjXaa9wV9aJWeeKswbLHxJ6sQoGorc0JcTBsHzifpQ`
+  - [001-3-11-anchor-handoff-form-current-role-transition-and-incoming-lifecyc.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/handoff-form-e2e/001-3-11-anchor-handoff-form-current-role-transition-and-incoming-lifecyc.trace.md)
+    - sha256-base64url-c14n-v2: `gYiPXo4iv2vMdpexwSM5X1wcqYVEietyJeAeqnzA0SM`
+  - [001-3-12-handoff-picker-unification-and-generic-transition-rework-evidence.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/handoff-form-e2e/001-3-12-handoff-picker-unification-and-generic-transition-rework-evidence.trace.md)
+    - sha256-base64url-c14n-v2: `M4Rch_9-g5SoYRGhJ1hTwW6_oMZEli0M4hBwxWMevw0`
+  - [001-3-13-sigma-handoff-picker-transition-and-incoming-final-rerun-handoff.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/handoff-form-e2e/001-3-13-sigma-handoff-picker-transition-and-incoming-final-rerun-handoff.trace.md)
+    - sha256-base64url-c14n-v2: `kxEDbbRPDk3gzDyYefIrkpgJriwoCAtmGnGCpTAQDlU`
+  - [001-3-14-anchor-handoff-picker-transition-and-incoming-continuation-handoff.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/handoff-form-e2e/001-3-14-anchor-handoff-picker-transition-and-incoming-continuation-handoff.trace.md)
+    - sha256-base64url-c14n-v2: `jH1LhmdkZXKkZGIl_nM0FbFXQKBKNylo_27G1RQ-uBs`
+  - [001-3-15-sigma-compile-gate-and-bootstrap-replacement-transport-evidence.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/handoff-form-e2e/001-3-15-sigma-compile-gate-and-bootstrap-replacement-transport-evidence.trace.md)
+    - sha256-base64url-c14n-v2: `xhPFy89OpvU-pJK4iNxQ05JCGNVN3W1cKaRWa2p5L-U`
+  - [001-3-16-sigma-compile-and-bootstrap-replacement-rerun-handoff.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/handoff-form-e2e/001-3-16-sigma-compile-and-bootstrap-replacement-rerun-handoff.trace.md)
+    - sha256-base64url-c14n-v2: `B5AyxzeGeMK9_wH1BN9kHMIfBv9FmgR31e7FNoLtcI8`
+  - [001-3-17-anchor-compile-and-bootstrap-replacement-continuation-handoff.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/handoff-form-e2e/001-3-17-anchor-compile-and-bootstrap-replacement-continuation-handoff.trace.md)
+    - sha256-base64url-c14n-v2: `IZ0sVIyJtZp2Xrz4SOOHGqoc6JJDeJxtuh2Vbepb3XI`
+  - [001-3-18-incoming-carrier-topology-party-and-transport-ergonomics-rework-evidence.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/handoff-form-e2e/001-3-18-incoming-carrier-topology-party-and-transport-ergonomics-rework-evidence.trace.md)
+    - sha256-base64url-c14n-v2: `S_uvDYnGxXnfUFwjL2PDMMt8XWvhJXQADarFxtmAJhE`
+  - [001-3-19-sigma-incoming-carrier-topology-party-and-transport-rerun-handoff.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/handoff-form-e2e/001-3-19-sigma-incoming-carrier-topology-party-and-transport-rerun-handoff.trace.md)
+    - sha256-base64url-c14n-v2: `BqAs289QpkP33IiVwZjOl_y3WAOn3n-h8JQmZ9_vo5c`
+  - [001-3-2-1-handoff-authoring-discovery-and-hydration-rework-evidence.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/handoff-form-e2e/001-3-2-1-handoff-authoring-discovery-and-hydration-rework-evidence.trace.md)
+    - sha256-base64url-c14n-v2: `P9w5wZHbWwWplM6Dmgk2-0-OXPQbm0rVGsdMalw-3z0`
+  - [001-3-20-anchor-incoming-carrier-topology-party-and-transport-continuation-handoff.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/handoff-form-e2e/001-3-20-anchor-incoming-carrier-topology-party-and-transport-continuation-handoff.trace.md)
+    - sha256-base64url-c14n-v2: `aLKua1vPlH02BJ5kpFHeNugZ8XUIZkItb6eYVvHXCnY`
+  - [001-3-21-additional-participant-current-role-discovery-correction-evidence.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/handoff-form-e2e/001-3-21-additional-participant-current-role-discovery-correction-evidence.trace.md)
+    - sha256-base64url-c14n-v2: `J7HfAsIHE-9eINH57WuLqx5AZpDwR2b5RO0DY-Nf__E`
+  - [001-3-22-sigma-additional-participant-current-role-rerun-handoff.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/handoff-form-e2e/001-3-22-sigma-additional-participant-current-role-rerun-handoff.trace.md)
+    - sha256-base64url-c14n-v2: `GgOktAavSBUKunTUx4NkkcXxLGiJPHdACyO5Jp3huYw`
+  - [001-3-23-anchor-additional-participant-current-role-continuation-handoff.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/handoff-form-e2e/001-3-23-anchor-additional-participant-current-role-continuation-handoff.trace.md)
+    - sha256-base64url-c14n-v2: `nf_HSgAhpXXVN0ll7QnHZD3wnhiwoa5oDP0_zuM9vxE`
+  - [001-3-27-handoff-endpoint-binding-and-incoming-accept-single-flight-evidence.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/handoff-form-e2e/001-3-27-handoff-endpoint-binding-and-incoming-accept-single-flight-evidence.trace.md)
+    - sha256-base64url-c14n-v2: `_X_Lh9XXu2hcgS8cjgKsBQp-6BfgTaAhEiG1dC4xjrs`
+  - [001-3-28-sigma-endpoint-binding-and-incoming-accept-rerun-handoff.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/handoff-form-e2e/001-3-28-sigma-endpoint-binding-and-incoming-accept-rerun-handoff.trace.md)
+    - sha256-base64url-c14n-v2: `173R41KESFk9XXppnVawFGDj9aawb0DBzBi_U2E1h7w`
+  - [001-3-29-anchor-endpoint-binding-and-incoming-accept-continuation-handoff.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/handoff-form-e2e/001-3-29-anchor-endpoint-binding-and-incoming-accept-continuation-handoff.trace.md)
+    - sha256-base64url-c14n-v2: `GaG1vbtXR1WNB0U9XPbvLRsXoxU6GzjYtI04kIoqlqQ`
+  - [001-3-3-sigma-handoff-authoring-discovery-and-hydration-rerun-handoff.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/handoff-form-e2e/001-3-3-sigma-handoff-authoring-discovery-and-hydration-rerun-handoff.trace.md)
+    - sha256-base64url-c14n-v2: `1LYwVrtD8B1pufkxJeHbzqTqfbnVmpEFaplwdRgnirE`
+  - [001-3-31-operator-party-return-to-and-recipient-scope-rework-evidence.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/handoff-form-e2e/001-3-31-operator-party-return-to-and-recipient-scope-rework-evidence.trace.md)
+    - sha256-base64url-c14n-v2: `RpBVAA50uBaN7Km6SvAZk6uxg51R40FIplMo7KPCjH4`
+  - [001-3-32-sigma-operator-party-return-to-and-recipient-scope-rerun-handoff.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/handoff-form-e2e/001-3-32-sigma-operator-party-return-to-and-recipient-scope-rerun-handoff.trace.md)
+    - sha256-base64url-c14n-v2: `46v3sdnKf7l-di2NZKRXUlodSa2vaqGvZIW9Mo3ULc4`
+  - [001-3-33-anchor-operator-party-return-to-and-recipient-scope-continuation-handoff.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/handoff-form-e2e/001-3-33-anchor-operator-party-return-to-and-recipient-scope-continuation-handoff.trace.md)
+    - sha256-base64url-c14n-v2: `cwb4-iYw7--Rxh8Z5uDTGKLS7vndAF6nMVemE-zFmiw`
+  - [001-3-34-incoming-exact-review-persistence-and-internal-handoff-reference-polish-evidence.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/handoff-form-e2e/001-3-34-incoming-exact-review-persistence-and-internal-handoff-reference-polish-evidence.trace.md)
+    - sha256-base64url-c14n-v2: `Gg6sJD6Rq_Hzp60vv8WQcaDfnPtSp8YvYpb4KEqt6zo`
+  - [001-3-35-sigma-incoming-exact-review-and-internal-reference-rerun-handoff.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/handoff-form-e2e/001-3-35-sigma-incoming-exact-review-and-internal-reference-rerun-handoff.trace.md)
+    - sha256-base64url-c14n-v2: `CfcESnJI185vUxIcXGzJdhRWS3XzHjy-WvYTEW_D-E8`
+  - [001-3-36-anchor-incoming-exact-review-and-internal-reference-continuation-handoff.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/handoff-form-e2e/001-3-36-anchor-incoming-exact-review-and-internal-reference-continuation-handoff.trace.md)
+    - sha256-base64url-c14n-v2: `Ay13sWNM_ToDVhp1NLPAFH88O91MF8ozdrvyHaVHNI0`
+  - [001-3-37-sigma-to-anchor.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/handoff-form-e2e/001-3-37-sigma-to-anchor.trace.md)
+    - sha256-base64url-c14n-v2: `GuCEjBaoKf28KgcVPCwLB9Bk8tjQiY0witlEKmsIcyU`
+  - [001-3-38-vs-code-final-handoff-readability-and-ask-preview-polish-evidence.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/handoff-form-e2e/001-3-38-vs-code-final-handoff-readability-and-ask-preview-polish-evidence.trace.md)
+    - sha256-base64url-c14n-v2: `DXdnRbpQsw8WObHyVn5V8gEpIfNZkKcgKxwUTC2FR4c`
+  - [001-3-39-sigma-final-handoff-readability-and-ask-preview-rerun-handoff.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/handoff-form-e2e/001-3-39-sigma-final-handoff-readability-and-ask-preview-rerun-handoff.trace.md)
+    - sha256-base64url-c14n-v2: `Y6oMHAwaZlE5ADOyXY6cFxTp6CyuVoEGDQ6OuR9PzCw`
+  - [001-3-4-anchor-handoff-authoring-discovery-and-hydration-continuation-handoff.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/handoff-form-e2e/001-3-4-anchor-handoff-authoring-discovery-and-hydration-continuation-handoff.trace.md)
+    - sha256-base64url-c14n-v2: `KONEakdMoME6FtHP14lNRM6Y5NjRLTbRhgu9HAqt94w`
+  - [001-3-40-anchor-final-vs-code-polish-continuation-handoff.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/handoff-form-e2e/001-3-40-anchor-final-vs-code-polish-continuation-handoff.trace.md)
+    - sha256-base64url-c14n-v2: `6oe74Z375OAoq_xXRzu0nHaJDtRo-dSGDWWyZ0JH7z0`
+  - [001-3-41-sigma-to-anchor.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/handoff-form-e2e/001-3-41-sigma-to-anchor.trace.md)
+    - sha256-base64url-c14n-v2: `PyKXksOEyP63H9AOr8aZnQmyC48MDIN_d0Vo1kejzys`
+  - [001-3-5-authoring-ready-handshake-build-correction-evidence.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/handoff-form-e2e/001-3-5-authoring-ready-handshake-build-correction-evidence.trace.md)
+    - sha256-base64url-c14n-v2: `CV09-I0DiX2hMFzIY9dTMj3jutOiJTzcitW8N2Epehc`
+  - [001-3-6-sigma-handoff-form-runtime-reject-and-incoming-decision-rework-e.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/handoff-form-e2e/001-3-6-sigma-handoff-form-runtime-reject-and-incoming-decision-rework-e.trace.md)
+    - sha256-base64url-c14n-v2: `4DLK1V6Bm5JTymEAv9zcXK2l_MlHnl-TJRnyna5q47A`
+  - [001-3-7-sigma-handoff-form-runtime-rework-rerun-handoff.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/handoff-form-e2e/001-3-7-sigma-handoff-form-runtime-rework-rerun-handoff.trace.md)
+    - sha256-base64url-c14n-v2: `3P0lcOR_fzy_6dut7qH3pm_ZNd-a4eQbvoMl0-0eEPo`
+  - [001-3-8-anchor-handoff-form-runtime-rework-continuation-handoff.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/handoff-form-e2e/001-3-8-anchor-handoff-form-runtime-rework-continuation-handoff.trace.md)
+    - sha256-base64url-c14n-v2: `Uz0I3BdUyHVItSKcJljZzCzs6QwOQloTbmaSUTYsssg`
+  - [001-3-9-handoff-form-current-role-transition-latency-and-incoming-lifecy.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/handoff-form-e2e/001-3-9-handoff-form-current-role-transition-latency-and-incoming-lifecy.trace.md)
+    - sha256-base64url-c14n-v2: `ZrYQN9SXJfmIAI19xaY2y0VI3ceRtuojXSHAvFZAVvw`
+  - [001-1-vs-code-tiinex-markdown-diagnostics-ingress-verification-evidenc.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/markdown-validation-ingress/001-1-vs-code-tiinex-markdown-diagnostics-ingress-verification-evidenc.trace.md)
+    - sha256-base64url-c14n-v2: `yS8_CQnKnS63Vhg7jZdFsoX6g2E2sCGVzw5D6uNSFws`
+  - [001-1-copilot-grounding-bootstrap-and-harness-specific-process-enforce.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/native-agent-surface/001-1-copilot-grounding-bootstrap-and-harness-specific-process-enforce.trace.md)
+    - sha256-base64url-c14n-v2: `I4ionGFyL9LM4BP09bF2p9mYG-sgAbKaLHTy9ZRAejQ`
+  - [001-2-vs-code-target-entry-copilot-panel-actions-and-transport-instruc.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/native-agent-surface/001-2-vs-code-target-entry-copilot-panel-actions-and-transport-instruc.trace.md)
+    - sha256-base64url-c14n-v2: `DKyVPR1zgEuNVD3LVQ9WnxDmLt8zM4c7NewYJg-LH2A`
+  - [001-3-vs-code-target-transport-tab-and-copilot-panel-delegation-verifi.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/native-agent-surface/001-3-vs-code-target-transport-tab-and-copilot-panel-delegation-verifi.trace.md)
+    - sha256-base64url-c14n-v2: `zhJ33NmloxeIJKfz6FepZJ0HYpPfTu03wJle3hHjgCI`
+  - [001-1-2-vs-code-post-acceptance-handoff-ergonomics-and-carrier-slug-polish-evidence.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-1-2-vs-code-post-acceptance-handoff-ergonomics-and-carrier-slug-polish-evidence.trace.md)
+    - sha256-base64url-c14n-v2: `5yQThnAkhVs_biQOxillGUaMG8dA3IkWbjaessYUtlg`
+  - [001-1-3-1-1-test.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-1-3-1-1-test.trace.md)
+    - sha256-base64url-c14n-v2: `gXpzyWM23fZoOB59FHEs-j04JYph8NJKcmsvY8rJXSc`
+  - [001-1-4-anchor-post-acceptance-polish-continuation.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-1-4-anchor-post-acceptance-polish-continuation.trace.md)
+    - sha256-base64url-c14n-v2: `Q6mxfukLDEZux4wp2EiXLDyB1sMOBJM0DoVLx7yo0D4`
+  - [001-10-windows-outgoing-startup-operator-party-stabilization-evidence.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-10-windows-outgoing-startup-operator-party-stabilization-evidence.trace.md)
+    - sha256-base64url-c14n-v2: `taB0SOPjUDS0FuC_MIwapgZ5pwq6cH2cYNx70Jdj6Vw`
+  - [001-11-sigma-windows-outgoing-and-responsiveness-stabilization-rerun.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-11-sigma-windows-outgoing-and-responsiveness-stabilization-rerun.trace.md)
+    - sha256-base64url-c14n-v2: `Ml0ivHsJQzRBeD-YucJStlpKarI6fVbtdBlTBFVokbQ`
+  - [001-12-post-qualification-role-discovery-and-preview-latency-evidence.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-12-post-qualification-role-discovery-and-preview-latency-evidence.trace.md)
+    - sha256-base64url-c14n-v2: `7LjwITHop2xevNJssL8k418FNe0x9Nedy7--M8ygUy4`
+  - [001-13-sigma-role-discovery-and-incoming-preview-latency-rerun.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-13-sigma-role-discovery-and-incoming-preview-latency-rerun.trace.md)
+    - sha256-base64url-c14n-v2: `aa8GW97-CPD2F_QPRjvV4xMhsG_aKRdpVnPOBZx3kg8`
+  - [001-14-incoming-preview-review-scheduling-regression-evidence.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-14-incoming-preview-review-scheduling-regression-evidence.trace.md)
+    - sha256-base64url-c14n-v2: `M31R_YfQun12JfmdTR-Id15Uj6No_3ThUO5zcnlbziU`
+  - [001-15-sigma-incoming-first-markdown-preview-latency-rerun.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-15-sigma-incoming-first-markdown-preview-latency-rerun.trace.md)
+    - sha256-base64url-c14n-v2: `kE5Kg9A_K-va-LtZQMFWm5dCXWWpGofiJovI4MWkyC0`
+  - [001-16-incoming-preview-policy-type-narrowing-build-failure-evidence.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-16-incoming-preview-policy-type-narrowing-build-failure-evidence.trace.md)
+    - sha256-base64url-c14n-v2: `VKBdes2o72PWApInDYYnU4-bds87vz5X_EH8tjD9LrA`
+  - [001-17-sigma-incoming-policy-build-repair-and-latency-rerun.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-17-sigma-incoming-policy-build-repair-and-latency-rerun.trace.md)
+    - sha256-base64url-c14n-v2: `j9sdSjCskcfpjVWSx0n6HviUj5wjBAvFAkLQ23byATg`
+  - [001-18-operator-party-picker-repeat-qualification-latency-evidence.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-18-operator-party-picker-repeat-qualification-latency-evidence.trace.md)
+    - sha256-base64url-c14n-v2: `TnRLfYuPszEBu85MHe42Bb8wsOY4YovB965D6aqS3oY`
+  - [001-19-sigma-operator-party-picker-qualification-reuse-and-windows-timi.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-19-sigma-operator-party-picker-qualification-reuse-and-windows-timi.trace.md)
+    - sha256-base64url-c14n-v2: `kEidauFGIQ0xbdMYQJLatTKNL6ANgXHIO4R3gC-UGr4`
+  - [001-2-anchor-readme-documentation-continuation-handoff.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-2-anchor-readme-documentation-continuation-handoff.trace.md)
+    - sha256-base64url-c14n-v2: `-cAK0Evu_rrJCR2gPJFlWx3NRSXDb1bThkwwohZOcLs`
+  - [001-20-sigma-schema-guided-form-and-file-attachment-windows-rerun.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-20-sigma-schema-guided-form-and-file-attachment-windows-rerun.trace.md)
+    - sha256-base64url-c14n-v2: `zoLky370JGsKf3c2zGfX8wf4NWa95GWnbJzif_yzwhg`
+  - [001-21-auto-incoming-source-drift-and-preview-recovery-regression.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-21-auto-incoming-source-drift-and-preview-recovery-regression.trace.md)
+    - sha256-base64url-c14n-v2: `LDpIOhWMeo2cx13OPP6-7ktKr_BY7qamywGCpS4Z_2Y`
+  - [001-22-sigma-auto-incoming-source-drift-and-preview-recovery-windows-re.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-22-sigma-auto-incoming-source-drift-and-preview-recovery-windows-re.trace.md)
+    - sha256-base64url-c14n-v2: `qZPjmA1h74TNawGIHUP2rk5b18NEDl0wgCiZmZYXluo`
+  - [001-23-anchor-portable-form-profile-qualification-continuation.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-23-anchor-portable-form-profile-qualification-continuation.trace.md)
+    - sha256-base64url-c14n-v2: `_6idsEcOwZQit5L4sgnATd8V2xrOHeakje1_qK6FyaQ`
+  - [001-24-anchor-portable-form-field-help-implementation-and-native-profil.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-24-anchor-portable-form-field-help-implementation-and-native-profil.trace.md)
+    - sha256-base64url-c14n-v2: `4NcEZKdbRyhvRcNqphGAa01Hzg0s6doRVyondVtgO70`
+  - [001-24-incoming-replace-and-evidence-help-acceptance-regression.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-24-incoming-replace-and-evidence-help-acceptance-regression.trace.md)
+    - sha256-base64url-c14n-v2: `-sUdI-JOP9tUCUuWwFDa9fCC-5ige2_Hdz4bn2vcKGk`
+  - [001-25-anchor-core-field-help-and-native-form-profile-continuation-rero.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-25-anchor-core-field-help-and-native-form-profile-continuation-rero.trace.md)
+    - sha256-base64url-c14n-v2: `qWXj2G7u9IPK2H1UKTP7zwQRZ9wjyYZ-NFU8t1X-IWY`
+  - [001-26-sigma-field-help-host-final-acceptance-rerun.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-26-sigma-field-help-host-final-acceptance-rerun.trace.md)
+    - sha256-base64url-c14n-v2: `7u-tK855QbpUfU_exJ9QxcaVJcmhokrF1G7nXvMI-B4`
+  - [001-27-sigma-replace-responsiveness-and-schema-help-windows-rerun.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-27-sigma-replace-responsiveness-and-schema-help-windows-rerun.trace.md)
+    - sha256-base64url-c14n-v2: `__NewGqm47JMjeN01-HJzsoRH0KXfoxeUzOjFIWaGrY`
+  - [001-28-windows-evidence-parent-and-material-repeatability-findings.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-28-windows-evidence-parent-and-material-repeatability-findings.trace.md)
+    - sha256-base64url-c14n-v2: `XB2GmjPzzWNYJKJS0ajBFZi-wE-VvQsrWYfPa6rygNE`
+  - [001-29-sigma-evidence-parent-refresh-and-material-contract-acceptance.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-29-sigma-evidence-parent-refresh-and-material-contract-acceptance.trace.md)
+    - sha256-base64url-c14n-v2: `HE_N_W5I2CdX9qu1VL-A_uP-Fwr2c9S_OD2cAFHw0IU`
+  - [001-3-1-1-1-evidence-parent-continuation-authoring-capability-regression.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-3-1-1-1-evidence-parent-continuation-authoring-capability-regression.trace.md)
+    - sha256-base64url-c14n-v2: `BjjDqGNJQKIonhS2CxETlA2Jl3a90cPn8plT66uFHaU`
+  - [001-3-1-1-2-windows-evidence-create-operator-context-candidate.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-3-1-1-2-windows-evidence-create-operator-context-candidate.trace.md)
+    - sha256-base64url-c14n-v2: `xZNvwzaX2b0iGEkCpKo3mc5JMlCwry_vYl1NPzHgJuk`
+  - [001-30-incoming-replace-and-form-help-internal-regression-candidate.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-30-incoming-replace-and-form-help-internal-regression-candidate.trace.md)
+    - sha256-base64url-c14n-v2: `bpbP2HUEzVu6XlXSJbbsPlFfBg1caKldC7q__d2kQME`
+  - [001-31-anchor-pre-sigma-internal-stabilization-and-evidence-material-co.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-31-anchor-pre-sigma-internal-stabilization-and-evidence-material-co.trace.md)
+    - sha256-base64url-c14n-v2: `vYul3SXoP3dqqdyQyNsxTvHlrChezUWcxjX3bQCLcoA`
+  - [001-32-anchor-multi-material-evidence-fidelity-and-pre-sigma-continuati.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-32-anchor-multi-material-evidence-fidelity-and-pre-sigma-continuati.trace.md)
+    - sha256-base64url-c14n-v2: `t9T-43HKA4INMyAVoIhAoiEww8Fn_Ta15ZzTAKUanv4`
+  - [001-33-local-vs-code-build-task-currentness-reconciliation.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-33-local-vs-code-build-task-currentness-reconciliation.trace.md)
+    - sha256-base64url-c14n-v2: `MtRXCAPOjp7_AacQElIUx6F0pMZNMU_IUNc6ZOxVtTQ`
+  - [001-34-anchor-multi-material-evidence-fidelity-and-host-build-task-cont.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-34-anchor-multi-material-evidence-fidelity-and-host-build-task-cont.trace.md)
+    - sha256-base64url-c14n-v2: `YeNezrZ54tv0rxZhXAU-JCmen-09obIMwYnIjGcNQfw`
+  - [001-35-anchor-revised-evidence-v1-multi-material-integration-and-window.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-35-anchor-revised-evidence-v1-multi-material-integration-and-window.trace.md)
+    - sha256-base64url-c14n-v2: `zdG0mtBDkgfIQk8O9d9VSGFfnjNHLWXD_GGZYx7HZKI`
+  - [001-36-anchor-evidence-v1-material-attachment-fidelity-and-windows-gate.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-36-anchor-evidence-v1-material-attachment-fidelity-and-windows-gate.trace.md)
+    - sha256-base64url-c14n-v2: `qAyuuEGpgRJ5s4HCJFk3TFEoZ751ffBeDqgCQlaI8-g`
+  - [001-37-anchor-chatgpt-carrier-filename-discipline-and-evidence-v1-conti.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-37-anchor-chatgpt-carrier-filename-discipline-and-evidence-v1-conti.trace.md)
+    - sha256-base64url-c14n-v2: `ZIl3-CEBycHnWUf9LXt0NJkAfJHwpUurOv5aiusy1TE`
+  - [001-38-sigma-evidence-v1-two-material-windows-acceptance.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-38-sigma-evidence-v1-two-material-windows-acceptance.trace.md)
+    - sha256-base64url-c14n-v2: `gVDCI2SrZgZYBFf9pqIxtLIYG49jYfGkINKRETGN-oc`
+  - [001-39-sigma-evidence-v1-feedback-and-local-authority-recovery.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-39-sigma-evidence-v1-feedback-and-local-authority-recovery.trace.md)
+    - sha256-base64url-c14n-v2: `mgGrzh-zBmkRUzjr-56BFJmh_7LOsX4dqoeuBvEN9Ng`
+  - [001-4-sigma-incoming-qualification-and-discovery-source-rerun.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-4-sigma-incoming-qualification-and-discovery-source-rerun.trace.md)
+    - sha256-base64url-c14n-v2: `5Z1TJ5awPAglu4PSCjCmW1DVrVImdO8DLCuBuX4rZQg`
+  - [001-40-1-anchor-scoped-topics-discovery-and-evidence-transition-pre-branc.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-40-1-anchor-scoped-topics-discovery-and-evidence-transition-pre-branc.trace.md)
+    - sha256-base64url-c14n-v2: `ONy91-Kz7UJqGqifsC_yG4DceDUN-Ze2aXIyenrdQfQ`
+  - [001-40-2-anchor-topics-discovery-run-one-and-transition-authoring-contrac.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-40-2-anchor-topics-discovery-run-one-and-transition-authoring-contrac.trace.md)
+    - sha256-base64url-c14n-v2: `_AIi-D9hgsvqYR9oejJAL_PlmPuDIFqyyqZ8VUvZvoE`
+  - [001-40-3-1-anchor-dual-fork-convergence-and-owner-gated-continuation.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-40-3-1-anchor-dual-fork-convergence-and-owner-gated-continuation.trace.md)
+    - sha256-base64url-c14n-v2: `vTz5OdrCHxIr05_JtHuyzAt3824k9DB9tgY2HU-FU9o`
+  - [001-40-3-2-sigma-windows-transition-authoring-and-dual-fork-acceptance.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-40-3-2-sigma-windows-transition-authoring-and-dual-fork-acceptance.trace.md)
+    - sha256-base64url-c14n-v2: `whNzrUi0jW9_92hTBLNnGQblZKVnaMVuFcZzbsUeoH0`
+  - [001-40-3-3-1-explorer-move-rebase-and-attach-to-form-transaction-verification.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-40-3-3-1-explorer-move-rebase-and-attach-to-form-transaction-verification.trace.md)
+    - sha256-base64url-c14n-v2: `RmyAcKq_gDAhOHHkOlDdmoA6MHoKC_As9vCNu8Glqek`
+  - [001-40-3-3-2-sigma-explorer-move-rebase-and-still-media-windows-acceptance.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-40-3-3-2-sigma-explorer-move-rebase-and-still-media-windows-acceptance.trace.md)
+    - sha256-base64url-c14n-v2: `cxxK2NWAWO9VNuw039FruZylU_VmlazhA4A7KKkABPQ`
+  - [001-40-3-3-3-1-sigma-automatic-lineage-and-atomic-file-attachment-windows-accep.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-40-3-3-3-1-sigma-automatic-lineage-and-atomic-file-attachment-windows-accep.trace.md)
+    - sha256-base64url-c14n-v2: `QkNmu6epab5gXAQj6YloB7o5SuTuyPR3Tx7jkiKNWSs`
+  - [001-40-3-3-3-2-1-windows-quickpick-type-regression-and-host-source-correction.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-40-3-3-3-2-1-windows-quickpick-type-regression-and-host-source-correction.trace.md)
+    - sha256-base64url-c14n-v2: `is4dpEnY4LyUJPUvokXXpGNJFCgwaSP4UsngZuEKoGM`
+  - [001-40-3-3-3-2-2-sigma-windows-quickpick-build-correction-and-atomic-attachment-a.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-40-3-3-3-2-2-sigma-windows-quickpick-build-correction-and-atomic-attachment-a.trace.md)
+    - sha256-base64url-c14n-v2: `XChLYQ9RHbpOyfQDGfa33vonCtEVKNEXOVCB_2pSLQI`
+  - [001-5-1-1-sigma-new-artifact-workspace-picker-recovery-rerun.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-5-1-1-sigma-new-artifact-workspace-picker-recovery-rerun.trace.md)
+    - sha256-base64url-c14n-v2: `LCvkNCwMCT-1rGkuoXcxsa5Rn09Dc_tx1MI7XsH-c8k`
+  - [001-5-2-1-1-sigma-evidence-parent-continuation-form-rerun.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-5-2-1-1-sigma-evidence-parent-continuation-form-rerun.trace.md)
+    - sha256-base64url-c14n-v2: `hRXzXV2VObmBojLs1H2l3EB6Um8n2dtajQUAPyav7QE`
+  - [001-5-2-1-2-fresh-anchor-official-evidence-and-readme-continuation.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-5-2-1-2-fresh-anchor-official-evidence-and-readme-continuation.trace.md)
+    - sha256-base64url-c14n-v2: `sCL7vueFya8HgUL_CiZaYTwYGrsE7h7ZZcQ4o20sC1s`
+  - [001-6-sigma-windows-evidence-create-and-package-first-recovery-rerun.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-6-sigma-windows-evidence-create-and-package-first-recovery-rerun.trace.md)
+    - sha256-base64url-c14n-v2: `GCKMZbNt0-U9xf19AULTe1-UL5LbkqYRPkSKx_MwKEA`
+  - [001-7-sigma-windows-evidence-create-materialization-missing-input.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-7-sigma-windows-evidence-create-materialization-missing-input.trace.md)
+    - sha256-base64url-c14n-v2: `LYStbU76_7qbXDNke8Tbacggie3m0VXNUrZbvYuvITo`
+  - [001-8-sigma-evidence-create-core-group-input-regression-rerun.trace.md](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/readme-documentation/001-8-sigma-evidence-create-core-group-input-regression-rerun.trace.md)
+    - sha256-base64url-c14n-v2: `0fKOoyJvk2hBc_qkuAe8FxYQCtB_u-iaCGZVkx10NXE`
+
+## Carry-Forward State
+
+- We still have work to do on the documentation
+- There has not yet been enough testing regarding native surface tooling
+
+## Loss And Uncertainty
+
+- Dogfood was removed still available in history
+
+## Validation
+
+- Can be restored from git archive
+
+---
+
+# Continuity Integrity
+
+- [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
+  - Towards: self
+  - Value: 81AFGA2yI-w28afVV5Fnh-Ik3XtbM5aa-a5Nln3cGns

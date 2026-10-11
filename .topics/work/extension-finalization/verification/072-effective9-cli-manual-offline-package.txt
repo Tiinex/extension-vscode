@@ -1,2 +1,0 @@
-PASS packaged Core CLI prepend: plan→apply→verify files/self→replay BLOCK (2 artifacts)
-PASS packaged Core CLI append: plan→apply→verify files/self→replay BLOCK (2 artifacts)

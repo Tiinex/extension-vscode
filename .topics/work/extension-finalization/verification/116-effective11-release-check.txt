@@ -1,6 +1,0 @@
-{
-  "status": "ready",
-  "errors": [],
-  "warnings": []
-}
-

@@ -1,1 +1,0 @@
-OFFLINE INSTALLED Core CLI git source inspection: candidate-only from real local Git commit and origin, no remote publication authority; wrong commit exits 2 BLOCK.

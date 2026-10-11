@@ -1,3 +1,0 @@
-PASS blocked external Markdown reference definition to PNG from target Workspace
-PASS packed Core CLI physical artifact+PNG move, rewritten internal Markdown link and C14n-v2
-PASS stale plan blocked

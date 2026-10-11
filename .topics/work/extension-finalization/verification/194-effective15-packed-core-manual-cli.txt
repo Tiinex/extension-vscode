@@ -1,2 +1,0 @@
-PACKED CLI PASS: plan → apply → exact source/target bytes and C14n → replay BLOCK
-Moves .topics/source/008-source.trace.md → .topics/target/003-source.trace.md | .topics/source/008-photo.png → .topics/target/003-photo.png

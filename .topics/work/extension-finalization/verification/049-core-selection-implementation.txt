@@ -1,8 +1,0 @@
-Core changed:
-- src/tooling/portable/lineage/lineage.move-selection.js NEW pure selection authority; five scope kinds; exact same-directory Parent graph; exact asset dimension; branching/cycle/duplicate constraints; Prepend shape qualification
-- src/tooling/portable/lineage/lineage.maintenance.projection.js extends 'scoped-move' Same+Keep Parent only; exactly verifies resolved unchanged Parent identity and c14n-v2 parent digest, fail-closed for missing Parent bytes, partial assets, unsupported placement and cross-Workspace
-- src/tooling/portable/index.js publicly exports selection projection
-- src/tooling/portable/adapters/node/asset.relocation.inspect.js removes false positive generic basename checks in arbitrary non-Markdown text, keeping fail-closed for resolvable path literals; no mutation of non-UTF8 or unsupported formats
-- test/lineage-move-selection.test.mjs NEW tests including 8 + cross-Workspace/asset coverage (9 total)
-- test/asset-reference-rebind.test.mjs adds regression for non-reference mention vs genuine relative path in TS code
-This is a Phase 1 Core safety/continuity slice, NOT the full Move/Rebase redesign or Sigma gate. Existing host UI not changed.
