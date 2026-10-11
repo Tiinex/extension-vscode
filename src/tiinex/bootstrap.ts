@@ -632,6 +632,27 @@ export async function projectEditorAssistance(runtime: PackageRuntime, materialR
   }
 }
 
+/** A human-selected local Parent remains only a candidate until Core validates
+ * its exact bytes and prepares a one-document action. No host-owned reparent. */
+export async function projectEditorAssistanceSelectedParent(
+  runtime: PackageRuntime, materialRoot: string, focusPath: string,
+  currentMarkdown: string, selectedParentPath: string,
+  referenceResolutions: any[] = [], runner: ProcessRunner = runProcess
+): Promise<EditorAssistanceResult> {
+  const scratch = await mkdtemp(path.join(os.tmpdir(), 'tiinex-vscode-selected-parent-'));
+  try {
+    const overlayPath = path.join(scratch, 'overlay.md');
+    const resolutionPath = path.join(scratch, 'resolutions.json');
+    await writeFile(overlayPath, currentMarkdown, 'utf8');
+    await writeFile(resolutionPath, JSON.stringify(referenceResolutions), 'utf8');
+    return await runTiinexJson<EditorAssistanceResult>(runtime, [
+      'project-editor-assistance', materialRoot, '--focus', focusPath,
+      '--overlay', overlayPath, '--selected-parent', selectedParentPath,
+      '--reference-resolutions', resolutionPath, '--compact'
+    ], runner);
+  } finally { await rm(scratch, { recursive: true, force: true }); }
+}
+
 export async function projectEditorAssistanceText(runtime: PackageRuntime, materialRoot: string, focusPath: string, markdown: string, referenceResolutionsOrRunner: any[] | ProcessRunner = [], runner: ProcessRunner = runProcess): Promise<EditorAssistanceResult> {
   const referenceResolutions = typeof referenceResolutionsOrRunner === 'function' ? [] : referenceResolutionsOrRunner;
   const effectiveRunner = typeof referenceResolutionsOrRunner === 'function' ? referenceResolutionsOrRunner : runner;

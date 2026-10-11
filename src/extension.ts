@@ -70,6 +70,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await vscode.window.showErrorMessage(`Tiinex empty-directory cleanup failed: ${message(error)}`);
     }
   }));
+  context.subscriptions.push(vscode.commands.registerCommand('tiinex.artifact.locateParent', async (resource?: vscode.Uri) => {
+    try {
+      if (!diagnostics) diagnostics = await registerTiinexDiagnostics(context, extensionPath);
+      const uri = resource?.scheme === 'file' ? resource : vscode.window.activeTextEditor?.document.uri;
+      if (!uri || uri.scheme !== 'file') throw new Error('tiinex.parent-picker.file-required');
+      const document = await vscode.workspace.openTextDocument(uri);
+      await vscode.window.showTextDocument(document, { preview: false });
+      await diagnostics.locateParent(document);
+    } catch (error) { await vscode.window.showWarningMessage(`Tiinex Parent selection blocked: ${error instanceof Error ? error.message : String(error)}`); }
+  }));
   context.subscriptions.push(vscode.commands.registerCommand('tiinex.artifact.repair', async (resource?: vscode.Uri) => {
     try {
       if (!diagnostics) diagnostics = await registerTiinexDiagnostics(context, extensionPath);

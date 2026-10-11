@@ -1,0 +1,22 @@
+'use strict';
+const assert=require('node:assert/strict');
+const fs=require('node:fs');const path=require('node:path');const vm=require('node:vm');const ts=require('typescript');
+const src=fs.readFileSync(path.join(__dirname,'../src/diagnostics.ts'),'utf8');
+const start=src.indexOf('  async locateParent('),end=src.indexOf('  private async codeActions(',start);
+assert(start!==-1 && end>start);
+const js=ts.transpileModule(`class Harness { ${src.slice(start,end)} } module.exports=Harness;`,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+const selectedFile='/repo/.topics/x/001-parent.trace.md';
+let choice=[{fsPath:selectedFile}], applied=0, generated=0, origin='same';
+const correctAction={id:'relocate-selected-parent-and-self-seal',kind:'replace-document',qualification:'deterministic-shared-core',sourceSha256:'verified-original',replacementMarkdown:'new content'};
+const vscode={Uri:{file:(x)=>({fsPath:x})},window:{showOpenDialog:async o=>{assert.equal(o.defaultUri.fsPath,'/repo/.topics/x');return choice;},showWarningMessage:async (_message,_options,button)=>button},workspace:{applyEdit:async e=>{assert.deepEqual(JSON.parse(JSON.stringify(e)),{verified:true});applied++;return true;}}};
+const globals={module:{exports:{}},exports:{},vscode,path,eligible:()=>true,materialRootForResource:async()=>'/repo',relativeRepositoryPath:(root,p)=>{if(!p.startsWith(root+'/'))throw Error('outside');return p.slice(root.length+1);},resolveVersionBearingPermalinks:async()=>[],projectEditorAssistanceSelectedParent:async(_runtime,root,focus,text,parent)=>{generated++;assert.equal(parent,'.topics/x/001-parent.trace.md');return {documents:[{actions:[correctAction]}]}},digest:()=>origin};
+vm.runInNewContext(js,globals);const H=globals.module.exports;
+(async()=>{
+ const d={fileName:'/repo/.topics/x/001-child.trace.md',getText:()=> 'original'};
+ const h=new H();h.runtime=async()=>({});h.workspaceEditForAction=async()=>({state:'ready',edit:{verified:true}});h.refresh=async()=>{};
+ origin='verified-original';assert.equal(await h.locateParent(d),'applied');assert.equal(applied,1);assert.equal(generated,1);
+ choice=[{fsPath:'/other-repo/.topics/x/parent.trace.md'}];assert.equal(await h.locateParent(d),'blocked');assert.equal(applied,1);
+ choice=[{fsPath:selectedFile}];origin='changed-source';assert.equal(await h.locateParent(d),'blocked');assert.equal(applied,1);
+ choice=undefined;assert.equal(await h.locateParent(d),'cancelled');assert.equal(applied,1);
+ console.log('PASS human Parent picker, default sibling folder, qualified single-file edit, outside workspace, stale and cancelled gates');
+})().catch(e=>{console.error(e);process.exitCode=1});

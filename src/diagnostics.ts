@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { preferredNodeExecutable } from './host/nodeExecutable';
-import { prepareHostCoreRuntime, projectEditorAssistance, projectEditorAssistanceText } from './tiinex/bootstrap';
+import { prepareHostCoreRuntime, projectEditorAssistance, projectEditorAssistanceText, projectEditorAssistanceSelectedParent } from './tiinex/bootstrap';
 import { relativeRepositoryPath } from './core/repositoryPath';
 import { repositoryRootForResource } from './vscode/gitApi';
 import { LatestWinsKeyedQueue } from './core/latestWinsQueue';
@@ -336,6 +336,54 @@ export class TiinexDiagnosticsController implements vscode.Disposable {
     return { state: 'applied', snapshot: refreshed, actions: [], appliedCount };
   }
 
+  /** An explicit human Parent choice, applied only after Core qualifies exactly
+   * this artifact's bytes. Existing lineage and every child remain untouched. */
+  async locateParent(document: vscode.TextDocument): Promise<'cancelled' | 'applied' | 'blocked'> {
+    if (!eligible(document)) return 'blocked';
+    const materialRoot = await materialRootForResource(document.fileName);
+    const focusPath = relativeRepositoryPath(materialRoot, document.fileName);
+    const picked = await vscode.window.showOpenDialog({
+      canSelectFiles: true, canSelectFolders: false, canSelectMany: false,
+      defaultUri: vscode.Uri.file(path.dirname(document.fileName)),
+      openLabel: 'Select exact Tiinex Parent',
+      filters: { 'Tiinex Markdown': ['md'] }
+    });
+    if (!picked?.length) return 'cancelled';
+    const choicePath = picked[0].fsPath;
+    let selectedParentPath: string;
+    try { selectedParentPath = relativeRepositoryPath(materialRoot, choicePath); }
+    catch { await vscode.window.showWarningMessage('Parent must be an artifact in the same qualified local Workspace. No bytes changed.'); return 'blocked'; }
+    if (!selectedParentPath.startsWith('.topics/') || !selectedParentPath.endsWith('.trace.md') || selectedParentPath === focusPath) {
+      await vscode.window.showWarningMessage('Choose a different .topics Tiinex .trace.md artifact in the same Workspace. No bytes changed.');
+      return 'blocked';
+    }
+    const exactSource = document.getText();
+    const referenceResolutions = await resolveVersionBearingPermalinks(exactSource, focusPath);
+    const result = await projectEditorAssistanceSelectedParent(await this.runtime(), materialRoot, focusPath, exactSource, selectedParentPath, referenceResolutions);
+    const candidate = result.documents?.[0]?.actions?.find((a) => a.id === 'relocate-selected-parent-and-self-seal' && a.kind === 'replace-document' && a.qualification === 'deterministic-shared-core');
+    if (!candidate) {
+      await vscode.window.showWarningMessage('Core did not qualify this selected Parent: check its self integrity, declared Parent Schema, source availability and the current artifact. No bytes changed.');
+      return 'blocked';
+    }
+    if (candidate.sourceSha256 !== digest(document.getText())) {
+      await vscode.window.showWarningMessage('Artifact bytes changed after Parent qualification. Retry Locate Parent.');
+      return 'blocked';
+    }
+    const confirmation = await vscode.window.showWarningMessage(
+      `Use ${selectedParentPath} as this artifact's Parent? Only ${focusPath} will change. Descendants may retain stale checksums.`,
+      { modal: true }, 'Apply single-artifact repair'
+    );
+    if (confirmation !== 'Apply single-artifact repair') return 'cancelled';
+    const prepared = await this.workspaceEditForAction(document, candidate);
+    if (prepared.state !== 'ready' || !prepared.edit || candidate.sourceSha256 !== digest(document.getText())) {
+      await vscode.window.showWarningMessage('Parent repair is stale or cannot be mapped safely. No bytes changed.');
+      return 'blocked';
+    }
+    if (!await vscode.workspace.applyEdit(prepared.edit)) return 'blocked';
+    await this.refresh(document);
+    return 'applied';
+  }
+
   private async codeActions(document: vscode.TextDocument, context: vscode.CodeActionContext): Promise<vscode.CodeAction[]> {
     if (document.isClosed || !eligible(document)) return [];
     const key = document.uri.toString();
@@ -380,6 +428,14 @@ export class TiinexDiagnosticsController implements vscode.Disposable {
       explanation.diagnostics = context.diagnostics.filter((item: vscode.Diagnostic) => diagnosticCode(item.code) === 'portable.lineage-integrity.parent-target-mismatch');
       explanation.command = { title: 'Explain Parent repair', command: 'tiinex.artifact.repair', arguments: [document.uri] };
       out.push(explanation);
+    }
+    const unresolvedParent = context.diagnostics.some((diagnostic: vscode.Diagnostic) =>
+      /portable\.lineage-integrity\.parent-(?:unresolved|ambiguous|target-ambiguous)/.test(diagnosticCode(diagnostic.code)));
+    if (unresolvedParent || blocked?.reason === 'parent-not-resolved') {
+      const locate = new vscode.CodeAction('Tiinex: Locate Parent…', vscode.CodeActionKind.QuickFix);
+      locate.diagnostics = context.diagnostics.filter((diagnostic: vscode.Diagnostic) => diagnosticCode(diagnostic.code).includes('lineage-integrity.parent-'));
+      locate.command = { title: 'Locate exact Parent', command: 'tiinex.artifact.locateParent', arguments: [document.uri] };
+      out.push(locate);
     }
     return out;
   }
