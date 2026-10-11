@@ -605,7 +605,7 @@ export interface EditorAssistanceResult {
     parentRepairAvailability?: { state: string; reason: string; message: string; blockerCodes?: string[]; blockers?: Array<{ path: string; state: string }> };
     validator: { state: string; authorityState?: string; authorityBasis?: string; authorityFindings?: string[] };
     diagnostics: Array<{ severity: string; code: string; message: string; line: number | null; sourceRange?: { startLine: number; startColumn: number; endLine: number; endColumn: number } | null; locationState: string; locationBasis: string }>;
-    actions: Array<{ id: string; title: string; kind: string; qualification: string; sourceSha256: string; replacementMarkdown: string; replacements?: Array<{ path: string; sourceSha256: string; replacementMarkdown: string }>; diagnosticCodes?: string[] }>;
+    actions: Array<{ id: string; title: string; kind: string; qualification: string; sourceSha256: string; replacementMarkdown: string; descendantCount?: number; replacements?: Array<{ path: string; sourceSha256: string; replacementMarkdown: string }>; diagnosticCodes?: string[] }>;
   }>;
 }
 export interface HandoffLeafCandidate { path: string; title: string; from: string; to: string; purpose: string; qualification: string; leaf?: boolean }
@@ -653,7 +653,7 @@ export async function projectEditorAssistanceSelectedParent(
   } finally { await rm(scratch, { recursive: true, force: true }); }
 }
 
-export async function projectEditorAssistanceText(runtime: PackageRuntime, materialRoot: string, focusPath: string, markdown: string, referenceResolutionsOrRunner: any[] | ProcessRunner = [], runner: ProcessRunner = runProcess): Promise<EditorAssistanceResult> {
+export async function projectEditorAssistanceText(runtime: PackageRuntime, materialRoot: string, focusPath: string, markdown: string, referenceResolutionsOrRunner: any[] | ProcessRunner = [], runner: ProcessRunner = runProcess, includeDescendantRepair = false): Promise<EditorAssistanceResult> {
   const referenceResolutions = typeof referenceResolutionsOrRunner === 'function' ? [] : referenceResolutionsOrRunner;
   const effectiveRunner = typeof referenceResolutionsOrRunner === 'function' ? referenceResolutionsOrRunner : runner;
   const scratch = await mkdtemp(path.join(os.tmpdir(), 'tiinex-vscode-editor-'));
@@ -666,6 +666,7 @@ export async function projectEditorAssistanceText(runtime: PackageRuntime, mater
       await writeFile(resolutions, JSON.stringify(referenceResolutions), 'utf8');
       args.push('--reference-resolutions', resolutions);
     }
+    if (includeDescendantRepair) args.push('--include-descendant-repair');
     args.push('--compact');
     return await runTiinexJson<EditorAssistanceResult>(runtime, args, effectiveRunner);
   } finally {

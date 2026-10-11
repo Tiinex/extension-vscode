@@ -1,0 +1,27 @@
+'use strict';
+const assert=require('node:assert/strict');const fs=require('node:fs');const path=require('node:path');const vm=require('node:vm');const ts=require('typescript');
+const source=fs.readFileSync(path.join(__dirname,'../src/diagnostics.ts'),'utf8');
+const start=source.indexOf('  async locateParent('),end=source.indexOf('  private async codeActions(',start);
+assert(start>0&&end>start);
+const js=ts.transpileModule(`class Harness { ${source.slice(start,end)} } module.exports=Harness;`,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+const selectedFile='/repo/.topics/initiatives/001-parent.trace.md';
+const focus='/repo/.topics/initiatives/001-child.trace.md';
+const parentAction={id:'relocate-selected-parent-and-self-seal',kind:'replace-document',qualification:'deterministic-shared-core',sourceSha256:'trusted',replacementMarkdown:'new',descendantCount:2};
+const cascade={id:'refresh-descendant-integrity',kind:'replace-record-set',qualification:'deterministic-shared-core',sourceSha256:'trusted',replacements:[{path:'a'},{path:'b'}]};
+let prompts=[],choices=[],applies=0,stored=[];
+const vscode={Uri:{file:x=>({fsPath:x})},window:{showOpenDialog:async()=>[{fsPath:selectedFile}],showWarningMessage:async(...args)=>{prompts.push({kind:'warning',args});return undefined},showInformationMessage:async(...args)=>{prompts.push({kind:'info',args});return choices.shift()}},workspace:{applyEdit:async()=>{applies++;return true}}};
+const runtime={module:{exports:{}},exports:{},vscode,path,projectEditorAssistanceText:async()=>({documents:[{actions:stored.includes('blocked')?[]:[cascade]}]}),eligible:()=>true,materialRootForResource:async()=>'/repo',relativeRepositoryPath:(root,p)=>p.startsWith(root+'/')?p.slice(root.length+1):(()=>{throw Error('outside')})(),resolveVersionBearingPermalinks:async()=>[],projectEditorAssistanceSelectedParent:async()=>({documents:[{actions:[parentAction]}]}),digest:()=> 'trusted'};
+vm.runInNewContext(js,runtime);const Harness=runtime.module.exports;
+(async()=>{
+ const d={fileName:focus,uri:{toString:()=>focus},getText:()=> 'original'};
+ const h=new Harness();h.runtime=async()=>({});h.workspaceEditForAction=async()=>({state:'ready',edit:{}});
+ h.actions=new Map();h.refresh=async()=>{h.actions.set(focus,[cascade]);};
+ h.workspaceEditForAction=async(_doc,action)=>{if(action.id==='refresh-descendant-integrity')stored.push('cascade');return {state:'ready',edit:{}}};
+ choices=['Not now'];assert.equal(await h.locateParent(d),'applied');assert.equal(applies,1);assert.deepEqual(stored,[]);
+ assert.equal(prompts.length,1);assert.match(prompts[0].args[0],/Core qualified 2 descendants/);assert.equal(prompts[0].kind,'info');
+ prompts=[];choices=['Repair descendants'];assert.equal(await h.locateParent(d),'applied');assert.equal(applies,3);assert.equal(stored.length,1);assert.equal(prompts.length,2);assert.match(prompts[1].args[0],/Refreshed 2/);
+ prompts=[];parentAction.descendantCount=0;assert.equal(await h.locateParent(d),'applied');assert.equal(prompts.length,0,'zero children never prompts');
+ prompts=[];parentAction.descendantCount=2;stored.push('blocked');
+ assert.equal(await h.locateParent(d),'applied');assert.equal(prompts.length,1);assert.match(prompts[0].args[0],/did not qualify a cascade/);assert.equal(stored.filter(x=>x==='cascade').length,1,'unqualified cascade must not be applied');
+ console.log('PASS no redundant Parent modal, optional post-apply cascade, decline, zero descendants and no unsafe fallback');
+})().catch(e=>{console.error(e);process.exitCode=1});

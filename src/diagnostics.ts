@@ -369,18 +369,50 @@ export class TiinexDiagnosticsController implements vscode.Disposable {
       await vscode.window.showWarningMessage('Artifact bytes changed after Parent qualification. Retry Locate Parent.');
       return 'blocked';
     }
-    const confirmation = await vscode.window.showWarningMessage(
-      `Use ${selectedParentPath} as this artifact's Parent? Only ${focusPath} will change. Descendants may retain stale checksums.`,
-      { modal: true }, 'Apply single-artifact repair'
-    );
-    if (confirmation !== 'Apply single-artifact repair') return 'cancelled';
     const prepared = await this.workspaceEditForAction(document, candidate);
     if (prepared.state !== 'ready' || !prepared.edit || candidate.sourceSha256 !== digest(document.getText())) {
       await vscode.window.showWarningMessage('Parent repair is stale or cannot be mapped safely. No bytes changed.');
       return 'blocked';
     }
     if (!await vscode.workspace.applyEdit(prepared.edit)) return 'blocked';
+    // The human already chose the exact Parent: never require another approval
+    // for the same one-artifact, Core-qualified edit. A cascade is a new and
+    // separate opt-in decision only AFTER the focused repair has succeeded.
     await this.refresh(document);
+    const descendantCount = Number(candidate.descendantCount || 0);
+    if (descendantCount > 0) {
+      // Descendant enumeration and qualification is intentionally an on-demand
+      // Core operation, never part of ordinary Quick Fix/diagnostic discovery.
+      const currentText = document.getText();
+      const qualified = await projectEditorAssistanceText(await this.runtime(), materialRoot, focusPath, currentText,
+        await resolveVersionBearingPermalinks(currentText, focusPath), undefined, true);
+      const cascade = qualified.documents?.[0]?.actions?.find((action) =>
+        action.id === 'refresh-descendant-integrity' && action.kind === 'replace-record-set' &&
+        action.qualification === 'deterministic-shared-core');
+      if (cascade?.replacements?.length) {
+        const count = cascade.replacements.length;
+        const choice = await vscode.window.showInformationMessage(
+          `Parent repaired in this artifact. Core qualified ${count} descendant${count === 1 ? '' : 's'} in this Workspace for integrity refresh. Repair them too?`,
+          'Repair descendants', 'Not now'
+        );
+        if (choice === 'Repair descendants') {
+          // Every target source hash is rechecked at the moment of apply. The
+          // selected Parent and unrelated files are not part of this changeset.
+          const preparedDescendants = cascade.sourceSha256 === digest(document.getText())
+            ? await this.workspaceEditForAction(document, cascade) : { state: 'stale' as const };
+          const appliedDescendants = preparedDescendants.state === 'ready' && preparedDescendants.edit
+            ? await vscode.workspace.applyEdit(preparedDescendants.edit) : false;
+          if (appliedDescendants) {
+            await this.refresh(document);
+            await vscode.window.showInformationMessage(`Refreshed ${count} descendant integrity document${count === 1 ? '' : 's'}.`);
+          } else await vscode.window.showWarningMessage('Descendant repair was not applied because its qualified source bytes changed or the edit could not be applied. The Parent repair remains intact.');
+        }
+      } else {
+        // No mass repair is guessed if any child lacks an exact qualified path
+        // or audit. The successful Parent edit must still be retained.
+        await vscode.window.showInformationMessage(`Parent repaired. ${descendantCount} descendant${descendantCount === 1 ? '' : 's'} exist in this Workspace, but Core did not qualify a cascade. They can be repaired individually.`);
+      }
+    }
     return 'applied';
   }
 
