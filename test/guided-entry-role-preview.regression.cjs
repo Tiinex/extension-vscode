@@ -1,0 +1,17 @@
+'use strict';
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const ts = require('typescript');
+const source = fs.readFileSync(path.join(__dirname, '../src/operatorTrees.ts'), 'utf8');
+const start = source.indexOf('  private async guidedEntryTransportText(');
+const end = source.indexOf('  private closeTransport(', start);
+assert(start !== -1 && end > start);
+const body = source.slice(start,end);
+assert.match(body, /authoringLabel: primary\.authoringLabel \|\| primary\.label/, 'Guided Entry must forward the short selected Role Label without replacing exact Role identity');
+assert.match(body, /primaryRole: qualifiedPrimaryInput/, 'Core receipt must use the same selected Role object');
+assert.match(body, /independentEntry: item\.routes\.length > 0/, 'Explicit Guided Entry remains independent of carried Handoff routes');
+assert.match(body, /const pinnedPrimary = primary \? \{ \.\.\.primaryInput!/, 'Pinned Role resolution must preserve display-label metadata');
+const result = ts.transpileModule(`class Host { ${body} }`, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }, reportDiagnostics: true });
+assert.deepEqual((result.diagnostics || []).filter(d=>d.category===ts.DiagnosticCategory.Error), [],'extracted actual host method must transpile');
+console.log('PASS Guided Entry preserves human Role Label and qualified identity through exact transport projection');

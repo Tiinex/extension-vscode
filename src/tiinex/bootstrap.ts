@@ -467,7 +467,7 @@ export async function projectTransportCompletion(
   packagePath: string,
   selection: {
     route?: string; entryId?: string; targetEntryId?: string; customInstruction?: string;
-    primaryRole?: unknown; participants?: unknown[];
+    primaryRole?: unknown; participants?: unknown[]; independentEntry?: boolean;
   } = {},
   runner: ProcessRunner = runProcess
 ): Promise<TransportCompletionReceipt> {
@@ -475,6 +475,7 @@ export async function projectTransportCompletion(
   try {
     const args = ['project-transport-completion', packagePath];
     if (selection.route) args.push('--route', selection.route);
+    if (selection.independentEntry) args.push('--independent-entry');
     if (selection.entryId) args.push('--entry', selection.entryId);
     if (selection.targetEntryId) args.push('--target-entry-id', selection.targetEntryId);
     if (selection.customInstruction) args.push('--custom-instruction', selection.customInstruction);
@@ -1115,7 +1116,8 @@ export async function projectWorkspaceCarrierEntry(
   participants: unknown[] = [],
   route = '',
   targetEntryId: string | ProcessRunner = '',
-  runner: ProcessRunner = runProcess
+  runner: ProcessRunner = runProcess,
+  independentEntry = false
 ): Promise<WorkspaceCarrierEntryProjectionResult> {
   const selectedTargetEntryId = typeof targetEntryId === 'function' ? '' : String(targetEntryId || '').trim();
   const selectedRunner = typeof targetEntryId === 'function' ? targetEntryId : runner;
@@ -1124,6 +1126,7 @@ export async function projectWorkspaceCarrierEntry(
     const args = ['project-workspace-carrier-entry', packagePath];
     if (mode) args.push('--mode', mode);
     if (route) args.push('--route', route);
+    if (independentEntry) args.push('--independent-entry');
     if (selectedTargetEntryId) args.push('--target-entry-id', selectedTargetEntryId);
     if (customInstruction) args.push('--custom-instruction', customInstruction);
     if (primaryRole) {

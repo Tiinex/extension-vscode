@@ -101,6 +101,22 @@ function escapeHtml(value: unknown): string {
     .replace(/'/g, '&#39;');
 }
 
+/** Optional human-only transformation for free Markdown body fields.
+ * Core receives exactly what the operator can review in the textarea. This
+ * never runs during form serialization and never touches structured fields. */
+export function formatFreeBodyLinesAsBullets(raw: string): { status: 'ready' | 'unchanged' | 'blocked'; text: string; reason: string } {
+  const source = String(raw ?? '');
+  const normalized = source.replace(/\r\n?/g, '\n');
+  const lines = normalized.split('\n').filter((line) => line.trim());
+  if (!lines.length) return { status: 'blocked', text: source, reason: 'Enter a line of text first.' };
+  // Existing Markdown structure is deliberate: never reinterpret it as prose.
+  if (lines.some((line) => /^\s/.test(line) || /^(?:[-+*]\s|\d+[.)]\s|#{1,6}\s|>\s?|`{3}|~{3}|\||<)/.test(line))) {
+    return { status: 'blocked', text: source, reason: 'This field already contains Markdown structure or indentation. Review it manually.' };
+  }
+  const formatted = lines.map((line) => `- ${line.trim()}`).join('\n');
+  return { status: formatted === normalized ? 'unchanged' : 'ready', text: formatted, reason: '' };
+}
+
 function fieldId(prefix: string, field: string): string {
   return `${prefix}-${field}`.replace(/[^a-zA-Z0-9_-]+/g, '-');
 }
@@ -152,7 +168,13 @@ function ordinarySection(section: ArtifactAuthoringSection): string {
 }
 
 function bodySection(section: ArtifactAuthoringSection): string {
-  return `<section class="card ordinary-section" data-section="${escapeHtml(section.key)}" data-kind="body"><h2>${escapeHtml(section.label)}</h2>${sectionFields(section, section.key)}</section>`;
+  // Free Markdown body fields alone get the explicit presentation helper.
+  // Declaration, ordinary scalar/group, and structured Source Context fields
+  // must not be silently rewritten by a host formatting heuristic.
+  const listActions = section.fields.filter((field) => field.multiline).map((field) =>
+    `<div class="body-list-action"><button type="button" class="secondary body-to-list" data-target-id="${escapeHtml(fieldId(section.key, field.key))}">Convert lines to bullets</button><span class="help">Optional for simple lines of text. Review the result before Preview or Create; existing Markdown is not changed.</span></div>`
+  ).join('');
+  return `<section class="card ordinary-section" data-section="${escapeHtml(section.key)}" data-kind="body"><h2>${escapeHtml(section.label)}</h2>${sectionFields(section, section.key)}${listActions}</section>`;
 }
 
 function groupSection(section: ArtifactAuthoringSection): string {
@@ -218,6 +240,7 @@ function html(input: ArtifactAuthoringPanelInput, nonce: string): string {
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
 <style nonce="${nonce}">
 :root{color-scheme:light dark}body{font-family:var(--vscode-font-family);color:var(--vscode-foreground);background:var(--vscode-editor-background);padding:18px 22px;max-width:980px;margin:0 auto}.top{background:var(--vscode-editor-background);padding:0 0 12px;border-bottom:1px solid var(--vscode-panel-border)}h1{font-size:20px;margin:0 0 4px}h2{font-size:14px;margin:0}.muted,.help,.context-row,.template-help{color:var(--vscode-descriptionForeground);font-size:12px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.card{border:1px solid var(--vscode-panel-border);border-radius:6px;padding:12px;margin:12px 0;background:var(--vscode-sideBar-background)}.field{display:flex;flex-direction:column;gap:5px;margin-top:10px}.field.compact{margin-top:0;flex:1}.field>span{font-weight:600}textarea,input,select{font:inherit;color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,transparent);padding:6px 8px;box-sizing:border-box;width:100%;border-radius:2px}textarea:focus,input:focus,select:focus{outline:1px solid var(--vscode-focusBorder)}.required,.optional{font-size:10px;font-weight:400;padding:1px 5px;border-radius:8px;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground)}.optional{opacity:.65}.section-head,.item-head,.actions,.context-row{display:flex;align-items:center;gap:10px}.section-head{justify-content:space-between}.item-head{align-items:end}.repeatable-item{border-left:3px solid var(--vscode-focusBorder);padding:8px 10px;margin-top:10px;background:var(--vscode-editor-background)}button{font:inherit;border:0;border-radius:2px;padding:7px 14px;cursor:pointer;background:var(--vscode-button-background);color:var(--vscode-button-foreground)}button:hover{background:var(--vscode-button-hoverBackground)}button.secondary{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground)}button.secondary:hover{background:var(--vscode-button-secondaryHoverBackground)}.actions{justify-content:flex-end;margin-top:14px}.attach{display:flex;align-items:center;gap:7px;font-weight:600}.attach input,.none-toggle input,.close-when-done input{width:auto}.close-when-done{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--vscode-descriptionForeground)}.disabled{opacity:.65}.capability-gap{border-color:var(--vscode-inputValidation-warningBorder,var(--vscode-panel-border))}.gap-row{display:flex;gap:10px;margin-top:7px;font-size:12px}.gap-row strong{min-width:150px}.transition-row{padding:9px 0;border-top:1px solid var(--vscode-panel-border)}.transition-row:first-of-type{margin-top:8px}.transition-id{margin-left:8px;color:var(--vscode-descriptionForeground);font-size:11px}.transition-source{opacity:.8;word-break:break-all}.optional-fields{margin-top:10px}.optional-fields>summary{cursor:pointer;color:var(--vscode-descriptionForeground);font-size:12px}.endpoint-raw-hidden{display:none!important}.error{display:none;margin-top:10px;padding:8px;border:1px solid var(--vscode-inputValidation-errorBorder);background:var(--vscode-inputValidation-errorBackground);color:var(--vscode-inputValidation-errorForeground)}.status{font-size:12px;margin-right:auto;color:var(--vscode-descriptionForeground)}@media(max-width:700px){.grid{grid-template-columns:1fr}}
+.body-list-action{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:8px}.body-list-action button{padding:5px 8px}
 .presentation-switch{display:flex;align-items:center;gap:6px;margin-top:10px}.presentation-switch [aria-pressed=true]{outline:1px solid var(--vscode-focusBorder)}.field-source-help{font-size:12px}.field-source-help summary{cursor:pointer;color:var(--vscode-textLink-foreground)}.field-source-help summary:focus-visible{outline:2px solid var(--vscode-focusBorder)}.inline-field-guide{font-size:12px;color:var(--vscode-descriptionForeground);margin-top:3px;line-height:1.4}.schema-provenance{border-top:1px solid var(--vscode-panel-border);padding-top:7px;margin-top:7px}.schema-provenance>summary{cursor:pointer}.schema-provenance pre{white-space:pre-wrap;word-break:break-word;max-height:220px;overflow:auto;font:inherit}
 </style></head><body>
 <div class="top"><h1>${escapeHtml(model.label)} authoring</h1><div class="muted">Schema and validation are projected by Tiinex Core. This form only presents that contract.</div>
@@ -260,6 +283,11 @@ renderEndpointControls();renderTransitionNeighborhood();applyHostState({attachAv
 
 function wireRepeatable(section){const items=q('.repeatable-items',section);const template=q('template.item-template',section);const none=q('[data-none]',section);let counter=0;function wireItem(item){q('.remove-item',item)?.addEventListener('click',()=>item.remove())}function add(entry){counter++;const html=template.innerHTML.replaceAll('9999',String(counter));items.insertAdjacentHTML('beforeend',html);const item=items.lastElementChild;wireItem(item);if(entry){q('[data-entry-name]',item).value=String(entry.name||'');for(const [field,value] of Object.entries(entry.fields||{})){const el=q('[data-field="'+CSS.escape(field)+'"]',item);if(el)el.value=String(value??'')}}return item}function update(){const disabled=!!none?.checked;items.style.display=disabled?'none':'';q('.add-item',section).style.display=disabled?'none':'';if(!disabled&&!q('.repeatable-item',items))add()}function setValue(value){if(value==='none'&&none){none.checked=true;items.innerHTML='';update();return}if(Array.isArray(value)){if(none)none.checked=false;items.innerHTML='';for(const entry of value)add(entry);update();return}}section.__tiinexSetTemplateValue=setValue;q('.add-item',section).addEventListener('click',()=>add());none?.addEventListener('change',update);qa('.repeatable-item',items).forEach(wireItem);update()}
 qa('.repeatable-section').forEach(wireRepeatable);
+// This optional button visibly edits only the chosen free Markdown textarea.
+// No transformation occurs on save/preview and schema-driven structured values
+// retain their exact input bytes.
+const formatFreeBodyLinesAsBullets=${formatFreeBodyLinesAsBullets.toString()};
+document.addEventListener('click',event=>{const button=event.target.closest?.('.body-to-list');if(!button)return;event.preventDefault();if(busy)return;const target=document.getElementById(String(button.dataset.targetId||''));if(!target||!target.matches('textarea'))return;const result=formatFreeBodyLinesAsBullets(target.value);if(result.status==='ready'){target.value=result.text;target.dispatchEvent(new Event('input',{bubbles:true}));q('#status').textContent='Converted to a Markdown list. Review it before Preview or Create.';}else q('#status').textContent=result.reason||'No changes needed.'});
 // Event delegation covers optional fields and dynamically added declaration rows.
 document.addEventListener('click',event=>{const button=event.target.closest?.('.reference-pick');if(!button)return;event.preventDefault();if(busy)return;vscode.postMessage({type:'pick-reference',field:button.dataset.referenceField,targetId:button.dataset.referenceTarget,append:button.dataset.referenceAppend==='true',workspaceId:q('#workspace').value})});
 function resetTemplateField(key){const repeatable=qa('.repeatable-section').find(section=>section.dataset.input===key);if(repeatable){repeatable.__tiinexSetTemplateValue?.(repeatable.dataset.allowNone==='true'?'none':[]);return}const group=qa('.group-section').find(section=>section.dataset.input===key);if(group){for(const el of qa('[data-field]',group))el.value='';return}exactSetField(key,'')}function applyTemplate(){const id=q('#template')?.value||'';const t=templates.find(x=>x.id===id);q('#templateHelp')&&(q('#templateHelp').textContent=t?.description||'');const owned=[...new Set(templates.flatMap(x=>Object.keys(x.defaults||{})))];for(const key of owned)resetTemplateField(key);if(!t?.defaults)return;for(const [key,value] of Object.entries(t.defaults)){const repeatable=qa('.repeatable-section').find(section=>section.dataset.input===key);if(repeatable){repeatable.__tiinexSetTemplateValue?.(value);continue}const group=qa('.group-section').find(section=>section.dataset.input===key);if(group&&value&&typeof value==='object'&&!Array.isArray(value)){for(const [field,fieldValue] of Object.entries(value)){const el=q('[data-field="'+CSS.escape(field)+'"]',group);if(el)el.value=String(fieldValue??'')}continue}exactSetField(key,value)}}

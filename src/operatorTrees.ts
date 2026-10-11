@@ -1495,31 +1495,14 @@ export class TiinexOperatorTrees implements vscode.Disposable {
   private async guidedEntryTransport(node?: TransportNode): Promise<void> {
     const item = this.transportItemForNode(node);
     if (!item) return;
-    // This explicitly requested alternative remains available on formal carriers.
-    // Unlike Guided Handoff, it opens the full What/Where/Who entry selector;
-    // it must never silently delegate to Guided Handoff.
-    let routeId = node?.data.kind === 'route' ? String(node.data.routeId || '') : '';
-    if (item.routes.length) {
-      const visible = this.visibleTransportRoutes(item);
-      let route = routeId ? visible.find((entry) => entry.routeId === routeId) : undefined;
-      if (!route && visible.length === 1) route = visible[0];
-      if (!route && visible.length > 1) {
-        const selected = await vscode.window.showQuickPick(visible.map((entry) => ({
-          label: entry.recipientLabel ? `To ${entry.recipientLabel}` : 'Qualified route',
-          description: entry.workspaceId,
-          detail: entry.handoffPath,
-          route: entry
-        })), { title: 'Guided Entry · Choose Handoff route', canPickMany: false, ignoreFocusOut: true });
-        route = selected?.route;
-      }
-      if (!route) return;
-      routeId = route.routeId;
-    }
-    const receipt = await this.guidedEntryTransportText(item, routeId);
+    // A package-level Guided Entry is independent of carried Handoff Pointers.
+    // Even a single qualified Pointer cannot silently become a session route.
+    const receipt = await this.guidedEntryTransportText(item);
     if (!receipt) return;
-    await vscode.env.clipboard.writeText(receipt.clipboardText!);
-    await this.markTransportPrepared(item, routeId, 'textPrepared');
-    await showTransportCompletionTab(receipt, { clipboard: 'copied', expectedCarrierFilename: item.filename });
+    if (receipt.status !== 'ready' || !receipt.clipboardText) throw new Error('tiinex.transport.independent-entry-qualification-mismatch');
+    await vscode.env.clipboard.writeText(receipt.clipboardText);
+    await this.markTransportPrepared(item, '', 'textPrepared');
+    await showTransportCompletionTab(receipt, { clipboard: 'copied', expectedCarrierFilename: item.filename, expectedClipboardText: receipt.clipboardText });
   }
 
   private async copyTransportText(node?: TransportNode): Promise<void> {
@@ -1547,7 +1530,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       ? await this.projectTransportReceipt(item.packagePath, {})
       : item.routes.length
         ? await this.guidedHandoffTransportText(item, routeId)
-        : await this.guidedEntryTransportText(item, routeId);
+        : await this.guidedEntryTransportText(item);
     if (!receipt) return;
     if (receipt.status !== 'ready' || !receipt.clipboardText) throw new Error('tiinex.transport.exact-clipboard-qualification-mismatch');
     await vscode.env.clipboard.writeText(receipt.clipboardText);
@@ -1604,11 +1587,11 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     } finally { await runtime.dispose(); }
   }
 
-  private async guidedEntryTransportText(item: TransportPackageState, routeId = ''): Promise<TransportCompletionReceipt | null> {
+  private async guidedEntryTransportText(item: TransportPackageState): Promise<TransportCompletionReceipt | null> {
     const roots = (vscode.workspace.workspaceFolders || []).map((folder: vscode.WorkspaceFolder) => folder.uri.fsPath);
     const runtime = await prepareHostCoreRuntime(this.extensionPath, roots, nodeExecutable());
     try {
-      const catalog = await projectWorkspaceCarrierEntry(runtime, item.packagePath, '', '', null, [], routeId);
+      const catalog = await projectWorkspaceCarrierEntry(runtime, item.packagePath, '', '', null, [], '', '', undefined, item.routes.length > 0);
       if (catalog.status !== 'ready' || !catalog.modes?.length) throw new Error(`tiinex.transport.guided-entry-catalog-${catalog.reasonCode || catalog.status || 'blocked'}`);
       const showBuiltInEntries = vscode.workspace.getConfiguration('tiinex').get<boolean>('guidedEntry.showBuiltInEntries', true);
       const visibleEntries = catalog.modes.filter((mode) => showBuiltInEntries || String(mode.sourceKind || '') !== 'native');
@@ -1643,7 +1626,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
         customInstruction = entered.trim();
       }
 
-      const targetProjection = await projectWorkspaceCarrierEntry(runtime, item.packagePath, modeSelection.mode, customInstruction, null, [], routeId);
+      const targetProjection = await projectWorkspaceCarrierEntry(runtime, item.packagePath, modeSelection.mode, customInstruction, null, [], '', '', undefined, item.routes.length > 0);
       if (targetProjection.status !== 'ready') throw new Error(`tiinex.transport.guided-entry-target-catalog-${targetProjection.reasonCode || targetProjection.status || 'blocked'}`);
       const targetOptions = targetProjection.targetOptions || [];
       const discoveredTargets = targetOptions.filter((target) => String(target.targetKind || '').toLocaleLowerCase() !== 'none' && String(target.id || '').toLocaleUpperCase() !== 'NONE');
@@ -1747,11 +1730,11 @@ export class TiinexOperatorTrees implements vscode.Disposable {
         excluded.add(roleCandidateKey(participantSelection.candidate));
       }
 
-      const primaryInput = primary ? { label: primary.label, reference: primary.reference, workspaceId: primary.workspaceId, path: primary.path } : null;
+      const primaryInput = primary ? { label: primary.label, authoringLabel: primary.authoringLabel || primary.label, reference: primary.reference, workspaceId: primary.workspaceId, path: primary.path } : null;
       const participantInputs = selectedParticipants.map((participant) => ({ label: participant.label, reference: participant.reference, workspaceId: participant.workspaceId, path: participant.path }));
       let qualifiedPrimaryInput = primaryInput;
       let qualifiedParticipantInputs = participantInputs;
-      let rendered = await projectWorkspaceCarrierEntry(runtime, item.packagePath, modeSelection.mode, customInstruction, primaryInput, participantInputs, routeId, targetEntryId);
+      let rendered = await projectWorkspaceCarrierEntry(runtime, item.packagePath, modeSelection.mode, customInstruction, primaryInput, participantInputs, '', targetEntryId, undefined, item.routes.length > 0);
       if (rendered.status !== 'ready' && ['session-role-material-unresolved', 'participant-role-material-unresolved'].includes(String(rendered.reasonCode || ''))) {
         const selected = [
           ...(primary ? [primary] : []),
@@ -1768,13 +1751,13 @@ export class TiinexOperatorTrees implements vscode.Disposable {
         }
         const pinnedPrimary = primary ? { ...primaryInput!, reference: pinnedByIdentity.get(roleCandidateKey(primary)) || primary.reference } : null;
         const pinnedParticipants = selectedParticipants.map((participant) => ({ ...participant, reference: pinnedByIdentity.get(roleCandidateKey(participant)) || participant.reference }));
-        rendered = await projectWorkspaceCarrierEntry(runtime, item.packagePath, modeSelection.mode, customInstruction, pinnedPrimary, pinnedParticipants, routeId, targetEntryId);
+        rendered = await projectWorkspaceCarrierEntry(runtime, item.packagePath, modeSelection.mode, customInstruction, pinnedPrimary, pinnedParticipants, '', targetEntryId, undefined, item.routes.length > 0);
         qualifiedPrimaryInput = pinnedPrimary;
         qualifiedParticipantInputs = pinnedParticipants;
       }
       if (rendered.status !== 'ready' || !rendered.transportText) throw new Error(`tiinex.transport.guided-entry-render-${rendered.reasonCode || rendered.status || 'blocked'}`);
       const receipt = await projectTransportCompletion(runtime, item.packagePath, {
-        route: routeId, entryId: modeSelection.mode, targetEntryId, customInstruction,
+        independentEntry: item.routes.length > 0, entryId: modeSelection.mode, targetEntryId, customInstruction,
         primaryRole: qualifiedPrimaryInput,
         participants: qualifiedParticipantInputs
       });

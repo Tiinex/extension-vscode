@@ -401,7 +401,7 @@
       {
         "command": "tiinex.transport.copyText",
         "title": "Guided Handoff",
-        "icon": "$(copy)"
+        "icon": "$(arrow-right)"
       },
       {
         "command": "tiinex.transport.guidedEntry",
@@ -807,11 +807,6 @@
           "command": "tiinex.transport.copyText",
           "when": "view == tiinex.transport && viewItem == tiinex.transportRoute",
           "group": "inline@2"
-        },
-        {
-          "command": "tiinex.transport.guidedEntry",
-          "when": "view == tiinex.transport && viewItem == tiinex.transportRoute",
-          "group": "inline@3"
         },
         {
           "command": "tiinex.outgoing.newHandoffFromArtifact",
