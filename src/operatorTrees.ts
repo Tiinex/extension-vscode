@@ -3826,6 +3826,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       workspaceIds,
       packageParentPath: this.outgoing.packageParentPath || '',
       packageMajorReason: this.outgoing.packageMajorReason || '',
+      carrierPrefix: this.outgoing.carrierPrefix || rootOutgoingPrefix(this.outgoing.name || ''),
       incomingWorkspaceSources,
       workspaceSourceOverrides,
       outputDirectory: previewDir
@@ -3848,7 +3849,6 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
           participantRoles: item.participantSelections,
           endpointRoles: item.endpointRoles
         })),
-        carrierPrefix: this.outgoing.carrierPrefix || rootOutgoingPrefix(this.outgoing.name || ''),
         packageParentRoutePointer: this.outgoing.packageParentRoutePointer || '',
         packageParentRouteId: this.outgoing.packageParentRouteId || '',
         packageConsolidation: this.outgoing.packageConsolidation === true,
@@ -4075,6 +4075,7 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
           packageParentRouteId: this.outgoing!.packageParentRouteId || '',
           packageConsolidation: this.outgoing!.packageConsolidation === true,
           packageMajorReason: this.outgoing!.packageMajorReason || '',
+          carrierPrefix: this.outgoing!.carrierPrefix || rootOutgoingPrefix(this.outgoing!.name || ''),
           incomingWorkspaceSources,
           workspaceSourceOverrides,
           discoveryWorkspaceSourceOverrides,
