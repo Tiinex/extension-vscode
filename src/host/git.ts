@@ -2,6 +2,7 @@ import path from 'node:path';
 import { access } from 'node:fs/promises';
 import { nodeProcessEnvironment, ProcessRunner, runChecked, runProcess } from './process';
 import { sameRepositoryRoot } from '../core/repositoryPath';
+import { DeletedReductionArtifact, historicalDeclaredV2, historicalParentPath } from '../core/reductionDeletionPrefill';
 
 export interface LocalRepositoryFact {
   id: string;
@@ -66,6 +67,30 @@ export async function listTrackedFiles(root: string, runner: ProcessRunner = run
 export async function listIgnoredFiles(root: string, runner: ProcessRunner = runProcess): Promise<string[]> {
   const result = await runChecked('git', ['ls-files', '--others', '-i', '--exclude-standard', '-z'], { cwd: root }, runner);
   return splitZero(result.stdout);
+}
+
+/** Read-only preview of existing staged OR unstaged trace deletions relative to HEAD.
+ * Renames are not treated as removals; this routine performs no Git mutations. */
+export async function listDeletedTiinexArtifacts(root: string, workspaceId: string, runner: ProcessRunner = runProcess): Promise<DeletedReductionArtifact[]> {
+  const resolvedRoot = path.resolve(root);
+  const top = await runChecked('git', ['rev-parse', '--show-toplevel'], { cwd: resolvedRoot }, runner);
+  if (!sameRepositoryRoot(top.stdout.trim(), resolvedRoot)) throw new Error('tiinex.reduction.git-root-mismatch');
+  const remote = await runner('git', ['config', '--get', 'remote.origin.url'], { cwd: resolvedRoot });
+  const github = remote.code === 0 ? parseGitHubRemote(remote.stdout) : null;
+  if (!github) throw new Error('tiinex.reduction.github-origin-unavailable');
+  const head = await runChecked('git', ['rev-parse', '--verify', 'HEAD^{commit}'], { cwd: resolvedRoot }, runner);
+  const commit = head.stdout.trim().toLowerCase();
+  if (!/^[a-f0-9]{40}$/.test(commit)) throw new Error('tiinex.reduction.head-unavailable');
+  // A single HEAD comparison covers both staged and unstaged deletions.
+  const diff = await runChecked('git', ['diff', 'HEAD', '--name-only', '--diff-filter=D', '-z', '--', '.topics'], { cwd: resolvedRoot }, runner);
+  const files = splitZero(diff.stdout).filter(file => file.startsWith('.topics/') && file.endsWith('.trace.md'));
+  const out: DeletedReductionArtifact[] = [];
+  for (const file of files) {
+    const previous = await runChecked('git', ['show', `${commit}:${file}`], { cwd: resolvedRoot }, runner);
+    const permalink = `https://github.com/${github.owner}/${github.repo}/blob/${commit}/${file.split('/').map(encodeURIComponent).join('/')}`;
+    out.push({ workspaceId, path: file, parentPath: historicalParentPath(previous.stdout, file), permalink, declaredV2: historicalDeclaredV2(previous.stdout) });
+  }
+  return out;
 }
 
 export async function listStagedPaths(root: string, runner: ProcessRunner = runProcess): Promise<string[]> {

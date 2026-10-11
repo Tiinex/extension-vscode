@@ -130,6 +130,12 @@ Outgoing is a carrier plan, not a shadow copy of your repositories.
 
 Transport does not rewrite or repack carriers. It prepares the already-qualified package and exact route text for the operator.
 
+### Manual target transport boundary
+
+Tiinex's Transport feature prepares an unchanged carrier and exact qualified route text. It does **not** programmatically upload/download files through a consumer chat website, scrape conversations, bypass provider limits, or operate the remote chat on the user's behalf. The operator completes transport using the chosen provider's normal interface. Target-specific terms, privacy guidance and instructions are owned by the qualified target/interop Workspace rather than copied into this generic VS Code host.
+
+Before sending company or confidential data, obtain organization approval for the chosen target and settings. Provider data-use terms and optional feedback controls can differ; review current terms and avoid optional feedback during sensitive work unless its implications are understood. An operator-only preview is separate from recipient grounding and must not silently append advice to Core's exact clipboard text.
+
 ## Git integration
 
 Tiinex includes explicit Git helpers for reviewed Tiinex changes. Automatic Commit + Push paths are fail-closed around branch/upstream and staged-state checks; unrelated commits are never silently pushed as part of a Tiinex operation.

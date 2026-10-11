@@ -1,0 +1,18 @@
+'use strict';
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+const vm=require('node:vm');
+const ts=require('typescript');
+const source=fs.readFileSync(path.join(__dirname,'../src/operatorTrees.ts'),'utf8');
+const start=source.indexOf('  private async copyTransportText(');
+const end=source.indexOf('  private async projectTransportReceipt(',start);
+assert(start>0&&end>start);
+const compiled=ts.transpileModule('class Harness { '+source.slice(start,end)+' } module.exports=Harness;',{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}});
+const copies=[], tabs=[], prepared=[];
+const runtime={module:{exports:{}},exports:{},path,vscode:{window:{showQuickPick:async()=>{throw Error('single route must skip route selection')}},env:{clipboard:{writeText:async x=>copies.push(x)}}},showTransportCompletionTab:async (...args)=>tabs.push(args)};
+vm.runInNewContext(compiled.outputText,runtime);
+(async()=>{const h=new runtime.module.exports();const item={filename:'tiinex-example.handoff-package.zip',packagePath:'/tmp/example.zip',routes:[{routeId:'exact-route',transportText:'base-route-text'}]};h.transportItemForNode=()=>item;h.visibleTransportRoutes=()=>item.routes;h.markTransportPrepared=async(...x)=>prepared.push(x);h.guidedEntryTransportText=async()=>{throw Error('formal handoff may not ask What')};h.guidedHandoffTransportText=async(_item,route)=>{assert.equal(route,'exact-route');return {status:'ready',clipboardText:'Core-qualified Where-only transport',carrier:{filename:item.filename}}};
+await h.copyTransportText();assert.deepEqual(copies,['Core-qualified Where-only transport']);assert.equal(tabs.length,1);assert.equal(tabs[0][1].expectedClipboardText,copies[0]);assert.equal(prepared.length,1);
+console.log('PASS formal route uses Where-only before clipboard and preview');
+})().catch(e=>{console.error(e);process.exitCode=1});

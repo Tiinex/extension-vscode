@@ -24,7 +24,8 @@ import { incomingSourceStatus, incomingSourceUnavailableMessage } from './core/i
 import { waitForStableFile } from './core/stableFile';
 import { artifactAuthoringCandidateCapability, partyReferenceAuthoringFillValue, partyReferenceCandidateSatisfiesAffordance } from './core/artifactAuthoringCandidateSource';
 import { dedupeTransitionPresetCandidates, projectTransitionAuthoringPresets, selectCompletedTransitionPresetCandidates } from './core/artifactAuthoringPresets';
-import { payloadCheckoutEligibility, qualifiedGitHubBlobReference } from './host/git';
+import { payloadCheckoutEligibility, qualifiedGitHubBlobReference, listDeletedTiinexArtifacts } from './host/git';
+import { renderDeletedReductionSourceContext } from './core/reductionDeletionPrefill';
 import { revealFileInNativeFolder } from './host/reveal';
 import { existingCarrierFilenames } from './host/carrierPublish';
 import { inspectDirtyWorkspaces, resetDirtyWorkspaces, stageAllWorkspaces } from './commit';
@@ -601,6 +602,12 @@ export class TiinexOperatorTrees implements vscode.Disposable {
 
   async start(): Promise<void> {
     await this.ensureTreePreferenceDefaults();
+    // Start the reusable Core-qualified Workspace projection before restoring
+    // stored carriers, which may perform slow independent Core orientation.
+    // This overlaps independent read-only work but does not skip qualification.
+    // Cache invalidation still follows .topics and Workspace change events.
+    void this.localWorkspaceChoices().catch(() => undefined);
+    void loadArtifactAuthoringModel(this.extensionPath, 'tiinex.handoff.v1', 'continue-from-record').catch(() => undefined);
     await this.restoreTransportQueue();
     // A stored Incoming path is not qualified package truth. Display a Loading
     // card immediately and restore via Core after the rest of the host starts.
@@ -608,11 +615,6 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     void this.restoreIncomingQueue().catch((error) => {
       console.error('Tiinex Incoming startup restore blocked:', shortMessage(error));
     });
-    // Start reusable Core authoring projections as early background work so the
-    // first explicit context-menu action does not pay avoidable cold-start cost.
-    // Qualification remains Core-owned; this is presentation-path prefetch only.
-    void this.localWorkspaceChoices().catch(() => undefined);
-    void loadArtifactAuthoringModel(this.extensionPath, 'tiinex.handoff.v1', 'continue-from-record').catch(() => undefined);
     this.discoveryCutoffMs = this.shouldAutoClearDiscovery() ? Date.now() : 0;
     await this.refreshDiscovery(false, false);
     this.discoveryStartupLatestIdentity = discoveryIdentity(this.discovered[0]);
@@ -819,12 +821,19 @@ export class TiinexOperatorTrees implements vscode.Disposable {
         if (preselectedSchemaId) await vscode.window.showWarningMessage(`Tiinex ${preselectedSchemaId} authoring is not currently qualified by Core for the selected context. No artifact was written.`);
         return;
       }
+      // This is an authoring convenience AFTER deletion, never a pre-delete eligibility gate.
+      // The three-way choice is displayed only for the qualified Reduction schema.
+      const reductionSeed = schema.schemaId === 'tiinex.reduction.v1'
+        ? await this.reductionSourceContextSeed(choice)
+        : {};
+      if (reductionSeed === null) return;
       if (parentArtifact === undefined) parentArtifact = await this.parentArtifactForResource(choice, catalog, resource);
       if (parentArtifact === undefined) return;
       await modelPrefetch;
       const targetDirectory = await targetDirectoryPromise;
       await this.showArtifactAuthoring(workspace, schema.schemaId, parentArtifact, {
         targetDirectory,
+        seedValues: reductionSeed,
         attachAvailable: schema.schemaId === 'tiinex.handoff.v1' && Boolean(this.localOutgoingWorkspaceForChoice(choice)),
         attachDefault: false
       });
@@ -1486,10 +1495,14 @@ export class TiinexOperatorTrees implements vscode.Disposable {
   private async guidedEntryTransport(node?: TransportNode): Promise<void> {
     const item = this.transportItemForNode(node);
     if (!item) return;
-    let routeId = '';
+    // This explicitly requested alternative remains available on formal carriers.
+    // Unlike Guided Handoff, it opens the full What/Where/Who entry selector;
+    // it must never silently delegate to Guided Handoff.
+    let routeId = node?.data.kind === 'route' ? String(node.data.routeId || '') : '';
     if (item.routes.length) {
       const visible = this.visibleTransportRoutes(item);
-      let route = visible.length === 1 ? visible[0] : undefined;
+      let route = routeId ? visible.find((entry) => entry.routeId === routeId) : undefined;
+      if (!route && visible.length === 1) route = visible[0];
       if (!route && visible.length > 1) {
         const selected = await vscode.window.showQuickPick(visible.map((entry) => ({
           label: entry.recipientLabel ? `To ${entry.recipientLabel}` : 'Qualified route',
@@ -1513,43 +1526,33 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     const item = this.transportItemForNode(node);
     if (!item) return;
     let routeId = node?.data.kind === 'route' ? String(node.data.routeId || '') : '';
-    let text = '';
-    let guidedReceipt: TransportCompletionReceipt | null = null;
-    if (!item.routes.length) {
-      const bootstrapReplacement = /^tiinex-bootstrap-replacement(?:-|\.|$)/i.test(item.filename);
-      if (bootstrapReplacement) text = item.genericTransportText;
-      else {
-        guidedReceipt = await this.guidedEntryTransportText(item);
-        if (!guidedReceipt) return;
-        text = guidedReceipt.clipboardText || '';
-      }
-      if (!text) return;
-    } else {
+    if (item.routes.length) {
       const visible = this.visibleTransportRoutes(item);
       let route = routeId ? visible.find((entry) => entry.routeId === routeId) : undefined;
       if (!route && visible.length === 1) route = visible[0];
       if (!route && visible.length > 1) {
         const selected = await vscode.window.showQuickPick(visible.map((entry) => ({
           label: entry.recipientLabel ? `To ${entry.recipientLabel}` : 'Qualified route',
-          description: entry.workspaceId,
-          detail: entry.handoffPath,
-          route: entry
-        })), { title: 'Copy exact Tiinex transport text', canPickMany: false, ignoreFocusOut: true });
+          description: entry.workspaceId, detail: entry.handoffPath, route: entry
+        })), { title: 'Guided Handoff · Choose Handoff route', canPickMany: false, ignoreFocusOut: true });
         route = selected?.route;
       }
       if (!route) return;
       routeId = route.routeId;
-      text = route.transportText;
     }
-    if (!text) {
-      await vscode.window.showInformationMessage('This Workspace carrier has no transport text available.');
-      return;
-    }
-    const receipt = guidedReceipt || await this.projectTransportReceipt(item.packagePath, { route: routeId });
-    if (receipt.status !== 'ready' || receipt.clipboardText !== text) throw new Error('tiinex.transport.exact-clipboard-qualification-mismatch');
+    // Formal Handoffs already qualify What and Who/With via their pointer.
+    // Only Where is selected here; no new purpose Entry or recipient authority.
+    const isBootstrapReplacement = !item.routes.length && /^tiinex-bootstrap-replacement(?:-|\.|$)/i.test(item.filename);
+    const receipt = isBootstrapReplacement
+      ? await this.projectTransportReceipt(item.packagePath, {})
+      : item.routes.length
+        ? await this.guidedHandoffTransportText(item, routeId)
+        : await this.guidedEntryTransportText(item, routeId);
+    if (!receipt) return;
+    if (receipt.status !== 'ready' || !receipt.clipboardText) throw new Error('tiinex.transport.exact-clipboard-qualification-mismatch');
     await vscode.env.clipboard.writeText(receipt.clipboardText);
     await this.markTransportPrepared(item, routeId, 'textPrepared');
-    await showTransportCompletionTab(receipt, { clipboard: 'copied', expectedCarrierFilename: item.filename, expectedClipboardText: text });
+    await showTransportCompletionTab(receipt, { clipboard: 'copied', expectedCarrierFilename: item.filename, expectedClipboardText: receipt.clipboardText });
   }
 
   private async projectTransportReceipt(
@@ -1562,17 +1565,43 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     finally { await runtime.dispose(); }
   }
 
-  private async showPreparedTransportTab(packagePath: string, clipboard: 'copied' | 'not-copied' | 'unknown' = 'unknown'): Promise<void> {
+  private async showPreparedTransportTab(packagePath: string, _clipboard: 'copied' | 'not-copied' | 'unknown' = 'unknown'): Promise<void> {
+    // Packaging is not an explicit transport action. Never surprise the user
+    // with a Preview/QuickPick when a long-running package build completes.
+    // Guided Handoff / Guided Entry remain the only ways to open transport Preview.
     if (extensionHostAcceptanceEnabled()) {
-      recordExtensionHostAcceptanceEvent('carrier-built-announcement', { outputPath:packagePath, label:'Transport receipt', note:'Previewed by Core' });
-      return;
+      recordExtensionHostAcceptanceEvent('carrier-built-announcement', { outputPath:packagePath, label:'Transport ready', note:'No automatic transport preview' });
     }
+  }
+
+  private async guidedHandoffTransportText(item: TransportPackageState, routeId: string): Promise<TransportCompletionReceipt | null> {
+    const roots = (vscode.workspace.workspaceFolders || []).map((folder: vscode.WorkspaceFolder) => folder.uri.fsPath);
+    const runtime = await prepareHostCoreRuntime(this.extensionPath, roots, nodeExecutable());
     try {
-      const receipt = await this.projectTransportReceipt(packagePath);
-      await showTransportCompletionTab(receipt, { clipboard, expectedCarrierFilename: path.basename(packagePath) });
-    } catch (error) {
-      await vscode.window.showWarningMessage(`Tiinex carrier built, but transport instructions could not be opened: ${shortMessage(error)}`);
-    }
+      const catalog = await projectWorkspaceCarrierEntry(runtime, item.packagePath, '', '', null, [], routeId);
+      if (catalog.status !== 'ready' || catalog.state !== 'catalog') throw new Error(`tiinex.transport.handoff-target-catalog-${catalog.reasonCode || catalog.status || 'blocked'}`);
+      const targets = catalog.targets || [];
+      // Keep the QuickPick selection structurally typed: otherwise TypeScript
+      // may resolve the multi-selection overload and infer `selected` as an array.
+      type HandoffTargetPick = vscode.QuickPickItem & { id: string; targetKind: string };
+      const choices: HandoffTargetPick[] = targets.map((target) => ({
+        label: String(target.label || target.canonicalTargetIdentifier || target.id || ''),
+        description: String(target.targetKind || '').toLowerCase() === 'none' ? 'No environment-specific Target' :
+          [String(target.provider || '').trim(), String(target.host || '').trim()].filter(Boolean).join(' · ') || String(target.sourceKind || ''),
+        detail: String(target.summary || ''),
+        id: String(target.id || ''), targetKind: String(target.targetKind || '')
+      }));
+      const selected = await vscode.window.showQuickPick<HandoffTargetPick>(choices, {
+        title: 'Guided Handoff · Where',
+        placeHolder: 'Choose the receiving environment; the Handoff Pointer already defines What and Who/With',
+        canPickMany: false, ignoreFocusOut: true
+      });
+      if (!selected) return null;
+      const targetEntryId = selected.targetKind.toLowerCase() === 'none' || selected.id.toUpperCase() === 'NONE' ? '' : selected.id;
+      const receipt = await projectTransportCompletion(runtime, item.packagePath, { route: routeId, targetEntryId });
+      if (receipt.status !== 'ready' || !receipt.clipboardText) throw new Error(`tiinex.transport.handoff-receipt-${receipt.reasonCode || receipt.status || 'blocked'}`);
+      return receipt;
+    } finally { await runtime.dispose(); }
   }
 
   private async guidedEntryTransportText(item: TransportPackageState, routeId = ''): Promise<TransportCompletionReceipt | null> {
@@ -4107,6 +4136,45 @@ Tiinex will open a dedicated temporary multi-root workspace in a new VS Code win
       choice
     })), { title: 'New Tiinex Artifact · Choose Workspace', canPickMany: false, ignoreFocusOut: true });
     return picked?.choice || null;
+  }
+
+  private async reductionSourceContextSeed(choice: PackageWorkspaceChoice): Promise<Record<string, string> | null> {
+    const scope = await vscode.window.showQuickPick([
+      { label: 'Deleted artifacts in this Workspace', scope: 'workspace' },
+      { label: 'Deleted artifacts across local Workspaces', scope: 'multi' },
+      { label: 'None — write Source Context manually', scope: 'none' }
+    ], { title: 'New Reduction · Include already-deleted artifacts?', canPickMany: false, ignoreFocusOut: true });
+    if (!scope) return null;
+    if (scope.scope === 'none') return {};
+    const sources = scope.scope === 'multi' ? await this.localWorkspaceChoices() : [choice];
+    const collected: Awaited<ReturnType<typeof listDeletedTiinexArtifacts>> = [];
+    const unresolved: string[] = [];
+    await vscode.window.withProgress(
+      { location: vscode.ProgressLocation.Notification, title: 'Tiinex · Reading deleted artifact references', cancellable: false },
+      async () => {
+        // Keep process concurrency bounded without requiring whole-Workspace qualification again.
+        for (let offset = 0; offset < sources.length; offset += 3) {
+          await Promise.all(sources.slice(offset, offset + 3).map(async (source) => {
+            try { collected.push(...await listDeletedTiinexArtifacts(source.root, source.workspaceId)); }
+            catch (error) { unresolved.push(`${source.workspaceId}: ${shortMessage(error)}`); }
+          }));
+        }
+      }
+    );
+    if (unresolved.length) {
+      const action = await vscode.window.showWarningMessage(
+        `Deleted artifact references are unavailable from ${unresolved.length} Workspace(s). GitHub-pinned source references need a local Git HEAD and GitHub origin; continue manually for unavailable sources.`,
+        'Continue manually', 'Cancel'
+      );
+      if (action !== 'Continue manually') return null;
+    }
+    const sourceContext = renderDeletedReductionSourceContext(collected);
+    if (!sourceContext) {
+      await vscode.window.showInformationMessage('No deleted Tiinex trace artifacts found in the selected Git status. Source Context remains editable.');
+      return {};
+    }
+    // Auto-suggestions are never deletion commands or proof that linked history is published.
+    return { 'Source Context': sourceContext };
   }
 
   private async pickArtifactSchema(catalog: ArtifactAuthoringCatalog, preselectedSchemaId = ''): Promise<{ schemaId: string; label: string } | null> {
