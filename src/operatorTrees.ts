@@ -2101,7 +2101,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
   }
 
   private async guardIncomingSource(state: IncomingState): Promise<boolean> {
-    const source = await incomingSourceStatus(state.index);
+    const source = await incomingSourceStatus(state.index, { verifyBytes: true });
     if (source === 'current') return true;
     // Keep the fail-closed source guard, but make sporadic refresh requests
     // diagnosable: an unchanged filename is not unchanged carrier bytes.

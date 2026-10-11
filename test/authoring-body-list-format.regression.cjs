@@ -21,7 +21,7 @@ for(const markdown of ['- Existing\n- List','## Heading\nbody','```json\n{"a":1}
  assert.equal(result.text,markdown,'never rewrite existing Markdown or nested material');
 }
 assert.equal(f('').status,'blocked');
-assert.match(panel,/section\.fields\.filter\(\(field\) => field\.multiline\)/);
+assert.match(panel,/section\.fields\.filter\(\(field\) => field\.multiline && !field\.autoBulletList\)/);
 assert.match(panel,/data-kind="body"/);
 assert.match(panel,/target\.value=result\.text/);
 assert.doesNotMatch(panel.slice(panel.indexOf('function ordinarySection('),panel.indexOf('function bodySection(')),/body-to-list/,'ordinary scalar fields have no list control');

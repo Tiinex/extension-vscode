@@ -23,6 +23,7 @@ export interface ArtifactAuthoringField {
     groupLine: number; fieldLine: number | null; contextScope: string; fieldRule?: string; excerpt: string;
   };
   multiline: boolean;
+  autoBulletList?: boolean;
   affordance?: ArtifactAuthoringAffordance;
 }
 
@@ -95,7 +96,11 @@ function fieldModel(name: string, required: boolean, constraint: ConstraintLike 
     allowedValues,
     allowedShapes,
     help,
-    multiline: !allowedValues.length && (kind === 'section-body' || kind === 'root-current-summary-body-title'),
+    // Summary is always a single-line envelope scalar and H1, never a Markdown body.
+    multiline: !allowedValues.length && kind === 'section-body',
+    // Only a machine-readable, exact list shape can authorize implicit bullets.
+    // Generic free Markdown, prose about lists, and field labels are not proof.
+    autoBulletList: kind === 'section-body' && allowedShapes.some((shape) => /^(?:hyphen bullet list|markdown bullet list|bullet list)$/i.test(shape)),
     affordance
   };
 }

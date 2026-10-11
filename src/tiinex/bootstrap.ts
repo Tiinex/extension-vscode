@@ -602,6 +602,7 @@ export interface EditorAssistanceResult {
   documents: Array<{
     path: string;
     schemaId: string;
+    parentRepairAvailability?: { state: string; reason: string; message: string; blockerCodes?: string[]; blockers?: Array<{ path: string; state: string }> };
     validator: { state: string; authorityState?: string; authorityBasis?: string; authorityFindings?: string[] };
     diagnostics: Array<{ severity: string; code: string; message: string; line: number | null; sourceRange?: { startLine: number; startColumn: number; endLine: number; endColumn: number } | null; locationState: string; locationBasis: string }>;
     actions: Array<{ id: string; title: string; kind: string; qualification: string; sourceSha256: string; replacementMarkdown: string; replacements?: Array<{ path: string; sourceSha256: string; replacementMarkdown: string }>; diagnosticCodes?: string[] }>;
@@ -988,6 +989,12 @@ export async function createArtifactDraft(
     // title/summary from their own creation bindings (for example Task Summary).
     const args = ['create-local-draft', isolatedMaterialRoot, '--schema', schemaId, '--transition', transition, '--path', childPath, '--values', valuesPath];
     if (schemaId === 'tiinex.handoff.v1' && String(title || '').trim()) args.push('--title', String(title).trim());
+    // Envelope Why is a Core-owned scalar CLI argument, not a schema-body
+    // creation binding. The ordinary renderer intentionally excludes undeclared
+    // input values from its execution snapshot. Forward it explicitly.
+    const envelopeWhy = values && typeof values === 'object' && !Array.isArray(values)
+      ? (values as Record<string, unknown>).Why : undefined;
+    if (envelopeWhy !== undefined && String(envelopeWhy).trim()) args.push('--why', String(envelopeWhy));
     if (String(authors || '').trim()) args.push('--authors', String(authors).trim());
     if (transition === 'continue-from-record') {
       if (!parentRecord) throw new Error('tiinex.authoring.parent-required');

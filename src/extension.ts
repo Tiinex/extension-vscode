@@ -101,12 +101,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
       if (repair.state === 'failed') throw new Error('tiinex.repair.workspace-edit-not-applied');
       const snapshot = repair.snapshot;
-      const choice = await vscode.window.showWarningMessage(
-        snapshot?.state === 'clean'
+      const blocked = snapshot?.parentRepairAvailability;
+      const blockers = blocked?.blockers ?? [];
+      const blockerCodes = blocked?.blockerCodes ?? [];
+      const detail = blocked?.state === 'blocked'
+        ? `${blocked.message} (Core reason: ${blocked.reason})${blockers.length ? ` Affected: ${blockers.map((item) => `${item.path}: ${item.state}`).join('; ')}` : ''}${blockerCodes.length ? ` Audit: ${blockerCodes.join(', ')}` : ''}`
+        : snapshot?.state === 'clean'
           ? 'Tiinex Core reports this artifact as clean; no repair is needed.'
-          : 'Tiinex Core has no deterministic repair for the current artifact bytes. Historical/reference debt is not rewritten by the VS Code host.',
-        'Show Problems'
-      );
+          : 'Tiinex Core has no deterministic repair for the current artifact bytes. Historical/reference debt is not rewritten by the VS Code host.';
+      const choice = await vscode.window.showWarningMessage(detail, 'Show Problems');
       if (choice === 'Show Problems') await vscode.commands.executeCommand('workbench.actions.view.problems');
     } catch (error) {
       await vscode.window.showErrorMessage(`Tiinex artifact repair blocked: ${message(error)}`);

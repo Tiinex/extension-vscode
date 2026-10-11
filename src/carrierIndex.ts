@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { makeIndexedArtifact, IndexedArtifact, normalizePath } from './core/artifactTree';
 import { comparePackageRecency } from './core/outgoingUx';
@@ -23,6 +24,8 @@ export interface IndexedCarrierPackage {
   filename: string;
   mtimeMs: number;
   bytes: number;
+  /** Exact bytes read and qualified when this carrier was indexed. */
+  sourceSha256: string;
   carrierFiles: IndexedWorkspaceFile[];
   carrierArtifacts: IndexedArtifact[];
   workspaces: IndexedCarrierWorkspace[];
@@ -85,7 +88,7 @@ export async function indexCarrierPackage(packagePath: string): Promise<IndexedC
   if (!after.isFile() || after.size !== info.size || after.mtimeMs !== info.mtimeMs || outer.length !== info.size) {
     throw new Error('tiinex.discovery.source-changed');
   }
-  return { packagePath: resolved, filename: path.basename(resolved), mtimeMs: after.mtimeMs, bytes: after.size, carrierFiles, carrierArtifacts, workspaces };
+  return { packagePath: resolved, filename: path.basename(resolved), mtimeMs: after.mtimeMs, bytes: after.size, sourceSha256: createHash('sha256').update(outer).digest('hex'), carrierFiles, carrierArtifacts, workspaces };
 }
 
 export async function readCarrierWorkspaceFile(packagePath: string, archivePath: string, filePath: string): Promise<Buffer> {

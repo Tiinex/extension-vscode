@@ -4,6 +4,7 @@ import { access, copyFile, lstat, mkdir, mkdtemp, readFile, readdir, readlink, r
 import * as vscode from 'vscode';
 import { preferredNodeExecutable } from './host/nodeExecutable';
 import { IndexedCarrierPackage, IndexedCarrierWorkspace } from './carrierIndex';
+import { incomingSourceStatus, incomingSourceUnavailableMessage } from './core/incomingSource';
 import { loadIncomingLocalWorkspaceChoices, PackageWorkspaceChoice } from './packageBuilder';
 import { compareIncomingWorkspaceToLocal, prepareBundledRuntime, prepareHostCoreRuntime, projectWorkspacePackageSources, SourceFrontierComparisonResult, WorkspacePackageSourcesResult } from './tiinex/bootstrap';
 import { extractZipBuffer, inspectZipBuffer, readExactZipEntryFromFile } from './host/zip';
@@ -697,6 +698,11 @@ export async function applyIncomingWorkspaces(extensionPath: string, index: Inde
           }
           progress.report({ message: 'Re-checking mutation preconditions...' });
           await assertMutationPreconditions(plans);
+          // A Review Plan can remain open while the Discovery file is copied,
+          // touched or replaced. Recheck its qualified SHA-256 immediately
+          // before any local workspace mutation, independent of mtime alone.
+          const carrierSource = await incomingSourceStatus(index, { verifyBytes: true });
+          if (carrierSource !== 'current') throw new Error(`tiinex.incoming-apply.source-${carrierSource}:${incomingSourceUnavailableMessage(carrierSource)}`);
           try {
             await vscode.commands.executeCommand('workbench.view.explorer');
             for (const plan of plans) await vscode.commands.executeCommand('revealInExplorer', vscode.Uri.file(plan.local.root));

@@ -1,0 +1,48 @@
+'use strict';
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const fsp = require('node:fs/promises');
+const os = require('node:os');
+const path = require('node:path');
+const crypto = require('node:crypto');
+const ts = require('typescript');
+const Module = require('node:module');
+const dir = path.join(__dirname, '../src/core');
+const source = fs.readFileSync(path.join(dir, 'incomingSource.ts'), 'utf8');
+const compiled = ts.transpileModule(source, {fileName:'incomingSource.ts',compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText;
+const virtual = new Module(path.join(dir, 'incomingSource.types-regression.cjs'), module);
+virtual.filename = path.join(dir, 'incomingSource.types-regression.cjs');virtual.paths = module.paths;
+virtual._compile(compiled, virtual.filename);
+const {incomingSourceStatus, incomingSourceUnavailableMessage} = virtual.exports;
+(async () => {
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(),'tiinex-incoming-sha-'));
+  const filename = path.join(root,'incoming.handoff-package.zip');
+  const original = Buffer.from('carrier-bytes-original');
+  const changed = Buffer.from('carrier-bytes-ORIGINAL');
+  assert.equal(original.length,changed.length);
+  try {
+    await fsp.writeFile(filename,original);
+    const info = await fsp.stat(filename);
+    const record = {packagePath:filename,bytes:info.size,mtimeMs:info.mtimeMs,sourceSha256:crypto.createHash('sha256').update(original).digest('hex')};
+    assert.equal(await incomingSourceStatus(record),'current');
+    assert.equal(await incomingSourceStatus(record,{verifyBytes:true}),'current');
+    await fsp.utimes(filename, new Date(info.mtimeMs - 9000), new Date(info.mtimeMs + 9000));
+    assert.notEqual((await fsp.stat(filename)).mtimeMs,info.mtimeMs);
+    assert.equal(await incomingSourceStatus(record),'current','timestamp drift with exact bytes must not force Refresh');
+    assert.equal(await incomingSourceStatus(record,{verifyBytes:true}),'current');
+    await fsp.writeFile(filename,changed);
+    assert.equal(await incomingSourceStatus(record,{verifyBytes:true}),'changed','same size but changed bytes must block Replace');
+    assert.equal(await incomingSourceStatus(record),'changed');
+    await fsp.writeFile(filename,original);
+    assert.equal(await incomingSourceStatus({...record,sourceSha256:''}),'changed','no trusted baseline hash must fail closed after metadata drift');
+    assert.equal(await incomingSourceStatus(record,{verifyBytes:true}),'current');
+    await fsp.unlink(filename);
+    assert.equal(await incomingSourceStatus(record),'missing');
+    assert.match(incomingSourceUnavailableMessage('changed'),/carrier bytes differ/);
+    const apply = fs.readFileSync(path.join(__dirname,'../src/incomingApply.ts'),'utf8');
+    assert.match(apply,/assertMutationPreconditions\(plans\);[\s\S]*?incomingSourceStatus\(index, \{ verifyBytes: true \}\)[\s\S]*?executePlan\(plan, scratch\)/,'Replace/Merge must SHA-verify the source after confirmation before any local source mutation');
+    const tree = fs.readFileSync(path.join(__dirname,'../src/operatorTrees.ts'),'utf8');
+    assert.match(tree,/private async guardIncomingSource[\s\S]*?incomingSourceStatus\(state\.index, \{ verifyBytes: true \}\)/);
+    console.log('PASS Incoming SHA exact bytes, timestamp-only drift, modified bytes, missing bytes, and pre-mutation check');
+  } finally { await fsp.rm(root,{recursive:true,force:true}); }
+})().catch(error=>{console.error(error);process.exitCode=1});

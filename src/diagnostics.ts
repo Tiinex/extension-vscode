@@ -17,6 +17,7 @@ export interface DiagnosticsSnapshot {
   warnings: number;
   actions: number;
   detail: string;
+  parentRepairAvailability?: { state: string; reason: string; message: string; blockerCodes?: string[]; blockers?: Array<{ path: string; state: string }> };
 }
 
 interface ValidationRequest {
@@ -260,7 +261,8 @@ export class TiinexDiagnosticsController implements vscode.Disposable {
         actions: (projected.actions || []).length,
         detail: diagnostics.length
           ? `${qualifier}: ${errors} error(s), ${warnings} warning(s); ${(projected.actions || []).length} deterministic Quick Fix(es). Validator: ${projected.validator.state}.`
-          : `${qualifier}: exact shared Tiinex validation is clean.`
+          : `${qualifier}: exact shared Tiinex validation is clean.`,
+        parentRepairAvailability: projected.parentRepairAvailability || undefined
       };
       this.snapshots.set(key, snapshot);
       this.emit(snapshot);
@@ -322,7 +324,7 @@ export class TiinexDiagnosticsController implements vscode.Disposable {
     const current = projected.filter((item) => item.sourceSha256 === currentDigest);
     if (!current.length) return { state: projected.length ? 'stale' : 'none', snapshot, actions: projected.map((item) => ({ id: String(item.id || ''), title: String(item.title || item.id || 'Repair') })) };
     let selected = actionId ? current.find((item) => String(item.id || '') === actionId) : null;
-    if (!selected && current.length === 1) selected = current[0];
+    if (!selected && current.length === 1 && current[0].kind === 'replace-document') selected = current[0];
     if (!selected) return { state: 'selection-required', snapshot, actions: current.map((item) => ({ id: String(item.id || ''), title: String(item.title || item.id || 'Repair') })) };
     const prepared = await this.workspaceEditForAction(document, selected);
     if (prepared.state === 'stale') return { state: 'stale', snapshot, actions: current.map((item) => ({ id: String(item.id || ''), title: String(item.title || item.id || 'Repair') })) };
@@ -338,12 +340,19 @@ export class TiinexDiagnosticsController implements vscode.Disposable {
     if (document.isClosed || !eligible(document)) return [];
     const key = document.uri.toString();
     let projectedActions = this.actions.get(key) || [];
-    if (!projectedActions.some((item) => (item.kind === 'replace-document' || item.kind === 'replace-record-set') && String(item.qualification || '').startsWith('deterministic-shared-core'))) {
+    // Parent repair eligibility depends on OTHER documents. Refresh even when
+    // this file is unchanged and unrelated permalink actions are cached.
+    // Otherwise a newly repaired/saved Parent leaves the lightbulb stale until
+    // the child itself is edited, while Repair Artifact takes a different path.
+    const parentMismatchInContext = context.diagnostics.some((diagnostic: vscode.Diagnostic) => diagnosticCode(diagnostic.code) === 'portable.lineage-integrity.parent-target-mismatch');
+    if (parentMismatchInContext || !projectedActions.some((item) => (item.kind === 'replace-document' || item.kind === 'replace-record-set') && String(item.qualification || '').startsWith('deterministic-shared-core'))) {
       await this.refresh(document);
       projectedActions = this.actions.get(key) || [];
     }
     const out: vscode.CodeAction[] = [];
-    for (const item of projectedActions.filter((entry) => (entry.kind === 'replace-document' || entry.kind === 'replace-record-set') && String(entry.qualification || '').startsWith('deterministic-shared-core'))) {
+    // A lightbulb always edits this one artifact. Core-qualified multi-file
+    // changesets belong exclusively to the explicit Repair Artifact workflow.
+    for (const item of projectedActions.filter((entry) => entry.kind === 'replace-document' && String(entry.qualification || '').startsWith('deterministic-shared-core'))) {
       const diagnosticCodes = new Set((item.diagnosticCodes || []).map((value: unknown) => String(value)));
       const matchingDiagnostics = context.diagnostics.filter((diagnostic: vscode.Diagnostic) => !diagnosticCodes.size || diagnosticCodes.has(diagnosticCode(diagnostic.code)));
       if (diagnosticCodes.size && !matchingDiagnostics.length) continue;
@@ -362,6 +371,15 @@ export class TiinexDiagnosticsController implements vscode.Disposable {
         action.isPreferred = true;
       }
       out.push(action);
+    }
+    // A blocked repair is not a Fix. Still make the reason available at the
+    // exact diagnostic through the same command as the manual fallback.
+    const blocked = this.snapshots.get(key)?.parentRepairAvailability;
+    if (parentMismatchInContext && blocked?.state === 'blocked' && !out.some((item) => item.edit && !item.disabled)) {
+      const explanation = new vscode.CodeAction('Tiinex: Explain why Parent repair is blocked', vscode.CodeActionKind.QuickFix);
+      explanation.diagnostics = context.diagnostics.filter((item: vscode.Diagnostic) => diagnosticCode(item.code) === 'portable.lineage-integrity.parent-target-mismatch');
+      explanation.command = { title: 'Explain Parent repair', command: 'tiinex.artifact.repair', arguments: [document.uri] };
+      out.push(explanation);
     }
     return out;
   }
