@@ -3,7 +3,7 @@
 - Envelope Schema: [tiinex.root.v1](https://github.com/Tiinex/docs/blob/302506f90537dc23d6f88ad0bd0bb9c97c6cf9f6/.topics/.schemas/tiinex.root.v1.schema.md)
 - Current
   - Current Schema: [tiinex.entry.target.v1](https://github.com/Tiinex/docs/blob/2262a1c4b35e887d116d0d01a864074a9f1641c2/.topics/.schemas/entry/target/tiinex.entry.target.v1.schema.md)
-  - Created At: 2026-10-09 11:27:29
+  - Created At: 2026-10-12 01:29:25
   - Authors: Anchor
   - Why: Keep host-specific agent/transport semantics out of portable Native/Core and preserve exact What/Where authority.
   - Summary: Target Entry for VS Code and user-hosted Copilot transport, operator permissions, grounding and session boundary.
@@ -61,9 +61,9 @@
 ## Target Material
 
 - copilot-panel-delegation
-  - Reference: [VS Code Target Entry Copilot Panel Actions And Transport Instruction Tab](../../../work/native-agent-surface/001-2-vs-code-target-entry-copilot-panel-actions-and-transport-instruc.trace.md)
+  - Reference: [Historical VS Code Target Entry Copilot Panel Actions And Transport Instruction Tab](https://github.com/Tiinex/vscode/blob/cb151f77205d2a7c85de460fbb012790c7df22c6/.topics/work/native-agent-surface/001-2-vs-code-target-entry-copilot-panel-actions-and-transport-instruc.trace.md)
   - Purpose: Qualify VS Code's operator-panel access levels None, Pack and Transport, and Inspect/Unpack/Pack/Transport; these do not gate normal authoring, grounding or the Core CLI
-  - Qualification Notes: Read the exact owning Task and current implementation before treating any capability as available; no Target reference activates Process or grants permission
+  - Qualification Notes: Recover the historical owning Task for provenance; qualify the current implementation separately before treating any capability as available; no Target reference activates Process or grants permission
 
 ## Target Compatibility
 
@@ -87,4 +87,4 @@
 
 - [sha256-base64url-c14n-v2](https://github.com/Tiinex/docs/blob/3988951208eb9a8926e84ab42625d4b42fa00c2d/.topics/.validators/sha256-base64url-c14n-v2.validator.md)
   - Towards: self
-  - Value: dNijeeMt4k2JEkGSJYqBbKOHFtQgRNcRfD3cZ0ZY4UM
+  - Value: PXk2zG54Qugy7XjOLGDT7W-dRY7ksUxjaUAXlyHY7wo

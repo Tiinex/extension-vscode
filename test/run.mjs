@@ -577,7 +577,7 @@ await test('Role and Identity picker presentation groups by the same qualified W
     { workspaceId: 'docs', title: 'Tiinex Docs' }
   ];
   const candidates = [
-    { label: 'Anchor Role — Canonical Holder Cutover Continuation', authoringLabel: 'Anchor', kind: 'role', workspaceId: 'business', path: '.topics/roles/anchor.trace.md' },
+    { label: 'Anchor Role', authoringLabel: 'Anchor', kind: 'role', workspaceId: 'business', path: '.topics/roles/anchor.trace.md' },
     { label: 'Tiinex — Organization', authoringLabel: 'Tiinex', kind: 'party', schemaId: 'tiinex.party.organization.v1', workspaceId: 'business', path: '.topics/001-tiinex.trace.md' },
     { label: 'Writer Role — Current', authoringLabel: 'Writer', kind: 'role', workspaceId: 'docs', path: '.topics/roles/writer.trace.md' }
   ];
@@ -738,10 +738,10 @@ await test('Handoff authoring endpoint choices preserve exact Core target Refere
 
 await test('Handoff endpoint authoring serializes qualified dropdown identity as exact schema-required Markdown Link', async () => {
   assert.equal(exactHandoffEndpointMarkdownLink({
-    label: 'Glimmer Role — Canonical Holder Cutover Continuation',
+    label: 'Glimmer Role',
     authoringLabel: 'Glimmer',
-    reference: 'business::.topics/roles/001-5-1-glimmer-canonical-holder-cutover-role.trace.md'
-  }), '[Glimmer](business::.topics/roles/001-5-1-glimmer-canonical-holder-cutover-role.trace.md)');
+    reference: 'business::.topics/roles/001-5-glimmer-role.trace.md'
+  }), '[Glimmer](business::.topics/roles/001-5-glimmer-role.trace.md)');
   assert.throws(() => exactHandoffEndpointMarkdownLink({ label: 'bad]label', reference: 'business::.topics/roles/x.trace.md' }), /endpoint-link-label-invalid/);
   assert.throws(() => exactHandoffEndpointMarkdownLink({ label: 'Glimmer', reference: 'business::.topics/roles/bad path.trace.md' }), /endpoint-link-target-invalid/);
 });
@@ -754,17 +754,17 @@ await test('Handoff endpoint dropdown writes References into the exact Core-proj
     'Interpretation Limits': { 'Does Not Mean': 'No broader authority.', 'Must Not Be Used To Claim': 'No acceptance implied.' }
   };
   applyExactHandoffEndpointSelection(values, 'From', {
-    label: 'Glimmer Role — Canonical Holder Cutover Continuation', value: 'Glimmer', kind: 'role',
-    reference: 'business::.topics/roles/001-5-1-glimmer-canonical-holder-cutover-role.trace.md'
+    label: 'Glimmer Role', value: 'Glimmer', kind: 'role',
+    reference: 'business::.topics/roles/001-5-glimmer-role.trace.md'
   });
   applyExactHandoffEndpointSelection(values, 'Return To', {
-    label: 'Anchor Role — Canonical Holder Cutover Continuation', value: 'Anchor', kind: 'role',
-    reference: 'business::.topics/roles/001-1-1-1-1-1-anchor-canonical-holder-cutover-role.trace.md'
+    label: 'Anchor Role', value: 'Anchor', kind: 'role',
+    reference: 'business::.topics/roles/001-1-anchor-role.trace.md'
   });
-  assert.equal(values['From Reference'], '[Glimmer](business::.topics/roles/001-5-1-glimmer-canonical-holder-cutover-role.trace.md)');
+  assert.equal(values['From Reference'], '[Glimmer](business::.topics/roles/001-5-glimmer-role.trace.md)');
   assert.equal(values.From, 'Glimmer');
   assert.equal(values['Completion Expectation']['Return To'], 'Anchor');
-  assert.equal(values['Completion Expectation']['Return To Reference'], '[Anchor](business::.topics/roles/001-1-1-1-1-1-anchor-canonical-holder-cutover-role.trace.md)');
+  assert.equal(values['Completion Expectation']['Return To Reference'], '[Anchor](business::.topics/roles/001-1-anchor-role.trace.md)');
   assert.equal(Object.prototype.hasOwnProperty.call(values, 'Return To Reference'), false);
 });
 
