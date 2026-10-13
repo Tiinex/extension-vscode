@@ -617,16 +617,18 @@ export interface HandoffLeavesResult {
   pointerless: { selectionLabel: string; packageRole: string; manufactureState: string; blockerCode: string; consequence: string };
 }
 
-export async function projectEditorAssistance(runtime: PackageRuntime, materialRoot: string, focusPath: string, referenceResolutionsOrRunner: any[] | ProcessRunner = [], runner: ProcessRunner = runProcess): Promise<EditorAssistanceResult> {
+export async function projectEditorAssistance(runtime: PackageRuntime, materialRoot: string, focusPath: string, referenceResolutionsOrRunner: any[] | ProcessRunner = [], runner: ProcessRunner = runProcess, parentRepositoryReads: any[] = []): Promise<EditorAssistanceResult> {
   if (!materialRoot || !focusPath) throw new Error('tiinex.editor-assistance.material-root-or-focus-missing');
   const referenceResolutions = typeof referenceResolutionsOrRunner === 'function' ? [] : referenceResolutionsOrRunner;
   const effectiveRunner = typeof referenceResolutionsOrRunner === 'function' ? referenceResolutionsOrRunner : runner;
-  if (!referenceResolutions.length) return runTiinexJson<EditorAssistanceResult>(runtime, ['project-editor-assistance', materialRoot, '--focus', focusPath, '--compact'], effectiveRunner);
+  if (!referenceResolutions.length && !parentRepositoryReads.length) return runTiinexJson<EditorAssistanceResult>(runtime, ['project-editor-assistance', materialRoot, '--focus', focusPath, '--compact'], effectiveRunner);
   const scratch = await mkdtemp(path.join(os.tmpdir(), 'tiinex-vscode-editor-'));
   const resolutions = path.join(scratch, 'reference-resolutions.json');
   try {
     await writeFile(resolutions, JSON.stringify(referenceResolutions), 'utf8');
-    return await runTiinexJson<EditorAssistanceResult>(runtime, ['project-editor-assistance', materialRoot, '--focus', focusPath, '--reference-resolutions', resolutions, '--compact'], effectiveRunner);
+    const args=['project-editor-assistance', materialRoot, '--focus', focusPath, '--reference-resolutions', resolutions];
+    if(parentRepositoryReads.length){const source=path.join(scratch,'parent-repository-reads.json');await writeFile(source,JSON.stringify(parentRepositoryReads),'utf8');args.push('--parent-repository-reads',source);}
+    return await runTiinexJson<EditorAssistanceResult>(runtime, [...args,'--compact'], effectiveRunner);
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
@@ -637,7 +639,7 @@ export async function projectEditorAssistance(runtime: PackageRuntime, materialR
 export async function projectEditorAssistanceSelectedParent(
   runtime: PackageRuntime, materialRoot: string, focusPath: string,
   currentMarkdown: string, selectedParentPath: string,
-  referenceResolutions: any[] = [], runner: ProcessRunner = runProcess
+  referenceResolutions: any[] = [], runner: ProcessRunner = runProcess, parentRepositoryReads: any[] = [], selectedParentUrl = ''
 ): Promise<EditorAssistanceResult> {
   const scratch = await mkdtemp(path.join(os.tmpdir(), 'tiinex-vscode-selected-parent-'));
   try {
@@ -645,15 +647,15 @@ export async function projectEditorAssistanceSelectedParent(
     const resolutionPath = path.join(scratch, 'resolutions.json');
     await writeFile(overlayPath, currentMarkdown, 'utf8');
     await writeFile(resolutionPath, JSON.stringify(referenceResolutions), 'utf8');
-    return await runTiinexJson<EditorAssistanceResult>(runtime, [
-      'project-editor-assistance', materialRoot, '--focus', focusPath,
-      '--overlay', overlayPath, '--selected-parent', selectedParentPath,
-      '--reference-resolutions', resolutionPath, '--compact'
-    ], runner);
+    const args=['project-editor-assistance',materialRoot,'--focus',focusPath,'--overlay',overlayPath,'--reference-resolutions',resolutionPath];
+    if(selectedParentPath)args.push('--selected-parent',selectedParentPath);
+    if(selectedParentUrl)args.push('--selected-parent-url',selectedParentUrl);
+    if(parentRepositoryReads.length){const source=path.join(scratch,'parent-repository-reads.json');await writeFile(source,JSON.stringify(parentRepositoryReads),'utf8');args.push('--parent-repository-reads',source);}
+    return await runTiinexJson<EditorAssistanceResult>(runtime,[...args,'--compact'],runner);
   } finally { await rm(scratch, { recursive: true, force: true }); }
 }
 
-export async function projectEditorAssistanceText(runtime: PackageRuntime, materialRoot: string, focusPath: string, markdown: string, referenceResolutionsOrRunner: any[] | ProcessRunner = [], runner: ProcessRunner = runProcess, includeDescendantRepair = false): Promise<EditorAssistanceResult> {
+export async function projectEditorAssistanceText(runtime: PackageRuntime, materialRoot: string, focusPath: string, markdown: string, referenceResolutionsOrRunner: any[] | ProcessRunner = [], runner: ProcessRunner = runProcess, includeDescendantRepair = false, parentRepositoryReads: any[] = []): Promise<EditorAssistanceResult> {
   const referenceResolutions = typeof referenceResolutionsOrRunner === 'function' ? [] : referenceResolutionsOrRunner;
   const effectiveRunner = typeof referenceResolutionsOrRunner === 'function' ? referenceResolutionsOrRunner : runner;
   const scratch = await mkdtemp(path.join(os.tmpdir(), 'tiinex-vscode-editor-'));
@@ -667,6 +669,7 @@ export async function projectEditorAssistanceText(runtime: PackageRuntime, mater
       args.push('--reference-resolutions', resolutions);
     }
     if (includeDescendantRepair) args.push('--include-descendant-repair');
+    if(parentRepositoryReads.length){const source=path.join(scratch,'parent-repository-reads.json');await writeFile(source,JSON.stringify(parentRepositoryReads),'utf8');args.push('--parent-repository-reads',source);}
     args.push('--compact');
     return await runTiinexJson<EditorAssistanceResult>(runtime, args, effectiveRunner);
   } finally {

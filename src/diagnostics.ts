@@ -7,6 +7,7 @@ import { relativeRepositoryPath } from './core/repositoryPath';
 import { repositoryRootForResource } from './vscode/gitApi';
 import { LatestWinsKeyedQueue } from './core/latestWinsQueue';
 import { resolveVersionBearingPermalinks } from './permalinkResolution';
+import { pinnedParentTraceUrl, readPinnedGitHubParent, publishedParentFromLocalChoice } from './parentPublication';
 import { hasTiinexEnvelopeFirstLine } from './core/tiinexMarkdown';
 
 export interface DiagnosticsSnapshot {
@@ -221,9 +222,12 @@ export class TiinexDiagnosticsController implements vscode.Disposable {
       const live = this.liveDocument(request);
       const markdownForResolution = content === null ? String(live?.getText() || '') : content;
       const referenceResolutions = await resolveVersionBearingPermalinks(markdownForResolution, focusPath);
+      const pinned = pinnedParentTraceUrl(markdownForResolution);
+      const read = pinned ? await readPinnedGitHubParent(pinned) : null;
+      const parentRepositoryReads=read?[read]:[];
       const result = content === null
-        ? await projectEditorAssistance(runtime, materialRoot, focusPath, referenceResolutions)
-        : await projectEditorAssistanceText(runtime, materialRoot, focusPath, content, referenceResolutions);
+        ? await projectEditorAssistance(runtime, materialRoot, focusPath, referenceResolutions, undefined, parentRepositoryReads)
+        : await projectEditorAssistanceText(runtime, materialRoot, focusPath, content, referenceResolutions, undefined, false, parentRepositoryReads);
       const document = this.liveDocument(request);
       if (!document) return this.snapshots.get(key) || null;
       const projected = result.documents?.[0];
@@ -242,7 +246,13 @@ export class TiinexDiagnosticsController implements vscode.Disposable {
           : item.locationState === 'deterministic-anchor' && Number.isInteger(item.line) && Number(item.line) > 0
             ? ` [anchored by shared validator: ${item.locationBasis}; exact source line unavailable]`
             : ' [location unresolved by shared validator]';
-        const diagnostic = new vscode.Diagnostic(range, `${item.message}${suffix}`, item.severity === 'error' ? vscode.DiagnosticSeverity.Error : vscode.DiagnosticSeverity.Warning);
+        // Network/private repository failure is an unavailable proof boundary,
+        // not evidence that an otherwise commit-pinned Parent declaration is wrong.
+        const remoteUnavailable = Boolean(pinned && !read && item.code === 'portable.lineage-integrity.parent-unresolved');
+        const explanatory = remoteUnavailable
+          ? 'Published Parent is not verified in this session (offline, private or unavailable). Its URL has not been disproved. Retry with repository access or use Tiinex: Locate Parent to choose an exact artifact.'
+          : item.message;
+        const diagnostic = new vscode.Diagnostic(range, `${explanatory}${suffix}`, item.severity === 'error' ? vscode.DiagnosticSeverity.Error : vscode.DiagnosticSeverity.Warning);
         diagnostic.code = item.code;
         diagnostic.source = `Tiinex/${projected.validator.state}`;
         return diagnostic;
@@ -350,16 +360,28 @@ export class TiinexDiagnosticsController implements vscode.Disposable {
     });
     if (!picked?.length) return 'cancelled';
     const choicePath = picked[0].fsPath;
-    let selectedParentPath: string;
+    let selectedParentPath = '';
+    let selectedParentUrl = '';
+    let parentRepositoryReads: any[] = [];
     try { selectedParentPath = relativeRepositoryPath(materialRoot, choicePath); }
-    catch { await vscode.window.showWarningMessage('Parent must be an artifact in the same qualified local Workspace. No bytes changed.'); return 'blocked'; }
-    if (!selectedParentPath.startsWith('.topics/') || !selectedParentPath.endsWith('.trace.md') || selectedParentPath === focusPath) {
-      await vscode.window.showWarningMessage('Choose a different .topics Tiinex .trace.md artifact in the same Workspace. No bytes changed.');
+    catch {
+      try {
+        const parentRoot=await repositoryRootForResource(choicePath);
+        if(path.resolve(parentRoot)===path.resolve(materialRoot))throw new Error('tiinex.cross-parent.same-repository-unresolved');
+        const verified=await publishedParentFromLocalChoice(parentRoot,choicePath);
+        selectedParentUrl=verified.target;parentRepositoryReads=[verified];
+      }catch(error){
+        await vscode.window.showWarningMessage(`Cross-Workspace Parent blocked: ${message(error)}. Requires a Git repository, committed exact Parent bytes and a reachable published commit permalink. No bytes changed.`);
+        return 'blocked';
+      }
+    }
+    if (selectedParentPath && (!selectedParentPath.startsWith('.topics/') || !selectedParentPath.endsWith('.trace.md') || selectedParentPath === focusPath)) {
+      await vscode.window.showWarningMessage('Choose a different .topics Tiinex .trace.md Parent. No bytes changed.');
       return 'blocked';
     }
     const exactSource = document.getText();
     const referenceResolutions = await resolveVersionBearingPermalinks(exactSource, focusPath);
-    const result = await projectEditorAssistanceSelectedParent(await this.runtime(), materialRoot, focusPath, exactSource, selectedParentPath, referenceResolutions);
+    const result = await projectEditorAssistanceSelectedParent(await this.runtime(), materialRoot, focusPath, exactSource, selectedParentPath, referenceResolutions, undefined, parentRepositoryReads, selectedParentUrl);
     const candidate = result.documents?.[0]?.actions?.find((a) => a.id === 'relocate-selected-parent-and-self-seal' && a.kind === 'replace-document' && a.qualification === 'deterministic-shared-core');
     if (!candidate) {
       await vscode.window.showWarningMessage('Core did not qualify this selected Parent: check its self integrity, declared Parent Schema, source availability and the current artifact. No bytes changed.');
