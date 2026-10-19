@@ -4022,6 +4022,19 @@ await test('Guided Entry UI presents Core WHAT before Core WHERE without OpenAI 
   assert.doesNotMatch(guided, /ChatGPT Web|OpenAI/);
 });
 
+await test('Guided Entry asks for explicit operator participation and preserves it through both Core projections', async () => {
+  const fs = await import('node:fs/promises');
+  const root = path.resolve(HERE, '..');
+  const tree = await fs.readFile(path.join(root, 'src', 'operatorTrees.ts'), 'utf8');
+  const guided = tree.slice(tree.indexOf('private async guidedEntryTransportText'), tree.indexOf('private closeTransport', tree.indexOf('private async guidedEntryTransportText')));
+  assert.match(guided, /Guided Entry · Chat operator participation/);
+  assert.match(guided, /None — context only/);
+  assert.match(guided, /operatorParticipant: Boolean\(operatorParticipantKey/);
+  assert.match(guided, /const pinnedParticipants = participantInputs\.map/);
+  assert.match(guided, /participants: qualifiedParticipantInputs/);
+  assert.doesNotMatch(guided, /selectedParticipants\.length === 1.*operatorParticipant/);
+});
+
 await test('Guided Entry Role discovery reuses Core current-role authoring references and shared Workspace grouping', async () => {
   const fs = await import('node:fs/promises');
   const root = path.resolve(HERE, '..');

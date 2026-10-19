@@ -1730,8 +1730,27 @@ export class TiinexOperatorTrees implements vscode.Disposable {
         excluded.add(roleCandidateKey(participantSelection.candidate));
       }
 
+      // A participant selection by itself is grounding-only. Explicitly ask
+      // whether the operator personally exercises one selected Role; never
+      // infer that from the number of participants or the VS Code account.
+      let operatorParticipantKey = '';
+      if (selectedParticipants.length) {
+        const operatorChoices: Array<vscode.QuickPickItem & { roleKey: string }> = [
+          { label: 'None — context only', description: 'Do not assign a participant Role to the chat operator', roleKey: '' },
+          ...selectedParticipants.map((participant) => ({ label: participant.label, description: 'I personally participate as this Role in the receiving chat', roleKey: roleCandidateKey(participant) }))
+        ];
+        const operatorChoice = await vscode.window.showQuickPick(operatorChoices, {
+          title: 'Guided Entry · Chat operator participation',
+          placeHolder: 'Optional explicit participant Role for the receiving chat operator',
+          canPickMany: false,
+          ignoreFocusOut: true
+        });
+        if (!operatorChoice) return null;
+        operatorParticipantKey = operatorChoice.roleKey;
+      }
+
       const primaryInput = primary ? { label: primary.label, authoringLabel: primary.authoringLabel || primary.label, reference: primary.reference, workspaceId: primary.workspaceId, path: primary.path } : null;
-      const participantInputs = selectedParticipants.map((participant) => ({ label: participant.label, reference: participant.reference, workspaceId: participant.workspaceId, path: participant.path }));
+      const participantInputs = selectedParticipants.map((participant) => ({ label: participant.label, reference: participant.reference, workspaceId: participant.workspaceId, path: participant.path, operatorParticipant: Boolean(operatorParticipantKey && roleCandidateKey(participant) === operatorParticipantKey) }));
       let qualifiedPrimaryInput = primaryInput;
       let qualifiedParticipantInputs = participantInputs;
       let rendered = await projectWorkspaceCarrierEntry(runtime, item.packagePath, modeSelection.mode, customInstruction, primaryInput, participantInputs, '', targetEntryId, undefined, item.routes.length > 0);
@@ -1750,7 +1769,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
           pinnedByIdentity.set(key, reference);
         }
         const pinnedPrimary = primary ? { ...primaryInput!, reference: pinnedByIdentity.get(roleCandidateKey(primary)) || primary.reference } : null;
-        const pinnedParticipants = selectedParticipants.map((participant) => ({ ...participant, reference: pinnedByIdentity.get(roleCandidateKey(participant)) || participant.reference }));
+        const pinnedParticipants = participantInputs.map((participant) => ({ ...participant, reference: pinnedByIdentity.get(roleCandidateKey(participant)) || participant.reference }));
         rendered = await projectWorkspaceCarrierEntry(runtime, item.packagePath, modeSelection.mode, customInstruction, pinnedPrimary, pinnedParticipants, '', targetEntryId, undefined, item.routes.length > 0);
         qualifiedPrimaryInput = pinnedPrimary;
         qualifiedParticipantInputs = pinnedParticipants;
