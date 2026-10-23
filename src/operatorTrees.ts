@@ -43,7 +43,7 @@ import { safeRelativePath, safeTarget } from './core/paths';
 import { artifactPrefersMarkdownPreview, artifactReferenceAvailable, markdownLinkTargets, materialTargetKey, resolveArtifactReference } from './core/artifactNavigation';
 import { planWorkspaceSession, validateWorkspaceTargetMapping } from './core/workspaceSession';
 import { routeChoiceKey } from './core/operatorModel';
-import { nextBootstrapReplacementFilename } from './core/bootstrapReplacement';
+import { bootstrapOnlyCarrierKind, nextBootstrapReplacementFilename, nextEmptyHandoffFilename } from './core/bootstrapReplacement';
 import { consumeIncomingMultiRootResume, prepareIncomingMultiRootSession } from './vscode/incomingWorkspaceSession';
 import { presentOperatorError } from './core/operatorError';
 import { acceptCoreParticipantProjection, participantPresentation, selectAdditionalParticipantRoles } from './vscode/outgoingParticipantController';
@@ -555,7 +555,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
   private transport: TransportPackageState[] = [];
   private transportLoading = new Set<string>();
   private transportPreparedState: Record<string, TransportPreparedRecord> = {};
-  private bootstrapReplacementBuildPending = false;
+  private bootstrapCarrierBuildPending = false;
   private discoveryStartupLatestIdentity = '';
   private discoveryCutoffMs = 0;
   private readonly discoverySuppressedPaths = new Set<string>();
@@ -928,7 +928,8 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     register('tiinex.incoming.reject', (node?: OperatorNode) => this.decideIncoming(node, 'rejected'));
     register('tiinex.transport.send', (node?: OperatorNode) => this.sendNodeToTransport(node));
     register('tiinex.transport.refresh', () => this.refreshTransportQueue(true));
-    register('tiinex.transport.buildBootstrapReplacement', () => this.buildBootstrapReplacement());
+    register('tiinex.transport.buildBootstrapReplacement', () => this.buildBootstrapCarrier('replacement'));
+    register('tiinex.transport.buildEmptyHandoff', () => this.buildBootstrapCarrier('empty'));
     register('tiinex.transport.copyPackage', (node?: TransportNode) => this.revealTransportPackage(node));
     register('tiinex.transport.copyText', (node?: TransportNode) => this.copyTransportText(node));
     register('tiinex.transport.guidedEntry', (node?: TransportNode) => this.guidedEntryTransport(node));
@@ -1151,46 +1152,47 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     await this.queueTransportPackage(packagePath, routeSelector, true);
   }
 
-  private async buildBootstrapReplacement(): Promise<void> {
-    if (this.bootstrapReplacementBuildPending) return;
-    this.bootstrapReplacementBuildPending = true;
+  private async buildBootstrapCarrier(kind: 'replacement' | 'empty'): Promise<void> {
+    if (this.bootstrapCarrierBuildPending) return;
+    this.bootstrapCarrierBuildPending = true;
     await this.updateUiContexts();
     try {
       const folder = this.outgoingFolder() || await this.selectOutgoingFolder(this.discoveryFolder() || undefined);
       if (!folder) return;
       await mkdir(folder, { recursive: true });
-      const filename = nextBootstrapReplacementFilename(await readdir(folder));
+      const names = await readdir(folder);
+      const filename = kind === 'replacement' ? nextBootstrapReplacementFilename(names) : nextEmptyHandoffFilename(names);
       const roots = (vscode.workspace.workspaceFolders || []).map((item: vscode.WorkspaceFolder) => item.uri.fsPath);
       const runtime = await prepareHostCoreRuntime(this.extensionPath, roots, nodeExecutable());
       try {
         const sourceRoot = String(runtime.compositionRoot || runtime.root || '').trim();
-        if (!sourceRoot) throw new Error('tiinex.transport.bootstrap-replacement.runtime-root-unavailable');
+        if (!sourceRoot) throw new Error('tiinex.transport.bootstrap-carrier.runtime-root-unavailable');
         const bootstrapContentRoots = await selectedBootstrapContentRoots(this.extensionPath);
         const receipt = await manufactureHandoffPackage(runtime, [
           sourceRoot,
           '--carrier-mode', 'bootstrap',
-          // Bootstrap replacements carry only dependency-mode registered reusable
+          // Bootstrap-only carriers carry only dependency-mode registered reusable
           // content. Open project/business Workspace roots remain host context and
           // must never leak into a reusable cold-start bootstrap by being open.
           '--content-sources', bootstrapContentRoots.join(','),
           '--projected-filename', filename,
           '--output-dir', folder,
-          '--bootstrap-replacement'
+          ...(kind === 'replacement' ? ['--bootstrap-replacement'] : [])
         ]);
         const rawOutputPath = String(receipt?.primaryOutput?.path || '').trim();
         const outputPath = rawOutputPath ? path.resolve(rawOutputPath) : '';
         const transportText = String(receipt?.humanOutput?.normalInlineRouting?.content || '').trim();
         if (String(receipt?.status || '') !== 'ready' || String(receipt?.primaryOutput?.status || '') !== 'written' || !outputPath || !transportText) {
-          throw new Error(`tiinex.transport.bootstrap-replacement.manufacture-blocked:${String(receipt?.status || 'unknown')}`);
+          throw new Error(`tiinex.transport.bootstrap-carrier.manufacture-blocked:${String(receipt?.status || 'unknown')}`);
         }
-        if (path.dirname(outputPath) !== path.resolve(folder) || path.basename(outputPath) !== filename) throw new Error('tiinex.transport.bootstrap-replacement.output-identity-mismatch');
+        if (path.dirname(outputPath) !== path.resolve(folder) || path.basename(outputPath) !== filename) throw new Error('tiinex.transport.bootstrap-carrier.output-identity-mismatch');
         const queueWarning = await this.queueBuiltTransportPackage(outputPath, false);
         const suffix = queueWarning ? ` Package built, but Transport queue qualification reported: ${queueWarning}` : '';
         await this.showPreparedTransportTab(outputPath, 'not-copied');
         if (suffix) await vscode.window.showWarningMessage(suffix);
       } finally { await runtime.dispose(); }
     } finally {
-      this.bootstrapReplacementBuildPending = false;
+      this.bootstrapCarrierBuildPending = false;
       await this.updateUiContexts();
     }
   }
@@ -1436,7 +1438,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       : `${item.presentationLabel} · ${routes.length} route${routes.length === 1 ? '' : 's'}${prepared ? ' · prepared' : ''}`;
     const node = new TransportNode({
       kind: 'package', id: `transport:package:${item.sha256}:${item.packagePath}`, label: item.filename,
-      description, tooltip: `${item.packagePath}\nSHA-256 ${item.sha256}`, contextValue: /^tiinex-bootstrap-replacement(?:-|\.|$)/i.test(item.filename) ? 'tiinex.transportPackageBootstrapReplacement' : routeLess ? 'tiinex.transportPackagePointerless' : 'tiinex.transportPackage', packagePath: item.packagePath
+      description, tooltip: `${item.packagePath}\nSHA-256 ${item.sha256}`, contextValue: bootstrapOnlyCarrierKind(item.filename) === 'replacement' ? 'tiinex.transportPackageBootstrapReplacement' : bootstrapOnlyCarrierKind(item.filename) === 'empty' ? 'tiinex.transportPackageBootstrapOnly' : routeLess ? 'tiinex.transportPackagePointerless' : 'tiinex.transportPackage', packagePath: item.packagePath
     }, routes.length ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.None);
     node.iconPath = prepared
       ? new vscode.ThemeIcon('pass-filled', new vscode.ThemeColor('testing.iconPassed'))
@@ -1525,8 +1527,8 @@ export class TiinexOperatorTrees implements vscode.Disposable {
     }
     // Formal Handoffs already qualify What and Who/With via their pointer.
     // Only Where is selected here; no new purpose Entry or recipient authority.
-    const isBootstrapReplacement = !item.routes.length && /^tiinex-bootstrap-replacement(?:-|\.|$)/i.test(item.filename);
-    const receipt = isBootstrapReplacement
+    const isBootstrapOnly = !item.routes.length && Boolean(bootstrapOnlyCarrierKind(item.filename));
+    const receipt = isBootstrapOnly
       ? await this.projectTransportReceipt(item.packagePath, {})
       : item.routes.length
         ? await this.guidedHandoffTransportText(item, routeId)
@@ -1629,9 +1631,11 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       const targetProjection = await projectWorkspaceCarrierEntry(runtime, item.packagePath, modeSelection.mode, customInstruction, null, [], '', '', undefined, item.routes.length > 0);
       if (targetProjection.status !== 'ready') throw new Error(`tiinex.transport.guided-entry-target-catalog-${targetProjection.reasonCode || targetProjection.status || 'blocked'}`);
       const targetOptions = targetProjection.targetOptions || [];
-      const discoveredTargets = targetOptions.filter((target) => String(target.targetKind || '').toLocaleLowerCase() !== 'none' && String(target.id || '').toLocaleUpperCase() !== 'NONE');
       let targetEntryId = '';
-      if (discoveredTargets.length) {
+      // Always show WHERE for a bootstrap-only Entry, even when the currently
+      // qualified content sources expose only Generic/no target. Never invent
+      // provider targets just because the operator is using a certain host.
+      if (targetOptions.length) {
         const targetSelection = await vscode.window.showQuickPick(targetOptions.map((target) => ({
           label: String(target.label || target.canonicalTargetIdentifier || target.id || ''),
           description: String(target.targetKind || '').toLocaleLowerCase() === 'none'
@@ -1900,7 +1904,7 @@ export class TiinexOperatorTrees implements vscode.Disposable {
       ['tiinex.outgoing.canPackage', canPackage],
       ['tiinex.outgoing.canBumpMajor', canBumpMajor],
       ['tiinex.outgoing.majorSelected', majorSelected],
-      ['tiinex.transport.bootstrapReplacementBuilding', this.bootstrapReplacementBuildPending],
+      ['tiinex.transport.bootstrapCarrierBuilding', this.bootstrapCarrierBuildPending],
       ['tiinex.incoming.reviewActionPending', this.incomingReviewActions.size > 0],
       ['tiinex.discovery.projection', this.projection('discovery')],
       ['tiinex.discovery.lineage', this.lineage('discovery')],

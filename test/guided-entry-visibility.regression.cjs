@@ -6,12 +6,12 @@ const vm = require('node:vm');
 const ts = require('typescript');
 const pkg = require('../package.json');
 const menu = pkg.contributes.menus['view/item/context'];
-for (const context of ['tiinex.transportPackage','tiinex.transportPackagePointerless']) {
+for (const context of ['tiinex.transportPackage','tiinex.transportPackagePointerless','tiinex.transportPackageBootstrapOnly']) {
  const action = menu.find(x=>x.command==='tiinex.transport.guidedEntry' && x.when === `view == tiinex.transport && viewItem == ${context}`);
  assert(action, `Guided Entry must appear for ${context}`);
  assert(action.group.startsWith('inline@'));
 }
-assert(!menu.some(x=>x.command==='tiinex.transport.guidedEntry' && x.when === 'view == tiinex.transport && viewItem == tiinex.transportRoute'));
+assert(!menu.some(x=>x.command==='tiinex.transport.guidedEntry' && /tiinex.transport(Route|PackageBootstrapReplacement)$/.test(String(x.when||''))));
 for(const command of ['tiinex.transport.copyText','tiinex.transport.guidedEntry'])
  assert.equal(pkg.contributes.commands.find(x=>x.command===command)?.icon,'$(arrow-right)');
 const source=fs.readFileSync(path.join(__dirname,'../src/operatorTrees.ts'),'utf8');

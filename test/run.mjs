@@ -46,7 +46,7 @@ import { copyFileToClipboard } from '../dist/host/fileClipboard.js';
 import { existingCarrierFilenames, inspectCarrierDestination } from '../dist/host/carrierPublish.js';
 import { appendHostCarrierProgressionArgs } from '../dist/tiinex/hostManufactureContract.js';
 import { groupPartyReferenceCandidates, presentPartyReferenceCandidates } from '../dist/vscode/partyReferencePresentation.js';
-import { nextBootstrapReplacementFilename } from '../dist/core/bootstrapReplacement.js';
+import { bootstrapOnlyCarrierKind, nextBootstrapReplacementFilename, nextEmptyHandoffFilename } from '../dist/core/bootstrapReplacement.js';
 import { compareIncomingWorkspaceToLocal, createArtifactDraft, inspectArtifactCreationContract, manufactureHandoffPackage, manufactureHandoffPackageDetailed, parseBootstrapDescriptor, prepareBundledRuntime, prepareHostCoreRuntime, projectArtifactMaterialization, projectArtifactSchemaGuide, runTiinexJson, projectEditorAssistanceText, projectHandoffCarrierMajorFrontier, projectHandoffCarrierOutputCollision, projectHandoffCarrierTransportName, projectHandoffEndpoints, projectOperatorContext, projectPackageTransport, projectStagedValidation, projectTransitionCatalog, projectTransitionNeighborhood, projectWorkspaceCarrierEntry, projectWorkspaceLanding, projectWorkspacePackageSources, projectWorkspaceSessionRoles } from '../dist/tiinex/bootstrap.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -360,6 +360,12 @@ await test('carrier filename collision, transport identity and Major frontier de
 await test('bootstrap replacement filename allocation and Transport title wiring stay deterministic and host-bounded', async () => {
   assert.equal(nextBootstrapReplacementFilename([]), 'tiinex-bootstrap-replacement-001.handoff-package.zip');
   assert.equal(nextBootstrapReplacementFilename(['tiinex-bootstrap-replacement-001.handoff-package.zip', 'other.zip', 'tiinex-bootstrap-replacement-007.handoff-package.zip']), 'tiinex-bootstrap-replacement-008.handoff-package.zip');
+  assert.equal(nextEmptyHandoffFilename([]), 'tiinex-empty-001.handoff-package.zip');
+  assert.equal(nextEmptyHandoffFilename(['tiinex-empty-001.handoff-package.zip', 'tiinex-bootstrap-replacement-050.handoff-package.zip', 'tiinex-empty-009.handoff-package.zip']), 'tiinex-empty-010.handoff-package.zip');
+  assert.equal(bootstrapOnlyCarrierKind('tiinex-empty-010.handoff-package.zip'), 'empty');
+  assert.equal(bootstrapOnlyCarrierKind('tiinex-bootstrap-replacement-050.handoff-package.zip'), 'replacement');
+  assert.equal(bootstrapOnlyCarrierKind('tiinex-bootstrap-replacement.handoff-package.zip'), 'replacement');
+  assert.equal(bootstrapOnlyCarrierKind('tiinex-029.handoff-package.zip'), '');
   const fs = await import('node:fs/promises');
   const root = path.resolve(HERE, '..');
   const tree = await fs.readFile(path.join(root, 'src', 'operatorTrees.ts'), 'utf8');
@@ -368,24 +374,35 @@ await test('bootstrap replacement filename allocation and Transport title wiring
   assert.match(tree, /manufactureHandoffPackage/);
   assert.match(tree, /--carrier-mode', 'bootstrap'/);
   assert.match(tree, /--bootstrap-replacement/);
+  assert.match(tree, /register\('tiinex\.transport\.buildEmptyHandoff'/);
+  assert.match(tree, /buildBootstrapCarrier\('empty'\)/);
+  assert.match(tree, /kind === 'replacement' \? \['--bootstrap-replacement'\] : \[\]/);
   assert.match(bootstrapSource, /selectedBootstrapContentRoots/);
   assert.match(tree, /--content-sources/);
   assert.match(bootstrapSource, /state\?\.contentPackages/);
   assert.match(tree, /this\.outgoingFolder\(\) \|\| await this\.selectOutgoingFolder/);
   assert.match(tree, /transportPackageBootstrapReplacement/);
+  assert.match(tree, /transportPackageBootstrapOnly/);
   assert.match(tree, /item\.genericTransportText/);
   const commands = manifest.contributes?.commands || [];
   const command = (id) => commands.find((item) => item.command === id);
   assert.equal(command('tiinex.transport.buildBootstrapReplacement')?.icon, '$(file-zip)');
-  assert.equal(command('tiinex.transport.buildBootstrapReplacement')?.enablement, '!tiinex.transport.bootstrapReplacementBuilding');
+  assert.equal(command('tiinex.transport.buildBootstrapReplacement')?.enablement, '!tiinex.transport.bootstrapCarrierBuilding');
+  assert.equal(command('tiinex.transport.buildEmptyHandoff')?.title, 'Build Empty Handoff Package');
+  assert.equal(command('tiinex.transport.buildEmptyHandoff')?.enablement, '!tiinex.transport.bootstrapCarrierBuilding');
   assert.equal(command('tiinex.transport.copyText')?.icon, '$(copy)');
   assert.equal(command('tiinex.transport.copyBootstrapReplacementText'), undefined);
   const titles = manifest.contributes?.menus?.['view/title'] || [];
   assert.ok(titles.some((item) => item.command === 'tiinex.transport.buildBootstrapReplacement' && item.when === 'view == tiinex.transport'));
+  assert.ok(titles.some((item) => item.command === 'tiinex.transport.buildEmptyHandoff' && item.when === 'view == tiinex.transport'));
   assert.ok(!titles.some((item) => item.command === 'tiinex.transport.copyText'), 'Copy Transport Text belongs to the replacement package row, not the Transport title');
   const rows = manifest.contributes?.menus?.['view/item/context'] || [];
   assert.ok(rows.some((item) => item.command === 'tiinex.transport.copyText' && item.when === 'view == tiinex.transport && viewItem == tiinex.transportPackageBootstrapReplacement'));
+  assert.ok(rows.some((item) => item.command === 'tiinex.transport.copyText' && item.when === 'view == tiinex.transport && viewItem == tiinex.transportPackageBootstrapOnly'));
+  assert.ok(rows.some((item) => item.command === 'tiinex.transport.copyPackage' && item.when === 'view == tiinex.transport && viewItem == tiinex.transportPackageBootstrapOnly'));
+  assert.ok(rows.some((item) => item.command === 'tiinex.transport.close' && item.when === 'view == tiinex.transport && viewItem == tiinex.transportPackageBootstrapOnly'));
   assert.ok(!rows.some((item) => item.command === 'tiinex.transport.guidedEntry' && String(item.when || '').includes('tiinex.transportPackageBootstrapReplacement')), 'Bootstrap replacement rows must not expose Guided Entry');
+  assert.ok(rows.some((item) => item.command === 'tiinex.transport.guidedEntry' && item.when === 'view == tiinex.transport && viewItem == tiinex.transportPackageBootstrapOnly'), 'Empty bootstrap-only rows should expose Guided Entry and WHERE selection');
 });
 
 await test('participant projection exposes only exact Core-qualified semantic Role material', async () => {
@@ -2870,6 +2887,8 @@ await test('package-level Transport uses Guided Entry while Handoff Pointer rows
   const itemMenus = manifest.contributes?.menus?.['view/item/context'] || [];
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.guidedEntry' && /transportPackagePointerless/.test(item.when || '')));
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.guidedEntry' && /viewItem == tiinex\.transportPackage/.test(item.when || '') && !/Pointerless/.test(item.when || '')));
+  assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.guidedEntry' && item.when === 'view == tiinex.transport && viewItem == tiinex.transportPackageBootstrapOnly'));
+  assert.match(tree, /if \(targetOptions\.length\)/, 'WHERE should remain visible even when only Generic is qualified');
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.copyText' && item.when === 'view == tiinex.transport && viewItem == tiinex.transportPackageBootstrapReplacement'), 'bootstrap replacement is explicitly text-copyable');
   assert.equal(itemMenus.some((item) => item.command === 'tiinex.transport.copyText' && item.when === 'view == tiinex.transport && viewItem == tiinex.transportPackage'), false);
   assert.ok(itemMenus.some((item) => item.command === 'tiinex.transport.copyText' && /transportRoute/.test(item.when || '')));
